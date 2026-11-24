@@ -1,0 +1,39 @@
+# Commit checks (ADR-0011). Same framework as countersign. Install once per clone:
+#   pre-commit install
+# CI runs `pre-commit run --all-files` too, so skipping locally doesn't skip the check.
+# Versions are bumped with `pre-commit autoupdate`, respecting the 14-day cooldown.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: check-merge-conflict
+      - id: check-json
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args: ["--markdown-linebreak-ext=md"]
+
+  - repo: local
+    hooks:
+      - id: personal-data
+        name: no personal data in a public repo
+        entry: scripts/check-personal-data.sh
+        language: script
+        # All files, not just text: a resume PDF or .pst is binary and must still be caught by
+        # name. The script only scans contents of text files.
+        types: [file]
+        exclude: ^scripts/check-personal-data\.sh$
+      - id: harness-hook-tests
+        name: harness hooks still pass their self-tests
+        entry: bash .claude/hooks/test-hooks.sh
+        language: system
+        pass_filenames: false
+        files: ^\.claude/hooks/

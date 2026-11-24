@@ -5,7 +5,12 @@
 <!-- Claude-only notes. Shared rules belong in AGENTS.md, area rules in .claude/rules/. -->
 
 - **Run Claude Code inside WSL** for this repo (`cd ~/projects/northstar && claude`). The hooks
-  are bash scripts, and the sandbox needs Linux (`bubblewrap` and `socat`, like countersign).
+  are bash scripts, and the strict sandbox needs Linux (`bubblewrap` and `socat`, like
+  countersign). A session opened from Windows can't run any command here, by design.
+- **Auto mode, Paul oversees.** Paul runs sessions in auto mode and watches rather than approving
+  each step. The hooks, deny rules and `ask` prompts (pushes, PR creation, dependencies, harness
+  edits) are the checkpoints, so never route around them. Work ticket by ticket from the GitHub
+  issues.
 - **Plan first.** For a ticket, run `/ticket <id>`: it writes `specs/<id>/spec.md`, puts the plan
   and tasks in the chat, and stops for Paul's approval. Edit nothing until he approves.
 - **Verify before you say done.** Run `/verify` and paste its summary lines. If you didn't run a

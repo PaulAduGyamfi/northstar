@@ -13,6 +13,23 @@ coverage/
 *.pem
 .claude/settings.local.json
 
+# credentials (ADR-0010): vault master key, OAuth files
+*.key
+master.key
+credentials.json
+token.json
+client_secret*.json
+
+# personal data never enters this public repo (AGENTS.md). Real resume, stories, writing
+# samples, inbox exports, eval labels drawn from real mail: keep them under data/ or private/.
+data/
+private/
+exports/
+*.mbox
+*.eml
+*.pst
+evals/**/private/
+
 # local data
 *.log
 .DS_Store

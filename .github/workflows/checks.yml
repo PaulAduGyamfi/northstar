@@ -1,0 +1,52 @@
+name: checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the gitleaks step below scans the full history
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The pre-commit gitleaks hook only scans *staged* changes, so in CI it sees nothing.
+      # Scan the whole git history here instead, so a commit made without the local hook
+      # (--no-verify, or a clone without `pre-commit install`) still can't land a secret.
+      # Same version as .pre-commit-config.yaml; checksum from the release's checksums.txt.
+      - name: gitleaks on the full git history
+        env:
+          GITLEAKS_VERSION: 8.24.2
+          GITLEAKS_SHA256: fa0500f6b7e41d28791ebc680f5dd9899cd42b58629218a5f041efa899151a8e
+        run: |
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL -o "$RUNNER_TEMP/$tarball" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/$tarball"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/$tarball" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" git --redact --no-banner --verbose .
+
+      - name: Commit checks on every file (personal data, keys, large files)
+        run: |
+          pip install pre-commit
+          pre-commit run --all-files --show-diff-on-failure
+
+      - name: Harness hook self-tests
+        run: bash .claude/hooks/test-hooks.sh
+
+      # The scaffold ticket adds: pnpm install --frozen-lockfile, then pnpm turbo lint typecheck test build.
