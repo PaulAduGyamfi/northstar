@@ -34,6 +34,10 @@ Exists now:
   `branch-protection.json`, the PR template. Paul reviews PRs himself; there is no AI review in CI.
 - `.pre-commit-config.yaml` + `scripts/check-personal-data.sh`: commit checks (ADR-0011).
 - `LICENSE`: Apache-2.0.
+- Root toolchain (ADR-0011): `package.json` (pins pnpm via `packageManager`), `pnpm-workspace.yaml`
+  (14-day `minimumReleaseAge`), `.nvmrc` (Node 24), `.npmrc` (`engine-strict`), `turbo.json`,
+  `biome.json` (code files only; `.claude/` excluded), `tsconfig.base.json` (strict).
+- `packages/domain/`: empty shell from NS-103 that proves the pipeline; NS-105 fills it.
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 
@@ -48,15 +52,17 @@ evals/  ops/  docs/runbooks/
 
 ## Commands
 
-Every command here must run as written. Rows marked *(NS-103)* arrive with the scaffold ticket.
+Every command here must run as written. Rows marked *(NS-NNN)* arrive with that ticket.
 
 | Where | Command | What it does |
 |---|---|---|
 | repo root | `pre-commit install` | once per clone: run the commit checks on every commit |
 | repo root | `pre-commit run --all-files` | private keys, large files, personal data, hook tests (gitleaks scans staged changes on commit; CI scans the full history) |
 | repo root | `bash .claude/hooks/test-hooks.sh` | self-test the harness hooks |
-| repo root | `pnpm install --frozen-lockfile` | install locked dependencies *(NS-103)* |
-| repo root | `pnpm -r lint` / `pnpm -r typecheck` / `pnpm -r test` | checks *(NS-103)* |
+| repo root | `nvm use && corepack enable pnpm` | once per machine: Node 24 from `.nvmrc`, pnpm from `packageManager` |
+| repo root | `pnpm install --frozen-lockfile` | install locked dependencies |
+| repo root | `pnpm -r lint` / `pnpm -r typecheck` / `pnpm -r test` | checks in every package |
+| repo root | `pnpm turbo run lint typecheck test build` | all checks with Turborepo caching (what CI runs, with `--force`) |
 | repo root | `docker compose up -d` | Postgres+pgvector, Temporal, MinIO, Grafana LGTM *(NS-104)* |
 
 **Done** means every check passes in every package you touched and you showed the output.
