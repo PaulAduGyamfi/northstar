@@ -165,7 +165,8 @@ import re, shlex, sys
 
 WRAPPERS = {"command", "builtin", "exec", "env", "time", "nohup", "nice", "ionice", "timeout",
             "stdbuf", "xargs", "sudo", "doas", "then", "do", "else", "elif", "if", "while",
-            "until", "!", "{"}
+            "until", "!", "{", "function"}
+REDIRECT = re.compile(r"^[0-9]*[<>&]")  # >/dev/null, 2>&1, </dev/null in front of a command
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "fish"}
 ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 WRAPPER_ARG = re.compile(r"^(-.*|[0-9.]+[smhd]?)$")  # timeout 5s, nice -n 10, env -i
@@ -178,8 +179,33 @@ def words(text):
 def mentions_docker(text):
     return "docker" in re.sub(r"[\"'\\]", "", text)
 
+HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+
+def split_heredocs(text):
+    """Returns (shell text without heredoc bodies, bodies fed to a shell).
+    A heredoc body is data for its command (python3 - <<EOF ... EOF), not shell commands, unless
+    that command is itself a shell (bash <<EOF), whose body is commands and gets scanned."""
+    lines, out, shell_bodies, i = text.split("\n"), [], [], 0
+    while i < len(lines):
+        line = lines[i]
+        out.append(line)
+        i += 1
+        for m in HEREDOC.finditer(line):
+            tag, body = m.group(2), []
+            while i < len(lines) and lines[i].strip() != tag:
+                body.append(lines[i])
+                i += 1
+            i += 1  # the terminator line
+            first = line[: m.start()].split()
+            if first and first[0].rsplit("/", 1)[-1] in SHELLS:
+                shell_bodies.append("\n".join(body))
+    return "\n".join(out), shell_bodies
+
 def runs_docker(text, depth=0):
     if depth > 4:
+        return True
+    text, shell_bodies = split_heredocs(text)
+    if any(runs_docker(body, depth + 1) for body in shell_bodies):
         return True
     # A newline separates commands like ; does (inside a quoted string it changes nothing).
     text = text.replace("\n", " ; ")
@@ -192,6 +218,12 @@ def runs_docker(text, depth=0):
     except ValueError:
         # Unbalanced quotes: can't split it, so fail closed whenever docker appears at all.
         return mentions_docker(text)
+    # Backstop: the words `docker compose` side by side, anywhere. Catches what the command-start
+    # walk below can miss (a redirection or `function` in front, a wrapper flag that takes an
+    # argument). A commit message is one quoted word, so it doesn't trip this.
+    for i in range(len(toks) - 1):
+        if toks[i].rsplit("/", 1)[-1] == "docker" and toks[i + 1] == "compose":
+            return True
     at_start, after_wrapper = True, False
     for i, tok in enumerate(toks):
         if tok and set(tok) <= set(";&|()\n"):
@@ -199,7 +231,7 @@ def runs_docker(text, depth=0):
             continue
         if not at_start:
             continue
-        if ASSIGN.match(tok):
+        if ASSIGN.match(tok) or REDIRECT.match(tok):
             continue
         if tok in WRAPPERS:
             after_wrapper = True
@@ -210,7 +242,8 @@ def runs_docker(text, depth=0):
         # docker: only a plain literal file name counts as "not docker". A variable in the folder
         # part ($TMPDIR/run.sh) is fine.
         name = tok.rsplit("/", 1)[-1]
-        if re.search(r"[$`*?\[]", name) or tok.startswith(("$(", "$'")):
+        # [ and [[ are the test command, not a glob.
+        if name not in ("[", "[[") and (re.search(r"[$`*?\[]", name) or tok.startswith(("$(", "$'"))):
             return True
         if name == "docker":
             return True
@@ -240,7 +273,10 @@ if [[ "$runs_docker" == yes ]]; then
   config_shape='^docker compose( -f docker-compose\.yml)?( --env-file \.env\.example)? config( --quiet)?$'
   if [[ "$cmd" =~ $up_shape || "$cmd" =~ $ps_shape || "$cmd" =~ $exec_shape ]]; then
     # exec output lands in the chat: never let it print a process environment (secrets from .env).
-    [[ "$cmd" =~ environ ]] && block "docker compose exec may not read a process environment (/proc/*/environ holds secrets from .env)."
+    # Checked with quotes removed (envi''ron). Best effort: Paul's exec prompt is the real control.
+    [[ "$bare" =~ environ ||
+      "$bare" =~ [[:space:]](set|export|declare|env|printenv)([[:space:]]|$) ]] &&
+      block "docker compose exec may not print a process environment (/proc/*/environ, set, export, declare, env, printenv): it holds secrets from .env."
     # These run unsandboxed. Compose resolves -f docker-compose.yml and reads .env relative to the
     # working directory, so they may only run from the project root, with both files plain files
     # (not links), and a .env that sets no COMPOSE_ variable (COMPOSE_PROFILES, COMPOSE_PROJECT_NAME
@@ -253,6 +289,8 @@ if [[ "$runs_docker" == yes ]]; then
     for f in docker-compose.yml .env; do
       [[ -f "$project/$f" && ! -L "$project/$f" ]] || block "$f must be a plain file in the project root (not missing, not a link)."
     done
+    # A hard link planted while .env was missing could be changed after this check.
+    [[ "$(stat -c %h -- "$project/.env")" == 1 ]] || block ".env has more than one hard link. Ask Paul."
     # grep -q prints nothing, so no value from .env leaves this hook.
     grep -qE '^[[:space:]]*(export[[:space:]]+)?COMPOSE_' "$project/.env" &&
       block "the project .env sets a COMPOSE_ variable, which changes what docker compose runs. Ask Paul."
