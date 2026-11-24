@@ -149,4 +149,36 @@ if [[ "$unquoted" =~ ${s}gh([[:space:]]+-[^[:space:]]+)*[[:space:]]+pr[[:space:]
   [[ "$cmd" =~ $merge_shape ]] || block "merge only with: gh pr merge <n> --rebase [--delete-branch] --match-head-commit <sha>."
 fi
 
+# Docker (NS-109): `docker compose up -d`, `ps` and `exec` run OUTSIDE the sandbox (settings.json
+# excludedCommands) against the Docker daemon, which is root-equivalent on Paul's machine. So any
+# command that runs docker must be one of these exact shapes. An allowlist, because a blocklist
+# misses the many ways to point compose elsewhere: -f/--file, -p, --project-directory, -H,
+# --context, COMPOSE_FILE= or DOCKER_HOST= prefixes, --build, chaining. Anything else: Paul runs it.
+# Detected like push: on the command with quoted text removed (so a commit message that says
+# "docker" is fine) and on the command with quote characters removed (so "docker" can't hide).
+if [[ "$unquoted" =~ ${s}docker([[:space:]]|$) || "$bare" =~ ^[[:space:]]*docker([[:space:]]|$) ]]; then
+  svc='[a-z0-9][a-z0-9-]*'
+  up_shape="^docker compose up -d( --wait)?( $svc)*\$"
+  ps_shape="^docker compose ps( --all)?( --format (json|table))?( $svc)?\$"
+  # exec still asks Paul (settings.json). Its words reach a shell inside the container, so only
+  # plain characters: nothing the host shell would expand or chain.
+  exec_shape="^docker compose exec( -T)? $svc [A-Za-z0-9 ._/:@,'\"+=-]+\$"
+  # Sandboxed (not in excludedCommands): CI's compose validation with the committed template.
+  config_shape='^docker compose( --env-file \.env\.example)? config( --quiet)?$'
+  if [[ "$cmd" =~ $up_shape || "$cmd" =~ $ps_shape || "$cmd" =~ $exec_shape ]]; then
+    # These run unsandboxed and load every compose file in the project root, including ones the
+    # sandboxed shell could create (sandbox denyWrite can't cover a path that doesn't exist yet).
+    project="${CLAUDE_PROJECT_DIR:-$PWD}"
+    shopt -s nullglob
+    extra=("$project/compose.yml" "$project/compose.yaml" "$project/docker-compose.yaml"
+      "$project"/*.override.yml "$project"/*.override.yaml)
+    shopt -u nullglob
+    for f in "${extra[@]}"; do
+      [[ -e "$f" ]] && block "${f##*/} would be loaded by docker compose next to docker-compose.yml. Only docker-compose.yml is allowed; ask Paul."
+    done
+  elif [[ ! "$cmd" =~ $config_shape ]]; then
+    block "docker only with: docker compose up -d [--wait] [service...], docker compose ps [--all] [--format json|table] [service], docker compose exec [-T] <service> <plain words>, or docker compose [--env-file .env.example] config [--quiet]. Ask Paul to run anything else."
+  fi
+fi
+
 exit 0

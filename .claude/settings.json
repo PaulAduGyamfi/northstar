@@ -111,7 +111,9 @@
         "~/.cache/pnpm",
         "~/.cache/ms-playwright",
         "~/.cache/turbo"
-      ]
+      ],
+      "denyWrite": ["./docker-compose.yml"],
+      "allowRead": ["./.env.example"]
     },
     "network": {
       "allowedDomains": [
