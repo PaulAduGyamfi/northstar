@@ -31,6 +31,13 @@ repos:
         # name. The script only scans contents of text files.
         types: [file]
         exclude: ^scripts/check-personal-data\.sh$
+      # Format + lint check on staged code files (ADR-0011). Uses the repo's locked Biome, so
+      # run `pnpm install --frozen-lockfile` first; biome.json decides which files it checks.
+      - id: biome
+        name: biome check (format + lint)
+        entry: pnpm exec biome check --no-errors-on-unmatched --files-ignore-unknown=true
+        language: system
+        types_or: [ts, tsx, javascript, jsx, json, css]
       - id: harness-hook-tests
         name: harness hooks still pass their self-tests
         entry: bash .claude/hooks/test-hooks.sh

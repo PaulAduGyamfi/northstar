@@ -10,9 +10,13 @@ updates:
       actions:
         patterns: ["*"]
 
-  # Enabled by the scaffold ticket once package.json exists:
-  # - package-ecosystem: npm
-  #   directory: /
-  #   schedule: { interval: weekly }
-  #   cooldown: { default-days: 14 }
-  #   groups: { npm: { patterns: ["*"] } }
+  # npm covers pnpm workspaces (it reads pnpm-lock.yaml).
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14 # same 14-day rule as pnpm's minimumReleaseAge
+    groups:
+      npm:
+        patterns: ["*"]
