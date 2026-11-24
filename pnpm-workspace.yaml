@@ -1,0 +1,13 @@
+# Workspace packages (system-design §7). Each one arrives with the ticket that needs it.
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Refuse any release younger than 14 days (AGENTS.md cooldown against hijacked releases).
+# 20160 minutes = 14 days. Never lower this to get an install through.
+minimumReleaseAge: 20160
+
+# No dependency may run an install script unless it's listed here (with Paul's approval).
+# strictDepBuilds makes an unlisted one fail the install instead of being skipped quietly.
+onlyBuiltDependencies: []
+strictDepBuilds: true
