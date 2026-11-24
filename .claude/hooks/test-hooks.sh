@@ -114,7 +114,63 @@ run guard-bash.sh pass  "$(bash_cmd 'cp .env.example /tmp/example')"
 run guard-bash.sh pass  "$(bash_cmd 'rm docs/old.md')"
 run guard-bash.sh pass  "$(bash_cmd 'git status --short')"
 
+# Docker commands in sandbox.excludedCommands run OUTSIDE the sandbox, against a root-equivalent
+# daemon (NS-109): one exact shape each, nothing that points compose at another file or daemon.
+run guard-bash.sh pass  "$(bash_cmd 'docker compose up -d')"
+run guard-bash.sh pass  "$(bash_cmd 'docker compose up -d --wait')"
+run guard-bash.sh pass  "$(bash_cmd 'docker compose up -d --wait postgres temporal')"
+run guard-bash.sh pass  "$(bash_cmd 'docker compose ps')"
+run guard-bash.sh pass  "$(bash_cmd 'docker compose ps --all --format json')"
+run guard-bash.sh pass  "$(bash_cmd "docker compose exec postgres psql -U northstar -d northstar -c 'select 1'")"
+run guard-bash.sh pass  "$(bash_cmd 'docker compose exec -T postgres pg_isready')"
+run guard-bash.sh pass  "$(bash_cmd 'docker compose --env-file .env.example config --quiet')"   # sandboxed (CI's check)
+run guard-bash.sh block "$(bash_cmd 'docker compose -f /tmp/x.yml up -d')"
+run guard-bash.sh block "$(bash_cmd 'docker compose --file=/tmp/x.yml up -d')"
+run guard-bash.sh block "$(bash_cmd 'docker compose --project-directory /tmp up -d')"
+run guard-bash.sh block "$(bash_cmd 'docker compose -p other up -d')"
+run guard-bash.sh block "$(bash_cmd 'docker -H tcp://203.0.113.5:2375 compose up -d')"
+run guard-bash.sh block "$(bash_cmd 'docker --context other compose ps')"
+run guard-bash.sh block "$(bash_cmd 'COMPOSE_FILE=/tmp/x.yml docker compose up -d')"
+run guard-bash.sh block "$(bash_cmd 'DOCKER_HOST=tcp://203.0.113.5:2375 docker compose ps')"
+run guard-bash.sh block "$(bash_cmd 'docker compose up -d --build')"
+run guard-bash.sh block "$(bash_cmd 'docker compose up')"
+run guard-bash.sh block "$(bash_cmd 'docker compose up -d && id')"
+run guard-bash.sh block "$(bash_cmd 'docker compose exec postgres sh -c "$(id)"')"
+run guard-bash.sh block "$(bash_cmd "docker compose exec postgres sh -c 'id; whoami'")"
+run guard-bash.sh block "$(bash_cmd 'docker compose exec postgres cat /etc/*')"
+run guard-bash.sh block "$(bash_cmd '"docker" compose up -d --build')"
+run guard-bash.sh block "$(bash_cmd "do''cker compose -f /tmp/x.yml up -d")"
+run guard-bash.sh pass  "$(bash_cmd 'git commit -m "NS-109: guard docker compose -f and DOCKER_HOST"')"   # just words
+
+# A compose file compose would also load (created from the sandboxed shell, where denyWrite can't
+# reach a file that doesn't exist yet) blocks every unsandboxed docker compose command.
+stray=$(mktemp -d); printf 'name: x\n' >"$stray/docker-compose.yml"
+in_project() { # in_project <expect> <command>: guard-bash with CLAUDE_PROJECT_DIR=$stray
+  local out code got=pass
+  out=$(bash_cmd "$2" | CLAUDE_PROJECT_DIR="$stray" bash "$hooks/guard-bash.sh" 2>/dev/null); code=$?
+  [[ $code -eq 2 ]] && got=block
+  if [[ "$got" == "$1" ]]; then echo "ok    guard-bash.sh $1 (project has: $(ls "$stray" | tr '\n' ' ')): $2"
+  else echo "FAIL  guard-bash.sh expected $1, got $got (project has: $(ls "$stray" | tr '\n' ' ')): $2"; fails=$((fails+1)); fi
+}
+in_project pass  'docker compose up -d'
+for extra in compose.yaml compose.yml docker-compose.yaml docker-compose.override.yml dev.override.yaml; do
+  printf 'services: {}\n' >"$stray/$extra"
+  in_project block 'docker compose up -d'
+  rm -f -- "$stray/$extra"
+done
+printf 'services: {}\n' >"$stray/compose.yaml"
+in_project block 'docker compose ps'
+in_project pass  'git status --short'   # other commands don't care
+rm -f -- "$stray/compose.yaml" "$stray/docker-compose.yml"; rmdir -- "$stray"
+
 # protect-files
+# Compose files: the stack runs outside the sandbox, so every compose edit asks Paul (NS-109).
+run protect-files.sh ask   "$(file docker-compose.yml)"
+run protect-files.sh ask   "$(file compose.yaml)"
+run protect-files.sh ask   "$(file docker-compose.override.yml)"
+run protect-files.sh ask   "$(file docs/design/compose.yml)"
+run protect-files.sh ask   "$(file docs/dev.override.yaml)"
+run protect-files.sh pass  "$(file pnpm-workspace.yaml)"
 run protect-files.sh block "$(file .env)"
 run protect-files.sh block "$(file credentials.json)"
 run protect-files.sh block "$(file pnpm-lock.yaml)"

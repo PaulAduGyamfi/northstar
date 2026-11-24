@@ -43,6 +43,14 @@ case "$rel" in
   .git/*) block "$rel is git's own state." ;;
 esac
 
+# 2b. Docker Compose files, in any folder (NS-109). `docker compose up` runs outside the sandbox
+# against a root-equivalent daemon, and compose also loads compose.yaml and *.override.* files on
+# its own, so creating one counts as an edit.
+case "$name" in
+  docker-compose.yml | docker-compose.yaml | compose.yml | compose.yaml | *.override.yml | *.override.yaml)
+    ask "This edit changes a Docker Compose file ($rel). The stack starts outside the sandbox, so a bind mount, privileged, host network or build: would reach your machine. Approve only if you asked for it." ;;
+esac
+
 # 3. Things that change how every future change is checked: allowed, but only with Paul watching.
 case "$rel" in
   .claude/settings.json | .claude/settings.local.json | .claude/hooks/* | .claude/agents/* | .claude/skills/*)
