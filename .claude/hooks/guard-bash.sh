@@ -149,35 +149,115 @@ if [[ "$unquoted" =~ ${s}gh([[:space:]]+-[^[:space:]]+)*[[:space:]]+pr[[:space:]
   [[ "$cmd" =~ $merge_shape ]] || block "merge only with: gh pr merge <n> --rebase [--delete-branch] --match-head-commit <sha>."
 fi
 
-# Docker (NS-109): `docker compose up -d`, `ps` and `exec` run OUTSIDE the sandbox (settings.json
-# excludedCommands) against the Docker daemon, which is root-equivalent on Paul's machine. So any
-# command that runs docker must be one of these exact shapes. An allowlist, because a blocklist
-# misses the many ways to point compose elsewhere: -f/--file, -p, --project-directory, -H,
-# --context, COMPOSE_FILE= or DOCKER_HOST= prefixes, --build, chaining. Anything else: Paul runs it.
-# Detected like push: on the command with quoted text removed (so a commit message that says
-# "docker" is fine) and on the command with quote characters removed (so "docker" can't hide).
-if [[ "$unquoted" =~ ${s}docker([[:space:]]|$) || "$bare" =~ ^[[:space:]]*docker([[:space:]]|$) ]]; then
+# Docker (NS-109). `docker compose -f docker-compose.yml up -d|ps|exec` run OUTSIDE the sandbox
+# (settings.json excludedCommands) against the Docker daemon, which is root-equivalent on Paul's
+# machine. So every command that runs docker must be one exact shape. An allowlist, because a
+# blocklist misses the many ways to point compose elsewhere (-f, -p, --project-directory, -H,
+# --context, COMPOSE_FILE= or DOCKER_HOST= prefixes, --build, chaining). Anything else: Paul runs it.
+#
+# Detection splits the command into shell words (python shlex undoes quotes and backslashes, so
+# "docker", \docker and d\ocker are all docker) and looks for docker where a command starts: at
+# the beginning, after ; & | ( or a newline, after VAR=value prefixes and wrappers (command, env,
+# timeout, ...), inside `sh -c '...'` / eval, and inside $(...) or backticks. Unbalanced quotes
+# fail closed. The word docker anywhere else (a commit message, `grep docker`) is just a word.
+runs_docker=$(python3 - "$cmd" <<'PY'
+import re, shlex, sys
+
+WRAPPERS = {"command", "builtin", "exec", "env", "time", "nohup", "nice", "ionice", "timeout",
+            "stdbuf", "xargs", "sudo", "doas", "then", "do", "else", "elif", "if", "while",
+            "until", "!", "{"}
+SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "fish"}
+ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+WRAPPER_ARG = re.compile(r"^(-.*|[0-9.]+[smhd]?)$")  # timeout 5s, nice -n 10, env -i
+
+def words(text):
+    lex = shlex.shlex(text, posix=True, punctuation_chars=";&|()")
+    lex.whitespace_split = True
+    return list(lex)
+
+def mentions_docker(text):
+    return "docker" in re.sub(r"[\"'\\]", "", text)
+
+def runs_docker(text, depth=0):
+    if depth > 4:
+        return True
+    # A newline separates commands like ; does (inside a quoted string it changes nothing).
+    text = text.replace("\n", " ; ")
+    # $(...) and unescaped `...` run their contents as commands, wherever they sit.
+    for inner in re.findall(r"\$\(([^()]*)\)|(?<!\\)`([^`]*?)(?<!\\)`", text):
+        if runs_docker(inner[0] or inner[1], depth + 1):
+            return True
+    try:
+        toks = words(text)
+    except ValueError:
+        # Unbalanced quotes: can't split it, so fail closed whenever docker appears at all.
+        return mentions_docker(text)
+    at_start, after_wrapper = True, False
+    for i, tok in enumerate(toks):
+        if tok and set(tok) <= set(";&|()\n"):
+            at_start, after_wrapper = True, False
+            continue
+        if not at_start:
+            continue
+        if ASSIGN.match(tok):
+            continue
+        if tok in WRAPPERS:
+            after_wrapper = True
+            continue
+        if after_wrapper and WRAPPER_ARG.match(tok):
+            continue
+        # A program name built at run time ($d, $(printf docker), $'\x64ocker', dock*) could be
+        # docker: only a plain literal file name counts as "not docker". A variable in the folder
+        # part ($TMPDIR/run.sh) is fine.
+        name = tok.rsplit("/", 1)[-1]
+        if re.search(r"[$`*?\[]", name) or tok.startswith(("$(", "$'")):
+            return True
+        if name == "docker":
+            return True
+        if name in SHELLS or name == "eval":
+            rest = toks[i + 1:]
+            script = rest[rest.index("-c") + 1] if "-c" in rest[:-1] else " ".join(rest)
+            if name == "eval" or "-c" in rest[:-1]:
+                if runs_docker(script, depth + 1):
+                    return True
+        at_start, after_wrapper = False, False
+    return False
+
+print("yes" if runs_docker(sys.argv[1]) else "no")
+PY
+)
+if [[ "$runs_docker" == yes ]]; then
   svc='[a-z0-9][a-z0-9-]*'
-  up_shape="^docker compose up -d( --wait)?( $svc)*\$"
-  ps_shape="^docker compose ps( --all)?( --format (json|table))?( $svc)?\$"
+  # -f docker-compose.yml is pinned: with an explicit file, compose doesn't auto-load
+  # compose.yaml or *.override.* files the sandboxed shell might create, and ignores COMPOSE_FILE.
+  pin='docker compose -f docker-compose.yml'
+  up_shape="^$pin up -d( --wait)?( $svc)*\$"
+  ps_shape="^$pin ps( --all)?( --format (json|table))?( $svc)?\$"
   # exec still asks Paul (settings.json). Its words reach a shell inside the container, so only
   # plain characters: nothing the host shell would expand or chain.
-  exec_shape="^docker compose exec( -T)? $svc [A-Za-z0-9 ._/:@,'\"+=-]+\$"
+  exec_shape="^$pin exec( -T)? $svc [A-Za-z0-9 ._/:@,'\"+=-]+\$"
   # Sandboxed (not in excludedCommands): CI's compose validation with the committed template.
-  config_shape='^docker compose( --env-file \.env\.example)? config( --quiet)?$'
+  config_shape='^docker compose( -f docker-compose\.yml)?( --env-file \.env\.example)? config( --quiet)?$'
   if [[ "$cmd" =~ $up_shape || "$cmd" =~ $ps_shape || "$cmd" =~ $exec_shape ]]; then
-    # These run unsandboxed and load every compose file in the project root, including ones the
-    # sandboxed shell could create (sandbox denyWrite can't cover a path that doesn't exist yet).
-    project="${CLAUDE_PROJECT_DIR:-$PWD}"
-    shopt -s nullglob
-    extra=("$project/compose.yml" "$project/compose.yaml" "$project/docker-compose.yaml"
-      "$project"/*.override.yml "$project"/*.override.yaml)
-    shopt -u nullglob
-    for f in "${extra[@]}"; do
-      [[ -e "$f" ]] && block "${f##*/} would be loaded by docker compose next to docker-compose.yml. Only docker-compose.yml is allowed; ask Paul."
+    # exec output lands in the chat: never let it print a process environment (secrets from .env).
+    [[ "$cmd" =~ environ ]] && block "docker compose exec may not read a process environment (/proc/*/environ holds secrets from .env)."
+    # These run unsandboxed. Compose resolves -f docker-compose.yml and reads .env relative to the
+    # working directory, so they may only run from the project root, with both files plain files
+    # (not links), and a .env that sets no COMPOSE_ variable (COMPOSE_PROFILES, COMPOSE_PROJECT_NAME
+    # and the like change what compose runs). Fail closed when anything is unknown.
+    project="${CLAUDE_PROJECT_DIR:-}"
+    [[ -n "$project" ]] || block "unknown project directory, so docker compose can't be checked."
+    cwd=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("cwd",""))' <<<"$input")
+    [[ -n "$cwd" && "$(realpath -e -- "$cwd" 2>/dev/null)" == "$(realpath -e -- "$project" 2>/dev/null)" ]] ||
+      block "docker compose runs only from the project root ($project). cd there first."
+    for f in docker-compose.yml .env; do
+      [[ -f "$project/$f" && ! -L "$project/$f" ]] || block "$f must be a plain file in the project root (not missing, not a link)."
     done
+    # grep -q prints nothing, so no value from .env leaves this hook.
+    grep -qE '^[[:space:]]*(export[[:space:]]+)?COMPOSE_' "$project/.env" &&
+      block "the project .env sets a COMPOSE_ variable, which changes what docker compose runs. Ask Paul."
   elif [[ ! "$cmd" =~ $config_shape ]]; then
-    block "docker only with: docker compose up -d [--wait] [service...], docker compose ps [--all] [--format json|table] [service], docker compose exec [-T] <service> <plain words>, or docker compose [--env-file .env.example] config [--quiet]. Ask Paul to run anything else."
+    block "docker only with: $pin up -d [--wait] [service...], $pin ps [--all] [--format json|table] [service], $pin exec [-T] <service> <plain words>, or docker compose [--env-file .env.example] config [--quiet]. Run from the project root. Ask Paul to run anything else."
   fi
 fi
 

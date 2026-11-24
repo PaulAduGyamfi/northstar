@@ -114,54 +114,105 @@ run guard-bash.sh pass  "$(bash_cmd 'cp .env.example /tmp/example')"
 run guard-bash.sh pass  "$(bash_cmd 'rm docs/old.md')"
 run guard-bash.sh pass  "$(bash_cmd 'git status --short')"
 
-# Docker commands in sandbox.excludedCommands run OUTSIDE the sandbox, against a root-equivalent
-# daemon (NS-109): one exact shape each, nothing that points compose at another file or daemon.
-run guard-bash.sh pass  "$(bash_cmd 'docker compose up -d')"
-run guard-bash.sh pass  "$(bash_cmd 'docker compose up -d --wait')"
-run guard-bash.sh pass  "$(bash_cmd 'docker compose up -d --wait postgres temporal')"
-run guard-bash.sh pass  "$(bash_cmd 'docker compose ps')"
-run guard-bash.sh pass  "$(bash_cmd 'docker compose ps --all --format json')"
-run guard-bash.sh pass  "$(bash_cmd "docker compose exec postgres psql -U northstar -d northstar -c 'select 1'")"
-run guard-bash.sh pass  "$(bash_cmd 'docker compose exec -T postgres pg_isready')"
-run guard-bash.sh pass  "$(bash_cmd 'docker compose --env-file .env.example config --quiet')"   # sandboxed (CI's check)
-run guard-bash.sh block "$(bash_cmd 'docker compose -f /tmp/x.yml up -d')"
-run guard-bash.sh block "$(bash_cmd 'docker compose --file=/tmp/x.yml up -d')"
-run guard-bash.sh block "$(bash_cmd 'docker compose --project-directory /tmp up -d')"
-run guard-bash.sh block "$(bash_cmd 'docker compose -p other up -d')"
-run guard-bash.sh block "$(bash_cmd 'docker -H tcp://203.0.113.5:2375 compose up -d')"
-run guard-bash.sh block "$(bash_cmd 'docker --context other compose ps')"
-run guard-bash.sh block "$(bash_cmd 'COMPOSE_FILE=/tmp/x.yml docker compose up -d')"
-run guard-bash.sh block "$(bash_cmd 'DOCKER_HOST=tcp://203.0.113.5:2375 docker compose ps')"
-run guard-bash.sh block "$(bash_cmd 'docker compose up -d --build')"
-run guard-bash.sh block "$(bash_cmd 'docker compose up')"
-run guard-bash.sh block "$(bash_cmd 'docker compose up -d && id')"
-run guard-bash.sh block "$(bash_cmd 'docker compose exec postgres sh -c "$(id)"')"
-run guard-bash.sh block "$(bash_cmd "docker compose exec postgres sh -c 'id; whoami'")"
-run guard-bash.sh block "$(bash_cmd 'docker compose exec postgres cat /etc/*')"
-run guard-bash.sh block "$(bash_cmd '"docker" compose up -d --build')"
-run guard-bash.sh block "$(bash_cmd "do''cker compose -f /tmp/x.yml up -d")"
-run guard-bash.sh pass  "$(bash_cmd 'git commit -m "NS-109: guard docker compose -f and DOCKER_HOST"')"   # just words
-
-# A compose file compose would also load (created from the sandboxed shell, where denyWrite can't
-# reach a file that doesn't exist yet) blocks every unsandboxed docker compose command.
-stray=$(mktemp -d); printf 'name: x\n' >"$stray/docker-compose.yml"
-in_project() { # in_project <expect> <command>: guard-bash with CLAUDE_PROJECT_DIR=$stray
-  local out code got=pass
-  out=$(bash_cmd "$2" | CLAUDE_PROJECT_DIR="$stray" bash "$hooks/guard-bash.sh" 2>/dev/null); code=$?
+# Docker (NS-109). `docker compose -f docker-compose.yml up -d|ps|exec` run OUTSIDE the sandbox
+# against a root-equivalent daemon. Every docker command must be one exact shape, and the
+# unsandboxed ones must run from the project root with a safe .env. Shapes are checked against a
+# throwaway project so CI (which has no .env) runs the same cases.
+proj=$(mktemp -d)
+printf 'name: x\n' >"$proj/docker-compose.yml"
+printf 'POSTGRES_USER=test\n' >"$proj/.env"   # synthetic; no COMPOSE_ lines
+mkdir -p "$proj/sub"
+in_project() { # in_project <expect> <command> [cwd, default the project root]
+  local out code got=pass json
+  json=$(python3 -c 'import json,sys; print(json.dumps({"cwd":sys.argv[2],"tool_input":{"command":sys.argv[1]}}))' "$2" "${3:-$proj}")
+  out=$(printf '%s' "$json" | CLAUDE_PROJECT_DIR="$proj" bash "$hooks/guard-bash.sh" 2>/dev/null); code=$?
   [[ $code -eq 2 ]] && got=block
-  if [[ "$got" == "$1" ]]; then echo "ok    guard-bash.sh $1 (project has: $(ls "$stray" | tr '\n' ' ')): $2"
-  else echo "FAIL  guard-bash.sh expected $1, got $got (project has: $(ls "$stray" | tr '\n' ' ')): $2"; fails=$((fails+1)); fi
+  [[ $code -ne 0 && $code -ne 2 ]] && got="error($code)"
+  local where="cwd ${3:-root}; project: $(ls -A "$proj" | tr '\n' ' ')"
+  if [[ "$got" == "$1" ]]; then echo "ok    guard-bash.sh $1 ($where): $2"
+  else echo "FAIL  guard-bash.sh expected $1, got $got ($where): $2"; fails=$((fails+1)); fi
 }
-in_project pass  'docker compose up -d'
-for extra in compose.yaml compose.yml docker-compose.yaml docker-compose.override.yml dev.override.yaml; do
-  printf 'services: {}\n' >"$stray/$extra"
-  in_project block 'docker compose up -d'
-  rm -f -- "$stray/$extra"
-done
-printf 'services: {}\n' >"$stray/compose.yaml"
+F='docker compose -f docker-compose.yml'
+in_project pass  "$F up -d"
+in_project pass  "$F up -d --wait"
+in_project pass  "$F up -d --wait postgres temporal"
+in_project pass  "$F ps"
+in_project pass  "$F ps --all --format json"
+in_project pass  "$F exec postgres psql -U northstar -d northstar -c 'select 1'"
+in_project pass  "$F exec -T postgres pg_isready"
+in_project pass  'docker compose --env-file .env.example config --quiet'   # sandboxed: CI's check
+# Without the pinned -f, compose would auto-load compose.yaml and *.override.* files.
+in_project block 'docker compose up -d'
 in_project block 'docker compose ps'
-in_project pass  'git status --short'   # other commands don't care
-rm -f -- "$stray/compose.yaml" "$stray/docker-compose.yml"; rmdir -- "$stray"
+in_project block 'docker compose -f /tmp/x.yml up -d'
+in_project block 'docker compose --file=/tmp/x.yml up -d'
+in_project block "$F -f /tmp/x.yml up -d"
+in_project block "$F up -d -f /tmp/x.yml"
+in_project block "$F --project-directory /tmp up -d"
+in_project block "$F -p other up -d"
+in_project block 'docker -H tcp://203.0.113.5:2375 compose -f docker-compose.yml up -d'
+in_project block 'docker --context other compose -f docker-compose.yml ps'
+in_project block "$F up -d --build"
+in_project block "$F up"
+in_project block "$F up -d && id"
+in_project block "$F exec postgres sh -c \"\$(id)\""
+in_project block "$F exec postgres sh -c 'id; whoami'"
+in_project block "$F exec postgres cat /etc/*"
+in_project block "$F exec postgres cat /proc/1/environ"   # would print the DB password into the chat
+in_project block 'docker version'
+# Every way to put docker in command position is still checked (tokenized, not text-matched).
+in_project block "COMPOSE_FILE=/tmp/x.yml $F up -d"
+in_project block "DOCKER_HOST=tcp://203.0.113.5:2375 $F ps"
+in_project block "X=1 \"docker\" compose -f docker-compose.yml up -d -f /tmp/x.yml"
+in_project block "X=1 \\docker compose -f /tmp/x.yml up -d"
+in_project block "true && d\\ocker compose -f /tmp/x.yml up -d"
+in_project block "do''cker compose -f /tmp/x.yml up -d"
+in_project block "command docker compose -f /tmp/x.yml up -d"
+in_project block "timeout 5s docker compose -f /tmp/x.yml up -d"
+in_project block "env -i docker compose -f /tmp/x.yml up -d"
+in_project block "/usr/bin/docker compose -f /tmp/x.yml up -d"
+in_project block "bash -c 'docker compose -f /tmp/x.yml up -d'"
+in_project block "echo \"\$(docker compose -f /tmp/x.yml up -d)\""
+in_project block "$(printf 'true\ndocker compose -f /tmp/x.yml up -d')"   # a second line
+in_project block "d=docker; \$d compose -f /tmp/x.yml up -d"            # name from a variable
+in_project block "\$(printf docker) compose -f /tmp/x.yml up -d"         # name from a substitution
+in_project block "\$'\\x64ocker' compose -f /tmp/x.yml up -d"            # ANSI-C quoting
+in_project block "/usr/bin/dock* compose -f /tmp/x.yml up -d"            # name from a glob
+in_project pass  "grep -n \"^2\\. \\*\\*\\\`--env-file\\\`\" specs/NS-109/spec.md"   # escaped backticks
+in_project pass  "\$TMPDIR/render.sh today light"   # a variable in the folder part is fine
+# The word docker anywhere else is just a word.
+in_project pass  'git commit -m "NS-109: guard docker compose -f and DOCKER_HOST"'
+in_project pass  'grep -rn docker .claude/hooks'
+in_project pass  'git log --oneline --grep docker'
+in_project pass  'git status --short'
+# Unsandboxed shapes only from the project root: compose resolves -f and .env against the cwd.
+in_project block "$F up -d" "$proj/sub"
+printf 'name: evil\n' >"$proj/sub/docker-compose.yml"
+in_project block "$F up -d" "$proj/sub"
+rm -f -- "$proj/sub/docker-compose.yml"
+# .env must be a plain file with no COMPOSE_ settings (compose reads COMPOSE_FILE etc. from it).
+printf 'COMPOSE_FILE=/tmp/x.yml\n' >>"$proj/.env"
+in_project block "$F ps"
+printf 'POSTGRES_USER=test\n' >"$proj/.env"
+printf '  export COMPOSE_PROFILES=evil\n' >>"$proj/.env"
+in_project block "$F ps"
+printf 'POSTGRES_USER=test\n' >"$proj/.env"
+mv -- "$proj/.env" "$proj/env.real"; ln -s env.real "$proj/.env"
+in_project block "$F ps"
+rm -f -- "$proj/.env"; mv -- "$proj/env.real" "$proj/.env.gone"
+in_project block "$F ps"   # no .env at all
+mv -- "$proj/.env.gone" "$proj/.env"
+# docker-compose.yml itself must be a plain file, not a link to something else.
+mv -- "$proj/docker-compose.yml" "$proj/real.yml"; ln -s real.yml "$proj/docker-compose.yml"
+in_project block "$F up -d"
+rm -f -- "$proj/docker-compose.yml"; mv -- "$proj/real.yml" "$proj/docker-compose.yml"
+in_project pass  "$F up -d"   # back to a clean project
+# No project dir known: fail closed.
+out=$(python3 -c 'import json; print(json.dumps({"cwd":"/","tool_input":{"command":"docker compose -f docker-compose.yml ps"}}))' |
+  env -u CLAUDE_PROJECT_DIR bash "$hooks/guard-bash.sh" 2>/dev/null); code=$?
+if [[ $code -eq 2 ]]; then echo "ok    guard-bash.sh block (no CLAUDE_PROJECT_DIR): docker compose ps"
+else echo "FAIL  guard-bash.sh expected block without CLAUDE_PROJECT_DIR, got $code"; fails=$((fails+1)); fi
+rm -f -- "$proj/.env" "$proj/docker-compose.yml"; rmdir -- "$proj/sub" "$proj"
 
 # protect-files
 # Compose files: the stack runs outside the sandbox, so every compose edit asks Paul (NS-109).

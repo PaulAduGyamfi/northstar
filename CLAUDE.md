@@ -22,9 +22,10 @@
 - **Hooks are guardrails.** One formats each TypeScript file you edit once a formatter is
   installed. Another blocks edits to `.env`, lock files and git internals, and asks Paul before
   changes to the harness, workflows, accepted ADRs, eval sets or compose files. A third blocks
-  destructive or secret-revealing shell commands, and allows docker only in its exact shapes
-  (`docker compose up -d [--wait] [service]`, `ps`, `exec <service> …`), because those run
-  outside the sandbox. When a hook blocks you, say what you were trying to do.
+  destructive or secret-revealing shell commands. It allows docker only as
+  `docker compose -f docker-compose.yml up -d|ps|exec …` from the repo root (those run outside
+  the sandbox), plus the sandboxed `config` check. `exec` output lands in the chat, so it may
+  not read process environments. When a hook blocks you, say what you were trying to do.
   Never work around it.
 - **Decisions** go through `/adr <title>`.
 - **Context.** Use a subagent for wide searches. After two failed attempts at the same fix, stop,

@@ -51,9 +51,11 @@ Exists now:
   (gitignored). The CLI can't run them yet: it only reads the public `cases.jsonl`.
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
-  Editing any compose file asks Paul, and the sandboxed shell can't write it. No other compose
-  file (`compose.yaml`, `*.override.yml`) may exist next to it: agents' unsandboxed
-  `docker compose` commands refuse to run if one does (NS-109).
+  Editing any compose file with the editor asks Paul. The sandboxed shell can't write
+  `docker-compose.yml` or `.env`. Agents run compose only as
+  `docker compose -f docker-compose.yml up -d|ps|exec …` from the repo root (NS-109). The
+  pinned `-f` keeps compose from loading a `compose.yaml` or `*.override.yml` someone left
+  next to it, and the guard refuses a `.env` that sets any `COMPOSE_` variable.
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 
@@ -83,9 +85,9 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter evals eval <route> --live [--update-baseline]` | run it against the real API (costs money; Paul only, needs `ANTHROPIC_API_KEY` in `.env`) |
 | repo root | `pnpm --filter evals eval <route> --record` | call the real API and save fixtures for replay (costs money; Paul only; synthetic inputs only) |
 | repo root | `cp .env.example .env` | once per clone (Paul): then replace every `change-me` in `.env` |
-| repo root | `docker compose up -d --wait` | local stack: Postgres+pgvector :5432, Temporal :7233 (UI :8233), SeaweedFS S3 :8333, Grafana :3000 + OTLP :4317/:4318, all on 127.0.0.1 |
-| repo root | `docker compose ps` | each service's health and ports |
-| repo root | `docker compose down` | stop the stack, **keep the data**. Never `down -v` (deletes every volume) |
+| repo root | `docker compose -f docker-compose.yml up -d --wait` | local stack: Postgres+pgvector :5432, Temporal :7233 (UI :8233), SeaweedFS S3 :8333, Grafana :3000 + OTLP :4317/:4318, all on 127.0.0.1. Agents must use this exact form (runs outside the sandbox) |
+| repo root | `docker compose -f docker-compose.yml ps` | each service's health and ports |
+| repo root | `docker compose down` | stop the stack, **keep the data** (Paul runs it; agents ask). Never `down -v` (deletes every volume) |
 | repo root | `pnpm --filter @northstar/db db:generate` | new migration from `packages/db/src/schema.ts` (no database needed); prints "No schema changes" when migrations match |
 | repo root | `pnpm --filter @northstar/db db:migrate` | apply pending migrations to `DATABASE_URL`, which Node loads from the root `.env` (Paul, outside the sandbox, stack up). Builds `domain` and `db` first |
 
