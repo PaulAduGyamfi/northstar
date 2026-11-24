@@ -68,7 +68,7 @@ Each agent is a narrow, testable unit: typed input, typed (structured-output) re
 | Store | Holds |
 |---|---|
 | **Postgres** (+ **pgvector**) | All domain data, embeddings (JDs, questions, atoms, stories), event outbox, approval records. |
-| **Object storage** (S3 / MinIO locally) | Resume versions (PDF/DOCX), submission screenshots/HTML, email attachments. |
+| **Object storage** (S3 / SeaweedFS locally) | Resume versions (PDF/DOCX), submission screenshots/HTML, email attachments. |
 | **Secrets vault** | OAuth refresh tokens, provider API keys (encrypted; NFR-SEC-001). |
 | **Temporal persistence** | Workflow histories (its own Postgres schema). |
 
@@ -194,7 +194,7 @@ Notes:
 4. **User's browser:** the only place third-party passwords and LinkedIn sessions exist.
 
 ## 6. Deployment
-- **Local (P1):** `docker compose` — Postgres+pgvector, Temporal (auto-setup), MinIO, API, workers, web. Extension loaded unpacked.
+- **Local (P1):** `docker compose` — Postgres+pgvector, Temporal (dev server), SeaweedFS, Grafana LGTM + OTel Collector (NS-104); API, workers, web arrive with their tickets. Extension loaded unpacked.
 - **Hosted (P2+):** Web/API on Vercel or Fly; workers + Playwright on Fly/Railway/ECS; Temporal Cloud or self-hosted; managed Postgres (Neon/RDS); S3. Gmail push needs a public HTTPS endpoint (hosted) or polling (local).
 
 ## 7. Monorepo layout (proposed)
