@@ -60,6 +60,27 @@ docker wherever a command starts:
 Unbalanced quotes count as docker, and the command fails the shape check. The word docker
 anywhere else (a commit message, `grep docker`, `git log --grep docker`) is just a word.
 
+After the second security review, three more rules:
+- Redirections in front of a command (`>/dev/null`, `2>&1`, `</dev/null`) and `function` are
+  skipped like prefixes.
+- **Backstop:** the words `docker compose` next to each other anywhere in the command always
+  count as docker. That covers wrapper flags that take an argument (`timeout -s KILL`,
+  `env -u FOO`).
+- `.env` must have exactly one hard link.
+
+The `exec` check refuses `environ` (with quotes removed) and the words `set`, `export`,
+`declare`, `env` and `printenv`. That check is best effort: Paul's prompt on every `exec` is the
+real control, and CLAUDE.md says exec output lands in the chat.
+
+Known text-check limits, all running *sandboxed* because they don't match `excludedCommands`:
+- a renamed copy or symlink of the docker binary;
+- `env -S '…'`, where the command hides inside a single argument;
+- a program that runs docker itself, such as a Python heredoc calling `os.system`. Heredoc bodies
+  are data unless they feed a shell (`bash <<EOF`), in which case they are scanned as commands.
+  This stops `[ … ]` tests and Python heredocs being false positives.
+
+They are harmless if the sandbox can't reach the Docker socket (open question 4).
+
 Before allowing the three unsandboxed shapes, the hook also checks the filesystem. The hook runs
 outside the sandbox, so it sees the real files. It fails closed on any of these:
 - `CLAUDE_PROJECT_DIR` is unset;

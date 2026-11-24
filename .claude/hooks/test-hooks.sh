@@ -180,6 +180,25 @@ in_project block "\$'\\x64ocker' compose -f /tmp/x.yml up -d"            # ANSI-
 in_project block "/usr/bin/dock* compose -f /tmp/x.yml up -d"            # name from a glob
 in_project pass  "grep -n \"^2\\. \\*\\*\\\`--env-file\\\`\" specs/NS-109/spec.md"   # escaped backticks
 in_project pass  "\$TMPDIR/render.sh today light"   # a variable in the folder part is fine
+# Second security review: a redirection, `function` or a wrapper flag with an argument in front.
+in_project block ">/dev/null $F up -d -f /tmp/x.yml"
+in_project block "2>&1 $F up -d -f /tmp/x.yml"
+in_project block "</dev/null $F ps -f /tmp/x.yml"
+in_project block "function f { $F up -d -f /tmp/x.yml; }; f"
+in_project block "timeout -s KILL 5 $F up -d -f /tmp/x.yml"
+in_project block "env -u FOO $F up -d -f /tmp/x.yml"
+in_project block "$F exec postgres cat /proc/1/envi''ron"
+in_project block "$F exec postgres sh -c set"
+in_project block "$F exec postgres sh -c export"
+# False positives found while committing NS-109: test brackets and heredoc bodies are not docker.
+in_project pass  "bash -c 'for f in a b; do [ -n \"\$f\" ] && echo \"\$f\"; done'"
+in_project pass  "if [[ -f x ]]; then echo y; fi"
+in_project pass  "$(printf 'python3 - <<%s\nprint([t for t in ("docker", "compose")])\n%s' "'EOF'" 'EOF')"
+in_project block "$(printf 'bash <<%s\ndocker compose -f /tmp/x.yml up -d\n%s' "'EOF'" 'EOF')"   # a heredoc fed to a shell is commands
+# .env must not be a hard link either: a planted link could change after the check.
+ln "$proj/.env" "$proj/env.link"
+in_project block "$F ps"
+rm -f -- "$proj/env.link"
 # The word docker anywhere else is just a word.
 in_project pass  'git commit -m "NS-109: guard docker compose -f and DOCKER_HOST"'
 in_project pass  'grep -rn docker .claude/hooks'
