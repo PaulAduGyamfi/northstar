@@ -30,9 +30,8 @@ Exists now:
   (research brief, tokens, mockups), `cost-model.md`, `roadmap.md`, `open-questions.md`.
 - `specs/TEMPLATE/`: spec, plan and tasks templates. `specs/<ticket>/spec.md` per ticket.
 - `.claude/`: the agent harness (settings, hooks, subagents, skills, path rules).
-- `.github/`: `workflows/checks.yml` (commit checks + hook tests on every PR),
-  `workflows/claude-review.yml` (Claude review of every PR), `dependabot.yml`,
-  `branch-protection.json`, the PR template.
+- `.github/`: `workflows/checks.yml` (commit checks + hook tests on every PR), `dependabot.yml`,
+  `branch-protection.json`, the PR template. Paul reviews PRs himself; there is no AI review in CI.
 - `.pre-commit-config.yaml` + `scripts/check-personal-data.sh`: commit checks (ADR-0011).
 - `LICENSE`: Apache-2.0.
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports

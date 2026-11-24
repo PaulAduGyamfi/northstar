@@ -17,7 +17,7 @@ largely by coding agents, so its checks must run the same locally, in commit hoo
 | Monorepo tasks | **Turborepo** | Cached `lint`, `typecheck`, `test`, `build` |
 | Commit checks | **pre-commit** framework (same as countersign): gitleaks, private-key and large-file checks, the personal-data guard, and Biome once installed | Language-agnostic, runs identically in CI |
 | Dependency updates | **Dependabot** with a **14-day cooldown**, grouped weekly | Native to GitHub, no app install; the cooldown matches AGENTS.md's 14-day rule |
-| CI | **GitHub Actions**: `checks` (pre-commit on all files, hook self-tests; later lint, typecheck, test, build) and `claude-review` on every PR | Required status checks on `main` |
+| CI | **GitHub Actions**: `checks` (pre-commit on all files, hook self-tests; later lint, typecheck, test, build) on every PR. No AI review in CI: Paul reviews PRs himself, to avoid API spend | Required status checks on `main` |
 | Branch policy | `main` protected: PR required, `checks` must pass, no force-push or deletion | Makes AGENTS.md's git rules enforceable |
 | License | **Apache-2.0** | Permissive with an explicit patent grant (product owner choice) |
 
