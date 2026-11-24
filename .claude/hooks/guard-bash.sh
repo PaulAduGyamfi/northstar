@@ -110,6 +110,24 @@ if [[ "$cmd" =~ $unsandboxed || "$bare" =~ $unsandboxed ]]; then
   fi
 fi
 
+# Read-only gh commands are auto-allowed AND unsandboxed (no prompt, Paul's login), so each has
+# one exact shape: no quotes (a quote hides a flag from any check), no URL or other repo, no jq.
+readonly_gh='^[[:space:]]*gh[[:space:]]+(pr[[:space:]]+(view|checks)|run[[:space:]]+view|issue[[:space:]]+(view|list))([[:space:]]|$)'
+if [[ "$bare" =~ $readonly_gh ]]; then
+  ref='[A-Za-z0-9][A-Za-z0-9._-]*' # a PR number or branch name; no : or / so no URL
+  fields='[A-Za-z,]+'
+  shapes=(
+    "^gh pr view( $ref)?( --json $fields)?\$"
+    "^gh pr checks( $ref)?( --watch)?( --interval [0-9]+)?\$"
+    "^gh run view [0-9]+( --json $fields| --log| --log-failed)?\$"
+    "^gh issue view [0-9]+( --json $fields)?\$"
+    "^gh issue list( --state (open|closed|all))?( --limit [0-9]+)?( --label [a-z0-9:-]+)*( --json $fields)?\$"
+  )
+  shape_ok=no
+  for re in "${shapes[@]}"; do [[ "$cmd" =~ $re ]] && shape_ok=yes; done
+  [[ $shape_ok == yes ]] || block "read-only gh commands must use their plain shape (see AGENTS.md), no quotes, URLs, -q/--jq or -R."
+fi
+
 # Pushing: one shape only, `git push [-u|--set-upstream] origin <branch>`, never main or HEAD.
 # An allowlist, because a blocklist misses --mirror, --delete, :branch, --receive-pack, URLs.
 # Detected on the command with quoted text removed, so a commit message that says "push" is fine.

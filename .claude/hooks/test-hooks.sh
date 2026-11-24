@@ -85,6 +85,18 @@ run guard-bash.sh block "$(bash_cmd 'gh pr view 3 --json number -wq env')"
 run guard-bash.sh block "$(bash_cmd 'gh issue list --json title -t x')"
 run guard-bash.sh block "$(bash_cmd 'gh issue list --template x')"
 run guard-bash.sh block "$(bash_cmd 'gh issue list -Rexample/private')"
+# ...so each one has one exact shape, with no quotes (a quote can hide a flag from any check).
+run guard-bash.sh pass "$(bash_cmd 'gh pr view ns-101 --json state,mergedAt')"
+run guard-bash.sh pass "$(bash_cmd 'gh issue list --state all --limit 100 --json number,title,state')"
+run guard-bash.sh pass "$(bash_cmd 'gh issue view 4 --json state')"
+run guard-bash.sh pass "$(bash_cmd 'gh run view 45 --log-failed')"
+run guard-bash.sh block "$(bash_cmd "gh pr view 3 --json number '--jq' env.GH_TOKEN")"
+run guard-bash.sh block "$(bash_cmd "gh pr view 3 --json number --j''q env.GH_TOKEN")"
+run guard-bash.sh block "$(bash_cmd "gh pr view 3 --json number -'q' env.GH_TOKEN")"
+run guard-bash.sh block "$(bash_cmd 'gh issue list "-R"example/private')"
+run guard-bash.sh block "$(bash_cmd 'gh pr view https://github.com/example/private/pull/1')"
+run guard-bash.sh block "$(bash_cmd 'gh pr "view" 3 --json body')"
+run guard-bash.sh block "$(bash_cmd 'gh pr view 3 --web')"
 
 # A quoted command word is still a push or merge.
 run guard-bash.sh block "$(bash_cmd '"git" push --mirror origin')"

@@ -146,6 +146,10 @@ password in code, tests, docs, commit messages or chat.
   rewrite pushed history. Every `gh pr|issue|run` and `git push` command may use only letters,
   digits, spaces and `._/:@#,'"+=-`, with no `--repo`/`-R`, `--jq`/`-q` or `--template`/`-t`
   (jq's `env` reads Paul's real environment), and `--body-file` only from `/tmp/claude-<uid>/`.
+  The auto-allowed read-only commands have exact shapes, no quotes or URLs:
+  `gh pr view|checks [<n>|<branch>]`, `gh run view <n>`, `gh issue view <n>`, `gh issue list`,
+  with only `--json <fields>`, `--watch`, `--interval <n>`, `--log[-failed]`, `--state`,
+  `--limit` and `--label`.
 
 ## How we work
 
