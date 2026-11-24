@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "disableBypassPermissionsMode": "disable",
+    "allow": [
+      "Bash(pnpm install --frozen-lockfile)",
+      "Bash(pnpm -r lint *)",
+      "Bash(pnpm -r typecheck *)",
+      "Bash(pnpm -r test *)",
+      "Bash(pnpm -r build *)",
+      "Bash(pnpm --filter * lint *)",
+      "Bash(pnpm --filter * typecheck *)",
+      "Bash(pnpm --filter * test *)",
+      "Bash(pnpm --filter * build *)",
+      "Bash(bash .claude/hooks/test-hooks.sh)",
+      "Bash(docker compose up -d *)",
+      "Bash(docker compose ps *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git branch --show-current)",
+      "Bash(git switch -c *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr checks *)",
+      "Bash(gh run view *)",
+      "Bash(gh issue view *)",
+      "Bash(gh issue list *)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(gh pr create *)",
+      "Bash(gh issue create *)",
+      "Bash(pnpm add *)",
+      "Bash(pnpm remove *)",
+      "Bash(pnpm update *)",
+      "Bash(pnpm install)",
+      "Bash(pnpm dlx *)",
+      "Bash(npx *)",
+      "Bash(npm install *)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "Bash(docker compose exec *)",
+      "Bash(psql *)",
+      "Bash(pnpm --filter evals *)",
+      "Edit(**/package.json)"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(!.env.example)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(**/credentials.json)",
+      "Read(**/token.json)",
+      "Read(**/client_secret*.json)",
+      "Read(~/.aws/**)",
+      "Read(~/.ssh/**)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.config/gcloud/**)",
+      "Edit(**/pnpm-lock.yaml)",
+      "Bash(sudo *)",
+      "Bash(rm -rf *)",
+      "Bash(rm -fr *)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git push --force-with-lease *)",
+      "Bash(git reset --hard *)",
+      "Bash(git clean *)",
+      "Bash(git branch -D *)",
+      "Bash(git commit --no-verify *)",
+      "Bash(git commit -n *)",
+      "Bash(git -c core.hooksPath*)",
+      "Bash(git config core.hooksPath*)",
+      "Bash(SKIP=*)",
+      "Bash(HUSKY=0*)",
+      "Bash(LEFTHOOK=0*)",
+      "Bash(docker compose down -v *)",
+      "Bash(docker volume rm *)",
+      "Bash(printenv *)",
+      "Bash(gh auth token*)",
+      "Bash(gh pr merge *)",
+      "Bash(gh repo delete *)",
+      "Bash(gh repo edit *)"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": false,
+    "allowUnsandboxedCommands": false,
+    "failIfUnavailable": true,
+    "excludedCommands": [
+      "docker compose up -d *",
+      "docker compose ps *",
+      "docker compose exec *",
+      "pnpm -r test *",
+      "pnpm --filter * test *",
+      "gh pr create *",
+      "gh pr view *",
+      "gh pr checks *",
+      "gh run view *",
+      "gh issue view *",
+      "gh issue list *",
+      "gh issue create *"
+    ],
+    "filesystem": {
+      "allowWrite": [
+        "~/.local/share/pnpm",
+        "~/.cache/pnpm",
+        "~/.cache/ms-playwright",
+        "~/.cache/turbo"
+      ]
+    },
+    "network": {
+      "allowedDomains": [
+        "registry.npmjs.org",
+        "nodejs.org"
+      ]
+    },
+    "credentials": {
+      "files": [
+        { "path": "./.env", "mode": "deny" },
+        { "path": "~/.aws", "mode": "deny" },
+        { "path": "~/.ssh", "mode": "deny" },
+        { "path": "~/.config/gh", "mode": "deny" },
+        { "path": "~/.config/gcloud", "mode": "deny" }
+      ],
+      "envVars": [
+        { "name": "ANTHROPIC_API_KEY", "mode": "deny" },
+        { "name": "GOOGLE_CLIENT_SECRET", "mode": "deny" },
+        { "name": "GITHUB_TOKEN", "mode": "deny" },
+        { "name": "GH_TOKEN", "mode": "deny" },
+        { "name": "HUNTER_API_KEY", "mode": "deny" },
+        { "name": "AWS_SECRET_ACCESS_KEY", "mode": "deny" },
+        { "name": "AWS_SESSION_TOKEN", "mode": "deny" }
+      ]
+    }
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/protect-files.sh",
+            "args": [],
+            "timeout": 10,
+            "onFailure": "block",
+            "statusMessage": "Checking the file is safe to edit"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-bash.sh",
+            "args": [],
+            "timeout": 10,
+            "onFailure": "block",
+            "statusMessage": "Checking the command"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/format-ts.sh",
+            "args": [],
+            "timeout": 30,
+            "statusMessage": "Formatting and linting the file"
+          }
+        ]
+      }
+    ]
+  }
+}

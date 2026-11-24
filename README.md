@@ -21,7 +21,10 @@ One system that **finds jobs, applies to them, runs your inbox, and keeps your p
 | [docs/open-questions.md](docs/open-questions.md) | Decisions the product owner still has to make |
 | [docs/roadmap.md](docs/roadmap.md) | Phased delivery plan |
 | [docs/cost-model.md](docs/cost-model.md) | Estimated monthly running cost and cost levers |
-| [CLAUDE.md](CLAUDE.md) | Instructions for coding agents working in this repo |
+| [AGENTS.md](AGENTS.md) | Rules for any coding agent working in this repo |
+| [CLAUDE.md](CLAUDE.md) | Claude Code notes (imports AGENTS.md) |
+| [.claude/](.claude/) | Agent harness: settings, hooks (`bash .claude/hooks/test-hooks.sh`), reviewer subagents, `/ticket` `/verify` `/adr` skills, path rules |
+| [specs/](specs/) | Ticket specs (`NS-NNN`) and templates |
 
 ## Requirement index (user's numbered asks → docs)
 
