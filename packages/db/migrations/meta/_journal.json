@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1795555772309,
+      "tag": "0000_extensions",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795555772915,
+      "tag": "0001_core_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795555773511,
+      "tag": "0002_domain_event_append_only",
+      "breakpoints": true
+    }
+  ]
+}

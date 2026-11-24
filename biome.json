@@ -17,7 +17,8 @@
       "**/*.css",
       "**/*.json",
       "**/*.jsonc",
-      "!.claude"
+      "!.claude",
+      "!**/migrations/meta"
     ]
   },
   "formatter": {

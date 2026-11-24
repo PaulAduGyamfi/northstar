@@ -1,3 +1,6 @@
-// Public entry of @northstar/domain. Empty on purpose: NS-103 only proves the toolchain.
-// NS-105 adds the entities, state machine and events (system-design §7).
-export {};
+// Public entry of @northstar/domain: the application state machine, domain events and ids.
+// Pure code with no I/O; packages/db stores what this package defines.
+export * from "./application-status.js";
+export * from "./domain-event.js";
+export * from "./ids.js";
+export * from "./result.js";
