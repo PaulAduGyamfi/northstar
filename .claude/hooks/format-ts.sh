@@ -3,7 +3,8 @@
 # run the repo's own locked formatter and safe lint fixes on that one file. Whatever can't be
 # fixed goes back to the agent as context. It never blocks: the edit already happened, and an
 # unused import mid-change is normal.
-# Until the scaffold ticket installs a formatter, it does nothing.
+# It does nothing when no formatter is installed, or when Biome is installed but the branch has
+# no biome.json (leftover node_modules on an older branch).
 # Adapted from countersign/.claude/hooks/format-python.sh (Paul's own repo).
 set -euo pipefail
 
@@ -23,7 +24,9 @@ bin="$project/node_modules/.bin"
 cd "$project"   # formatters read their config from the repo root
 
 problems=""
-if [[ -x "$bin/biome" ]]; then
+# Needs biome.json too: on a branch without it (leftover node_modules from a newer branch) Biome
+# would format with its defaults and rewrite whole files, harness JSON included.
+if [[ -x "$bin/biome" && -f "$project/biome.json" ]]; then
   # Biome formats and applies safe fixes in one pass; unsafe fixes are left to the agent.
   "$bin/biome" check --write --no-errors-on-unmatched -- "$file_path" >/dev/null 2>&1 || true
   problems=$("$bin/biome" check --no-errors-on-unmatched --reporter=summary -- "$file_path" 2>&1 | grep -vE '^(Checked|$)' || true)

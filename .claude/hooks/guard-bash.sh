@@ -80,7 +80,30 @@ bare_env="${s}env[[:space:]]*(\$|[;&|)])"   # in a variable: [[ can't parse ) in
 # This repo is public: changing visibility or deleting it is Paul's call.
 [[ "$cmd" =~ ${s}gh[[:space:]]+repo[[:space:]]+(delete|edit) ]] && block "changing the GitHub repo's settings is Paul's call."
 
-# Merging is Paul's job.
-[[ "$cmd" =~ ${s}gh[[:space:]]+pr[[:space:]]+merge ]] && block "Paul merges pull requests."
+# gh and git push commands in settings.json's sandbox.excludedCommands run OUTSIDE the sandbox
+# with Paul's GitHub login. Anything chained or substituted into them would run there too, so
+# they may not contain shell metacharacters ($ ` ; & | < > or a newline).
+unsandboxed='^[[:space:]]*(gh[[:space:]]+(pr|issue|run)|git[[:space:]]+push)([[:space:]]|$)'
+if [[ "$cmd" =~ $unsandboxed ]] && [[ "$cmd" == *[\$\`\;\&\|\<\>]* || "$cmd" == *$'\n'* ]]; then
+  block "commands that run with Paul's GitHub login can't contain \$ \` ; & | < > or newlines."
+fi
+
+# Pushing: one shape only, `git push [-u|--set-upstream] origin <branch>`, never main or HEAD.
+# An allowlist, because a blocklist misses --mirror, --delete, :branch, --receive-pack, URLs.
+if [[ "$cmd" =~ ${s}git[[:space:]].*push([[:space:]]|$) ]]; then
+  push_shape='^git push( -u| --set-upstream)? origin ([A-Za-z0-9][A-Za-z0-9._-]*)$'
+  [[ "$cmd" =~ $push_shape ]] || block "push only with: git push [-u] origin <branch>."
+  [[ "${BASH_REMATCH[2]}" == main || "${BASH_REMATCH[2]}" == HEAD ]] && block "pushing main is done through a PR."
+fi
+
+# Merging: agents may merge, and settings.json's "ask" rule prompts Paul for each one.
+# One shape only: --rebase (the repo forbids merge commits; a squash folds a ticket's commits into
+# one), --match-head-commit (merges exactly the commit Paul approved), and nothing else, so no
+# --admin (would bypass branch protection if enforce_admins were ever off) and no --auto
+# (would merge later pushes without a new prompt).
+if [[ "$cmd" =~ ${s}gh[[:space:]].*pr[[:space:]]+merge ]]; then
+  merge_shape='^gh pr merge [0-9]+ --rebase( --delete-branch)? --match-head-commit [0-9a-f]{40}$'
+  [[ "$cmd" =~ $merge_shape ]] || block "merge only with: gh pr merge <n> --rebase [--delete-branch] --match-head-commit <sha>."
+fi
 
 exit 0

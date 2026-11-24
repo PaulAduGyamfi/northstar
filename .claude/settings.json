@@ -32,6 +32,7 @@
     "ask": [
       "Bash(git push *)",
       "Bash(gh pr create *)",
+      "Bash(gh pr merge *)",
       "Bash(gh issue create *)",
       "Bash(pnpm add *)",
       "Bash(pnpm remove *)",
@@ -81,7 +82,6 @@
       "Bash(docker volume rm *)",
       "Bash(printenv *)",
       "Bash(gh auth token*)",
-      "Bash(gh pr merge *)",
       "Bash(gh repo delete *)",
       "Bash(gh repo edit *)"
     ]
@@ -98,6 +98,8 @@
       "pnpm -r test *",
       "pnpm --filter * test *",
       "gh pr create *",
+      "gh pr merge *",
+      "git push *",
       "gh pr view *",
       "gh pr checks *",
       "gh run view *",
