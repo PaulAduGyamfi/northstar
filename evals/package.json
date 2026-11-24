@@ -1,0 +1,17 @@
+{
+  "name": "evals",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "biome check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json",
+    "eval": "turbo run build --filter=evals && node --env-file-if-exists=../.env dist/bin.js"
+  },
+  "dependencies": {
+    "@northstar/llm": "workspace:*",
+    "zod": "4.6.7"
+  }
+}
