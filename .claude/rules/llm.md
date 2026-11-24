@@ -8,10 +8,14 @@ paths:
 
 # LLM gateway, prompts, agents and evals (ADR-0004, ADR-0006)
 
-None of these exist yet. If you are about to create one outside its ticket, stop and ask Paul.
+`packages/llm` and `evals/` exist since NS-106 (ADR-0013). `packages/prompts` and
+`packages/agents` don't yet: they arrive with the first agent ticket. Ask Paul before creating
+them elsewhere.
 
-When they land:
-
+- Call the model only through `createLlmGateway(...).call(route, input)`. Handle every
+  `LlmOutcome` kind (`Ok`, `Refused`, `Truncated`, `InvalidOutput`). Let `LlmTransportError`
+  throw so Temporal retries it. Put the `CallRecord` in the domain event.
+- Wrap untrusted text with `untrustedBlock(kind, text)` in the route's volatile part.
 - Only `packages/llm` imports `@anthropic-ai/sdk`. Agents call the gateway, never the SDK.
 - Default model `claude-opus-5-5` with adaptive thinking and an explicit `effort` per route.
   A cheaper tier needs an eval result and an amendment to ADR-0006.
@@ -28,3 +32,10 @@ When they land:
 - Meter tokens, cache hits, cost and latency per call (OBV-003). Respect the budget caps (RES-009).
 - Tests use recorded fixtures, never a real model. Evals are the only place real model calls run,
   and only on purpose (they cost money).
+- A prompt or model change needs Paul's `eval <route> --live` run. Commit the new
+  `baseline.json`, re-record the fixtures with `--record`, and paste the output in the PR. CI only
+  replays.
+- Recorded fixtures are public. Record only synthetic inputs, and keep real-mail cases in
+  `evals/**/private/`. The eval CLI has no private mode yet: it reads only
+  `<route>/cases.jsonl` and writes fixtures to the public `<route>/fixtures/`. Never put a
+  real-mail case there or run `--record` on one.

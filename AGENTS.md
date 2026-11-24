@@ -43,6 +43,12 @@ Exists now:
 - `packages/db/` (NS-105): Drizzle schema, committed migrations (`migrations/`), the one write
   path for status changes (`transitionApplication`: status + event in one transaction) and
   `readEventsAfter`. `domain_event` is append-only (ADR-0012). Tests run on in-process PGlite.
+- `packages/llm/` (NS-106): the LLM gateway, the only importer of `@anthropic-ai/sdk`. Typed
+  routes, structured output, caching order, refusal fallback, call records and the `llm.call`
+  span. Plus `untrustedBlock` and the request-keyed replay/recording fixtures (ADR-0013).
+- `evals/` (NS-106): the eval harness and CLI. One folder per route arrives with that route
+  (`cases.jsonl`, `baseline.json`, `fixtures/`). Real-mail cases go in `evals/**/private/`
+  (gitignored). The CLI can't run them yet: it only reads the public `cases.jsonl`.
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
@@ -53,8 +59,8 @@ with the ticket that needs it.
 
 ```
 apps/web  apps/api  apps/worker  apps/extension
-packages/agents  prompts  llm  gateways  ats-adapters  sources  ui
-evals/  ops/  docs/runbooks/
+packages/agents  prompts  gateways  ats-adapters  sources  ui
+ops/  docs/runbooks/
 ```
 
 ## Commands
@@ -70,6 +76,9 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm install --frozen-lockfile` | install locked dependencies |
 | repo root | `pnpm -r lint` / `pnpm -r typecheck` / `pnpm -r test` | checks in every package |
 | repo root | `pnpm turbo run lint typecheck test build` | all checks with Turborepo caching (what CI runs, with `--force`) |
+| repo root | `pnpm --filter evals eval <route>` | replay a route's eval set from recorded fixtures (free, offline) and fail below `baseline.json` |
+| repo root | `pnpm --filter evals eval <route> --live [--update-baseline]` | run it against the real API (costs money; Paul only, needs `ANTHROPIC_API_KEY` in `.env`) |
+| repo root | `pnpm --filter evals eval <route> --record` | call the real API and save fixtures for replay (costs money; Paul only; synthetic inputs only) |
 | repo root | `cp .env.example .env` | once per clone (Paul): then replace every `change-me` in `.env` |
 | repo root | `docker compose up -d --wait` | local stack: Postgres+pgvector :5432, Temporal :7233 (UI :8233), SeaweedFS S3 :8333, Grafana :3000 + OTLP :4317/:4318, all on 127.0.0.1 |
 | repo root | `docker compose ps` | each service's health and ports |
