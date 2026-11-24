@@ -1603,8 +1603,14 @@ main {
     gap: 3px;
   }
 
+  /* Hidden visually only: it is the button's accessible name. */
   .health-label {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 
   main {

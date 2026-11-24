@@ -8,7 +8,6 @@
     screen: "today",
     jobs: clone(D.jobs),
     decided: {}, // id -> "approved" | "skipped"
-    reviewed: {}, // id -> true once opened for review (unlocks approval, UX-041)
     pipeline: clone(D.pipeline),
     closed: clone(D.closed),
     handoffs: clone(D.handoffs),
@@ -372,7 +371,8 @@
   function renderStack(el) {
     const look = individualJobs();
     const batch = batchJobs();
-    if (look.length > 0 && !state.showBatch) {
+    const batchMode = state.showBatch && batch.length > 0;
+    if (look.length > 0 && !batchMode) {
       state.stackPos = Math.min(state.stackPos, look.length - 1);
       el.innerHTML = `<div class="stack">${look.length > 1 ? '<div class="stack-shadow"></div>' : ""}${jobCard(look[state.stackPos], state.stackPos + 1, look.length)}</div>`;
       attachDrag($(".jobcard", el));
@@ -384,7 +384,8 @@
   }
 
   function jobCard(job, position, of) {
-    const fitComp = compFits(job);
+    const fitComp =
+      compFits(job) && state.settings.locations.some((place) => job.location.includes(place));
     return `<article class="jobcard" data-card="${job.id}" aria-label="${esc(job.title)} at ${esc(job.company)}, card ${position} of ${of}">
       <div class="chips">
         <span class="chip chip-fresh">⚡ posted ${ago(job.postedMin)}</span>
@@ -406,7 +407,7 @@
       <div class="actions">
         <button class="btn" type="button" data-skip="${job.id}">✕ Skip <kbd>S</kbd></button>
         <button class="btn" type="button" data-review="${job.id}">✎ Review / edit <kbd>E</kbd></button>
-        <button class="btn btn-primary" type="button" data-approve="${job.id}">${job.lock && !state.reviewed[job.id] ? "Review to approve" : "✓ Approve"} <kbd>A</kbd></button>
+        <button class="btn btn-primary" type="button" data-approve="${job.id}">${job.lock ? "Review to approve" : "✓ Approve"} <kbd>A</kbd></button>
       </div>
       <p class="hint">Swipe right to approve, left to skip, up to edit · or press A / S / E · J / K for next / previous</p>
     </article>`;
@@ -465,11 +466,15 @@
       <thead><tr><th>Posted</th><th>Role</th><th class="hide-sm">Fit</th><th class="hide-sm">Comp</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead>
       <tbody>${rows
         .map((job, i) => {
-          const status = job.lock
-            ? '<span class="status" data-s="hands">Needs a look</span>'
-            : job.autoRule
-              ? '<span class="status" data-s="queued">Auto-rule match</span>'
-              : '<span class="status" data-s="awaiting">Awaiting you</span>';
+          // One status vocabulary (UX-020): every queued row is "Awaiting you"; the lock and the
+          // auto-rule match are plain chips, not states.
+          const status = `<span class="status" data-s="awaiting">Awaiting you</span>${
+            job.lock
+              ? ' <span class="chip chip-lock">🔒 Needs a look</span>'
+              : job.autoRule
+                ? ' <span class="chip">Auto-rule</span>'
+                : ""
+          }`;
           return `<tr data-row="${job.id}" aria-selected="${i === state.compactPos}">
             <td class="mono">${ago(job.postedMin)}</td>
             <td><strong>${esc(job.company)}</strong> · ${esc(job.title)}</td>
@@ -492,8 +497,9 @@
   function approve(id) {
     const job = jobById(id);
     if (!job || state.decided[id]) return;
-    // Review lock (UX-041): a locked card opens for review instead of going out.
-    if (job.lock && !state.reviewed[id]) {
+    // Review lock (UX-041): a locked card goes out only from inside its open review. A key,
+    // a swipe or a button anywhere else opens the review instead.
+    if (job.lock && dialogApproveId !== id) {
       announce(`${job.company} needs a look before it can be approved. Opening the review.`);
       openReview(id);
       return;
@@ -517,6 +523,7 @@
     }
     closeDialog();
     render();
+    focusQueue();
     const names = jobs.length === 1 ? jobs[0].company : `${jobs.length} applications`;
     undoToast(
       `Submitting ${names} in`,
@@ -538,9 +545,10 @@
         const q1 = state.quests.find((q) => q.id === "q1");
         if (q1) q1.value = state.week.apps;
         render();
-        // Celebration ladder, first rung: a small coral burst and a one-line toast.
-        celebrateSmall();
+        // Celebration ladder, first rung: a small coral burst, only when it went out within an
+        // hour of posting (UX-031). Swipes and approvals themselves never celebrate.
         const fastest = Math.min(...jobs.map((job) => job.postedMin));
+        if (fastest <= 60) celebrateSmall();
         const line =
           jobs.length === 1
             ? `Applied to <span class="em">${esc(jobs[0].company)}</span> ${fastest} min after posting.`
@@ -556,10 +564,21 @@
     state.decided[id] = "skipped";
     closeDialog();
     render();
+    focusQueue();
     undoToast(`Skipped ${job.company}.`, () => {
       delete state.decided[id];
       render();
     });
+  }
+
+  // After an action, focus the new top card, the selected row or the batch, so keyboard users
+  // don't fall back to the top of the page.
+  function focusQueue() {
+    if (state.screen !== "queue") return;
+    const target = $(".jobcard, tr[aria-selected='true'], #batch-title, .clear-scene h2");
+    if (!target) return;
+    target.tabIndex = -1;
+    target.focus({ preventScroll: true });
   }
 
   function stackStep(delta) {
@@ -573,7 +592,7 @@
     if (state.view === "compact") {
       return queueJobs()[state.compactPos]?.id;
     }
-    if (state.showBatch) return null;
+    if (state.showBatch && batchJobs().length > 0) return null;
     return individualJobs()[state.stackPos]?.id;
   }
 
@@ -604,6 +623,11 @@
       const dy = Math.min(0, event.clientY - startY);
       card.style.transform = `translate(${dx}px, ${dy}px) rotate(${dx / 25}deg)`;
     });
+    card.addEventListener("pointercancel", () => {
+      dragging = false;
+      card.classList.remove("dragging");
+      card.style.transform = "";
+    });
     card.addEventListener("pointerup", (event) => {
       if (!dragging) return;
       dragging = false;
@@ -614,14 +638,14 @@
       const job = jobById(id);
       card.style.transform = "";
       if (dx > 120) {
-        if (job.lock && !state.reviewed[id]) {
+        if (job.lock) {
           approve(id); // opens the review instead
         } else {
           flyThen(card, "fly-right", () => approve(id));
         }
       } else if (dx < -120) {
         flyThen(card, "fly-left", () => skip(id));
-      } else if (dy < -120) {
+      } else if (dy < -120 && event.pointerType === "mouse") {
         openReview(id);
       }
     });
@@ -640,7 +664,6 @@
   function openReview(id) {
     const job = jobById(id);
     if (!job) return;
-    state.reviewed[id] = true;
     openDialog(
       `
       <p class="mono muted">Review before it goes out</p>
@@ -732,14 +755,18 @@
           <span class="status" data-s="${p.stage}">${p.stage === "submitting" ? "Submitting" : stage.label}</span>
           <span class="title">${esc(p.company)}</span>
           <span class="muted">${esc(p.title)}</span>
-          <label><span class="sr-only">Move ${esc(p.company)} to</span>
+          ${
+            p.stage === "submitting"
+              ? '<span class="muted">Undo window open</span>'
+              : `<label><span class="sr-only">Move ${esc(p.company)} to</span>
             <select data-move="${p.id}">
               <option value="">Move to…</option>
               ${STAGES.filter((s) => s.key !== p.stage)
                 .map((s) => `<option value="${s.key}">${s.label}</option>`)
                 .join("")}
               <option value="closed">Closed</option>
-            </select></label>
+            </select></label>`
+          }
         </div>`,
         )
         .join("")}
@@ -772,10 +799,13 @@
       state.celebrated[id] = true;
       celebrateInterview(entry);
     } else {
-      undoToast(`Moved ${entry.company} to ${stage}.`, () => {
-        entry.stage = before;
-        render();
-      });
+      undoToast(
+        `Moved ${entry.company} to ${STAGES.find((s) => s.key === stage)?.label ?? stage}.`,
+        () => {
+          entry.stage = before;
+          render();
+        },
+      );
     }
   }
 
@@ -869,7 +899,6 @@
     const lastWeek = state.heat[state.heat.length - 1];
     lastWeek[1] = Math.min(3, lastWeek[1] + 1);
     render();
-    celebrateSmall();
     toast(
       `Logged <span class="em">${minutes} min</span> to ${esc(track.name)}${note ? `: ${esc(note)}` : ""}.`,
     );
@@ -891,7 +920,7 @@
           <h3 style="margin-top:14px;font-size:15px">Hypothesis</h3>
           <p>${esc(d.leak.hypothesis)}</p>
           <ul class="evidence">${d.leak.evidence.map((e) => `<li>${esc(e)}</li>`).join("")}</ul>
-          <span class="status" data-s="queued">${esc(d.leak.status)}</span>
+          <span class="chip">${esc(d.leak.status)}</span>
         </div>
         <div class="card">
           <h2>Funnel</h2>
@@ -995,7 +1024,9 @@
     const { into, out } = compMoves(floor);
     const parts = [];
     if (into.length > 0)
-      parts.push(`${into.length} job moves into your queue (${into.join(", ")})`);
+      parts.push(
+        `${into.length} job${into.length === 1 ? " moves" : "s move"} into your queue (${into.join(", ")})`,
+      );
     if (out.length > 0) parts.push(`${out.length} move out (${out.join(", ")})`);
     preview.textContent =
       parts.length > 0
@@ -1006,7 +1037,10 @@
   function applyCompFloor() {
     const input = $("[data-comp-floor]");
     const floor = Number(input.value);
-    if (!(floor >= 50000)) return;
+    if (!(floor >= 50000)) {
+      toast("Enter a comp floor of at least $50k.");
+      return;
+    }
     const before = state.settings.compFloor;
     if (floor === before) return;
     const { into, out } = compMoves(floor);
@@ -1060,6 +1094,7 @@
     const dialog = $("[data-dialog]");
     dialog.innerHTML = html;
     dialog.hidden = false;
+    setBackgroundInert();
     $("[data-scrim]").hidden = false;
     // Focus the heading, not a field: A and S work at once in the review, the screen reader
     // reads the title first, and Tab still reaches the answer text to edit it.
@@ -1072,6 +1107,12 @@
     }
   }
 
+  function setBackgroundInert() {
+    const open =
+      !$("[data-dialog]").hidden || !$("[data-palette]").hidden || !$("[data-celebration]").hidden;
+    for (const el of [$(".topbar"), $("#main")]) el.inert = open;
+  }
+
   function closeDialog() {
     const dialog = $("[data-dialog]");
     if (dialog.hidden) return;
@@ -1079,7 +1120,10 @@
     dialog.innerHTML = "";
     dialogApproveId = null;
     $("[data-scrim]").hidden = $("[data-palette]").hidden;
+    setBackgroundInert();
     if (dialogReturnFocus?.isConnected) dialogReturnFocus.focus();
+    else if (state.screen === "queue") focusQueue();
+    else $("#main").focus();
   }
 
   function toast(html, extra = "") {
@@ -1099,10 +1143,12 @@
     el.className = "toast";
     let left = UNDO_SECONDS;
     const withCount = Boolean(onCommit);
-    const label = () => (withCount ? `${esc(text)} <span class="mono">${left}s</span>` : esc(text));
+    // The seconds tick every second; hide them from screen readers, which hear one announcement.
+    const label = () =>
+      withCount ? `${esc(text)} <span class="mono" aria-hidden="true">${left}s</span>` : esc(text);
     el.innerHTML = `<span class="grow" data-t>${label()}</span><button type="button">Undo</button>`;
     host.appendChild(el);
-    announce(`${text} Undo is available for ${UNDO_SECONDS} seconds.`);
+    announce(`${text} Press U to undo within ${UNDO_SECONDS} seconds.`);
     let done = false;
     const timer = window.setInterval(() => {
       left -= 1;
@@ -1118,6 +1164,14 @@
       else if (onCommit) onCommit();
     }
     $("button", el).addEventListener("click", () => finish(true));
+    undoStack.push(() => finish(true));
+  }
+
+  // Undo the newest pending action from the keyboard (U), so Undo isn't mouse-only.
+  const undoStack = [];
+  function undoLatest() {
+    const latest = undoStack.pop();
+    if (latest) latest();
   }
 
   // First rung of the ladder: a small coral burst near the queue counter.
@@ -1151,6 +1205,7 @@
       <button class="btn btn-primary" type="button" data-action="close-celebration">Continue</button>
     </div>`;
     layer.hidden = false;
+    setBackgroundInert();
     $("button", layer).focus();
     if (reducedMotion()) return;
     const colors = ["coral", "lime", "iris", "sky"];
@@ -1169,10 +1224,13 @@
     const layer = $("[data-celebration]");
     layer.hidden = true;
     layer.innerHTML = "";
+    setBackgroundInert();
+    $("#main").focus();
   }
 
   // ---------- Command palette (UX-012) ----------
   let paletteItems = [];
+  let paletteReturnFocus = null;
   let paletteIndex = 0;
 
   function paletteCommands() {
@@ -1221,7 +1279,9 @@
 
   function openPalette() {
     const palette = $("[data-palette]");
+    paletteReturnFocus = document.activeElement;
     palette.hidden = false;
+    setBackgroundInert();
     $("[data-scrim]").hidden = false;
     const input = $("[data-palette-input]");
     input.value = "";
@@ -1232,6 +1292,8 @@
   function closePalette() {
     $("[data-palette]").hidden = true;
     $("[data-scrim]").hidden = $("[data-dialog]").hidden;
+    setBackgroundInert();
+    if (paletteReturnFocus?.isConnected) paletteReturnFocus.focus();
   }
 
   function filterPalette(text) {
@@ -1249,7 +1311,9 @@
             `<li role="option" id="pal-${i}" data-pal="${i}" aria-selected="${i === paletteIndex}"><span>${esc(c.label)}</span><span class="mono muted">${esc(c.hint)}</span></li>`,
         )
         .join("") || '<li aria-disabled="true">No match</li>';
-    $("[data-palette-input]").setAttribute("aria-activedescendant", `pal-${paletteIndex}`);
+    const input = $("[data-palette-input]");
+    if (paletteItems.length > 0) input.setAttribute("aria-activedescendant", `pal-${paletteIndex}`);
+    else input.removeAttribute("aria-activedescendant");
   }
 
   function runPalette(index) {
@@ -1285,10 +1349,14 @@
   function togglePause() {
     state.settings.autoApplyPaused = !state.settings.autoApplyPaused;
     render();
-    toast(
+    undoToast(
       state.settings.autoApplyPaused
         ? "Auto-apply is paused. Nothing goes out on its own."
         : "Auto-apply is back on.",
+      () => {
+        state.settings.autoApplyPaused = !state.settings.autoApplyPaused;
+        render();
+      },
     );
   }
 
@@ -1321,7 +1389,7 @@
       <h2 id="dialog-title">${paused > 0 ? "One step needs you" : "Everything is running"}</h2>
       <ul class="evidence">
         <li>Scout, Tailor, Answerer, Inbox, Coach: running.</li>
-        <li>Apply: ${paused > 0 ? `${paused} application paused for your hands (Bluepine Capital).` : "running."}</li>
+        <li>Apply: ${paused > 0 ? `${paused} application paused for your hands (${esc(state.handoffs.map((h) => h.company).join(", "))}).` : "running."}</li>
         <li>Nothing failed silently. Every pause shows up in your crew feed.</li>
       </ul>
       <div class="dialog-actions">
@@ -1343,6 +1411,7 @@
         <span class="kbd">J / K</span><span>Next / previous card or row</span>
         <span class="kbd">V</span><span>Switch Cards / Compact</span>
         <span class="kbd">B</span><span>Batch-approve auto-rule matches</span>
+        <span class="kbd">U</span><span>Undo the latest action while its toast shows</span>
         <span class="kbd">Esc</span><span>Close a dialog or the palette</span>
         <span class="kbd">?</span><span>This list</span>
       </div>
@@ -1421,13 +1490,25 @@
       $(`#b-${t.dataset.batchToggle}`)?.focus();
     }
     if (t.dataset.autonomy !== undefined) {
+      const before = state.settings.autonomy;
       state.settings.autonomy = t.value;
-      toast(`Autonomy: ${t.parentElement.querySelector("strong").textContent}.`);
+      undoToast(`Autonomy: ${t.parentElement.querySelector("strong").textContent}.`, () => {
+        state.settings.autonomy = before;
+        render();
+      });
     }
     if (t.dataset.pause !== undefined) togglePause();
     if (t.dataset.cap) {
-      state.settings.caps[t.dataset.cap] = Number(t.value);
-      toast("Cap saved.");
+      const key = t.dataset.cap;
+      const before = state.settings.caps[key];
+      state.settings.caps[key] = Number(t.value);
+      undoToast(
+        `Cap saved: ${t.closest("label").firstChild.textContent.trim()} ${t.value}.`,
+        () => {
+          state.settings.caps[key] = before;
+          render();
+        },
+      );
     }
   });
 
@@ -1456,7 +1537,10 @@
       const list = form.dataset.add === "role" ? state.settings.roles : state.settings.locations;
       list.push(value);
       render();
-      toast(`Added ${esc(value)}.`);
+      undoToast(`Added ${value}.`, () => {
+        list.splice(list.lastIndexOf(value), 1);
+        render();
+      });
     }
   });
 
@@ -1517,6 +1601,7 @@
       return;
     }
     if (key === "?") return showHelp();
+    if (lower === "u") return undoLatest();
     const jump = {
       1: "today",
       2: "queue",
