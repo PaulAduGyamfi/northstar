@@ -21,3 +21,9 @@ Patterns shared by every direction (from the [research brief](research-brief.md)
 - A bounded activity feed that ends with "Agents keep watching".
 
 Once a direction is chosen: write `tokens.md` (color, type, spacing, motion), a component inventory, then clickable prototypes of Approvals, Pipeline, Growth and Diagnostics for UX-002.
+
+**Clickable prototype (NS-107):** [prototypes/index.html](prototypes/index.html), with synthetic
+data and no build step (double-click to open). It covers Today, Queue (cards and compact),
+Pipeline, Grow, Diagnostics, Settings and the ⌘K palette, in light and night themes. The UX-002
+protocol and results are in [prototypes/usability-check.md](prototypes/usability-check.md).
+Renders are in [prototypes/renders/](prototypes/renders/).
