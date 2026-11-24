@@ -2,6 +2,8 @@
 packages:
   - "apps/*"
   - "packages/*"
+  # Eval harness and per-route eval sets (NS-106, NFR-AIQ-001).
+  - "evals"
 
 # Refuse any release younger than 14 days (AGENTS.md cooldown against hijacked releases).
 # 20160 minutes = 14 days. Never lower this to get an install through.
