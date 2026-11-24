@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Northstar · B · Momentum prototype</title>
+  <!-- Prototype for the UX-002 usability check (NS-107). Synthetic data, no network calls
+       except Google Fonts. Not production code. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=DM+Sans:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="prototype.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="topbar">
+    <a class="logo big" href="#today" aria-label="Northstar, go to Today"><i aria-hidden="true"></i>northstar</a>
+
+    <nav class="pillnav" aria-label="Main">
+      <a href="#today" data-nav="today">Today</a>
+      <a href="#queue" data-nav="queue">Queue <b class="count" data-count="queue"></b></a>
+      <a href="#pipeline" data-nav="pipeline">Pipeline</a>
+      <a href="#grow" data-nav="grow">Grow</a>
+      <a href="#inbox" data-nav="inbox">Inbox</a>
+      <a href="#more" data-nav="more" class="more-tab">More</a>
+    </nav>
+
+    <div class="topbar-tools">
+      <button class="health" type="button" data-action="health" aria-haspopup="dialog">
+        <span class="dot" aria-hidden="true"></span><span class="health-label">Agents healthy</span>
+      </button>
+      <button class="tool" type="button" data-action="palette" aria-label="Open command palette (Ctrl K)">
+        <span class="mono">⌘K</span>
+      </button>
+      <button class="tool" type="button" data-action="theme" aria-label="Switch to night mode">
+        <span aria-hidden="true" class="theme-icon">☾</span>
+      </button>
+      <button class="tool" type="button" data-action="help" aria-label="Keyboard shortcuts (?)">
+        <span class="mono">?</span>
+      </button>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1">
+    <section id="screen-today" data-screen="today" aria-labelledby="h-today" hidden></section>
+    <section id="screen-queue" data-screen="queue" aria-labelledby="h-queue" hidden></section>
+    <section id="screen-pipeline" data-screen="pipeline" aria-labelledby="h-pipeline" hidden></section>
+    <section id="screen-grow" data-screen="grow" aria-labelledby="h-grow" hidden></section>
+    <section id="screen-diagnostics" data-screen="diagnostics" aria-labelledby="h-diagnostics" hidden></section>
+    <section id="screen-settings" data-screen="settings" aria-labelledby="h-settings" hidden></section>
+    <section id="screen-more" data-screen="more" aria-labelledby="h-more" hidden></section>
+    <section id="screen-inbox" data-screen="inbox" aria-labelledby="h-inbox" hidden></section>
+  </main>
+
+  <!-- Overlays: one dialog host, the palette, toasts and the celebration layer. -->
+  <div class="scrim" data-scrim hidden></div>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" data-dialog hidden></div>
+  <div class="palette" role="dialog" aria-modal="true" aria-label="Command palette" data-palette hidden>
+    <input class="palette-input" type="text" placeholder="Jump anywhere, ask why, change a setting…"
+           aria-label="Command" aria-controls="palette-list" autocomplete="off" data-palette-input>
+    <ul id="palette-list" class="palette-list" role="listbox" data-palette-list></ul>
+  </div>
+  <div class="toasts" aria-live="polite" data-toasts></div>
+  <div class="celebration" data-celebration hidden></div>
+  <div class="sr-only" aria-live="assertive" data-announce></div>
+
+  <noscript><p class="noscript">This prototype needs a current browser with JavaScript turned on.</p></noscript>
+
+  <!-- Classic scripts, not modules: modules don't load from file://. -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
