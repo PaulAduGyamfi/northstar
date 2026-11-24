@@ -10,7 +10,7 @@
 - **Extension:** Chrome MV3 (Plasmo or WXT).
 - **DB:** Postgres 16 + pgvector; **Drizzle** ORM + migrations.
 - **LLM:** `@anthropic-ai/sdk` behind the LLM Gateway (ADR-0006).
-- **Storage:** S3-compatible (MinIO locally).
+- **Storage:** S3-compatible (SeaweedFS locally; NS-104 replaced MinIO, which stopped publishing community images).
 - **Docs rendering:** react-pdf or a headless-Chrome HTML→PDF template for resumes.
 
 ## Why

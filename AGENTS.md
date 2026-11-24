@@ -30,7 +30,8 @@ Exists now:
   (research brief, tokens, mockups), `cost-model.md`, `roadmap.md`, `open-questions.md`.
 - `specs/TEMPLATE/`: spec, plan and tasks templates. `specs/<ticket>/spec.md` per ticket.
 - `.claude/`: the agent harness (settings, hooks, subagents, skills, path rules).
-- `.github/`: `workflows/checks.yml` (commit checks + hook tests on every PR), `dependabot.yml`,
+- `.github/`: `workflows/checks.yml` (commit checks, hook tests, lint/typecheck/test/build and
+  compose validation on every PR), `dependabot.yml` (actions, npm, compose images),
   `branch-protection.json`, the PR template. Paul reviews PRs himself; there is no AI review in CI.
 - `.pre-commit-config.yaml` + `scripts/check-personal-data.sh`: commit checks (ADR-0011).
 - `LICENSE`: Apache-2.0.
@@ -38,6 +39,8 @@ Exists now:
   (14-day `minimumReleaseAge`), `.nvmrc` (Node 24), `.npmrc` (`engine-strict`), `turbo.json`,
   `biome.json` (code files only; `.claude/` excluded), `tsconfig.base.json` (strict).
 - `packages/domain/`: empty shell from NS-103 that proves the pipeline; NS-105 fills it.
+- `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
+  127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 
@@ -63,7 +66,10 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm install --frozen-lockfile` | install locked dependencies |
 | repo root | `pnpm -r lint` / `pnpm -r typecheck` / `pnpm -r test` | checks in every package |
 | repo root | `pnpm turbo run lint typecheck test build` | all checks with Turborepo caching (what CI runs, with `--force`) |
-| repo root | `docker compose up -d` | Postgres+pgvector, Temporal, MinIO, Grafana LGTM *(NS-104)* |
+| repo root | `cp .env.example .env` | once per clone (Paul): then replace every `change-me` in `.env` |
+| repo root | `docker compose up -d --wait` | local stack: Postgres+pgvector :5432, Temporal :7233 (UI :8233), SeaweedFS S3 :8333, Grafana :3000 + OTLP :4317/:4318, all on 127.0.0.1 |
+| repo root | `docker compose ps` | each service's health and ports |
+| repo root | `docker compose down` | stop the stack, **keep the data**. Never `down -v` (deletes every volume) |
 
 **Done** means every check passes in every package you touched and you showed the output.
 

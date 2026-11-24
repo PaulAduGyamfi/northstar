@@ -1,0 +1,92 @@
+# Local stack (NS-104, NFR-OPS-001). Start: `docker compose up -d --wait`. Stop: `docker compose down`
+# (keeps data). Never `docker compose down -v`: it deletes every volume, including the database.
+# Rules for this file: images pinned by tag@digest and at least 14 days old; ports bound to
+# 127.0.0.1 only; named volumes only (no host bind mounts, no privileged containers), because
+# agents run `docker compose up` outside the sandbox. Values come from .env (see .env.example);
+# `${VAR:?}` makes compose refuse to start when one is missing instead of using a default.
+name: northstar
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg16-bookworm@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:?set POSTGRES_PORT in .env}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # $$ passes a literal $ to the container shell, which reads the container's own env.
+      # -h 127.0.0.1 checks over TCP: on first boot the image runs a socket-only init server,
+      # which would otherwise look healthy before the real server is up.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # Temporal dev server (ADR-0001): one container with the Web UI, SQLite kept in a volume so
+  # workflows survive a restart. Hosted (P2) uses the full server instead.
+  temporal:
+    image: temporalio/temporal:1.10.0@sha256:003508da05989e7cf0d583cfce521c4bb2732e733574e3040db8f1284783baa2
+    # The image runs as a non-root user. The volume is mounted over that user's home, so Docker
+    # gives it the user's ownership (a new path like /data would be root-owned and unwritable).
+    # The volume copies the image's home folder only once, when the volume is first created.
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--db-filename", "/home/temporal/temporal.db"]
+    ports:
+      - "127.0.0.1:${TEMPORAL_PORT:?set TEMPORAL_PORT in .env}:7233"
+      - "127.0.0.1:${TEMPORAL_UI_PORT:?set TEMPORAL_UI_PORT in .env}:8233"
+    volumes:
+      - temporal-data:/home/temporal
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "127.0.0.1:7233"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  # S3-compatible object storage (ADR-0005; SeaweedFS because MinIO stopped publishing images).
+  storage:
+    image: chrislusf/seaweedfs:4.53@sha256:ccad23e18639c8b98cee17e7100b95830a06077b56d8e5b006d6dcf8ec5e94a0
+    command: ["server", "-dir=/data", "-s3", "-s3.port=8333"]
+    environment:
+      # SeaweedFS creates an S3 admin identity from these.
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY in .env}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
+    ports:
+      - "127.0.0.1:${S3_PORT:?set S3_PORT in .env}:8333"
+    volumes:
+      - storage-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8333/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  # Grafana + Loki + Tempo + Prometheus and the OpenTelemetry Collector in one image (ADR-0008).
+  # Apps send OTLP to 4317 (gRPC) or 4318 (HTTP); Grafana is on 3000.
+  # Grafana keeps the image's default local login. Accepted for local use only: it is bound to
+  # 127.0.0.1 and holds no data beyond local telemetry (spec NS-104). Same for Temporal's dev UI.
+  lgtm:
+    image: grafana/otel-lgtm:0.40.0@sha256:72e05804790e6e0d8c0b70a6d5ff1f721ef7b203463374631e99aa3429bd0cf6
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:?set GRAFANA_PORT in .env}:3000"
+      - "127.0.0.1:${OTLP_GRPC_PORT:?set OTLP_GRPC_PORT in .env}:4317"
+      - "127.0.0.1:${OTLP_HTTP_PORT:?set OTLP_HTTP_PORT in .env}:4318"
+    volumes:
+      - lgtm-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:3000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  temporal-data:
+  storage-data:
+  lgtm-data:

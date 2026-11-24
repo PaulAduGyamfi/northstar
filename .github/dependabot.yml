@@ -20,3 +20,14 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+
+  # Images in docker-compose.yml (pinned by tag@digest).
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14 # same 14-day rule
+    groups:
+      images:
+        patterns: ["*"]

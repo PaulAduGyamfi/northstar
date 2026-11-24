@@ -68,3 +68,8 @@ jobs:
       # --force skips Turborepo's cache so CI always re-runs every check.
       - name: Lint, typecheck, test, build
         run: pnpm turbo run lint typecheck test build --force
+
+      # Validates docker-compose.yml (syntax, required variables) with the placeholder values.
+      # CI doesn't run the stack.
+      - name: Compose file is valid
+        run: docker compose --env-file .env.example config --quiet
