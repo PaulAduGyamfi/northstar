@@ -38,7 +38,11 @@ Exists now:
 - Root toolchain (ADR-0011): `package.json` (pins pnpm via `packageManager`), `pnpm-workspace.yaml`
   (14-day `minimumReleaseAge`), `.nvmrc` (Node 24), `.npmrc` (`engine-strict`), `turbo.json`,
   `biome.json` (code files only; `.claude/` excluded), `tsconfig.base.json` (strict).
-- `packages/domain/`: empty shell from NS-103 that proves the pipeline; NS-105 fills it.
+- `packages/domain/` (NS-105): the application state machine (`nextStatus`), the `DomainEvent`
+  Zod schema and branded ids. Pure code, no I/O.
+- `packages/db/` (NS-105): Drizzle schema, committed migrations (`migrations/`), the one write
+  path for status changes (`transitionApplication`: status + event in one transaction) and
+  `readEventsAfter`. `domain_event` is append-only (ADR-0012). Tests run on in-process PGlite.
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
@@ -49,7 +53,7 @@ with the ticket that needs it.
 
 ```
 apps/web  apps/api  apps/worker  apps/extension
-packages/domain  db  agents  prompts  llm  gateways  ats-adapters  sources  ui
+packages/agents  prompts  llm  gateways  ats-adapters  sources  ui
 evals/  ops/  docs/runbooks/
 ```
 
@@ -70,6 +74,8 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `docker compose up -d --wait` | local stack: Postgres+pgvector :5432, Temporal :7233 (UI :8233), SeaweedFS S3 :8333, Grafana :3000 + OTLP :4317/:4318, all on 127.0.0.1 |
 | repo root | `docker compose ps` | each service's health and ports |
 | repo root | `docker compose down` | stop the stack, **keep the data**. Never `down -v` (deletes every volume) |
+| repo root | `pnpm --filter @northstar/db db:generate` | new migration from `packages/db/src/schema.ts` (no database needed); prints "No schema changes" when migrations match |
+| repo root | `pnpm --filter @northstar/db db:migrate` | apply pending migrations to `DATABASE_URL`, which Node loads from the root `.env` (Paul, outside the sandbox, stack up). Builds `domain` and `db` first |
 
 **Done** means every check passes in every package you touched and you showed the output.
 
