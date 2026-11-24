@@ -20,6 +20,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # the gitleaks step below scans the full history
+          # Don't leave the token in .git/config where dependency binaries could read it.
+          persist-credentials: false
+
+      # Third-party and Node actions pinned to a commit SHA (a tag can be moved; a SHA can't).
+      # pnpm version comes from package.json "packageManager"; Node from .nvmrc.
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # Before pre-commit, so its Biome hook finds the locked binary in node_modules.
+      # --frozen-lockfile fails if pnpm-lock.yaml doesn't match package.json.
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
 
       - uses: actions/setup-python@v5
         with:
@@ -49,4 +65,6 @@ jobs:
       - name: Harness hook self-tests
         run: bash .claude/hooks/test-hooks.sh
 
-      # The scaffold ticket adds: pnpm install --frozen-lockfile, then pnpm turbo lint typecheck test build.
+      # --force skips Turborepo's cache so CI always re-runs every check.
+      - name: Lint, typecheck, test, build
+        run: pnpm turbo run lint typecheck test build --force
