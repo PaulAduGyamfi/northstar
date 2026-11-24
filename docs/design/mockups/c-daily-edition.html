@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>C · The Daily Edition</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F6F1E7;--surf:#FFFDF8;--ink:#1D1A16;--rule:#D9D0BF;--red:#C8371D;--forest:#2F6B4F;--blue:#2B4C7E;--mu:#6f675b;--closed:#8A8172}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1440px;height:900px;background:var(--bg);color:var(--ink);font:16px/1.55 Newsreader,Georgia,serif;overflow:hidden}
+.ui{font-family:"IBM Plex Sans",sans-serif}.mono{font-family:"IBM Plex Mono",monospace}
+header{border-bottom:3px double var(--ink);margin:0 60px;padding:18px 0 10px;display:flex;align-items:baseline;gap:30px}
+.mast{font-family:Fraunces;font-weight:800;font-size:34px;letter-spacing:-.02em}
+header nav{display:flex;gap:20px;font:500 13px "IBM Plex Sans";color:var(--mu)}
+header nav .on{color:var(--ink);border-bottom:2px solid var(--red)}
+header .d{margin-left:auto;font:12px "IBM Plex Mono";color:var(--mu)}
+.page{display:grid;grid-template-columns:1fr 340px;gap:44px;margin:24px 60px 0}
+.kicker{font:600 12px "IBM Plex Sans";letter-spacing:.12em;text-transform:uppercase;color:var(--red)}
+h1{font-family:Fraunces;font-weight:600;font-size:44px;line-height:1.08;letter-spacing:-.02em;margin:6px 0 10px}
+.dek{font-size:19px;color:#3d372f;max-width:760px}
+.picks{margin-top:22px;border-top:1px solid var(--rule)}
+.pick{display:grid;grid-template-columns:1fr 200px;gap:28px;padding:16px 0;border-bottom:1px solid var(--rule)}
+.pick h3{font-family:Fraunces;font-weight:600;font-size:22px;line-height:1.2}
+.pick .co{font:500 13px "IBM Plex Sans";color:var(--mu);margin:2px 0 6px}
+.pick p{font-size:15.5px;color:#3a342c}
+.margin{font:12.5px/1.6 "IBM Plex Sans";color:var(--mu);border-left:2px solid var(--rule);padding-left:12px}
+.margin b{font:600 26px Fraunces;color:var(--ink);display:block}
+.fresh{color:var(--red);font-weight:600}
+.approve{display:flex;align-items:center;gap:16px;margin-top:16px;font-family:"IBM Plex Sans"}
+.btn{background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:3px;font-weight:600;font-size:14px}
+.btn.o{background:transparent;color:var(--ink);border:1px solid var(--ink)}
+aside h4{font:600 12px "IBM Plex Sans";letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--ink);padding-bottom:6px;margin-bottom:10px}
+.disp{font-size:14.5px;padding:7px 0;border-bottom:1px dotted var(--rule)}
+.disp .t{font:12px "IBM Plex Mono";color:var(--blue);margin-right:6px}
+.stamp{display:inline-block;border:1.5px solid var(--forest);color:var(--forest);font:600 10.5px "IBM Plex Mono";padding:1px 6px;transform:rotate(-2deg);margin-left:4px;letter-spacing:.05em}
+.funnel{margin-top:18px}
+.col{margin-top:16px;font-size:14.5px}
+.spark{display:flex;align-items:center;gap:10px;font:13px "IBM Plex Sans";margin:5px 0}
+.spark span{width:150px}
+.end{text-align:center;font-style:italic;color:var(--mu);margin-top:16px;font-size:14px}
+</style></head><body>
+<header><div class="mast">The Northstar Daily</div>
+ <nav><span class="on">Today’s edition</span><span>Picks (6)</span><span>Pipeline</span><span>Inbox</span><span>Growth</span><span>Diagnostics</span><span class="mono">⌘K</span></nav>
+ <span class="d">Tue, Nov 24 2026 · Morning edition</span></header>
+<div class="page">
+ <main>
+  <div class="kicker">Overnight</div>
+  <h1>31 new roles, 6 worth your time — and a recruiter at Brex wants to talk.</h1>
+  <p class="dek">Two of today’s picks went live less than an hour ago. Your Ramp screen is Thursday; the prep pack is the feature story below. One application is waiting on your hands at Capital One.</p>
+  <div class="picks">
+   <div class="pick"><div><h3>Backend Engineer, Payments Infrastructure</h3><div class="co">Stripe · Remote US · $165–210k · <span class="fresh">posted 18 min ago</span></div>
+    <p>I led with your idempotent-payments work at Mastercard because the posting mentions retries and exactly-once processing four times. Four of five answers come from your bank; one sentence is new.</p></div>
+    <div class="margin"><b>91</b>fit · skills 92 · level 85<br>comp ✓ remote ✓<br><span style="color:var(--forest)">Mastercard moat</span></div></div>
+   <div class="pick"><div><h3>Software Engineer, Platform</h3><div class="co">Ramp · NYC hybrid · $170–200k · <span class="fresh">posted 42 min ago</span></div>
+    <p>Platform team building internal developer tooling. Your Backpocket CI work is the strongest evidence; I drafted one new answer for “a system you’d redesign” — worth a read.</p></div>
+    <div class="margin"><b>87</b>fit · skills 88 · level 90<br>hybrid 3d/wk</div></div>
+   <div class="pick"><div><h3>Forward Deployed Engineer</h3><div class="co">Anthropic · SF / NYC · $200–260k · posted 3 h ago</div>
+    <p>A stretch on level, a bullseye on interest. Two narrative answers are new and lean on your FDE pathway progress — review the voice before this goes.</p></div>
+    <div class="margin"><b>82</b>fit · skills 78 · level 80<br>prefs 97 · needs review</div></div>
+  </div>
+  <div class="approve"><span class="btn">Approve today’s picks ⏎</span><span class="btn o">Read all 6</span><span class="mono" style="font-size:12px;color:var(--mu)">~3 minutes</span></div>
+ </main>
+ <aside>
+  <h4>Dispatches</h4>
+  <div class="disp"><span class="t">09:41</span>Filed Datadog, Billing <span class="stamp">FILED · 26 MIN AFTER POSTING</span></div>
+  <div class="disp"><span class="t">09:20</span>Brex recruiter graded A — in-house, comp in range. Reply drafted.</div>
+  <div class="disp"><span class="t">09:02</span>Passed on Acme Bank: requires clearance.</div>
+  <div class="disp"><span class="t">08:15</span>Mercury moved to screen after a “next steps” email.</div>
+  <div class="disp"><span class="t">07:58</span>Swept 212 boards; 25 roles set aside, with reasons.</div>
+  <h4 style="margin-top:22px">The funnel, 30 days</h4>
+  <svg class="funnel" width="340" height="96" viewBox="0 0 340 96"><path d="M0 8 H60 L120 30 V66 L60 88 H0Z" fill="#2B4C7E" opacity=".85"/><path d="M120 30 H180 L230 40 V56 L180 66 H120Z" fill="#2B4C7E" opacity=".6"/><path d="M230 40 H280 L340 44 V52 L280 56 H230Z" fill="#2F6B4F"/><text x="8" y="52" fill="#fff" font-family="IBM Plex Mono" font-size="12">212</text><text x="128" y="52" fill="#fff" font-family="IBM Plex Mono" font-size="12">38</text><text x="236" y="52" fill="#fff" font-family="IBM Plex Mono" font-size="11">9 · 4 · 2</text></svg>
+  <p class="col"><b>Editor’s note:</b> replies are up to 24% since the resume led with payments scale. Screens → interviews is the stage to watch.</p>
+  <h4 style="margin-top:20px">The growth column</h4>
+  <div class="spark"><span>AWS SAA</span><svg width="110" height="20"><polyline points="0,16 18,14 36,15 54,9 72,10 90,5 110,3" fill="none" stroke="#C8371D" stroke-width="2"/></svg>62%</div>
+  <div class="spark"><span>FDE pathway</span><svg width="110" height="20"><polyline points="0,18 18,17 36,14 54,14 72,11 90,10 110,8" fill="none" stroke="#2B4C7E" stroke-width="2"/></svg>40%</div>
+  <div class="spark"><span>Backpocket</span><svg width="110" height="20"><polyline points="0,12 18,12 36,8 54,10 72,6 90,7 110,4" fill="none" stroke="#2F6B4F" stroke-width="2"/></svg>v0.4</div>
+  <p class="end">That’s everything. Agents keep watching.</p>
+ </aside>
+</div>
+</body></html>

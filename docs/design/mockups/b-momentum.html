@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>B · Momentum</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=DM+Sans:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#FFF8F0;--ink:#1B1530;--coral:#FF5A4E;--coralT:#E0362B;--lime:#B6F24A;--iris:#5B5BF7;--sky:#3CC8F0;--mu:#6c6580;--closed:#8C86A0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1440px;height:900px;background:var(--bg);color:var(--ink);font:15px/1.45 "DM Sans",sans-serif;overflow:hidden;position:relative}
+.big{font-family:"Bricolage Grotesque";font-weight:800;letter-spacing:-.02em}
+.mono{font-family:"Space Mono",monospace}
+nav{position:absolute;top:22px;left:50%;transform:translateX(-50%);background:var(--ink);border-radius:999px;padding:6px;display:flex;gap:4px;box-shadow:0 10px 30px #1b153033}
+nav span{color:#cfc9e6;padding:9px 18px;border-radius:999px;font-weight:500;font-size:14px}
+nav .on{background:var(--lime);color:var(--ink);font-weight:700}
+nav b{background:var(--coral);color:#fff;border-radius:999px;font-size:11px;padding:1px 6px;margin-left:6px}
+.logo{position:absolute;top:30px;left:40px;font-size:22px}
+.logo i{display:inline-block;width:14px;height:14px;background:var(--coral);border-radius:4px;transform:rotate(45deg);margin-right:8px}
+.me{position:absolute;top:28px;right:40px;display:flex;gap:10px;align-items:center;color:var(--mu);font-size:13px}
+.grid{position:absolute;top:100px;left:40px;right:40px;bottom:30px;display:grid;grid-template-columns:330px 1fr 360px;gap:24px}
+.card{background:#fff;border-radius:22px;padding:22px;box-shadow:0 1px 0 #1b153010,0 12px 30px #1b15300d}
+h2{font-size:15px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.ringwrap{display:grid;place-items:center;position:relative;margin:4px 0 10px}
+.ringwrap .c{position:absolute;text-align:center}
+.ringwrap .c b{font-size:46px;display:block;line-height:1}
+.quest{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid #f0e9df;font-size:14px}
+.quest .ck{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;font-size:13px;font-weight:700}
+.prog{flex:1;height:8px;background:#f3ece2;border-radius:6px;overflow:hidden}.prog i{display:block;height:100%;border-radius:6px}
+.stack{position:relative;height:520px;margin-top:6px}
+.jc{position:absolute;left:0;right:0;background:#fff;border-radius:26px;padding:26px 28px;box-shadow:0 20px 50px #1b153022}
+.jc.b2{top:22px;transform:scale(.95);opacity:.6}
+.jc.b3{top:40px;transform:scale(.9);opacity:.35}
+.jc.top{top:0;transform:rotate(-1.2deg)}
+.tag{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 12px;font-weight:700;font-size:13px}
+.fit{display:flex;gap:8px;margin:18px 0}
+.fit div{flex:1;background:#faf6f0;border-radius:14px;padding:10px 12px}
+.fit b{font-size:24px;display:block}
+.fit span{font-size:12px;color:var(--mu)}
+.why{background:#F4F4FF;border-radius:14px;padding:12px 14px;font-size:14px;color:#2a2a6b}
+.acts{display:flex;justify-content:center;gap:18px;margin-top:22px}
+.ab{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:22px;box-shadow:0 8px 20px #1b153022}
+.hint{text-align:center;color:var(--mu);font-size:12.5px;margin-top:10px}
+.prog-top{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--mu)}
+.bubble{display:flex;gap:10px;margin-bottom:12px}
+.av{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;font-weight:800;font-size:13px;flex:none}
+.bb{background:#faf6f0;border-radius:4px 16px 16px 16px;padding:9px 12px;font-size:13.5px}
+.bb small{display:block;color:var(--mu);font-size:11.5px;margin-top:3px}
+.react{display:inline-block;background:#fff;border:1px solid #eee2d4;border-radius:999px;font-size:11.5px;padding:2px 8px;margin:6px 4px 0 0}
+.track{display:flex;align-items:center;margin-top:14px;position:relative}
+.track:before{content:"";position:absolute;left:10px;right:10px;top:15px;height:4px;background:#f0e9df;border-radius:3px}
+.st{flex:1;text-align:center;position:relative;font-size:11.5px;color:var(--mu)}
+.st i{display:block;width:30px;height:30px;border-radius:50%;margin:0 auto 4px;display:grid;place-items:center;font-style:normal;font-weight:800;color:#fff;font-size:12px}
+.burst{position:absolute;left:520px;bottom:60px;z-index:5;font-size:13px;background:var(--ink);color:#fff;border-radius:14px;padding:10px 14px;box-shadow:0 10px 30px #1b153044}
+.burst b{color:var(--lime)}
+</style></head><body>
+<div class="logo big"><i></i>northstar</div>
+<nav><span class="on">Today</span><span>Queue<b>6</b></span><span>Pipeline</span><span>Grow</span><span>Inbox<b>2</b></span><span>More ⌘K</span></nav>
+<div class="me mono">streak-safe · 2 rest days banked</div>
+<div class="burst">✦ Applied to <b>Datadog</b> 26 min after posting — you’re early.</div>
+<div class="grid">
+ <div style="display:flex;flex-direction:column;gap:20px">
+  <div class="card">
+   <h2>This week’s inputs</h2>
+   <div class="ringwrap"><svg width="190" height="190" viewBox="0 0 190 190"><circle cx="95" cy="95" r="80" fill="none" stroke="#f3ece2" stroke-width="18"/><circle cx="95" cy="95" r="80" fill="none" stroke="#FF5A4E" stroke-width="18" stroke-linecap="round" stroke-dasharray="352 503" transform="rotate(-90 95 95)"/><circle cx="95" cy="95" r="56" fill="none" stroke="#f3ece2" stroke-width="14"/><circle cx="95" cy="95" r="56" fill="none" stroke="#5B5BF7" stroke-width="14" stroke-linecap="round" stroke-dasharray="210 352" transform="rotate(-90 95 95)"/></svg>
+    <div class="c"><b class="big">70%</b><span style="color:var(--mu);font-size:12px">of weekly goal</span></div></div>
+   <div style="display:flex;justify-content:space-around;font-size:12.5px"><span><b style="color:var(--coralT)">●</b> 38/50 applications</span><span><b style="color:var(--iris)">●</b> 5.5/8h growth</span></div>
+  </div>
+  <div class="card" style="flex:1">
+   <h2>Weekly quests</h2>
+   <div class="quest"><span class="ck" style="background:var(--lime)">✓</span>2 AWS SAA modules<div class="prog" style="max-width:70px"><i style="width:100%;background:var(--lime)"></i></div></div>
+   <div class="quest"><span class="ck" style="background:#ecebff;color:var(--iris)">1</span>1 FDE pathway lab<div class="prog" style="max-width:70px"><i style="width:40%;background:var(--iris)"></i></div></div>
+   <div class="quest"><span class="ck" style="background:#ffe9e6;color:var(--coralT)">2</span>3h on Backpocket<div class="prog" style="max-width:70px"><i style="width:55%;background:var(--coral)"></i></div></div>
+   <div class="quest"><span class="ck" style="background:#e3f7fd;color:#0a7fa3">3</span>Send 3 referral asks<div class="prog" style="max-width:70px"><i style="width:33%;background:var(--sky)"></i></div></div>
+  </div>
+ </div>
+ <div>
+  <div class="prog-top"><b style="color:var(--ink)" class="big">Power hour</b> freshest first · <span class="mono">1 of 6 · ~3 min left</span><div class="prog" style="max-width:220px"><i style="width:17%;background:var(--coral)"></i></div></div>
+  <div class="stack">
+   <div class="jc b3" style="height:470px"></div>
+   <div class="jc b2" style="height:470px"></div>
+   <div class="jc top">
+    <div style="display:flex;gap:8px"><span class="tag" style="background:#FFE9E6;color:var(--coralT)">⚡ posted 18 min ago</span><span class="tag" style="background:#F1FFD9;color:#3d6a00">Mastercard moat</span></div>
+    <div class="big" style="font-size:34px;margin-top:16px;line-height:1.05">Backend Engineer,<br>Payments Infrastructure</div>
+    <div style="color:var(--mu);margin-top:6px;font-size:16px">Stripe · Remote US · $165–210k</div>
+    <div class="fit"><div><b class="big">91</b><span>overall fit</span></div><div><b class="big" style="color:var(--iris)">92</b><span>skills</span></div><div><b class="big">85</b><span>level</span></div><div><b class="big" style="color:#3d8a00">✓</b><span>comp · remote</span></div></div>
+    <div class="why"><b>Why it’s a match:</b> 4 yrs on Mastercard payment rails maps to their idempotency + retries focus. Resume leads with that project; 4 of 5 answers reused from your bank.</div>
+    <div class="acts"><span class="ab" style="background:#fff;color:var(--mu)">✕</span><span class="ab" style="background:#fff;color:var(--iris)">✎</span><span class="ab" style="background:var(--coral);color:#fff;width:76px;height:76px">✓</span></div>
+    <div class="hint">swipe → approve · ← skip · ↑ edit &nbsp;·&nbsp; or press A / S / E</div>
+   </div>
+  </div>
+ </div>
+ <div style="display:flex;flex-direction:column;gap:20px">
+  <div class="card" style="flex:1">
+   <h2>Your agent crew <span class="mono" style="font-size:11px;color:var(--mu);font-weight:400">3 working</span></h2>
+   <div class="bubble"><span class="av" style="background:var(--lime)">Sc</span><div class="bb"><b>Scout:</b> found 4 roles posted &lt;30m ago at fintechs you starred.<small>2 min ago</small><span class="react">see them</span><span class="react">more like this</span></div></div>
+   <div class="bubble"><span class="av" style="background:#ecebff;color:var(--iris)">Ta</span><div class="bb"><b>Tailor:</b> led your Stripe resume with the idempotent-payments work.<small>5 min ago</small><span class="react">why?</span></div></div>
+   <div class="bubble"><span class="av" style="background:#FFE9E6;color:var(--coralT)">In</span><div class="bb"><b>Inbox:</b> Brex recruiter graded <b>A</b> — reply drafted for you.<small>20 min ago</small><span class="react">review</span></div></div>
+   <div class="bubble"><span class="av" style="background:#e3f7fd;color:#0a7fa3">Co</span><div class="bb"><b>Coach:</b> Ramp screen Thu 2pm. Prep plan unlocked 🔓<small>1 h ago</small></div></div>
+  </div>
+  <div class="card">
+   <h2>Journey · 30 days</h2>
+   <div class="track"><div class="st"><i style="background:var(--ink)">212</i>found</div><div class="st"><i style="background:var(--iris)">38</i>applied</div><div class="st"><i style="background:var(--sky)">9</i>replied</div><div class="st"><i style="background:var(--coral)">4</i>screens</div><div class="st"><i style="background:#3d8a00">2</i>interviews</div></div>
+   <div style="font-size:12.5px;color:var(--mu);margin-top:12px">Learned-from tray: 11 closed → fed to Diagnostics</div>
+  </div>
+ </div>
+</div>
+</body></html>

@@ -1,0 +1,240 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 1140" width="1400" height="1140" font-family="Inter, system-ui, -apple-system, Segoe UI, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <style>
+      .band-label { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; fill: #334155; }
+      .band-sub { font-size: 11px; font-weight: 400; fill: #64748b; letter-spacing: 0; }
+      .t { font-size: 13px; font-weight: 600; fill: #0f172a; }
+      .s { font-size: 10.5px; fill: #475569; }
+      .chip { font-size: 12px; font-weight: 600; fill: #0f172a; }
+      .chip-s { font-size: 10px; fill: #475569; }
+      .edge-l { font-size: 10.5px; fill: #475569; font-style: italic; }
+      .flow { stroke: #475569; stroke-width: 1.6; fill: none; marker-end: url(#arr); }
+      .flow-d { stroke: #475569; stroke-width: 1.4; fill: none; stroke-dasharray: 5 4; marker-end: url(#arr); }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1400" height="1140" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="50" y="40" font-size="22" font-weight="700" fill="#0f172a">Northstar — agentic job search system</text>
+  <text x="50" y="58" font-size="12" fill="#64748b">Agents think and propose · the Approval Gate decides · only Action Gateways touch the outside world · every step lands in the activity feed</text>
+
+  <!-- ============ CLIENTS ============ -->
+  <rect x="50" y="70" width="1000" height="100" rx="10" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="66" y="89" class="band-label">CLIENTS</text>
+  <rect x="70" y="100" width="160" height="56" rx="8" fill="#fff" stroke="#3b82f6"/>
+  <text x="150" y="124" class="t" text-anchor="middle">You</text>
+  <text x="150" y="142" class="s" text-anchor="middle">≤ 1 click per application</text>
+  <rect x="250" y="100" width="300" height="56" rx="8" fill="#fff" stroke="#3b82f6"/>
+  <text x="400" y="124" class="t" text-anchor="middle">Web App · Next.js PWA</text>
+  <text x="400" y="142" class="s" text-anchor="middle">Today · Approvals · Pipeline · Inbox · Growth · Run inspector</text>
+  <rect x="580" y="100" width="260" height="56" rx="8" fill="#fff" stroke="#3b82f6"/>
+  <text x="710" y="124" class="t" text-anchor="middle">Chrome Extension (MV3)</text>
+  <text x="710" y="142" class="s" text-anchor="middle">JD capture · LinkedIn audit · human handoff</text>
+  <rect x="870" y="100" width="160" height="56" rx="8" fill="#fff" stroke="#3b82f6"/>
+  <text x="950" y="124" class="t" text-anchor="middle">Notifications</text>
+  <text x="950" y="142" class="s" text-anchor="middle">push: “10 ready to approve”</text>
+
+  <!-- ============ EDGE ============ -->
+  <rect x="50" y="195" width="1000" height="80" rx="10" fill="#f8fafc" stroke="#64748b"/>
+  <text x="66" y="213" class="band-label">EDGE</text>
+  <rect x="70" y="221" width="160" height="44" rx="8" fill="#fff" stroke="#64748b"/>
+  <text x="150" y="240" class="t" text-anchor="middle">Realtime hub</text>
+  <text x="150" y="256" class="s" text-anchor="middle">SSE activity feed</text>
+  <rect x="250" y="221" width="300" height="44" rx="8" fill="#fff" stroke="#64748b"/>
+  <text x="400" y="240" class="t" text-anchor="middle">API / BFF</text>
+  <text x="400" y="256" class="s" text-anchor="middle">passkey auth · typed API · extension bridge</text>
+  <rect x="580" y="221" width="260" height="44" rx="8" fill="#fff" stroke="#64748b"/>
+  <text x="710" y="240" class="t" text-anchor="middle">Webhook receivers</text>
+  <text x="710" y="256" class="s" text-anchor="middle">Gmail Pub/Sub · GitHub</text>
+  <rect x="870" y="221" width="160" height="44" rx="8" fill="#fff" stroke="#64748b"/>
+  <text x="950" y="240" class="t" text-anchor="middle">Scheduler</text>
+  <text x="950" y="256" class="s" text-anchor="middle">Temporal schedules</text>
+
+  <!-- ============ ORCHESTRATION ============ -->
+  <rect x="50" y="300" width="1000" height="135" rx="10" fill="#f5f3ff" stroke="#7c3aed"/>
+  <text x="66" y="319" class="band-label">ORCHESTRATION · TEMPORAL <tspan class="band-sub">  durable workflows · one worker pool per domain (bulkheads) · approvals = signals · crashes resume</tspan></text>
+  <g>
+    <rect x="70" y="330" width="225" height="40" rx="7" fill="#fff" stroke="#7c3aed"/>
+    <text x="182" y="347" class="chip" text-anchor="middle">SourcingWorkflow</text>
+    <text x="182" y="362" class="chip-s" text-anchor="middle">cron · poll boards · dedupe</text>
+    <rect x="305" y="330" width="225" height="40" rx="7" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+    <text x="417" y="347" class="chip" text-anchor="middle">JobPipelineWorkflow</text>
+    <text x="417" y="362" class="chip-s" text-anchor="middle">score → tailor → answer → approve → submit</text>
+    <rect x="540" y="330" width="225" height="40" rx="7" fill="#fff" stroke="#7c3aed"/>
+    <text x="652" y="347" class="chip" text-anchor="middle">InboxWorkflow</text>
+    <text x="652" y="362" class="chip-s" text-anchor="middle">classify → link → grade → draft</text>
+    <rect x="775" y="330" width="225" height="40" rx="7" fill="#fff" stroke="#7c3aed"/>
+    <text x="887" y="347" class="chip" text-anchor="middle">FollowUpWorkflow</text>
+    <text x="887" y="362" class="chip-s" text-anchor="middle">timers per stage → nudge draft</text>
+
+    <rect x="70" y="380" width="225" height="40" rx="7" fill="#fff" stroke="#7c3aed"/>
+    <text x="182" y="397" class="chip" text-anchor="middle">OutreachWorkflow</text>
+    <text x="182" y="412" class="chip-s" text-anchor="middle">people → emails → draft → sequence</text>
+    <rect x="305" y="380" width="225" height="40" rx="7" fill="#fff" stroke="#7c3aed"/>
+    <text x="417" y="397" class="chip" text-anchor="middle">InterviewWorkflow</text>
+    <text x="417" y="412" class="chip-s" text-anchor="middle">brief → prep blocks → remind → review</text>
+    <rect x="540" y="380" width="225" height="40" rx="7" fill="#fff" stroke="#7c3aed"/>
+    <text x="652" y="397" class="chip" text-anchor="middle">ProfileScanWorkflow</text>
+    <text x="652" y="412" class="chip-s" text-anchor="middle">weekly · audit → grade → fixes</text>
+    <rect x="775" y="380" width="225" height="40" rx="7" fill="#fff" stroke="#7c3aed"/>
+    <text x="887" y="397" class="chip" text-anchor="middle">GrowthPlanWorkflow</text>
+    <text x="887" y="412" class="chip-s" text-anchor="middle">weekly · capacity + balance → calendar</text>
+  </g>
+
+  <!-- ============ AGENTS ============ -->
+  <rect x="50" y="460" width="1000" height="165" rx="10" fill="#f0fdfa" stroke="#0d9488"/>
+  <text x="66" y="479" class="band-label">AGENTS · CLAUDE-POWERED ACTIVITIES <tspan class="band-sub">  typed in/out · versioned prompts · evals · read &amp; propose only — no outbound credentials</tspan></text>
+  <g>
+    <rect x="70" y="490" width="225" height="36" rx="7" fill="#fff" stroke="#0d9488"/><text x="182" y="506" class="chip" text-anchor="middle">Extractor</text><text x="182" y="519" class="chip-s" text-anchor="middle">any page → normalized Job</text>
+    <rect x="305" y="490" width="225" height="36" rx="7" fill="#fff" stroke="#0d9488"/><text x="417" y="506" class="chip" text-anchor="middle">Scorer</text><text x="417" y="519" class="chip-s" text-anchor="middle">Fit Score + evidence</text>
+    <rect x="540" y="490" width="225" height="36" rx="7" fill="#fff" stroke="#0d9488"/><text x="652" y="506" class="chip" text-anchor="middle">Resume Tailor</text><text x="652" y="519" class="chip-s" text-anchor="middle">atoms → resume with provenance</text>
+    <rect x="775" y="490" width="225" height="36" rx="7" fill="#fff" stroke="#0d9488"/><text x="887" y="506" class="chip" text-anchor="middle">Answerer (your voice)</text><text x="887" y="519" class="chip-s" text-anchor="middle">answer bank · stories · voice profile</text>
+
+    <rect x="70" y="535" width="225" height="36" rx="7" fill="#fff" stroke="#0d9488"/><text x="182" y="551" class="chip" text-anchor="middle">Form Mapper</text><text x="182" y="564" class="chip-s" text-anchor="middle">unknown form → field map</text>
+    <rect x="305" y="535" width="225" height="36" rx="7" fill="#fff" stroke="#0d9488"/><text x="417" y="551" class="chip" text-anchor="middle">Inbox Triage</text><text x="417" y="564" class="chip-s" text-anchor="middle">classify · extract · link</text>
+    <rect x="540" y="535" width="225" height="36" rx="7" fill="#fff" stroke="#0d9488"/><text x="652" y="551" class="chip" text-anchor="middle">Reply Drafter</text><text x="652" y="564" class="chip-s" text-anchor="middle">follow-ups · scheduling · thank-yous</text>
+    <rect x="775" y="535" width="225" height="36" rx="7" fill="#fff" stroke="#0d9488"/><text x="887" y="551" class="chip" text-anchor="middle">Recruiter Grader</text><text x="887" y="564" class="chip-s" text-anchor="middle">A–F vs. your preferences</text>
+
+    <rect x="70" y="580" width="225" height="36" rx="7" fill="#fff" stroke="#0d9488"/><text x="182" y="596" class="chip" text-anchor="middle">Outreach</text><text x="182" y="609" class="chip-s" text-anchor="middle">right people · warm path · drafts</text>
+    <rect x="305" y="580" width="225" height="36" rx="7" fill="#fff" stroke="#0d9488"/><text x="417" y="596" class="chip" text-anchor="middle">Profile Auditor</text><text x="417" y="609" class="chip-s" text-anchor="middle">GitHub · LinkedIn · site → grade</text>
+    <rect x="540" y="580" width="225" height="36" rx="7" fill="#fff" stroke="#0d9488"/><text x="652" y="596" class="chip" text-anchor="middle">Prep Coach</text><text x="652" y="609" class="chip-s" text-anchor="middle">briefs · mock interviews · reviews</text>
+    <rect x="775" y="580" width="225" height="36" rx="7" fill="#fff" stroke="#0d9488"/><text x="887" y="596" class="chip" text-anchor="middle">Growth Planner</text><text x="887" y="609" class="chip-s" text-anchor="middle">tracks · balance · skill-gap signals</text>
+  </g>
+
+  <!-- ============ SHARED SERVICES ============ -->
+  <rect x="50" y="650" width="1000" height="85" rx="10" fill="#fffbeb" stroke="#d97706"/>
+  <text x="66" y="668" class="band-label">SHARED SERVICES</text>
+  <rect x="70" y="676" width="300" height="48" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="2.2"/>
+  <text x="220" y="696" class="t" text-anchor="middle">Approval Gate &amp; Policy Engine</text>
+  <text x="220" y="713" class="s" text-anchor="middle">one queue · batch approve · auto-approve rules</text>
+  <rect x="385" y="676" width="215" height="48" rx="8" fill="#fff" stroke="#d97706"/>
+  <text x="492" y="696" class="t" text-anchor="middle">LLM Gateway</text>
+  <text x="492" y="713" class="s" text-anchor="middle">prompts · caching · cost · evals</text>
+  <rect x="615" y="676" width="190" height="48" rx="8" fill="#fff" stroke="#d97706"/>
+  <text x="710" y="696" class="t" text-anchor="middle">Provenance Validator</text>
+  <text x="710" y="713" class="s" text-anchor="middle">no uncited claims</text>
+  <rect x="820" y="676" width="210" height="48" rx="8" fill="#fff" stroke="#d97706"/>
+  <text x="925" y="696" class="t" text-anchor="middle">Research Service</text>
+  <text x="925" y="713" class="s" text-anchor="middle">company snapshots (cached)</text>
+
+  <!-- ============ ACTION ZONE ============ -->
+  <rect x="50" y="760" width="1000" height="85" rx="10" fill="#fef2f2" stroke="#dc2626"/>
+  <text x="66" y="778" class="band-label">ACTION ZONE <tspan class="band-sub">  only holders of side-effect credentials · every call needs approvalId · rate caps · idempotency</tspan></text>
+  <rect x="70" y="786" width="300" height="48" rx="8" fill="#fff" stroke="#dc2626"/>
+  <text x="220" y="806" class="t" text-anchor="middle">Apply Gateway</text>
+  <text x="220" y="823" class="s" text-anchor="middle">Playwright · ATS adapters · CAPTCHA → hand off</text>
+  <rect x="385" y="786" width="215" height="48" rx="8" fill="#fff" stroke="#dc2626"/>
+  <text x="492" y="806" class="t" text-anchor="middle">Mail Gateway</text>
+  <text x="492" y="823" class="s" text-anchor="middle">Gmail label · draft · send</text>
+  <rect x="615" y="786" width="190" height="48" rx="8" fill="#fff" stroke="#dc2626"/>
+  <text x="710" y="806" class="t" text-anchor="middle">Calendar Gateway</text>
+  <text x="710" y="823" class="s" text-anchor="middle">events · prep blocks</text>
+  <rect x="820" y="786" width="210" height="48" rx="8" fill="#fff" stroke="#dc2626"/>
+  <text x="925" y="806" class="t" text-anchor="middle">GitHub Gateway</text>
+  <text x="925" y="823" class="s" text-anchor="middle">profile-fix PRs</text>
+
+  <!-- ============ DATA ============ -->
+  <rect x="50" y="870" width="1000" height="90" rx="10" fill="#f1f5f9" stroke="#475569"/>
+  <text x="66" y="888" class="band-label">DATA</text>
+  <rect x="70" y="898" width="300" height="50" rx="8" fill="#fff" stroke="#475569"/>
+  <text x="220" y="918" class="t" text-anchor="middle">Postgres + pgvector</text>
+  <text x="220" y="935" class="s" text-anchor="middle">profile graph · jobs · pipeline · event outbox</text>
+  <rect x="385" y="898" width="215" height="50" rx="8" fill="#fff" stroke="#475569"/>
+  <text x="492" y="918" class="t" text-anchor="middle">Object storage (S3)</text>
+  <text x="492" y="935" class="s" text-anchor="middle">resume versions · submit proofs</text>
+  <rect x="615" y="898" width="190" height="50" rx="8" fill="#fff" stroke="#475569"/>
+  <text x="710" y="918" class="t" text-anchor="middle">Secrets vault</text>
+  <text x="710" y="935" class="s" text-anchor="middle">OAuth tokens · API keys</text>
+  <rect x="820" y="898" width="210" height="50" rx="8" fill="#fff" stroke="#475569"/>
+  <text x="925" y="918" class="t" text-anchor="middle">Temporal persistence</text>
+  <text x="925" y="935" class="s" text-anchor="middle">workflow histories</text>
+
+  <!-- ============ EXTERNAL ============ -->
+  <rect x="1090" y="70" width="280" height="890" rx="10" fill="#fafafa" stroke="#a1a1aa" stroke-dasharray="6 4"/>
+  <text x="1106" y="89" class="band-label">EXTERNAL SYSTEMS</text>
+  <rect x="1106" y="98" width="248" height="30" rx="6" fill="#fff" stroke="#a1a1aa"/><text x="1230" y="117" class="chip-s" text-anchor="middle" font-size="11">LinkedIn · Indeed — your browser session only</text>
+  <rect x="1106" y="134" width="248" height="30" rx="6" fill="#fff" stroke="#a1a1aa"/><text x="1230" y="153" class="chip-s" text-anchor="middle" font-size="11">Any job page (link paste / capture)</text>
+  <rect x="1106" y="221" width="248" height="44" rx="6" fill="#fff" stroke="#a1a1aa"/><text x="1230" y="240" class="chip" text-anchor="middle">Gmail Pub/Sub · GitHub hooks</text><text x="1230" y="255" class="chip-s" text-anchor="middle">inbound events</text>
+  <rect x="1106" y="330" width="248" height="40" rx="6" fill="#fff" stroke="#a1a1aa"/><text x="1230" y="347" class="chip" text-anchor="middle">ATS job-board APIs</text><text x="1230" y="362" class="chip-s" text-anchor="middle">Greenhouse · Lever · Ashby · SmartRecruiters</text>
+  <rect x="1106" y="380" width="248" height="40" rx="6" fill="#fff" stroke="#a1a1aa"/><text x="1230" y="397" class="chip" text-anchor="middle">Permissive job feeds</text><text x="1230" y="412" class="chip-s" text-anchor="middle">HN Who's Hiring · YC · RSS/JSON boards</text>
+  <rect x="1106" y="490" width="248" height="36" rx="6" fill="#fff" stroke="#a1a1aa"/><text x="1230" y="512" class="chip-s" text-anchor="middle" font-size="11">Company sites · news · eng blogs</text>
+  <rect x="1106" y="535" width="248" height="36" rx="6" fill="#fff" stroke="#a1a1aa"/><text x="1230" y="557" class="chip-s" text-anchor="middle" font-size="11">Contact providers (Hunter / Apollo — TBD)</text>
+  <rect x="1106" y="580" width="248" height="36" rx="6" fill="#fff" stroke="#a1a1aa"/><text x="1230" y="602" class="chip-s" text-anchor="middle" font-size="11">GitHub API (read) · PageSpeed/Lighthouse</text>
+  <rect x="1106" y="676" width="248" height="48" rx="6" fill="#fff" stroke="#d97706" stroke-width="1.6"/><text x="1230" y="696" class="chip" text-anchor="middle">Claude API</text><text x="1230" y="712" class="chip-s" text-anchor="middle">claude-opus-5-5 default · tiered per eval</text>
+  <rect x="1106" y="786" width="248" height="22" rx="6" fill="#fff" stroke="#a1a1aa"/><text x="1230" y="801" class="chip-s" text-anchor="middle" font-size="11">ATS application forms</text>
+  <rect x="1106" y="812" width="248" height="22" rx="6" fill="#fff" stroke="#a1a1aa"/><text x="1230" y="827" class="chip-s" text-anchor="middle" font-size="11">Gmail · Google Calendar · GitHub (write)</text>
+
+  <!-- ============ FLOWS ============ -->
+  <!-- clients -> edge -->
+  <path d="M400 157 L400 219" class="flow"/>
+  <text x="408" y="188" class="edge-l">requests · approvals</text>
+  <!-- realtime -> clients -->
+  <path d="M150 221 L150 158" class="flow"/>
+  <text x="158" y="188" class="edge-l">live feed</text>
+  <!-- extension <-> API -->
+  <path d="M710 157 L710 219" class="flow"/>
+  <text x="718" y="188" class="edge-l">captures · handoff</text>
+  <!-- edge -> orchestration -->
+  <path d="M400 266 L400 298" class="flow"/>
+  <text x="408" y="288" class="edge-l">start / signal workflows</text>
+  <path d="M710 266 L710 298" class="flow"/>
+  <path d="M950 266 L950 298" class="flow"/>
+  <!-- orchestration -> agents -->
+  <path d="M560 436 L560 458" class="flow"/>
+  <text x="568" y="450" class="edge-l">activities</text>
+  <!-- agents -> shared -->
+  <path d="M220 626 L220 674" class="flow"/>
+  <text x="228" y="644" class="edge-l">proposals</text>
+  <path d="M492 626 L492 674" class="flow"/>
+  <text x="500" y="644" class="edge-l">LLM calls</text>
+  <path d="M710 626 L710 674" class="flow"/>
+  <text x="718" y="644" class="edge-l">validate claims</text>
+  <!-- approval -> notifications (push) -->
+  <!-- shared -> action -->
+  <path d="M220 725 L220 758" class="flow"/>
+  <text x="228" y="747" class="edge-l">approvalId / policyDecisionId</text>
+  <!-- action -> data -->
+  <path d="M492 835 L492 896" class="flow"/>
+  <text x="500" y="862" class="edge-l">proofs · audit log</text>
+  <!-- event outbox -> realtime (left rail) -->
+  <path d="M70 935 L32 935 L32 243 L68 243" class="flow-d"/>
+  <text x="26" y="600" class="edge-l" transform="rotate(-90 26 600)">event outbox → activity feed</text>
+
+  <!-- band to external -->
+  <path d="M1050 120 L1104 120" class="flow" marker-start="url(#arr)"/>
+  <path d="M1104 243 L1052 243" class="flow"/>
+  <path d="M1050 360 L1104 360" class="flow"/>
+  <text x="1056" y="352" class="edge-l">poll</text>
+  <path d="M1050 550 L1104 550" class="flow"/>
+  <text x="1056" y="542" class="edge-l">read</text>
+  <path d="M1050 700 L1104 700" class="flow"/>
+  <path d="M1050 810 L1104 810" class="flow"/>
+  <text x="1056" y="802" class="edge-l">act</text>
+
+
+  <!-- ============ OBSERVABILITY & CONTROL ============ -->
+  <rect x="50" y="980" width="1320" height="85" rx="10" fill="#ecfeff" stroke="#0891b2"/>
+  <text x="66" y="998" class="band-label">OBSERVABILITY &amp; CONTROL <tspan class="band-sub">  every component emits OpenTelemetry traces · metrics · logs — one trace per application, end to end</tspan></text>
+  <rect x="70" y="1006" width="240" height="48" rx="8" fill="#fff" stroke="#0891b2"/><text x="190" y="1026" class="t" text-anchor="middle">OTel Collector</text><text x="190" y="1043" class="s" text-anchor="middle">vendor-neutral pipeline</text>
+  <rect x="325" y="1006" width="260" height="48" rx="8" fill="#fff" stroke="#0891b2"/><text x="455" y="1026" class="t" text-anchor="middle">Grafana LGTM</text><text x="455" y="1043" class="s" text-anchor="middle">Tempo traces · Loki logs · Prometheus metrics</text>
+  <rect x="600" y="1006" width="240" height="48" rx="8" fill="#fff" stroke="#0891b2"/><text x="720" y="1026" class="t" text-anchor="middle">SLOs · alerts · runbooks</text><text x="720" y="1043" class="s" text-anchor="middle">freshness · adapter success · inbox lag</text>
+  <rect x="855" y="1006" width="240" height="48" rx="8" fill="#fff" stroke="#0891b2"/><text x="975" y="1026" class="t" text-anchor="middle">System Health + kill switches</text><text x="975" y="1043" class="s" text-anchor="middle">breakers · quarantine · feature flags</text>
+  <rect x="1110" y="1006" width="244" height="48" rx="8" fill="#fff" stroke="#0891b2"/><text x="1232" y="1026" class="t" text-anchor="middle">Error tracking</text><text x="1232" y="1043" class="s" text-anchor="middle">Sentry / GlitchTip · linked to traces</text>
+
+  <!-- ============ LEGEND ============ -->
+  <g transform="translate(50 1085)">
+    <rect width="14" height="14" rx="3" fill="#eff6ff" stroke="#3b82f6"/><text x="20" y="11" class="s">clients</text>
+    <rect x="90" width="14" height="14" rx="3" fill="#f5f3ff" stroke="#7c3aed"/><text x="110" y="11" class="s">durable workflows</text>
+    <rect x="230" width="14" height="14" rx="3" fill="#f0fdfa" stroke="#0d9488"/><text x="250" y="11" class="s">agents (no side effects)</text>
+    <rect x="400" width="14" height="14" rx="3" fill="#fffbeb" stroke="#d97706"/><text x="420" y="11" class="s">decision &amp; LLM services</text>
+    <rect x="565" width="14" height="14" rx="3" fill="#fef2f2" stroke="#dc2626"/><text x="585" y="11" class="s">side effects (gated)</text>
+    <rect x="710" width="14" height="14" rx="3" fill="#f1f5f9" stroke="#475569"/><text x="730" y="11" class="s">data</text>
+    <rect x="790" width="14" height="14" rx="3" fill="#ecfeff" stroke="#0891b2"/><text x="810" y="11" class="s">observability</text>
+    <line x1="900" y1="7" x2="940" y2="7" class="flow-d"/><text x="948" y="11" class="s">async / event-driven</text>
+  </g>
+  <text x="50" y="1125" font-size="10.5" fill="#94a3b8">See docs/architecture/system-design.md for flows, data model and trust boundaries · ADR-0001…0006 for the decisions</text>
+</svg>

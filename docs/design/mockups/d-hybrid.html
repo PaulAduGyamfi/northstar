@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>D · Hybrid (recommended)</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#FAF9F6;--surf:#FFFFFF;--side:#F2F0EB;--bd:#E7E4DD;--tx:#1A1915;--mu:#6B675E;--amber:#F5A524;--amberT:#9A5B00;--amberBg:#FFF4DC;--agent:#3B6FE0;--agentBg:#EAF1FF;--ok:#1F8A5B;--okBg:#E6F5EE;--vio:#7B4FE0;--vioBg:#F1EBFF;--closed:#8A867D}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1440px;height:900px;background:var(--bg);color:var(--tx);font:14px/1.45 Geist,system-ui,sans-serif;display:flex;overflow:hidden;position:relative}
+.mono{font-family:"Geist Mono",monospace;font-variant-numeric:tabular-nums}
+aside{width:212px;background:var(--side);border-right:1px solid var(--bd);padding:18px 12px;display:flex;flex-direction:column;gap:2px}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;padding:4px 8px 18px}
+.logo i{width:18px;height:18px;border-radius:5px;background:conic-gradient(from 200deg,var(--amber),#ff7a45,var(--amber))}
+.nav{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:7px;color:var(--mu);font-size:13.5px}
+.nav.on{background:#fff;color:var(--tx);box-shadow:0 1px 2px #0000000d}
+.nav b{margin-left:auto;font:500 11px "Geist Mono";color:var(--amberT);background:var(--amberBg);border-radius:999px;padding:0 6px}
+.nav s{width:14px;height:14px;border:1.5px solid currentColor;border-radius:4px;opacity:.7}
+.ringbox{margin-top:auto;background:#fff;border:1px solid var(--bd);border-radius:12px;padding:12px;display:flex;gap:10px;align-items:center;font-size:12px;color:var(--mu)}
+.ringbox b{color:var(--tx);font-size:13px;display:block}
+main{flex:1;display:grid;grid-template-columns:1fr 380px;min-width:0}
+.now{padding:26px 30px;overflow:hidden}
+.top{display:flex;align-items:center;gap:14px;white-space:nowrap;color:var(--mu);font-size:12.5px;margin-bottom:14px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block;margin-right:6px}
+.kbd{margin-left:auto;border:1px solid var(--bd);background:#fff;border-radius:7px;padding:4px 10px}
+.kick{font:600 11.5px Geist;letter-spacing:.1em;text-transform:uppercase;color:var(--amberT)}
+h1{font-family:Fraunces;font-weight:600;font-size:31px;line-height:1.15;letter-spacing:-.015em;margin:4px 0 6px;max-width:820px}
+.dek{color:var(--mu);font-size:15px;max-width:800px}
+.sec{display:flex;align-items:center;gap:10px;margin:20px 0 8px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);font-weight:600}
+.btn{background:var(--tx);color:#fff;font-weight:600;border-radius:8px;padding:7px 13px;font-size:13px;text-transform:none;letter-spacing:0}
+.btn.a{background:var(--amber);color:#2b1c00}
+.btn.g{background:#fff;color:var(--tx);border:1px solid var(--bd)}
+.card{background:var(--surf);border:1px solid var(--bd);border-radius:12px;padding:13px 15px;margin-bottom:8px;display:grid;grid-template-columns:36px 1fr 250px 116px;gap:14px;align-items:center;box-shadow:0 1px 2px #0000000a}
+.card.sel{box-shadow:inset 3px 0 0 var(--amber),0 4px 14px #0000000f}
+.lg{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;font-weight:700}
+.role{font-weight:600;font-size:14.5px}
+.meta{color:var(--mu);font-size:12.5px}
+.chip{display:inline-block;font:500 11px "Geist Mono";padding:2px 8px;border-radius:999px;margin-right:6px;background:#F2F0EB;color:var(--mu)}
+.fresh{background:var(--amberBg);color:var(--amberT)}
+.why{font-family:Fraunces;font-size:13.5px;color:#3d3a33;margin-top:5px;font-style:italic}
+.parts{display:flex;gap:6px}
+.part{flex:1;border-radius:8px;background:#F7F5F0;padding:6px 8px;text-align:center}
+.part b{font:600 16px "Geist Mono";display:block}.part span{font-size:10.5px;color:var(--mu)}
+.acts{display:flex;gap:5px;justify-content:flex-end}
+.key{font:500 11px "Geist Mono";border:1px solid var(--bd);border-radius:5px;padding:3px 7px;color:var(--mu);background:#fff}
+.key.p{background:var(--tx);color:#fff;border-color:var(--tx)}
+.line{border-top:1px dashed #E7C27A;margin:10px 0;position:relative}
+.line span{position:absolute;right:0;top:-9px;background:var(--bg);padding:0 6px;font-size:11px;color:var(--amberT)}
+.hands{background:var(--vioBg);border:1px solid #D9C9FB;border-radius:12px;padding:12px 15px;display:flex;align-items:center;gap:12px}
+.row2{display:grid;grid-template-columns:1.2fr 1fr;gap:12px;margin-top:12px}
+.tile{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:13px 15px}
+.funnel{display:flex;align-items:flex-end;gap:6px;height:64px;margin-top:8px}
+.funnel div{flex:1;border-radius:6px 6px 2px 2px;position:relative}
+.funnel div span{position:absolute;top:-17px;left:0;right:0;text-align:center;font:500 11px "Geist Mono"}
+.flab{display:flex;gap:6px;font-size:10.5px;color:var(--mu);margin-top:4px}.flab span{flex:1;text-align:center}
+.alloc{display:flex;height:10px;border-radius:5px;overflow:hidden;margin:9px 0}
+.feed{border-left:1px solid var(--bd);background:#FCFBF8;padding:24px 20px;overflow:hidden}
+.tog{display:flex;background:#fff;border:1px solid var(--bd);border-radius:7px;padding:2px;font-size:12px;margin-left:auto}
+.tog span{padding:3px 9px;border-radius:5px;color:var(--mu)}.tog .on{background:#F2F0EB;color:var(--tx)}
+.sess{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:11px 13px;margin-bottom:9px}
+.sess h5{font-size:13px;display:flex;align-items:center;gap:7px}
+.st{font:500 10.5px "Geist Mono";border-radius:999px;padding:1px 7px;margin-left:auto}
+.steps{margin-top:7px;display:flex;flex-direction:column;gap:3px;font-size:12.5px;color:var(--mu)}
+.steps i{font-style:normal;font:11px "Geist Mono";color:#9d988d;margin-right:6px}
+.toast{position:absolute;right:20px;bottom:22px;width:360px;background:var(--tx);color:#fff;border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 14px 40px #00000033;font-size:13.5px}
+.spark{width:26px;height:26px;border-radius:50%;background:radial-gradient(circle,var(--amber) 30%,#ffb84d55 60%,transparent 70%)}
+.undo{font:500 11.5px "Geist Mono";color:var(--amber);border:1px solid #6b5220;border-radius:999px;padding:2px 9px}
+</style></head><body>
+<aside>
+ <div class="logo"><i></i>Northstar</div>
+ <div class="nav on"><s></s>Today<b>6</b></div>
+ <div class="nav"><s></s>Approvals<b>6</b></div>
+ <div class="nav"><s></s>Jobs</div>
+ <div class="nav"><s></s>Pipeline</div>
+ <div class="nav"><s></s>Inbox<b>2</b></div>
+ <div class="nav"><s></s>Outreach</div>
+ <div class="nav"><s></s>Growth</div>
+ <div class="nav"><s></s>Diagnostics</div>
+ <div class="ringbox"><svg width="40" height="40" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="#EEEAE2" stroke-width="5"/><circle cx="18" cy="18" r="14" fill="none" stroke="#F5A524" stroke-width="5" stroke-dasharray="62 88" stroke-linecap="round" transform="rotate(-90 18 18)"/></svg><div><b>70% of weekly inputs</b>2 rest days banked</div></div>
+</aside>
+<main>
+ <section class="now">
+  <div class="top"><span><span class="dot"></span>All agents healthy</span><span class="mono">sweep 2m ago · 212 companies</span><span class="mono">time-to-apply 34m ↓</span><span class="kbd mono">⌘K  paste link · ask why · jump</span></div>
+  <div class="kick">Tuesday morning</div>
+  <h1>31 new roles overnight. 6 are worth it — two went live under an hour ago.</h1>
+  <div class="dek">About 3 minutes of your time. A Brex recruiter (graded A) is waiting on a reply, and your Ramp screen prep is ready for Thursday.</div>
+  <div class="sec">Ready to submit <span style="margin-left:auto"></span><span class="btn g">Review one by one  J/K</span><span class="btn a">Approve 3 above the line  ⇧A</span></div>
+  <div class="card sel"><div class="lg" style="background:#EEEDFF;color:#5148d6">S</div><div><div class="role">Backend Engineer, Payments Infrastructure</div><div class="meta">Stripe · Remote US · $165–210k</div>
+    <div style="margin-top:6px"><span class="chip fresh">posted 18m ago</span><span class="chip">4 answers reused</span><span class="chip" style="background:var(--okBg);color:var(--ok)">Mastercard moat</span></div>
+    <div class="why">Led with your idempotent-payments work — the posting says “retries” four times.</div></div>
+   <div class="parts"><div class="part"><b>92</b><span>skills</span></div><div class="part"><b>85</b><span>level</span></div><div class="part"><b style="color:var(--ok)">✓</b><span>comp</span></div><div class="part"><b style="color:var(--ok)">✓</b><span>remote</span></div></div>
+   <div class="acts"><span class="key p">A</span><span class="key">E</span><span class="key">S</span><span class="key">Why</span></div></div>
+  <div class="card"><div class="lg" style="background:var(--amberBg);color:var(--amberT)">R</div><div><div class="role">Software Engineer, Platform</div><div class="meta">Ramp · NYC hybrid · $170–200k</div>
+    <div style="margin-top:6px"><span class="chip fresh">posted 42m ago</span><span class="chip" style="background:var(--agentBg);color:var(--agent)">1 new answer</span></div></div>
+   <div class="parts"><div class="part"><b>88</b><span>skills</span></div><div class="part"><b>90</b><span>level</span></div><div class="part"><b style="color:var(--ok)">✓</b><span>comp</span></div><div class="part"><b>~</b><span>hybrid</span></div></div>
+   <div class="acts"><span class="key">A</span><span class="key">E</span><span class="key">S</span><span class="key">Why</span></div></div>
+  <div class="card"><div class="lg" style="background:var(--okBg);color:var(--ok)">P</div><div><div class="role">Software Engineer II, Ledger</div><div class="meta">Plaid · SF / Remote · $160–190k</div>
+    <div style="margin-top:6px"><span class="chip">posted 2h ago</span><span class="chip" style="background:var(--okBg);color:var(--ok)">Mastercard moat</span></div></div>
+   <div class="parts"><div class="part"><b>86</b><span>skills</span></div><div class="part"><b>84</b><span>level</span></div><div class="part"><b style="color:var(--ok)">✓</b><span>comp</span></div><div class="part"><b style="color:var(--ok)">✓</b><span>remote</span></div></div>
+   <div class="acts"><span class="key">A</span><span class="key">E</span><span class="key">S</span><span class="key">Why</span></div></div>
+  <div class="line"><span>confidence line · below needs a look</span></div>
+  <div class="hands"><span style="width:9px;height:9px;border-radius:50%;background:var(--vio)"></span><div><b>Needs your hands · ~90s</b><div class="meta">Capital One (Workday) wants a sign-in. Everything is pre-filled — we resume after you submit.</div></div><span class="btn g" style="margin-left:auto">Open in browser</span></div>
+  <div class="row2">
+   <div class="tile"><div style="display:flex;font-weight:600;font-size:13px">Pipeline · 30 days<span class="meta" style="margin-left:auto">closed roles feed Diagnostics, not this chart</span></div>
+    <div class="funnel" style="margin-top:20px"><div style="height:100%;background:#E9E5DC"><span>212</span></div><div style="height:58%;background:#F5D9A0"><span>38</span></div><div style="height:34%;background:var(--amber)"><span>9</span></div><div style="height:22%;background:#E08A2B"><span>4</span></div><div style="height:14%;background:var(--ok)"><span>2</span></div></div>
+    <div class="flab"><span>found</span><span>submitted</span><span>replied ↑24%</span><span>screens</span><span>interviews</span></div></div>
+   <div class="tile"><div style="display:flex;font-weight:600;font-size:13px">Growth · this week<span class="mono meta" style="margin-left:auto">5.5 / 8h</span></div>
+    <div class="alloc"><i style="width:30%;background:var(--amber)"></i><i style="width:22%;background:var(--agent)"></i><i style="width:16%;background:var(--ok)"></i><i style="width:32%;background:#EEEAE2"></i></div>
+    <div class="meta">AWS SAA 62% · FDE pathway 40% · Backpocket v0.4<br>Next: <b style="color:var(--tx)">SAA §7 VPC peering</b> · today 12:00–12:45</div></div>
+  </div>
+ </section>
+ <section class="feed">
+  <div style="display:flex;align-items:center;margin-bottom:12px"><b>Agents at work</b><span class="meta" style="margin-left:8px">3 running</span><div class="tog"><span class="on">Story</span><span>Log</span></div></div>
+  <div class="sess"><h5>Stripe · Backend Eng <span class="st" style="background:var(--amberBg);color:var(--amberT)">awaiting you</span></h5>
+   <div class="steps"><div><i>09:36</i>Found on Greenhouse, 18m after posting</div><div><i>09:37</i>Scored 91 — 3 must-haves matched</div><div><i>09:38</i>Tailored resume v12 · provenance ✓</div><div><i>09:39</i>4 answers reused, 1 drafted in your voice</div></div></div>
+  <div class="sess"><h5>Datadog · SWE, Billing <span class="st" style="background:var(--okBg);color:var(--ok)">submitted</span></h5>
+   <div class="steps"><div><i>09:41</i>Submitted 26 min after posting · proof saved</div></div></div>
+  <div class="sess"><h5>Brex recruiter <span class="st" style="background:var(--agentBg);color:var(--agent)">working</span></h5>
+   <div class="steps"><div><i>09:20</i>Graded A — in-house, comp in range</div><div><i>09:21</i>Drafting reply with 3 slots from your calendar…</div></div></div>
+  <div class="sess"><h5>Sourcing sweep <span class="st" style="background:#F2F0EB;color:var(--mu)">done</span></h5>
+   <div class="steps"><div><i>07:58</i>31 roles · 6 queued · 25 set aside <u>why?</u></div></div></div>
+  <div class="sess"><h5>Ramp screen prep <span class="st" style="background:var(--okBg);color:var(--ok)">ready</span></h5>
+   <div class="steps"><div><i>08:47</i>Brief + 5 stories mapped · mock booked Wed 7pm</div></div></div>
+ </section>
+</main>
+<div class="toast"><span class="spark"></span><span>Submitted to <b>Datadog</b> — 26 minutes after it was posted. You’re early.</span><span class="undo">undo 1:42</span></div>
+</body></html>

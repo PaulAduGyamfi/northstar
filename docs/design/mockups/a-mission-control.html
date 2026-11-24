@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>A · Mission Control</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#141413;--surf:#1C1B19;--raised:#24231F;--bd:#2E2C28;--tx:#ECEAE4;--mu:#9A968C;--amber:#F5A524;--blue:#6EA8FE;--ok:#4CC38A;--vio:#B18CFF;--closed:#7A766D}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1440px;height:900px;background:var(--bg);color:var(--tx);font:14px/1.45 Geist,system-ui,sans-serif;display:flex;overflow:hidden}
+.mono{font-family:"Geist Mono",monospace;font-variant-numeric:tabular-nums}
+aside{width:220px;background:#11110f;border-right:1px solid var(--bd);padding:18px 12px;display:flex;flex-direction:column;gap:2px}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;padding:4px 8px 18px}
+.logo i{width:18px;height:18px;border-radius:5px;background:conic-gradient(from 200deg,var(--amber),#ff7a45,var(--amber))}
+.nav{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:7px;color:var(--mu);font-size:13.5px}
+.nav.on{background:var(--raised);color:var(--tx)}
+.nav b{margin-left:auto;font:500 11px "Geist Mono";color:var(--amber)}
+.nav s{width:14px;height:14px;border:1.5px solid currentColor;border-radius:4px;opacity:.8;text-decoration:none}
+.k{margin-top:auto;border:1px solid var(--bd);border-radius:8px;padding:8px 10px;color:var(--mu);font-size:12px;display:flex;justify-content:space-between}
+main{flex:1;display:flex;flex-direction:column}
+.strip{height:46px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:22px;padding:0 22px;color:var(--mu);font-size:12.5px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block;margin-right:6px;box-shadow:0 0 0 4px #4cc38a22}
+.ring{margin-left:auto;display:flex;align-items:center;gap:8px}
+.wrap{flex:1;display:grid;grid-template-columns:1fr 400px;min-height:0}
+.now{padding:22px 26px;overflow:hidden}
+h1{font-size:22px;font-weight:600;letter-spacing:-.01em}
+.sub{color:var(--mu);margin:4px 0 18px}
+.sec{display:flex;align-items:center;gap:10px;margin:14px 0 8px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);font-weight:600}
+.sec .btn{margin-left:auto;text-transform:none;letter-spacing:0}
+.btn{background:var(--amber);color:#1a1405;font-weight:600;border-radius:7px;padding:6px 12px;font-size:12.5px}
+.btn.g{background:var(--raised);color:var(--tx);border:1px solid var(--bd)}
+.card{background:var(--surf);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:grid;grid-template-columns:34px 1fr 220px 120px;gap:14px;align-items:center}
+.card.sel{border-color:#5a4a22;box-shadow:inset 3px 0 0 var(--amber)}
+.lg{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;font-weight:700;font-size:13px}
+.role{font-weight:600}
+.meta{color:var(--mu);font-size:12.5px}
+.chip{display:inline-block;font:500 11px "Geist Mono";padding:2px 7px;border-radius:999px;margin-right:6px}
+.fresh{background:#F5A52422;color:var(--amber)}
+.bars{display:grid;grid-template-columns:52px 1fr 26px;gap:4px 8px;font-size:11px;color:var(--mu);align-items:center}
+.bar{height:4px;background:var(--raised);border-radius:3px}.bar i{display:block;height:100%;border-radius:3px;background:var(--tx)}
+.acts{display:flex;gap:6px;justify-content:flex-end}
+.key{font:500 11px "Geist Mono";border:1px solid var(--bd);border-radius:5px;padding:3px 7px;color:var(--mu)}
+.line{border-top:1px dashed #5a4a22;margin:10px 0;position:relative}
+.line span{position:absolute;right:0;top:-9px;background:var(--bg);padding:0 6px;font-size:11px;color:var(--amber)}
+.hands{background:#B18CFF14;border:1px solid #B18CFF44;border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px}
+.feed{border-left:1px solid var(--bd);padding:22px 20px;display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.tog{display:flex;background:var(--surf);border:1px solid var(--bd);border-radius:7px;padding:2px;font-size:12px;margin-left:auto}
+.tog span{padding:3px 9px;border-radius:5px;color:var(--mu)}.tog .on{background:var(--raised);color:var(--tx)}
+.ev{display:grid;grid-template-columns:44px 16px 1fr;gap:8px;padding:9px 0;border-bottom:1px solid #22211e;font-size:13px}
+.ev .t{color:var(--mu);font:11.5px "Geist Mono"}
+.gl{width:16px;height:16px;border-radius:4px;margin-top:2px}
+.ev em{font-style:normal;color:var(--mu)}
+.undo{font:500 11px "Geist Mono";color:var(--amber);border:1px solid #5a4a22;border-radius:999px;padding:1px 7px;margin-left:6px}
+.funnel{display:flex;gap:4px;margin-top:6px}
+.fn{flex:1;background:var(--surf);border:1px solid var(--bd);border-radius:8px;padding:9px 10px}
+.fn b{display:block;font:600 18px "Geist Mono"}.fn span{font-size:11px;color:var(--mu)}
+.fn small{display:block;font:11px "Geist Mono";color:var(--ok);margin-top:2px}
+.grow{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+.tile{background:var(--surf);border:1px solid var(--bd);border-radius:10px;padding:12px 14px}
+.alloc{display:flex;height:10px;border-radius:5px;overflow:hidden;margin:8px 0}
+.hm{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;margin-top:8px}.hm i{aspect-ratio:1;border-radius:2px;background:#262520}
+.breath{width:8px;height:8px;border-radius:50%;background:var(--blue);display:inline-block;box-shadow:0 0 0 5px #6ea8fe22}
+</style></head><body>
+<aside>
+ <div class="logo"><i></i>Northstar</div>
+ <div class="nav on"><s></s>Today<b>6</b></div>
+ <div class="nav"><s></s>Approvals<b>6</b></div>
+ <div class="nav"><s></s>Jobs</div>
+ <div class="nav"><s></s>Pipeline</div>
+ <div class="nav"><s></s>Inbox<b>2</b></div>
+ <div class="nav"><s></s>Outreach</div>
+ <div class="nav"><s></s>Growth</div>
+ <div class="nav"><s></s>Diagnostics</div>
+ <div class="k"><span>Command</span><span class="mono">⌘K</span></div>
+</aside>
+<main>
+ <div class="strip"><span><span class="dot"></span>All agents healthy</span><span class="mono">last sweep 2m ago · 212 companies watched</span><span class="mono">median time-to-apply 34m</span>
+  <span class="ring"><svg width="22" height="22" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="#2E2C28" stroke-width="4"/><circle cx="18" cy="18" r="15" fill="none" stroke="#F5A524" stroke-width="4" stroke-dasharray="66 94" transform="rotate(-90 18 18)" stroke-linecap="round"/></svg><span>Weekly inputs 70%</span></span></div>
+ <div class="wrap">
+  <section class="now">
+   <h1>Tuesday · 6 approvals, ~3 min</h1>
+   <div class="sub">Overnight agents found 31 new roles; 6 are worth your time. 1 needs your hands. Interview Thu 2:00 PM — prep pack ready.</div>
+   <div class="sec">Ready to submit <span class="btn">Approve 4 above the line  ⇧A</span></div>
+   <div class="card sel"><div class="lg" style="background:#635bff22;color:#9d97ff">S</div><div><div class="role">Backend Engineer, Payments Infrastructure</div><div class="meta">Stripe · Remote US · $165–210k</div><div style="margin-top:6px"><span class="chip fresh">posted 18m ago</span><span class="chip" style="background:#262520;color:var(--mu)">+3 bullets on idempotency · 4 answers reused</span></div></div>
+    <div class="bars"><span>Skills</span><div class="bar"><i style="width:92%"></i></div><span class="mono">92</span><span>Level</span><div class="bar"><i style="width:85%"></i></div><span class="mono">85</span><span>Prefs</span><div class="bar"><i style="width:95%"></i></div><span class="mono">95</span></div>
+    <div class="acts"><span class="key">A</span><span class="key">E</span><span class="key">S</span><span class="key">?</span></div></div>
+   <div class="card"><div class="lg" style="background:#F5A52422;color:var(--amber)">R</div><div><div class="role">Software Engineer, Platform</div><div class="meta">Ramp · NYC hybrid · $170–200k</div><div style="margin-top:6px"><span class="chip fresh">posted 42m ago</span><span class="chip" style="background:#262520;color:var(--mu)">1 new answer drafted</span></div></div>
+    <div class="bars"><span>Skills</span><div class="bar"><i style="width:88%"></i></div><span class="mono">88</span><span>Level</span><div class="bar"><i style="width:90%"></i></div><span class="mono">90</span><span>Prefs</span><div class="bar"><i style="width:80%"></i></div><span class="mono">80</span></div>
+    <div class="acts"><span class="key">A</span><span class="key">E</span><span class="key">S</span><span class="key">?</span></div></div>
+   <div class="card"><div class="lg" style="background:#4cc38a22;color:var(--ok)">P</div><div><div class="role">Software Engineer II, Ledger</div><div class="meta">Plaid · SF / Remote · $160–190k</div><div style="margin-top:6px"><span class="chip" style="background:#262520;color:var(--mu)">posted 2h ago · Mastercard moat ★</span></div></div>
+    <div class="bars"><span>Skills</span><div class="bar"><i style="width:86%"></i></div><span class="mono">86</span><span>Level</span><div class="bar"><i style="width:84%"></i></div><span class="mono">84</span><span>Prefs</span><div class="bar"><i style="width:82%"></i></div><span class="mono">82</span></div>
+    <div class="acts"><span class="key">A</span><span class="key">E</span><span class="key">S</span><span class="key">?</span></div></div>
+   <div class="line"><span>confidence line — below needs a look</span></div>
+   <div class="card" style="opacity:.85"><div class="lg" style="background:#d9775722;color:#e8a07f">A</div><div><div class="role">Forward Deployed Engineer</div><div class="meta">Anthropic · SF / NYC · $200–260k</div><div style="margin-top:6px"><span class="chip" style="background:#262520;color:var(--mu)">2 new narrative answers — review voice</span></div></div>
+    <div class="bars"><span>Skills</span><div class="bar"><i style="width:78%"></i></div><span class="mono">78</span><span>Level</span><div class="bar"><i style="width:80%"></i></div><span class="mono">80</span><span>Prefs</span><div class="bar"><i style="width:97%"></i></div><span class="mono">97</span></div>
+    <div class="acts"><span class="btn g">Review</span></div></div>
+   <div class="hands"><span class="breath" style="background:var(--vio);box-shadow:0 0 0 5px #b18cff22"></span><div><b>Needs your hands · ~90s</b><div class="meta">Capital One (Workday) asks you to sign in. Form is pre-filled; we'll resume after.</div></div><span class="btn g" style="margin-left:auto">Open in browser</span></div>
+   <div class="grow">
+    <div class="tile"><div class="sec" style="margin:0">Pipeline · last 30 days</div>
+     <div class="funnel"><div class="fn"><b>212</b><span>found</span></div><div class="fn"><b>38</b><span>submitted</span><small>18%</small></div><div class="fn"><b>9</b><span>replied</span><small>24% ↑</small></div><div class="fn"><b>4</b><span>screens</span></div><div class="fn"><b>2</b><span>interviews</span></div></div></div>
+    <div class="tile"><div class="sec" style="margin:0">Growth · this week <span class="mono" style="margin-left:auto;text-transform:none">5.5 / 8h</span></div>
+     <div class="alloc"><i style="width:30%;background:var(--amber)"></i><i style="width:22%;background:var(--blue)"></i><i style="width:16%;background:var(--ok)"></i><i style="width:32%;background:#262520"></i></div>
+     <div class="meta">AWS SAA 62% · FDE pathway 40% · Backpocket v0.4 · Scripture Challenge (maint.)</div>
+     <div class="hm">
+      <i></i><i style="background:#5a4a22"></i><i style="background:#F5A524"></i><i></i><i style="background:#2b4466"></i><i style="background:#5a4a22"></i><i style="background:#F5A524"></i><i style="background:#2d5a44"></i><i></i><i style="background:#F5A524"></i><i style="background:#2b4466"></i><i style="background:#6EA8FE"></i><i style="background:#5a4a22"></i><i></i><i style="background:#4CC38A"></i><i style="background:#F5A524"></i><i style="background:#2b4466"></i><i style="background:#F5A524"></i><i style="background:#5a4a22"></i><i style="background:#6EA8FE"></i><i></i><i style="background:#F5A524"></i><i style="background:#4CC38A"></i><i style="background:#F5A524"></i></div></div>
+   </div>
+  </section>
+  <section class="feed">
+   <div style="display:flex;align-items:center;margin-bottom:8px"><b>Activity</b><span class="breath" style="margin-left:10px"></span><span class="meta" style="margin-left:6px">3 agents working</span><div class="tog"><span class="on">Story</span><span>Log</span></div></div>
+   <div class="ev"><span class="t">09:41</span><i class="gl" style="background:#4cc38a33"></i><div>Submitted <b>Datadog · SWE, Billing</b> 26 min after posting<span class="undo">undo 1:42</span></div></div>
+   <div class="ev"><span class="t">09:38</span><i class="gl" style="background:#6ea8fe33"></i><div>Tailored resume for <b>Stripe</b> <em>— led with the Mastercard idempotent-payments work; JD mentions retries 4×</em></div></div>
+   <div class="ev"><span class="t">09:36</span><i class="gl" style="background:#6ea8fe33"></i><div>Found <b>Stripe · Backend Eng</b> on Greenhouse <em>· fit 91</em></div></div>
+   <div class="ev"><span class="t">09:20</span><i class="gl" style="background:#b18cff33"></i><div>Recruiter email graded <b>A</b> <em>— Brex, in-house, comp in range. Reply drafted.</em></div></div>
+   <div class="ev"><span class="t">09:02</span><i class="gl" style="background:#7a766d33"></i><div>Skipped <b>Acme Bank · Sr Java</b> <em>— requires active clearance</em></div></div>
+   <div class="ev"><span class="t">08:47</span><i class="gl" style="background:#f5a52433"></i><div>Prep pack ready for <b>Ramp</b> phone screen <em>— 5 stories mapped</em></div></div>
+   <div class="ev"><span class="t">08:15</span><i class="gl" style="background:#4cc38a33"></i><div>Moved <b>Mercury</b> to <b>Screen</b> <em>from email “Next steps”</em></div></div>
+   <div class="ev"><span class="t">07:58</span><i class="gl" style="background:#6ea8fe33"></i><div>Ingested 31 roles from 212 boards <em>· 6 queued, 25 skipped (why?)</em></div></div>
+   <div class="ev"><span class="t">07:30</span><i class="gl" style="background:#f5a52433"></i><div>Growth plan: <b>AWS SAA §7</b> blocked 12:00–12:45</div></div>
+   <div class="meta" style="margin-top:10px;text-align:center">That’s everything since 7:00. Agents keep watching.</div>
+  </section>
+ </div>
+</main></body></html>
