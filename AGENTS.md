@@ -136,9 +136,11 @@ password in code, tests, docs, commit messages or chat.
 - Stage files by name and check `git status` before committing.
 - One pull request per ticket using `.github/pull_request_template.md`, including the AI
   assistance section.
-- Agents may push their ticket branch, open the PR and merge it, and Paul approves each push and
-  merge when prompted. These commands run outside the sandbox with Paul's GitHub login, so the
-  guard hook allows only these shapes: `git push [-u] origin <branch>` (never `main`), and
+- Agents push their ticket branch and merge the PR, and Paul approves each push and merge when
+  prompted. Paul opens PRs and issues himself (`gh pr create`/`gh issue create` can publish any
+  file he can read), from a body file the agent writes in its temp directory. Push and merge run
+  outside the sandbox with Paul's GitHub login, so the guard hook allows only these shapes:
+  `git push [-u] origin <branch>` (never `main`), and
   `gh pr merge <n> --rebase [--delete-branch] --match-head-commit <sha>`, only once `checks` is
   green and the reviewers found nothing critical. No `--admin`, no `--auto`, never force-push or
   rewrite pushed history. Every `gh pr|issue|run` and `git push` command may use only letters,

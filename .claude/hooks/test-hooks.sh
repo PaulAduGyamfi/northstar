@@ -73,6 +73,11 @@ run guard-bash.sh block "$(bash_cmd 'gh issue create --title x -F private/notes.
 run guard-bash.sh block "$(bash_cmd 'gh issue create --title x --body-file /tmp/claude-1000/../../home/pjadu/.git-credentials')"
 run guard-bash.sh block "$(bash_cmd 'gh pr create --repo example/other --title x --body y')"
 
+# A quoted command word is still a push or merge.
+run guard-bash.sh block "$(bash_cmd '"git" push --mirror origin')"
+run guard-bash.sh block "$(bash_cmd "g''it push origin main")"
+run guard-bash.sh block "$(bash_cmd '"gh" pr merge 3 --admin')"
+
 # Quoted text never counts as a push or merge (commit messages, titles).
 run guard-bash.sh pass "$(bash_cmd 'git commit -m "NS-104: document git push and gh pr merge"')"
 run guard-bash.sh pass "$(bash_cmd 'git stash push -m wip')"

@@ -87,13 +87,17 @@ bare_env="${s}env[[:space:]]*(\$|[;&|)])"   # in a variable: [[ can't parse ) in
 # like *(e:...:) and more, none of which need $ ` ; & | < >. Titles with ( ) go in --body-file.
 unsandboxed='^[[:space:]]*(gh[[:space:]]+(pr|issue|run)|git[[:space:]]+push)([[:space:]]|$)'
 plain_chars="^[A-Za-z0-9 ._/:@#,'\"+=-]*\$"
-if [[ "$cmd" =~ $unsandboxed ]]; then
+# The same command with quote and backslash characters removed, so "git" push or g\it push
+# can't hide the command word.
+bare="${cmd//[\'\"\\]/}"
+if [[ "$cmd" =~ $unsandboxed || "$bare" =~ $unsandboxed ]]; then
   [[ "$cmd" =~ $plain_chars ]] ||
     block "commands that run with Paul's GitHub login may only use letters, digits, spaces and ._/:@#,'\"+=-"
   # --repo could post to any repo Paul can write to.
   [[ "$cmd" =~ (^|[[:space:]])(--repo|-R)([[:space:]=]|$) ]] && block "--repo: work only in this repo."
   # --body-file reads any file Paul can (resume, credentials) into a public PR or issue, so it
-  # may only read Claude's own temp files.
+  # may only read Claude's own temp files. Only a backstop: it misses -F/path, -dF and symlinks,
+  # which is why gh pr create and gh issue create are NOT in excludedCommands (Paul runs them).
   if [[ "$cmd" =~ (^|[[:space:]])(--body-file|-F)[[:space:]=]+([^[:space:]]*) ]]; then
     body="${BASH_REMATCH[3]}"
     [[ "$body" =~ ^/tmp/claude-[0-9]+/ && "$body" != *..* ]] ||
@@ -104,7 +108,8 @@ fi
 # Pushing: one shape only, `git push [-u|--set-upstream] origin <branch>`, never main or HEAD.
 # An allowlist, because a blocklist misses --mirror, --delete, :branch, --receive-pack, URLs.
 # Detected on the command with quoted text removed, so a commit message that says "push" is fine.
-if [[ "$unquoted" =~ ${s}git([[:space:]]+-[^[:space:]]+)*[[:space:]]+push([[:space:]]|$) ]]; then
+if [[ "$unquoted" =~ ${s}git([[:space:]]+-[^[:space:]]+)*[[:space:]]+push([[:space:]]|$) ||
+  "$bare" =~ ^[[:space:]]*git([[:space:]]+-[^[:space:]]+)*[[:space:]]+push([[:space:]]|$) ]]; then
   push_shape='^git push( -u| --set-upstream)? origin ([A-Za-z0-9][A-Za-z0-9._-]*)$'
   [[ "$cmd" =~ $push_shape ]] || block "push only with: git push [-u] origin <branch>."
   [[ "${BASH_REMATCH[2]}" == main || "${BASH_REMATCH[2]}" == HEAD ]] && block "pushing main is done through a PR."
@@ -115,7 +120,8 @@ fi
 # one), --match-head-commit (merges exactly the commit Paul approved), and nothing else, so no
 # --admin (would bypass branch protection if enforce_admins were ever off) and no --auto
 # (would merge later pushes without a new prompt).
-if [[ "$unquoted" =~ ${s}gh([[:space:]]+-[^[:space:]]+)*[[:space:]]+pr[[:space:]]+merge ]]; then
+if [[ "$unquoted" =~ ${s}gh([[:space:]]+-[^[:space:]]+)*[[:space:]]+pr[[:space:]]+merge ||
+  "$bare" =~ ^[[:space:]]*gh([[:space:]]+-[^[:space:]]+)*[[:space:]]+pr[[:space:]]+merge ]]; then
   merge_shape='^gh pr merge [0-9]+ --rebase( --delete-branch)? --match-head-commit [0-9a-f]{40}$'
   [[ "$cmd" =~ $merge_shape ]] || block "merge only with: gh pr merge <n> --rebase [--delete-branch] --match-head-commit <sha>."
 fi
