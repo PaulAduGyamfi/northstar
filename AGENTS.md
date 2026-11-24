@@ -51,6 +51,9 @@ Exists now:
   (gitignored). The CLI can't run them yet: it only reads the public `cases.jsonl`.
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
+  Editing any compose file asks Paul, and the sandboxed shell can't write it. No other compose
+  file (`compose.yaml`, `*.override.yml`) may exist next to it: agents' unsandboxed
+  `docker compose` commands refuse to run if one does (NS-109).
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 
