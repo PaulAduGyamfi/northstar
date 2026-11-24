@@ -93,8 +93,13 @@ bare="${cmd//[\'\"\\]/}"
 if [[ "$cmd" =~ $unsandboxed || "$bare" =~ $unsandboxed ]]; then
   [[ "$cmd" =~ $plain_chars ]] ||
     block "commands that run with Paul's GitHub login may only use letters, digits, spaces and ._/:@#,'\"+=-"
-  # --repo could post to any repo Paul can write to.
-  [[ "$cmd" =~ (^|[[:space:]])(--repo|-R)([[:space:]=]|$) ]] && block "--repo: work only in this repo."
+  # --repo could post to (or read from) any repo Paul can reach. --jq and --template run gh's jq,
+  # whose env builtin reads Paul's real, unsandboxed environment (tokens). Blocked in every
+  # spelling: --jq=x, -qx, and inside short-flag groups (-wq, -Rowner/x).
+  [[ "$cmd" =~ (^|[[:space:]])--(repo|jq|template)([[:space:]=]|$) ]] &&
+    block "--repo, --jq and --template aren't allowed in gh commands that run with Paul's login."
+  [[ "$cmd" =~ (^|[[:space:]])-[A-Za-z]*[qtR] ]] &&
+    block "-q, -t and -R (jq, template, other repo) aren't allowed in gh commands that run with Paul's login."
   # --body-file reads any file Paul can (resume, credentials) into a public PR or issue, so it
   # may only read Claude's own temp files. Only a backstop: it misses -F/path, -dF and symlinks,
   # which is why gh pr create and gh issue create are NOT in excludedCommands (Paul runs them).

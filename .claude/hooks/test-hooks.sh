@@ -73,6 +73,19 @@ run guard-bash.sh block "$(bash_cmd 'gh issue create --title x -F private/notes.
 run guard-bash.sh block "$(bash_cmd 'gh issue create --title x --body-file /tmp/claude-1000/../../home/pjadu/.git-credentials')"
 run guard-bash.sh block "$(bash_cmd 'gh pr create --repo example/other --title x --body y')"
 
+# Read-only gh commands run unsandboxed with no prompt: no jq/template (jq's env reads Paul's
+# real environment) and no other repo, in any spelling.
+run guard-bash.sh pass "$(bash_cmd 'gh pr checks 31 --watch --interval 20')"
+run guard-bash.sh pass "$(bash_cmd 'gh run view 45 --json conclusion,jobs')"
+run guard-bash.sh block "$(bash_cmd 'gh pr view 3 --json number -q env.GH_TOKEN')"
+run guard-bash.sh block "$(bash_cmd 'gh pr view 3 --json number --jq env')"
+run guard-bash.sh block "$(bash_cmd 'gh pr view 3 --json number --jq=env.HOME')"
+run guard-bash.sh block "$(bash_cmd 'gh pr view 3 --json number -qenv.HOME')"
+run guard-bash.sh block "$(bash_cmd 'gh pr view 3 --json number -wq env')"
+run guard-bash.sh block "$(bash_cmd 'gh issue list --json title -t x')"
+run guard-bash.sh block "$(bash_cmd 'gh issue list --template x')"
+run guard-bash.sh block "$(bash_cmd 'gh issue list -Rexample/private')"
+
 # A quoted command word is still a push or merge.
 run guard-bash.sh block "$(bash_cmd '"git" push --mirror origin')"
 run guard-bash.sh block "$(bash_cmd "g''it push origin main")"

@@ -144,7 +144,8 @@ password in code, tests, docs, commit messages or chat.
   `gh pr merge <n> --rebase [--delete-branch] --match-head-commit <sha>`, only once `checks` is
   green and the reviewers found nothing critical. No `--admin`, no `--auto`, never force-push or
   rewrite pushed history. Every `gh pr|issue|run` and `git push` command may use only letters,
-  digits, spaces and `._/:@#,'"+=-`, no `--repo`, and `--body-file` only from `/tmp/claude-<uid>/`.
+  digits, spaces and `._/:@#,'"+=-`, with no `--repo`/`-R`, `--jq`/`-q` or `--template`/`-t`
+  (jq's `env` reads Paul's real environment), and `--body-file` only from `/tmp/claude-<uid>/`.
 
 ## How we work
 
