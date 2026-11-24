@@ -21,33 +21,54 @@ outside the sandbox …") before any edit to a file named `docker-compose.yml`,
 any folder. Compose auto-loads `compose.yaml` and `*.override.*` files next to the main one, so
 creating a new one counts too.
 
-**settings.json sandbox**: `sandbox.filesystem.denyWrite: ["./docker-compose.yml"]`, so `sed`,
-`cat >` or a script in the sandboxed shell can't change the compose file around the hook. Per the
-Claude Code docs, on Linux `denyWrite` takes no wildcards except a trailing `/**`, and an entry for
-a path that doesn't exist yet has no effect. So it can't stop the sandboxed shell from *creating*
-a `compose.yaml` or `docker-compose.override.yml`, which compose would load automatically.
+**settings.json sandbox**: `sandbox.filesystem.denyWrite: ["./docker-compose.yml", "./.env"]`, so
+`sed`, `cat >` or a script in the sandboxed shell can't change the compose file or the project
+`.env` (which compose reads `COMPOSE_*` settings from) around the hook. Per the Claude Code docs,
+on Linux `denyWrite` takes no wildcards except a trailing `/**`, and an entry for a path that
+doesn't exist yet has no effect. That is why the shapes below pin `-f docker-compose.yml`, and why
+guard-bash checks `.env` itself.
 
-**guard-bash.sh, filesystem check**: the hook runs outside the sandbox. Before it allows an
-unsandboxed `docker compose up|ps|exec`, it checks the project root. It blocks if any compose file
-other than `docker-compose.yml` exists there: `compose.yml`, `compose.yaml`,
-`docker-compose.yaml`, or any `*.override.yml` / `*.override.yaml`. The message names the file.
-That closes the "create a new file compose will load" path that `denyWrite` can't cover.
+**settings.json excluded and allowed commands** become the pinned forms:
+`docker compose -f docker-compose.yml up -d *` and `… ps *` (unsandboxed, auto-allowed), and
+`… exec *` (unsandboxed, asks).
 
-**guard-bash.sh**: the unsandboxed docker commands may only take these shapes, checked on the
-command with quotes and backslashes removed, so `"docker" compose` can't hide the words:
-- `docker compose up -d [--wait] [service ...]`
-- `docker compose ps [--all] [--format json|table] [service]`
-- `docker compose exec [-T] <service> <words ...>`. This one still asks Paul via settings.json.
-  Its words may only use letters, digits, spaces and `._/:@,'"+=-`, so no `$ ; & | < > ( ) {
-  } * ? ~ !` or newline can reach the host shell.
+**guard-bash.sh** (revised after the NS-109 reviews): an allowlist. Every command that *runs*
+docker must be exactly one of these shapes, and anything else is blocked ("Ask Paul to run
+anything else"), including `docker version`, `docker compose logs` and `docker compose down`:
+- `docker compose -f docker-compose.yml up -d [--wait] [service ...]`
+- `docker compose -f docker-compose.yml ps [--all] [--format json|table] [service]`
+- `docker compose -f docker-compose.yml exec [-T] <service> <words ...>`. This one still asks
+  Paul. Its words may only use letters, digits, spaces and `._/:@,'"+=-`, so no
+  `$ ; & | < > ( ) { } * ? ~ !` or newline can reach the host shell. It may not mention
+  `environ`, because exec output lands in the chat.
+- the sandboxed check `docker compose [-f docker-compose.yml] [--env-file .env.example] config
+  [--quiet]` (CI's command).
 
-Service names are lowercase letters, digits and `-`. Global flags that point compose or docker
-elsewhere are blocked in any docker command: `-f`/`--file`, `-p`/`--project-name`,
-`--project-directory`, `--env-file`, `-H`/`--host`, `--context` and `--config`. So are
-environment prefixes that do the same: `COMPOSE_FILE=`, `COMPOSE_PROJECT_NAME=`, `DOCKER_HOST=`,
-`DOCKER_CONTEXT=`, `DOCKER_CONFIG=`. Sandboxed docker commands that aren't in the excluded list,
-such as `docker compose --env-file .env.example config --quiet` (CI's check), keep working,
-except the `--env-file` flag, which moves to an allowed spelling (open question 2).
+Service names are lowercase letters, digits and `-`, never starting with `-`. With
+`-f docker-compose.yml` pinned, compose doesn't auto-load `compose.yaml` or `*.override.*` files
+and ignores `COMPOSE_FILE`.
+
+How "runs docker" is detected: python `shlex` splits the command into shell words, undoing quotes
+and backslashes, so `"docker"`, `\docker` and `d\ocker` are all docker. The hook then looks for
+docker wherever a command starts:
+- at the beginning, or after `; & | (` or a newline;
+- after `VAR=value` prefixes and wrappers (`command`, `env`, `timeout 5s`, `nice -n 10`, …);
+- as `/usr/bin/docker`;
+- inside `sh -c '…'` or `eval`;
+- inside `$(…)` or backticks.
+
+Unbalanced quotes count as docker, and the command fails the shape check. The word docker
+anywhere else (a commit message, `grep docker`, `git log --grep docker`) is just a word.
+
+Before allowing the three unsandboxed shapes, the hook also checks the filesystem. The hook runs
+outside the sandbox, so it sees the real files. It fails closed on any of these:
+- `CLAUDE_PROJECT_DIR` is unset;
+- the shell's working folder (from the hook input's `cwd`) isn't the project root;
+- `docker-compose.yml` or `.env` is missing or is a symlink;
+- `.env` sets any `COMPOSE_` variable, checked with `grep -q`, which prints nothing.
+
+Compose resolves `-f` and `.env` against the working folder, so `cd sub && docker compose -f
+docker-compose.yml up -d` would otherwise load a file the sandboxed shell wrote.
 
 **`.env.example` readable in the sandbox** (seen in NS-104): the read-deny `.env.*` currently hides
 the template too. The `!.env.example` negation works for the Read tool, but the sandbox doesn't
@@ -69,8 +90,9 @@ prefix, `--build`, chaining, substitution, a quoted command word and an exec wit
       file is unchanged (shown once by hand).
 - [ ] In the sandboxed shell, `head -1 .env.example` prints the template's first line, and
       `cat .env` still fails.
-- [ ] `docker compose ps` (an allowed shape) still runs. `docker compose -f /tmp/x.yml up -d` is
-      blocked by guard-bash, shown by test-hooks.
+- [ ] `docker compose -f docker-compose.yml ps` (an allowed shape) still runs for Paul's stack.
+      Every bypass the reviews found is a test-hooks case: hidden spellings, a subfolder `cwd`,
+      `COMPOSE_` in `.env`, symlinks, `environ`, and names from expansions.
 - [ ] `pre-commit run --all-files` checks pass (run directly in the sandbox) and `checks` is green.
 - [ ] The security reviewer finds nothing critical.
 
@@ -97,9 +119,15 @@ None at runtime. Each block or ask message names the rule and the file.
    paths that don't exist yet, so new compose files are handled by guard-bash's filesystem check
    instead. Untested in the docs: whether it applies inside the live session without a restart.
    The manual check in the acceptance criteria settles that.
-2. **`--env-file` in sandboxed commands.** Blocking `--env-file` everywhere would also block CI's
-   local check command. Recommended: block it only in the unsandboxed shapes, which never need
-   it, and allow it in sandboxed commands. Read-denying `.env` already keeps the secrets out.
+2. **`--env-file` (resolved by the allowlist).** It is allowed only as `--env-file .env.example`
+   in the sandboxed `config` shape (CI's command), and nowhere else.
+4. **Can a sandboxed command reach the Docker daemon? (unverified)** The guard only sees command
+   text, so a copy or symlink of the docker binary under another name (`./dk compose …`) is
+   invisible to it. Such a command doesn't match `excludedCommands`, so it runs sandboxed. It is
+   harmless only if the sandbox blocks the Docker socket. The agent's probe (connecting to
+   `/var/run/docker.sock` from the sandbox) was refused by the auto-mode classifier, so Paul
+   must check this. If the sandbox can reach the socket, that is a separate, bigger hole for its
+   own ticket: deny the socket path in the sandbox settings.
 3. **`.env.example` exception.** The docs document narrower-path precedence (`allowRead` inside a
    `denyRead`) but give no example of an exact file inside a glob, so it's tested by hand.
    Fallback if it doesn't work: replace the `.env.*` glob with an explicit list of the usual

@@ -13,8 +13,8 @@
       "Bash(pnpm --filter * test *)",
       "Bash(pnpm --filter * build *)",
       "Bash(bash .claude/hooks/test-hooks.sh)",
-      "Bash(docker compose up -d *)",
-      "Bash(docker compose ps *)",
+      "Bash(docker compose -f docker-compose.yml up -d *)",
+      "Bash(docker compose -f docker-compose.yml ps *)",
       "Bash(git status *)",
       "Bash(git diff *)",
       "Bash(git log *)",
@@ -43,7 +43,7 @@
       "Bash(npm install *)",
       "Bash(curl *)",
       "Bash(wget *)",
-      "Bash(docker compose exec *)",
+      "Bash(docker compose -f docker-compose.yml exec *)",
       "Bash(psql *)",
       "Bash(pnpm --filter evals *)",
       "Edit(**/package.json)"
@@ -92,9 +92,9 @@
     "allowUnsandboxedCommands": false,
     "failIfUnavailable": true,
     "excludedCommands": [
-      "docker compose up -d *",
-      "docker compose ps *",
-      "docker compose exec *",
+      "docker compose -f docker-compose.yml up -d *",
+      "docker compose -f docker-compose.yml ps *",
+      "docker compose -f docker-compose.yml exec *",
       "pnpm -r test *",
       "pnpm --filter * test *",
       "gh pr merge *",
@@ -112,7 +112,7 @@
         "~/.cache/ms-playwright",
         "~/.cache/turbo"
       ],
-      "denyWrite": ["./docker-compose.yml"],
+      "denyWrite": ["./docker-compose.yml", "./.env"],
       "allowRead": ["./.env.example"]
     },
     "network": {
