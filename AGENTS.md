@@ -81,6 +81,9 @@ version on a release at least 14 days old (cooldown against hijacked releases) a
 - **No fabrication.** Every claim in generated resume lines, answers, emails and profile copy
   cites an experience atom or story ID, and a deterministic validator checks it (ADR-0004).
   Locked facts (employers, titles, official HR dates) are never changed.
+- **Credentials stay in the vault.** Tenant passwords (Workday etc.) are decrypted only inside the
+  Apply Gateway. Verification codes and links are never logged, stored or put in the feed
+  (ADR-0010, requirements 15).
 - **No evasion.** No CAPTCHA solving, stealth plugins, fingerprint spoofing or background scraping
   of sites whose terms forbid it. A challenge becomes a "needs your hands" handoff (ADR-0003).
 - **Freshness first.** Sourcing and queue order favor newly posted jobs (SRC-012…016).

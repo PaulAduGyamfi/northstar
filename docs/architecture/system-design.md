@@ -60,6 +60,9 @@ Each agent is a narrow, testable unit: typed input, typed (structured-output) re
 | **Provenance Validator** | Deterministic check that every claim in generated text cites an atom/story ID that exists (ADR-0004). |
 | **Browser Runtime** | Pool of headless Playwright browsers for ATS adapters; human-paced; per-domain concurrency 1. Hands off to the extension on challenge. |
 | **Research Service** | Company snapshots (site, news, eng blog, funding), cached per company. |
+| **Credential Vault** (ADR-0010) | Per-tenant ATS passwords with envelope encryption; decrypted only inside the Apply Gateway; every decrypt audited; mirrored to the user's password manager. |
+| **Verification Catcher** (ADR-0010) | Session-bound windows that route matching verification emails (from Gmail push) to the waiting apply session; deterministic code and link extraction; allowlisted hosts only; codes never stored. |
+| **Tenant Registry** | One record per employer ATS tenant (Workday etc.): account status, linked applications, last sign-in. |
 
 ### Data
 | Store | Holds |

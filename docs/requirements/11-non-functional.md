@@ -5,7 +5,7 @@
 |---|---|---|
 | NFR-SEC-001 | M | OAuth tokens and provider API keys encrypted at rest (envelope encryption, KMS or libsodium sealed box locally); never logged; never included in prompts. |
 | NFR-SEC-002 | M | Least-privilege OAuth scopes; Gmail `send` capability isolated in a gateway that requires an approval record ID. |
-| NFR-SEC-003 | M | No server-side storage of third-party site passwords (ATS accounts, LinkedIn). Authenticated browsing happens in the user's own browser via the extension. |
+| NFR-SEC-003 | M | **Amended by ADR-0010:** ATS tenant passwords are stored only in the credential vault (envelope encryption, master key outside the DB, decrypt only in the Apply Gateway, audited; CRD-001…005). LinkedIn and other personal accounts are never stored; that browsing happens in the user's own browser via the extension. |
 | NFR-SEC-004 | M | Prompt-injection defense: content from job postings, emails and web pages is treated as untrusted data; agents that read untrusted content cannot directly trigger send/submit tools — they produce proposals that pass the Approval Gate and policy checks. |
 | NFR-SEC-005 | M | PII minimization: only job-related email is sent to an LLM; raw email bodies retained 90 days by default (configurable). Export & delete-all available. |
 | NFR-SEC-006 | S | Audit log of every outbound action (who/what approved it, when, payload hash). |
