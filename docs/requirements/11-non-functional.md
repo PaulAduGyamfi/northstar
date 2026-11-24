@@ -34,6 +34,8 @@
 | NFR-PRF-003 | S | Package (tailored resume + answers) ready ≤ 3 min p95 after queueing. |
 
 ## Cost
+> Estimates and levers: [cost-model.md](../cost-model.md).
+
 | ID | Pri | Requirement |
 |---|---|---|
 | NFR-CST-001 | M | Per-feature LLM cost tracked (tokens, $) and shown in run inspector; monthly budget with soft/hard caps. |

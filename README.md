@@ -20,6 +20,7 @@ One system that **finds jobs, applies to them, runs your inbox, and keeps your p
 | [docs/differentiators.md](docs/differentiators.md) | Where we beat ApplyASAP & co. — up for discussion |
 | [docs/open-questions.md](docs/open-questions.md) | Decisions the product owner still has to make |
 | [docs/roadmap.md](docs/roadmap.md) | Phased delivery plan |
+| [docs/cost-model.md](docs/cost-model.md) | Estimated monthly running cost and cost levers |
 | [CLAUDE.md](CLAUDE.md) | Instructions for coding agents working in this repo |
 
 ## Requirement index (user's numbered asks → docs)
