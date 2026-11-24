@@ -51,6 +51,7 @@ One system that **finds jobs, applies to them, runs your inbox, and keeps your p
 | — | "Why no offer after 9 months?" — funnel diagnosis | [13-search-diagnostics](docs/requirements/13-search-diagnostics.md) |
 | — | No single fault crashes the system; observability for handoff | [14-resilience-and-observability](docs/requirements/14-resilience-and-observability.md) |
 | — | Newly posted jobs first; preferences editable any time | [01-job-sourcing](docs/requirements/01-job-sourcing.md) (SRC-012…018) |
+| — | Effortless account-wall sites (Workday) and email verification codes | [15-accounts-and-verification](docs/requirements/15-accounts-and-verification.md), ADR-0010 |
 | — | Work tracking | GitHub Issues (`NS-NNN`), seeded from [docs/backlog.md](docs/backlog.md) |
 
 ## Status

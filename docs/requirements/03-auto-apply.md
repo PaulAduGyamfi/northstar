@@ -23,7 +23,7 @@ The goal is **answers that don't read as AI-written** (meaning 1 below). "AI det
 | APPLY-007 | M | P1 | **Human-paced execution.** Submissions run at realistic pacing, one at a time per ATS domain, with daily caps (configurable; default 25/day) to protect the user's reputation and inboxes. |
 | APPLY-008 | M | P1 | **Proof of submission.** Store screenshot + HTML of the confirmation page, timestamp, submitted field values, resume version. Shown on the application timeline. |
 | APPLY-009 | M | P1 | **Idempotency.** Never apply to the same requisition twice; detect duplicates across sources and reposts. |
-| APPLY-010 | M | P1 | **Account vault.** For ATSs needing accounts (Workday), credentials are created/entered by the user; the system stores session state only via the user's browser (extension), never raw passwords server-side. |
+| APPLY-010 | M | P1 | ~~Browser-only account credentials.~~ **Superseded by ADR-0010 (2026-11-24):** accounts on Workday-style tenants are created, verified and signed into automatically, with passwords in Northstar's credential vault and mirrored to Paul's password manager. See [15-accounts-and-verification](15-accounts-and-verification.md). |
 | APPLY-011 | S | P2 | **Kill switch.** One toggle pauses all submissions immediately (ApplyASAP parity). |
 | APPLY-012 | S | P2 | **EEO / sensitive fields** (gender, race, veteran, disability, sponsorship, salary expectation) are answered only from explicit user settings, never inferred. |
 | APPLY-013 | C | P3 | **Speed mode.** For "dream company" watchlist entries, auto-prepare a package within minutes of a posting appearing and push a high-priority 1-click approval notification. |
