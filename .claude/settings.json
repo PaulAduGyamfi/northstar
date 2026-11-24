@@ -97,15 +97,13 @@
       "docker compose exec *",
       "pnpm -r test *",
       "pnpm --filter * test *",
-      "gh pr create *",
       "gh pr merge *",
       "git push *",
       "gh pr view *",
       "gh pr checks *",
       "gh run view *",
       "gh issue view *",
-      "gh issue list *",
-      "gh issue create *"
+      "gh issue list *"
     ],
     "filesystem": {
       "allowWrite": [

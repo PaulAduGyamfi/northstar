@@ -65,8 +65,10 @@ For each task, in order:
 2. Update `AGENTS.md` and the matching rule file if a command, folder or convention changed.
 3. Draft the PR body from `.github/pull_request_template.md`, with the plan, the ticked tasks and
    an honest AI assistance section.
-4. `git push -u origin <branch>`, then `gh pr create --base main --head <branch> --title "..."
-   --body-file <file>` (both ask Paul). Wait for `checks` with `gh pr checks <n> --watch`.
+4. `git push -u origin <branch>` (asks Paul). Write the PR body to a file in your temp directory
+   and give Paul the line to open the PR himself:
+   `! gh pr create --base main --head <branch> --title "..." --body-file <file>`.
+   Wait for `checks` with `gh pr checks <n> --watch` (start it after the run appears).
 5. When `checks` is green and no critical findings remain, read the head commit
    (`gh pr view <n> --json headRefOid`) and merge with
    `gh pr merge <n> --rebase --delete-branch --match-head-commit <sha>` (asks Paul). Then confirm
