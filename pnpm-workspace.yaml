@@ -9,5 +9,8 @@ minimumReleaseAge: 20160
 
 # No dependency may run an install script unless it's listed here (with Paul's approval).
 # strictDepBuilds makes an unlisted one fail the install instead of being skipped quietly.
-onlyBuiltDependencies: []
+# esbuild (via drizzle-kit, dev only): its postinstall picks the native binary for this platform.
+# Approved by Paul for NS-105 (specs/NS-105/spec.md, open question 5).
+onlyBuiltDependencies:
+  - esbuild
 strictDepBuilds: true

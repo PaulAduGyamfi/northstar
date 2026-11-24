@@ -1,0 +1,34 @@
+{
+  "name": "@northstar/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "lint": "biome check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json",
+    "db:generate": "turbo run build --filter=@northstar/domain && drizzle-kit generate",
+    "db:migrate": "turbo run build --filter=@northstar/db && node --env-file-if-exists=../../.env dist/migrate.js"
+  },
+  "dependencies": {
+    "@northstar/domain": "workspace:*",
+    "@opentelemetry/api": "1.9.1",
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.16",
+    "@electric-sql/pglite-pgvector": "0.0.17",
+    "@opentelemetry/sdk-trace-base": "2.12.1",
+    "@types/pg": "8.23.1",
+    "drizzle-kit": "0.31.11"
+  }
+}
