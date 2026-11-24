@@ -30,7 +30,13 @@ Exists now:
   (research brief, tokens, mockups), `cost-model.md`, `roadmap.md`, `open-questions.md`.
 - `specs/TEMPLATE/`: spec, plan and tasks templates. `specs/<ticket>/spec.md` per ticket.
 - `.claude/`: the agent harness (settings, hooks, subagents, skills, path rules).
-- `.github/pull_request_template.md`.
+- `.github/`: `workflows/checks.yml` (commit checks + hook tests on every PR),
+  `workflows/claude-review.yml` (Claude review of every PR), `dependabot.yml`,
+  `branch-protection.json`, the PR template.
+- `.pre-commit-config.yaml` + `scripts/check-personal-data.sh`: commit checks (ADR-0011).
+- `LICENSE`: Apache-2.0.
+- `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
+  and real-mail eval labels live here and never get committed.
 
 Planned (`docs/architecture/system-design.md` §7). **Don't create these early:** each one arrives
 with the ticket that needs it.
@@ -43,20 +49,22 @@ evals/  ops/  docs/runbooks/
 
 ## Commands
 
-No code yet, so there are no build or test commands. When the scaffold ticket lands, it fills in
-this table and every command here must run as written:
+Every command here must run as written. Rows marked *(NS-103)* arrive with the scaffold ticket.
 
 | Where | Command | What it does |
 |---|---|---|
-| repo root | `pnpm install --frozen-lockfile` | install locked dependencies *(scaffold ticket)* |
-| repo root | `pnpm -r lint` / `pnpm -r typecheck` / `pnpm -r test` | checks *(scaffold ticket)* |
-| repo root | `docker compose up -d` | Postgres+pgvector, Temporal, MinIO, Grafana LGTM *(scaffold ticket)* |
+| repo root | `pre-commit install` | once per clone: run the commit checks on every commit |
+| repo root | `pre-commit run --all-files` | private keys, large files, personal data, hook tests (gitleaks scans staged changes on commit; CI scans the full history) |
+| repo root | `bash .claude/hooks/test-hooks.sh` | self-test the harness hooks |
+| repo root | `pnpm install --frozen-lockfile` | install locked dependencies *(NS-103)* |
+| repo root | `pnpm -r lint` / `pnpm -r typecheck` / `pnpm -r test` | checks *(NS-103)* |
+| repo root | `docker compose up -d` | Postgres+pgvector, Temporal, MinIO, Grafana LGTM *(NS-104)* |
 
 **Done** means every check passes in every package you touched and you showed the output.
 
 ## Stack (ADR-0005, ADR-0006, ADR-0008)
 
-TypeScript everywhere. pnpm + Turborepo monorepo, Next.js (PWA), Temporal TypeScript SDK,
+TypeScript everywhere. Node 24 LTS, pnpm 10, Turborepo, Biome (format + lint), Vitest (ADR-0011), Next.js (PWA), Temporal TypeScript SDK,
 Playwright, Postgres 16 + pgvector with Drizzle, Chrome MV3 extension, OpenTelemetry → Grafana
 LGTM. Claude via `@anthropic-ai/sdk` behind `packages/llm` only. Default model `claude-opus-5-5`.
 Cheaper tiers only where an eval and an ADR amendment record the trade-off.
@@ -101,6 +109,8 @@ version on a release at least 14 days old (cooldown against hijacked releases) a
 - Every behavior change comes with a test that fails without it. Test names are sentences.
 - **No test calls a real model, Gmail, an ATS or the network.** Use recorded fixtures and fakes.
 - Every LLM route has an eval set in `evals/<route>/`. Changing a prompt or model means running it.
+  Agents build and label eval sets: synthetic cases are committed, real-mail cases live in
+  `evals/**/private/` (gitignored), and Paul only reviews cases where two labeling passes disagree.
 - Never delete, skip or loosen a test, assertion or eval threshold to get green. Stop and say why.
 
 ## Secrets
@@ -111,7 +121,9 @@ password in code, tests, docs, commit messages or chat.
 
 ## Git and pull requests
 
-- Tickets are `NS-NNN`. One branch per ticket (`git switch -c ns-101`). Never commit on `main`.
+- Tickets are `NS-NNN` **GitHub Issues** (labels `area:*`, `type:*`, `priority:*`; milestones
+  P0–P4). Pick work from the issues, not from memory. One branch per ticket
+  (`git switch -c ns-101`). `main` is protected: changes land only through a PR with green `checks`.
 - Small commits, each green, subject `NS-101: <what this commit adds>`.
 - Stage files by name and check `git status` before committing.
 - One pull request per ticket using `.github/pull_request_template.md`, including the AI
