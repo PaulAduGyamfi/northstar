@@ -14,6 +14,6 @@ no bundler or framework; `src/chrome.d.ts` types the few Chrome APIs it calls.
   Indeed (ADR-0003). The page is read only when Paul clicks.
 - Never store third-party passwords. The handoff opens a pre-filled form in Paul's own session.
 - Talks only to the Northstar API on 127.0.0.1, with its own scoped token (`auth: "extension"`,
-  ADR-0018). Page content sent to the API is untrusted data.
+  ADR-0019). Page content sent to the API is untrusted data.
 - Plain logic (what is captured, the request, the messages) lives in modules with tests;
   `popup.ts` and `options.ts` only wire it to the browser.

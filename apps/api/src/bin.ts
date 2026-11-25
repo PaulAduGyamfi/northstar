@@ -25,10 +25,14 @@ try {
   const config = loadApiConfig(process.env);
   const extensionTokenSha256 = loadExtensionTokenHash(process.env);
   const { db } = connectDb(loadDbConfig(process.env));
-  // Paul's candidate row, looked up on the first capture: sign-in needs no database.
+  // Paul's candidate row, looked up on the first capture (the pool connects lazily, so sign-in
+  // works while Postgres is down). A failed lookup is forgotten, so the next capture tries again.
   let candidate: Promise<Awaited<ReturnType<typeof soleCandidate>>> | undefined;
   const candidateId = () => {
-    candidate ??= soleCandidate(db);
+    candidate ??= soleCandidate(db).catch((error: unknown) => {
+      candidate = undefined;
+      throw error;
+    });
     return candidate;
   };
   // Built on first use, as in `jobs add`: a posting read through an ATS API or JSON-LD needs no

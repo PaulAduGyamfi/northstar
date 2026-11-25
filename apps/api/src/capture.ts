@@ -25,7 +25,8 @@ export type CapturePorts = {
 const Capture = z.object({
   url: z.string().min(1).max(2048),
   title: z.string().max(500).optional(),
-  text: z.string().min(1).max(MAX_PAGE_TEXT),
+  // Trimmed first, so a page of whitespace counts as empty whatever the caller sent.
+  text: z.string().trim().min(1).max(MAX_PAGE_TEXT),
 });
 
 // Field names and ids only: a job's values never travel back to the browser.

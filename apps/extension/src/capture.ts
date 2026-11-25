@@ -6,13 +6,15 @@ import type { Settings } from "./settings.js";
 // The API takes at most this much page text (MAX_PAGE_TEXT in apps/api/src/capture.ts).
 export const MAX_TEXT = 20_000;
 const MAX_TITLE = 500;
+// The longest URL the API takes (apps/api/src/capture.ts).
+const MAX_URL = 2048;
 
 export type Page = { url: string; title: string; text: string };
 
 // What is sent for the page, or null when there is nothing to send: only http(s) pages with
 // text (never the browser's own chrome:// pages).
 export function pageCapture(page: Page): Page | null {
-  if (!/^https?:\/\//.test(page.url)) return null;
+  if (!/^https?:\/\//.test(page.url) || page.url.length > MAX_URL) return null;
   const text = page.text.trim().slice(0, MAX_TEXT);
   if (text.length === 0) return null;
   const title = page.title.trim();
@@ -45,6 +47,16 @@ type Answer = {
 export function resultMessage(httpStatus: number, body: unknown): string {
   if (httpStatus === 401) {
     return "Northstar didn't accept the extension token. Check it in the extension's options.";
+  }
+  if (httpStatus === 429) {
+    return "Too many wrong tokens. Wait a minute, then check the token in the options.";
+  }
+  // The API answered but refused the request itself: this extension is older or newer than it.
+  if (httpStatus === 400 || httpStatus === 403 || httpStatus === 413 || httpStatus === 415) {
+    return `Northstar refused this request (${httpStatus}). Rebuild and reload the extension.`;
+  }
+  if (httpStatus >= 500) {
+    return "Northstar hit an error saving this page. Try again, or check the API's log.";
   }
   if (httpStatus !== 200 || typeof body !== "object" || body === null) {
     return "Couldn't reach Northstar. Is the API running?";

@@ -31,6 +31,7 @@ const created = (jobId: string, method: "ats_api" | "text"): IngestResult => ({
 });
 
 let server: Server;
+let sessions: ReturnType<typeof createSessions>;
 let calls: string[];
 let byUrl: (url: string) => Promise<IngestResult>;
 let byText: (url: string, text: string) => Promise<IngestResult>;
@@ -52,11 +53,12 @@ beforeEach(async () => {
   server = createServer();
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   const config: ApiConfig = { signinKeySha256: SIGNIN, port: portOf(server), webOrigin: WEB };
+  sessions = createSessions(() => 0);
   server.on(
     "request",
     createApi({
       config,
-      sessions: createSessions(() => 0),
+      sessions,
       extensionTokenSha256: EXT_HASH,
       extra: [captureEndpoint(ports)],
     }),
@@ -123,6 +125,19 @@ describe("POST /jobs/capture: who may call it", () => {
     for (let i = 0; i < 5; i++) await capture(page, { authorization: "Bearer wrong-token" });
     const res = await capture(page);
     expect(res.status).toBe(429);
+    expect(calls).toEqual([]);
+  });
+
+  it("a live session cookie doesn't open it without the token", async () => {
+    const cookie = `ns_session=${sessions.open().token}`;
+    const res = await capture(page, { authorization: "", cookie });
+    expect(res.status).toBe(401);
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses a body over 96 KB with 413", async () => {
+    const res = await capture({ ...page, text: "x".repeat(100 * 1024) });
+    expect(res.status).toBe(413);
     expect(calls).toEqual([]);
   });
 
@@ -230,6 +245,18 @@ describe("POST /jobs/capture: what it stores", () => {
     expect(res.status).toBe(400);
     expect(JSON.parse(res.body)).toEqual({ error: "invalid_input", paths: ["text"] });
     expect(calls).toEqual([]);
+  });
+
+  it("refuses whitespace-only page text with 400", async () => {
+    const res = await capture({ ...page, text: "   \n  " });
+    expect(res.status).toBe(400);
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses a capture without a URL with 400, naming the field", async () => {
+    const res = await capture({ title: page.title, text: page.text });
+    expect(res.status).toBe(400);
+    expect(JSON.parse(res.body)).toEqual({ error: "invalid_input", paths: ["url"] });
   });
 
   it("refuses page text over 20,000 characters with 400", async () => {

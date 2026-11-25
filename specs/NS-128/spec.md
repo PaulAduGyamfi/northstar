@@ -16,7 +16,8 @@ browser does the same in one click, from the page he is already reading.
 ## Behavior
 1. **`apps/extension`** (Chrome MV3, TypeScript compiled by `tsc`, no framework or dependency):
    - Permissions: `activeTab`, `scripting` and `storage`. The one host permission is the local
-     API (`http://127.0.0.1:8787/*`), so the popup can call it. No content scripts, no background
+     API (`http://127.0.0.1/*`: Chrome ignores ports in match patterns, and the options refuse
+     any API address but `http://127.0.0.1:<port>`), so the popup can call it. No content scripts, no background
      page, nothing runs until Paul clicks.
    - The popup's "Save to Northstar" button reads the active tab's URL, title and visible text
      (`document.body.innerText`, capped at 20,000 characters: the model reads the first 12,000, `PAGE_LIMIT`) through `scripting.executeScript`,
@@ -69,7 +70,13 @@ browser does the same in one click, from the page he is already reading.
 - **API down or token unset:** the popup says so, and nothing is stored.
 - **A page that is mostly navigation:** the model route finds no job (`not_a_job`), and the popup
   says it couldn't find a posting.
-- **The model is unavailable:** the capture answers `failed`, and Paul can retry.
+- **The model is unavailable:** `ingestText` stores the posting as a draft without a title or
+  company (as `jobs add --text` does), and Paul fills them in with `jobs set`. Without
+  `ANTHROPIC_API_KEY` the capture answers 500, and the popup says Northstar hit an error.
+- **Postgres down:** the capture answers 500. The candidate lookup isn't cached when it fails, so
+  the next capture after Postgres is back works.
+- **Not scored on capture:** `jobs add` scores right after saving; a captured job waits for the
+  next `jobs score` or poll pass (follow-up issue).
 
 ## Observability
 `api.request` spans as today, plus `northstar.auth.outcome` for extension auth. `job.ingest`

@@ -30,6 +30,11 @@ describe("pageCapture", () => {
     expect(pageCapture({ url: "chrome://settings", title: "Settings", text: "x" })).toBeNull();
   });
 
+  it("captures nothing from a URL over 2,048 characters, which the API would refuse", () => {
+    const url = `https://jobs.example.com/1?${"t".repeat(2048)}`;
+    expect(pageCapture({ url, title: "x", text: "Hiring" })).toBeNull();
+  });
+
   it("captures nothing from a page with no text", () => {
     expect(pageCapture({ url: "https://jobs.example.com/1", title: "x", text: "   " })).toBeNull();
   });
@@ -92,8 +97,26 @@ describe("resultMessage", () => {
     );
   });
 
-  it("treats any other answer as Northstar being unreachable", () => {
-    expect(resultMessage(502, null)).toBe("Couldn't reach Northstar. Is the API running?");
+  it("says Northstar hit an error on a server error, not that it is down", () => {
+    expect(resultMessage(500, { error: "internal" })).toBe(
+      "Northstar hit an error saving this page. Try again, or check the API's log.",
+    );
+  });
+
+  it("says the extension is out of date when the API refuses the request's shape", () => {
+    expect(resultMessage(400, { error: "invalid_input" })).toBe(
+      "Northstar refused this request (400). Rebuild and reload the extension.",
+    );
+  });
+
+  it("asks to wait after too many wrong tokens", () => {
+    expect(resultMessage(429, { error: "throttled" })).toBe(
+      "Too many wrong tokens. Wait a minute, then check the token in the options.",
+    );
+  });
+
+  it("says Northstar is unreachable when there was no answer", () => {
+    expect(resultMessage(0, null)).toBe("Couldn't reach Northstar. Is the API running?");
   });
 });
 

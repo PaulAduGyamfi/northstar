@@ -1,5 +1,5 @@
 // The extension's two settings, kept in chrome.storage.local (NS-128). The token is the
-// extension's own, scoped to its endpoints (ADR-0018); it is never a site password.
+// extension's own, scoped to its endpoints (ADR-0019); it is never a site password.
 
 export type Settings = { apiOrigin: string; token: string };
 

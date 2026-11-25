@@ -188,7 +188,7 @@ Exists now:
   "extension"`, which never opens a session endpoint). The API reads the link only for a known
   ATS (`detectAts`), through the same path as `jobs add <url>`; every other page is saved from its
   text (untrusted, the `job-extract` route only), so the server never fetches a host the page's
-  owner controls.
+  owner controls. A captured job isn't scored until the next `jobs score` or poll pass.
 - `apps/web/` (NS-156): the Next.js shell (PillNav, B · Momentum colors as CSS variables) with one
   authenticated page, Today. `/api/*` is rewritten to the API, and pages that need Paul go through
   `readSession`/`todayView` (`src/session.ts`), which ask the API's `GET /me`. It holds no secret.
