@@ -20,10 +20,14 @@ auto-approve policies he controls, and a short undo window before any approval t
 
 ### Approval requests (APR-001)
 - Any producer (a workflow, later) calls `requestApproval` with a **kind**, a **subject** (the
-  thing to approve, as an aggregate `application:<uuid>`), the **facts** a policy may look at,
-  the actor, and an idempotency key. Kinds are the APR-001 list: `application_package`,
+  thing to approve, as an aggregate `application:<uuid>`), the **SHA-256 of the content** to
+  approve, the **facts** a policy may look at, the actor, and an idempotency key. Kinds are the APR-001 list: `application_package`,
   `answer`, `email_reply`, `outreach`, `profile_fix`, `growth_plan`, `prep_plan`.
 - The same idempotency key twice returns the first request and writes nothing new.
+- A subject that is already pending or approved can't be requested again
+  (`SubjectAlreadyRequested`). After Paul rejects it, it may be requested again (edited
+  content), and then it always waits for him: a subject Paul rejected or undid is never
+  auto-approved.
 - `listPendingApprovals` returns every request with no live decision, oldest first (one queue for
   every kind), optionally filtered by kind.
 
@@ -52,18 +56,19 @@ auto-approve policies he controls, and a short undo window before any approval t
   `AlreadyDecided` and changes nothing.
 
 ### Undo window (UX-016, design research brief)
-- Every decision takes effect 2 minutes after it is made (`effective_at`). Until then
+- Every decision takes effect 2 minutes after it is made (`effective_at`). All Gate times come
+  from the database clock (`northstar_gate_now()`), never from a caller. Until then
   `undoDecision` records an immutable undo; the request goes back to pending and can be decided
   again. After `effective_at`, undo is refused (`UndoWindowClosed`).
 - Policy auto-approvals get the same window, so Paul can stop an auto-submit.
 
 ### Verification for gateways (ADR-0002 item 3, APR-004)
-- `verifyApproval(db, { candidateId, decisionId, kind, subject, now })` is what every gateway
-  will call with the `approvalId` / `policyDecisionId` it was given. It looks the decision up
-  server-side and returns it only if it exists for this candidate, approves, has not been undone,
-  is past its undo window, and matches the kind and subject the gateway is about to act on.
-  Otherwise it returns a named refusal (`NotFound`, `Rejected`, `Undone`, `UndoWindowOpen`,
-  `SubjectMismatch`).
+- `verifyApproval(db, { candidateId, decisionId, kind, subject, contentSha256 })` is what every
+  gateway will call with the `approvalId` / `policyDecisionId` it was given. It looks the
+  decision up server-side and returns it only if it exists for this candidate, approves, has not
+  been undone, is past its undo window by the database clock, and matches the kind, subject and
+  content hash the gateway is about to send. Otherwise it returns a named refusal (`NotFound`,
+  `Rejected`, `Undone`, `UndoWindowOpen`, `SubjectMismatch`, `ContentChanged`).
 
 ### Immutable records
 - `approval_request`, `approval_policy_set`, `approval_decision` and `approval_undo` are
@@ -82,6 +87,10 @@ auto-approve policies he controls, and a short undo window before any approval t
 - [ ] A decided request can't be decided again (`AlreadyDecided`, test).
 - [ ] Undo inside the window returns the request to pending; after it, `UndoWindowClosed`
       (tests, injected clock).
+- [ ] A pending or approved subject can't be requested again; a rejected or undone one is never
+      auto-approved (tests).
+- [ ] A caller's times are ignored: triggers stamp every record from the database clock (test).
+- [ ] `verifyApproval` refuses a content hash that differs from the approved one (test).
 - [ ] `verifyApproval` refuses each case above with its named error and accepts a live,
       effective approval of the same kind and subject (tests).
 - [ ] UPDATE and DELETE on each of the four tables fail with `restrict_violation` (tests).
@@ -94,8 +103,8 @@ auto-approve policies he controls, and a short undo window before any approval t
   gateway that can't verify refuses (fail closed).
 - **Two approvals racing for one request:** the request row is locked for the decision, so one
   wins and the other gets `AlreadyDecided`.
-- **Clock skew between Gate and gateway:** `effective_at` is stored; the gateway compares with
-  its own clock. A gateway clock that runs slow only delays the action, never skips the window.
+- **Clock skew between Gate, gateway and UI:** none matters. Every time is the database's, and
+  the undo window is judged in SQL against the same clock.
 - **A policy set saved with a bad rule:** refused by the schema before anything is written.
 
 ## Observability

@@ -14,7 +14,9 @@ import {
 import { candidate } from "./schema.js";
 
 // The Approval Gate's records (NS-119, ADR-0002, ADR-0017). All four tables are append-only: a
-// trigger in a custom migration refuses UPDATE, DELETE and TRUNCATE (APR-004). The state of a
+// trigger in a custom migration refuses UPDATE, DELETE and TRUNCATE (APR-004). Every timestamp
+// here comes from the database clock (northstar_gate_now(), set by triggers), never from a caller,
+// so no caller's clock can shorten or stretch the undo window. The state of a
 // request is derived from them: pending while it has no live decision (one with no undo).
 // Write them only through approval-write.ts.
 
@@ -32,6 +34,9 @@ export const approvalRequest = pgTable(
     kind: text("kind").notNull(),
     // `<kind>:<uuid>`, e.g. `application:…`; the same format as domain_event.aggregate.
     subject: text("subject").notNull(),
+    // SHA-256 (hex) of exactly what Paul is asked to approve. A gateway must present the hash of
+    // what it is about to send, so an approval of version A never lets version B out.
+    contentSha256: text("content_sha256").notNull(),
     // The facts a policy may look at (numbers and flags only); null when the kind has none.
     facts: jsonb("facts").$type<PackageFacts>(),
     // Who asked (`agent:apply`, `system`), for the feed and the audit trail.
@@ -44,6 +49,7 @@ export const approvalRequest = pgTable(
     unique("approval_request_id_candidate_unique").on(t.id, t.candidateId),
     unique("approval_request_idempotency_unique").on(t.candidateId, t.idempotencyKey),
     check("approval_request_kind_valid", sql`${t.kind} in (${kindList})`),
+    check("approval_request_content_sha256_format", sql`${t.contentSha256} ~ '^[0-9a-f]{64}$'`),
     check(
       "approval_request_subject_format",
       sql`${t.subject} ~ '^[a-z_]+:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'`,
