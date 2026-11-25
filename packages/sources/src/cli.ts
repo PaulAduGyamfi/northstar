@@ -3,8 +3,11 @@ import type { JobListItem, SetFieldError } from "@northstar/db";
 import type { Result } from "@northstar/domain";
 import { LlmTransportError } from "@northstar/llm";
 import type { IngestResult } from "./ingest.js";
+import { ageHours, freshness, queueScore } from "./queue.js";
+import { type BoardCliDeps, pollCommand, runCommand, watchCommand } from "./watch-cli.js";
 
-// `jobs add <url> | add --text <file> --url <url> | list | set <id> <field> <value>` (NS-114).
+// `jobs add <url> | add --text <file> --url <url> | list | set <id> <field> <value>` (NS-114),
+// plus `jobs watch …`, `jobs poll` and `jobs run` (NS-115, watch-cli.ts).
 // Everything is injected, so tests run with no database, network or model.
 export type CliDeps = {
   argv: string[];
@@ -19,10 +22,11 @@ export type CliDeps = {
     field: string,
     value: string,
   ) => Promise<Result<{ status: "draft" | "ready"; missingFields: string[] }, SetFieldError>>;
+  boards: BoardCliDeps;
 };
 
 const USAGE =
-  "usage: jobs add <url> | jobs add --text <file> --url <url> | jobs list | jobs set <job-id> <field> <value>";
+  "usage: jobs add <url> | jobs add --text <file> --url <url> | jobs list | jobs set <job-id> <field> <value>\n       jobs watch add <board-url> --tier 1|2|3 | jobs watch list | jobs watch remove|retry <id> | jobs poll | jobs run";
 
 export async function main(deps: CliDeps): Promise<number> {
   const [command, ...rest] = deps.argv;
@@ -38,6 +42,12 @@ export async function main(deps: CliDeps): Promise<number> {
     }
   }
   if (command === "list" && rest.length === 0) return listCommand(deps);
+  if (command === "watch") {
+    const code = await watchCommand(deps, rest);
+    if (code !== null) return code;
+  }
+  if (command === "poll" && rest.length === 0) return pollCommand(deps);
+  if (command === "run" && rest.length === 0) return runCommand(deps);
   if (command === "set" && rest.length >= 3) {
     const [id, field, ...value] = rest;
     if (id && field) return setCommand(deps, id, field, value.join(" "));
@@ -124,7 +134,11 @@ async function listCommand(deps: CliDeps): Promise<number> {
     return 0;
   }
   const now = deps.now();
-  for (const j of jobs) {
+  // Fresh first (SRC-013); fit joins the score with NS-116.
+  const score = (j: JobListItem) =>
+    queueScore(freshness(ageHours(j.postedAt, j.firstSeenAt, now)), null);
+  const ordered = [...jobs].sort((a, b) => score(b) - score(a));
+  for (const j of ordered) {
     const when = j.postedAt ? `posted ${age(j.postedAt, now)}` : `seen ${age(j.firstSeenAt, now)}`;
     const draft = j.status === "draft" ? ` [draft: needs ${j.missingFields.join(", ")}]` : "";
     const sources = j.sources > 1 ? ` · ${j.sources} sources` : "";

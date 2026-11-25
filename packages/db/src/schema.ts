@@ -43,7 +43,14 @@ export const company = pgTable(
 
 // The ATSs Northstar reads job postings from (NS-114). A constant, so sql.raw builds no SQL from
 // input.
-export const ATS_KINDS = ["greenhouse", "lever", "ashby", "workday"] as const;
+export const ATS_KINDS = [
+  "greenhouse",
+  "lever",
+  "ashby",
+  "workday",
+  "smartrecruiters",
+  "workable",
+] as const;
 const atsList = sql.raw(ATS_KINDS.map((a) => `'${a}'`).join(", "));
 
 export const job = pgTable(
@@ -202,5 +209,44 @@ export const domainEvent = pgTable(
       "domain_event_trace_id_format",
       sql`${t.traceId} is null or ${t.traceId} ~ '^[0-9a-f]{32}$'`,
     ),
+  ],
+);
+
+// The company job boards Paul watches (NS-115, SRC-003). Scheduling state lives here (ADR-0015):
+// any process can run a poll pass, and restarting loses nothing.
+export const WATCH_STATUSES = ["ok", "backing_off", "quarantined"] as const;
+const watchStatusList = sql.raw(WATCH_STATUSES.map((s) => `'${s}'`).join(", "));
+
+export const companyWatch = pgTable(
+  "company_watch",
+  {
+    id: id(),
+    candidateId: uuid("candidate_id")
+      .notNull()
+      .references(() => candidate.id),
+    ats: text("ats").notNull(),
+    // The board's id at its ATS (Greenhouse board token, Lever company, Ashby org, ...).
+    board: text("board").notNull(),
+    // The board's own URL as Paul gave it, canonical.
+    url: text("url").notNull(),
+    // 1 dream, 2 target, 3 long tail: sets the cadence (SRC-012).
+    tier: integer("tier").notNull(),
+    status: text("status").notNull().default("ok"),
+    nextPollAt: timestamp("next_poll_at", { withTimezone: true }).notNull().defaultNow(),
+    lastPolledAt: timestamp("last_polled_at", { withTimezone: true }),
+    lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+    consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+    // The last failure's error name only (FetchRefused, TimeoutError...), never a message.
+    lastError: text("last_error"),
+    jobsFound: integer("jobs_found").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("company_watch_board_unique").on(t.candidateId, t.ats, t.board),
+    check("company_watch_ats_valid", sql`${t.ats} in (${atsList})`),
+    check("company_watch_tier_valid", sql`${t.tier} in (1, 2, 3)`),
+    check("company_watch_status_valid", sql`${t.status} in (${watchStatusList})`),
+    check("company_watch_failures_nonnegative", sql`${t.consecutiveFailures} >= 0`),
+    check("company_watch_url_https", sql`${t.url} ~ '^https://'`),
   ],
 );

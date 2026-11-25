@@ -38,3 +38,6 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `job_source`, or unchanged) and `setJobField` (Paul's edits). A job missing a title or company is
   a `draft`; a check refuses a `ready` one without them. Job events carry ids, counts and methods,
   never a title, company or URL.
+- The watchlist (NS-115, ADR-0015) is `company_watch`, written only through `watch-write.ts`. It
+  holds the scheduling state (`next_poll_at`, failures, status); `packages/sources` decides
+  backoff and quarantine. Its events carry the ATS kind, tier and counts, never a board name.
