@@ -56,6 +56,7 @@ committed.
 
 ## Ideas (idea dump)
 Paul's ideas, turned into requirements and issues as they come in. The issue is the source of truth.
+These issues are cut when the idea arrives, an exception to "P2–P4 issues are cut when P1 is half done".
 
 | Ticket | Title | Requirements | Labels |
 |---|---|---|---|
