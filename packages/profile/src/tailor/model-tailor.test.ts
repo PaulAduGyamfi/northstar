@@ -260,6 +260,40 @@ describe("checkModelResume: model-written text claims nothing the cited atoms do
   });
   const check = (r: TailoredResume, j = job) =>
     checkModelResume(r, master, j, tailorResume(master, j));
+  const problems = (text: string, atomIds = ["atom-2"], j = job) =>
+    check(summaryOf(text, atomIds), j).map((f) => f.problem);
+
+  it("refuses number words joined into another word, or multipliers", () => {
+    expect(problems("Led a billion-row ledger migration.")).toEqual([
+      "number at word 2 is not in its atoms",
+    ]);
+    expect(problems("Led a tenfold faster ledger migration.")).toEqual([
+      "number at word 2 is not in its atoms",
+    ]);
+    expect(problems("Led a migration that quadrupled throughput.")).toEqual([
+      "number at word 4 is not in its atoms",
+    ]);
+  });
+
+  it("refuses a name with a capital letter anywhere in it", () => {
+    expect(problems("Led the ledger migration for eBay.")).toEqual([
+      "name at word 5 is not in its atoms or their roles",
+    ]);
+  });
+
+  it("refuses, in any case, a name the job writes with a capital", () => {
+    // Only the title names Kubernetes, so the validator's requirement terms don't see it.
+    const titled = {
+      title: "Kubernetes Platform Engineer",
+      requirements: ["Terraform"],
+      niceToHaves: [],
+    };
+    // The resume was built for the sample job, so its skills and notes differ here too; this
+    // test is about the name.
+    expect(problems("Led the ledger migration running kubernetes.", ["atom-2"], titled)).toContain(
+      "name at word 5 is not in its atoms or their roles",
+    );
+  });
 
   it("refuses an employer the cited atoms don't belong to", () => {
     expect(

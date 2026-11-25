@@ -43,8 +43,11 @@ All in `packages/profile/src/tailor/`.
      - **Model-written text names nothing new** (`checkFreeText`). Every capitalised word must
        be in the cited atoms (line, what, how), their roles' title or employer, or the master's
        skills. It is never taken from the job. A line's first word passes as an ordinary opener
-       or a word those hold in lower case. Every number word ("ten", "billion") must be in the
-       cited atoms. This closes what the validator's digit-token and term rules can't see in
+       or a word those hold in lower case. A word with a capital anywhere ("eBay", "gRPC") counts
+       as a name, and so does any name the job writes with a capital, in whatever case the line
+       uses ("kubernetes"). Every number word must be in the cited atoms: "ten" and "billion",
+       but also joined forms ("billion-row", "twenty-five") and multipliers ("tenfold",
+       "quadrupled"). This closes what the validator's digit-token and term rules can't see in
        free text (an invented employer or title, "120 billion"). Failures give a word's
        position, never the text. The rule errs toward the deterministic resume.
    - Returns the call record for the caller's event. Nothing is stored.

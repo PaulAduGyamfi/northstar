@@ -53,7 +53,28 @@ const structureOf = (r: TailoredResume) =>
 // in words, so each capitalised word must come from the cited atoms (their line, what and how),
 // their roles' title and employer, or the master's skills, and never from the job. Each number
 // word must be in the cited atoms. Failures give a word's position, never the text.
-function checkFreeText(item: string, line: Line, master: MasterResume): TailorFailure[] {
+// Names the job writes with a capital (its title, requirements and nice-to-haves), lower-cased,
+// so "kubernetes" in a line is caught when only the job says "Kubernetes".
+function jobNames(job: TailorJob): Set<string> {
+  const text = [job.title ?? "", ...job.requirements, ...job.niceToHaves].join(" ");
+  return new Set(
+    (text.match(/[\p{L}\p{N}+#]+/gu) ?? [])
+      .filter((w) => /\p{Lu}/u.test(w) && !STARTERS.has(w))
+      .map((w) => w.toLowerCase()),
+  );
+}
+
+// A number in words: a number word ("billion", "twenty"), a multiplier ("tenfold"), or a
+// multiplying verb ("quadrupled").
+const isNumberWord = (part: string) =>
+  NUMBER_WORDS.has(part) || /fold$/.test(part) || /^(?:quadrupl|quintupl|sextupl)/.test(part);
+
+function checkFreeText(
+  item: string,
+  line: Line,
+  master: MasterResume,
+  fromJob: ReadonlySet<string>,
+): TailorFailure[] {
   const failures: TailorFailure[] = [];
   const cited = master.atoms.filter((a) => line.atomIds.includes(a.id));
   const roles = master.roles.filter((r) => cited.some((a) => a.roleId === r.id));
@@ -66,6 +87,7 @@ function checkFreeText(item: string, line: Line, master: MasterResume): TailorFa
       ...master.skills,
     ].join(" \n "),
   );
+  const lowerNames = names.toLowerCase();
   const lowerAtoms = atomText.toLowerCase();
   const seen = new Set<string>();
   normalize(line.text)
@@ -74,20 +96,29 @@ function checkFreeText(item: string, line: Line, master: MasterResume): TailorFa
       // Edge punctuation off ("Go." → "Go"), keeping name characters such as + and #.
       const word = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}+#]+$/gu, "");
       const lower = word.toLowerCase();
-      if (NUMBER_WORDS.has(lower) && !hasWhole(lowerAtoms, lower)) {
+      // Parts of a joined word ("billion-row", "twenty-five") count on their own.
+      const numberPart = lower.split(/[-/'’]/).find((p) => isNumberWord(p));
+      if (numberPart !== undefined && !hasWhole(lowerAtoms, numberPart)) {
         failures.push({ item, problem: `number at word ${position} is not in its atoms` });
       }
-      if (!/^\p{Lu}/u.test(word) || /^I(?:['’]\p{L}+)?$/u.test(word) || seen.has(word)) return;
+      if (seen.has(word) || /^I(?:['’]\p{L}+)?$/u.test(word)) return;
       seen.add(word);
-      // A line's first word is capitalised anyway: an opener, or a word the atoms hold in lower
-      // case, isn't a name.
-      if (position === 0 && (STARTERS.has(word) || hasWhole(names.toLowerCase(), lower))) return;
-      if (!hasWhole(names, word)) {
+      const fail = () =>
         failures.push({
           item,
           problem: `name at word ${position} is not in its atoms or their roles`,
         });
+      // A name the job writes with a capital counts in any case here ("kubernetes").
+      if (fromJob.has(lower) && !hasWhole(lowerNames, lower)) {
+        fail();
+        return;
       }
+      // Any capital, not only a first one: "eBay", "gRPC", "macOS" are names too.
+      if (!/\p{Lu}/u.test(word)) return;
+      // A line's first word is capitalised anyway: an opener, or a word the atoms hold in lower
+      // case, isn't a name.
+      if (position === 0 && (STARTERS.has(word) || hasWhole(lowerNames, lower))) return;
+      if (!hasWhole(names, word)) fail();
     });
   return failures;
 }
@@ -116,10 +147,11 @@ export function checkModelResume(
   base: TailoredResume,
 ): TailorFailure[] {
   const check = validateTailoredResume(output, master, job);
+  const fromJob = jobNames(job);
   const free = [
-    ...output.summary.flatMap((l, i) => checkFreeText(`summary line ${i}`, l, master)),
+    ...output.summary.flatMap((l, i) => checkFreeText(`summary line ${i}`, l, master, fromJob)),
     ...output.sections.flatMap((s, si) =>
-      s.lines.flatMap((l, li) => checkFreeText(`section ${si} line ${li}`, l, master)),
+      s.lines.flatMap((l, li) => checkFreeText(`section ${si} line ${li}`, l, master, fromJob)),
     ),
   ];
   return [...(check.ok ? [] : check.failures), ...free, ...sameClaims(output, base)];
