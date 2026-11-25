@@ -23,11 +23,15 @@ export type SystemPorts = {
 
 // The feed page the app asks for: enough for a screen, small enough to poll every few seconds.
 const MAX_PAGE = 50;
+// The largest log position Postgres can hold (bigint).
+const MAX_POSITION = 9223372036854775807n;
 // A log position as the query string carries it (a bigint, never a negative or a fraction).
+// Past the column's range it is refused here, not by the database.
 const Position = z
   .string()
   .regex(/^\d{1,19}$/)
-  .transform((s) => BigInt(s));
+  .transform((s) => BigInt(s))
+  .refine((n) => n <= MAX_POSITION);
 
 const Health = z.object({
   overall: z.enum(["healthy", "degraded", "down"]),

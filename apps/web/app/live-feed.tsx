@@ -16,8 +16,16 @@ export function LiveFeed({ initial }: { initial: FeedLine[] }) {
     let newest = initial[0]?.position ?? "0";
     let stopped = false;
     const tick = async () => {
+      // Nothing to show while the tab is hidden; the next visible tick catches up.
+      if (stopped || document.hidden) return;
       try {
         const res = await fetch(`/api/feed?after=${newest}`, { cache: "no-store" });
+        // Signed out or expired: stop asking until the page is loaded again.
+        if (res.status === 401) {
+          stopped = true;
+          clearInterval(timer);
+          return;
+        }
         if (!res.ok || stopped) return;
         const body = FeedBody.safeParse(await res.json());
         if (!body.success || body.data.items.length === 0) return;

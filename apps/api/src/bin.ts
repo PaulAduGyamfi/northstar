@@ -77,7 +77,8 @@ try {
     feedBefore: async (before, limit) => readFeed(db, await candidateId(), { before, limit }),
     feedAfter: async (after, limit) => readFeedAfter(db, await candidateId(), { after, limit }),
     setSwitch: async (input) =>
-      setKillSwitch(db, { candidateId: await candidateId(), actor: "user", ...input }),
+      // The input first: the actor and candidate are always the server's, whatever is sent.
+      setKillSwitch(db, { ...input, candidateId: await candidateId(), actor: "user" }),
   });
   const handler = createApi({
     config,

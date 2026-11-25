@@ -181,6 +181,15 @@ describe("GET /feed", () => {
   it("refuses a page over 50 with 400", async () => {
     expect((await get("/feed?limit=51")).status).toBe(400);
   });
+
+  it("refuses a position past the largest log position with 400, before the database", async () => {
+    expect((await get("/feed?after=9223372036854775808")).status).toBe(400);
+    expect(calls).toEqual([]);
+  });
+
+  it("accepts the largest log position", async () => {
+    expect((await get("/feed?after=9223372036854775807")).status).toBe(200);
+  });
 });
 
 describe("POST /system/kill-switches", () => {
@@ -191,6 +200,32 @@ describe("POST /system/kill-switches", () => {
     expect(calls).toEqual([
       ["switch", { subsystem: "auto_apply", enabled: false, reason: "On holiday" }],
     ]);
+  });
+
+  it("refuses a flip from another site's page with 403, even with the session", async () => {
+    const res = await send(server, {
+      method: "POST",
+      path: "/system/kill-switches",
+      headers: { "content-type": "application/json", origin: "https://evil.example.com", cookie },
+      body: JSON.stringify({ subsystem: "auto_apply", enabled: false, reason: "x" }),
+    });
+    expect(res.status).toBe(403);
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses a flip carrying only a Bearer token with 401", async () => {
+    const res = await send(server, {
+      method: "POST",
+      path: "/system/kill-switches",
+      headers: {
+        "content-type": "application/json",
+        origin: WEB,
+        authorization: "Bearer test-extension-token",
+      },
+      body: JSON.stringify({ subsystem: "auto_apply", enabled: false, reason: "x" }),
+    });
+    expect(res.status).toBe(401);
+    expect(calls).toEqual([]);
   });
 
   it("refuses an unknown subsystem with 400", async () => {
