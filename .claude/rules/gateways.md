@@ -19,6 +19,10 @@ its ticket, stop and ask Paul.
 
 When they land:
 
+- A gateway calls `verifyApproval` (NS-119) at the moment it acts, never when it enqueues, and
+  passes the SHA-256 of exactly what it is about to send. Its idempotency key comes from the
+  decision id: one approval, one send. A `ContentChanged` or `UndoWindowOpen` refusal becomes a
+  visible `needs_human` item or a scheduled retry at `effective_at` (ADR-0007), never a silent drop.
 - A gateway call without a verified `approvalId` or `policyDecisionId` throws. Look the approval
   up server-side; never trust an ID the caller merely asserts. Test the refusal.
 - Every side effect has an idempotency key (`application:{id}:submit`, `email:{draftId}:send`).
