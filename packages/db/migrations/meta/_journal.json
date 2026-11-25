@@ -120,6 +120,13 @@
       "when": 1795616963453,
       "tag": "0016_approval_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795619646075,
+      "tag": "0017_fit_scoring",
+      "breakpoints": true
     }
   ]
 }

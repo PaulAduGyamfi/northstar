@@ -2,6 +2,7 @@ import type { JobListItem } from "@northstar/db";
 import { LlmTransportError } from "@northstar/llm";
 import { describe, expect, it } from "vitest";
 import { type CliDeps, main } from "./cli.js";
+import { noFit } from "./fit/test/fake-fit.js";
 import type { IngestResult } from "./ingest.js";
 
 // Synthetic jobs only (invented companies).
@@ -35,6 +36,7 @@ function deps(argv: string[], result?: IngestResult | Error) {
       poll: async () => ({ boards: 0, added: 0, failed: 0, quarantined: 0 }),
       wait: async () => false,
     },
+    fit: noFit(),
   };
   return { d, printed, calls };
 }
@@ -165,6 +167,7 @@ describe("jobs list", () => {
         firstSeenAt: NOW,
         sources: 2,
         missingFields: [],
+        fit: null,
       },
       {
         id: "j2",
@@ -176,6 +179,7 @@ describe("jobs list", () => {
         firstSeenAt: new Date("2026-11-21T12:00:00Z"),
         sources: 1,
         missingFields: ["company"],
+        fit: null,
       },
     ];
     const { d, printed } = deps(["list"]);
