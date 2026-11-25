@@ -13,6 +13,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { type ApplyLimits, checkApplyLimits, DEFAULT_APPLY_LIMITS } from "./apply-config.js";
 import { applySubmission, type SubmissionStatus, submissionProof } from "./apply-schema.js";
 import type { Db } from "./db.js";
+import { openHandoff } from "./handoff-write.js";
 import { candidate, domainEvent } from "./schema.js";
 
 // The Apply Gateway's ledger (NS-120): claims, outcomes and proof of submission. The only writer
@@ -352,12 +353,15 @@ export async function recordSubmitted(
   );
 }
 
-// Marks an in-progress submission as waiting for Paul's hands, with a reason code.
+// Marks an in-progress submission as waiting for Paul's hands, with a reason code. For a
+// challenge (CAPTCHA, sign-in, MFA, account) with the page's URL, it also opens a handoff in the
+// same transaction (NS-121, handoff-write.ts), so Paul gets a link to finish it himself.
 export async function recordNeedsHuman(
   db: Db,
   candidateId: CandidateId,
   submissionId: string,
   reason: NeedsHumanReason,
+  applyUrl?: string,
 ): Promise<Result<SubmissionView, NotInProgress>> {
   return inSpan("db.apply.needs_human", { "northstar.apply.reason": reason }, (span) =>
     db.transaction(async (tx) => {
@@ -383,6 +387,15 @@ export async function recordNeedsHuman(
         { applicationId: row.applicationId, ats: row.ats, reason },
         now,
       );
+      await openHandoff(tx, span, {
+        candidateId,
+        submissionId,
+        applicationId: row.applicationId,
+        ats: row.ats,
+        reason,
+        applyUrl,
+        now,
+      });
       return ok(toView(row));
     }),
   );

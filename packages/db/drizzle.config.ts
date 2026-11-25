@@ -17,6 +17,7 @@ export default defineConfig({
     "./src/vault-schema.ts",
     "./src/thesis-schema.ts",
     "./src/mail-link-schema.ts",
+    "./src/handoff-schema.ts",
   ],
   out: "./migrations",
 });

@@ -211,6 +211,20 @@
       "when": 1795635381244,
       "tag": "0029_mail_link_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1795638191502,
+      "tag": "0030_handoff",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1795638197601,
+      "tag": "0031_handoff_append_only",
+      "breakpoints": true
     }
   ]
 }
