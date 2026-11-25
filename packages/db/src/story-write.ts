@@ -316,9 +316,16 @@ export async function nextAtomForInterview(
     .leftJoin(role, eq(role.id, experienceAtom.roleId));
 
   if (atomId !== undefined) {
-    const [row] = await select.where(
-      and(eq(experienceAtom.candidateId, candidateId), eq(experienceAtom.id, atomId)),
-    );
+    // A resume atom only (NS-133): a LinkedIn export's atoms aren't interviewed yet.
+    const [row] = await select
+      .innerJoin(profileSource, eq(profileSource.id, experienceAtom.sourceId))
+      .where(
+        and(
+          eq(experienceAtom.candidateId, candidateId),
+          eq(experienceAtom.id, atomId),
+          eq(profileSource.kind, "resume"),
+        ),
+      );
     return row ? toAtomView(row) : null;
   }
 

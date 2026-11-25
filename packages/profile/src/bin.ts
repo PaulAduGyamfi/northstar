@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { readFile, stat } from "node:fs/promises";
+import { basename, join, resolve } from "node:path";
 import { createInterface, type Interface } from "node:readline/promises";
 import {
   abandonInterview,
@@ -185,9 +185,16 @@ function printable(text: string): string {
   return text.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, "");
 }
 
+// A LinkedIn export's CSVs are well under a megabyte; anything this big is the wrong file.
+const MAX_EXPORT_FILE_BYTES = 20 * 1024 * 1024;
+
 // A file's text, or undefined when it doesn't exist (an optional CSV of the LinkedIn export).
+// A file over the cap is refused before it is read into memory.
 async function readOptional(path: string): Promise<string | undefined> {
   try {
+    if ((await stat(path)).size > MAX_EXPORT_FILE_BYTES) {
+      throw new Error(`${basename(path)}: larger than 20 MB, not a LinkedIn export file`);
+    }
     return await readFile(path, "utf8");
   } catch (error) {
     if ((error as { code?: unknown }).code === "ENOENT") return undefined;
