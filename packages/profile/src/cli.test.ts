@@ -1,4 +1,4 @@
-import type { ProfileView, StoryView } from "@northstar/db";
+import type { OfficialPosition, ProfileView, StoryView } from "@northstar/db";
 import { LlmTransportError } from "@northstar/llm";
 import { describe, expect, it } from "vitest";
 import { type CliDeps, main } from "./cli.js";
@@ -48,6 +48,9 @@ function deps(
       return outcome;
     },
     readStories: async () => story.stories ?? [],
+    setFacts: async (positions) => ({ status: "set", positions: positions.length }),
+    readFacts: async () => [],
+    recordCheck: async () => {},
   };
   return { d, printed, interviewedAtoms };
 }
@@ -206,7 +209,7 @@ describe("profile cli", () => {
     const { d, printed } = deps([], { kind: "unchanged" });
     expect(await main(d)).toBe(1);
     expect(printed).toEqual([
-      "usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories",
+      "usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check",
     ]);
   });
 
@@ -285,5 +288,98 @@ describe("profile cli", () => {
     const { d, printed } = deps(["stories"], new Error("unused"));
     expect(await main(d)).toBe(0);
     expect(printed[0]).toBe("No stories yet. Run: profile interview");
+  });
+});
+
+// NS-112: the official employment record and the consistency check. Synthetic employers only.
+describe("profile facts", () => {
+  const official: OfficialPosition[] = [
+    {
+      employer: "Globex",
+      title: "Engineer",
+      startDate: "2019-06-03",
+      endDate: "2025-11-14",
+      current: false,
+    },
+  ];
+  const resume = (end: string | null, current: boolean): ProfileView => ({
+    roles: [
+      {
+        employer: "Globex Inc.",
+        title: "Engineer",
+        startMonth: "2019-06",
+        endMonth: end,
+        current,
+        atoms: [],
+      },
+    ],
+    unassignedAtoms: [],
+    skills: [],
+  });
+
+  it("facts set stores a valid record and prints the count", async () => {
+    const { d, printed } = deps(["facts", "set", "data/employment.txt"], new Error("unused"));
+    const stored: OfficialPosition[][] = [];
+    d.readText = async () => "Globex | Engineer | 2019-06-03 | 2025-11-14\n";
+    d.setFacts = async (positions) => {
+      stored.push(positions);
+      return { status: "set", positions: positions.length };
+    };
+    expect(await main(d)).toBe(0);
+    expect(stored).toEqual([official]);
+    expect(printed).toEqual(["Official record set: 1 position."]);
+  });
+
+  it("facts set refuses a bad file by line number and stores nothing", async () => {
+    const { d, printed } = deps(["facts", "set", "data/employment.txt"], new Error("unused"));
+    let stored = false;
+    d.readText = async () => "Globex | Engineer | June 2019 | present\n";
+    d.setFacts = async () => {
+      stored = true;
+      return { status: "set", positions: 0 };
+    };
+    expect(await main(d)).toBe(1);
+    expect(stored).toBe(false);
+    expect(printed).toEqual([
+      "Not stored: employment.txt has problems. Nothing was changed.",
+      "  line 1: start must be YYYY-MM or YYYY-MM-DD",
+    ]);
+  });
+
+  it("facts check with no official record says how to add one and exits 1", async () => {
+    const { d, printed } = deps(["facts", "check"], new Error("unused"), resume("2025-11", false));
+    expect(await main(d)).toBe(1);
+    expect(printed).toEqual([
+      "No official record yet. Write it in data/ (Employer | Title | start | end per line) and run: profile facts set <file>",
+    ]);
+  });
+
+  it("facts check prints each mismatch, records the counts and exits 1", async () => {
+    const { d, printed } = deps(["facts", "check"], new Error("unused"), resume(null, true));
+    d.readFacts = async () => official;
+    const recorded: unknown[] = [];
+    d.recordCheck = async (claims, mismatches) => {
+      recorded.push({ claims, fields: mismatches.map((m) => m.field) });
+    };
+    expect(await main(d)).toBe(1);
+    expect(printed).toEqual([
+      "Resume · Globex Inc. · Engineer: current says present, official record says ended 2025-11-14",
+      "1 mismatch. Fix the resume to match the official record, then re-import it.",
+    ]);
+    expect(recorded).toEqual([{ claims: 1, fields: ["current"] }]);
+  });
+
+  it("facts check says so when every resume role agrees, and exits 0", async () => {
+    const { d, printed } = deps(["facts", "check"], new Error("unused"), resume("2025-11", false));
+    d.readFacts = async () => official;
+    expect(await main(d)).toBe(0);
+    expect(printed).toEqual(["All 1 resume role agrees with the official record."]);
+  });
+
+  it("facts check with no resume imported says how to import one and exits 1", async () => {
+    const { d, printed } = deps(["facts", "check"], new Error("unused"), null);
+    d.readFacts = async () => official;
+    expect(await main(d)).toBe(1);
+    expect(printed).toEqual(["No resume imported yet. Run: import-resume <path>"]);
   });
 });

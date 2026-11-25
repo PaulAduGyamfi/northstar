@@ -6,12 +6,15 @@ import {
   currentResumeHash,
   loadDbConfig,
   nextAtomForInterview,
+  readEmploymentFacts,
   readInterviewAnswers,
   readProfile,
   readStories,
   recordAnswer,
   recordDraftOutcome,
+  recordFactsCheck,
   saveApprovedStory,
+  setEmploymentFacts,
   soleCandidate,
   startInterview,
   writeProfileImport,
@@ -98,6 +101,9 @@ try {
       );
     },
     readStories: () => readStories(db, candidateId),
+    setFacts: (positions) => setEmploymentFacts(db, { candidateId, positions }),
+    readFacts: () => readEmploymentFacts(db, candidateId),
+    recordCheck: (claims, mismatches) => recordFactsCheck(db, { candidateId, claims, mismatches }),
   });
   process.exitCode = exitCode;
 } catch (error) {

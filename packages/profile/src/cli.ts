@@ -1,6 +1,13 @@
 import { basename } from "node:path";
-import { COMPETENCIES, type ProfileView, type StoryView } from "@northstar/db";
+import {
+  COMPETENCIES,
+  type OfficialPosition,
+  type ProfileView,
+  type SetFactsResult,
+  type StoryView,
+} from "@northstar/db";
 import { LlmTransportError } from "@northstar/llm";
+import { type Claim, checkEmploymentFacts, type Mismatch, parseOfficialRecord } from "./facts.js";
 import type { ImportResult } from "./import.js";
 import type { InterviewOutcome } from "./interview.js";
 
@@ -18,10 +25,14 @@ export type CliDeps = {
   // The guided story interview (NS-111), with Paul's terminal already wired in by bin.ts.
   runInterview: (atomId?: string) => Promise<InterviewOutcome>;
   readStories: () => Promise<StoryView[]>;
+  // The official employment record and its consistency check (NS-112, DX-011).
+  setFacts: (positions: OfficialPosition[]) => Promise<SetFactsResult>;
+  readFacts: () => Promise<OfficialPosition[]>;
+  recordCheck: (claims: number, mismatches: Mismatch[]) => Promise<void>;
 };
 
 const USAGE =
-  "usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories";
+  "usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check";
 
 // `profile import-resume <path>`, `profile show`, `profile interview` and `profile stories`.
 // Import output is counts only, never resume text; `show`, `interview` and `stories` show Paul's
@@ -39,7 +50,83 @@ export async function main(deps: CliDeps): Promise<number> {
       return interviewCommand(deps, rest[1]);
   }
   if (command === "stories" && deps.argv.length === 1) return storiesCommand(deps);
+  if (command === "facts" && path === "set" && flags.length === 1 && flags[0]) {
+    return factsSetCommand(deps, flags[0]);
+  }
+  if (command === "facts" && path === "check" && flags.length === 0) return factsCheckCommand(deps);
   deps.print(USAGE);
+  return 1;
+}
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+// `profile facts set <file>`: stores Paul's official employment record. A file with any bad line
+// stores nothing.
+async function factsSetCommand(deps: CliDeps, path: string): Promise<number> {
+  const name = basename(path);
+  const parsed = parseOfficialRecord(await deps.readText(path));
+  if (!parsed.ok) {
+    deps.print(`Not stored: ${name} has problems. Nothing was changed.`);
+    for (const e of parsed.error) deps.print(`  line ${e.line}: ${e.problem}`);
+    return 1;
+  }
+  const result = await deps.setFacts(parsed.value);
+  deps.print(
+    result.status === "set"
+      ? `Official record set: ${plural(result.positions, "position")}.`
+      : `Official record unchanged (${plural(result.positions, "position")}).`,
+  );
+  return 0;
+}
+
+const SOURCE_LABEL: Record<Claim["source"], string> = {
+  resume: "Resume",
+  linkedin: "LinkedIn",
+  site: "Site",
+  application_form: "Application form",
+};
+
+// `profile facts check`: the current resume's roles against the official record (DX-011). Exits 1
+// on any mismatch so it can gate a script. Shows Paul's own facts back to Paul only.
+async function factsCheckCommand(deps: CliDeps): Promise<number> {
+  const official = await deps.readFacts();
+  if (official.length === 0) {
+    deps.print(
+      "No official record yet. Write it in data/ (Employer | Title | start | end per line) and run: profile facts set <file>",
+    );
+    return 1;
+  }
+  const view = await deps.readProfile();
+  if (!view) {
+    deps.print("No resume imported yet. Run: import-resume <path>");
+    return 1;
+  }
+  const claims: Claim[] = view.roles.map((r) => ({
+    source: "resume",
+    employer: r.employer,
+    title: r.title,
+    start: r.startMonth,
+    end: r.endMonth,
+    current: r.current,
+  }));
+  const mismatches = checkEmploymentFacts(official, claims);
+  await deps.recordCheck(claims.length, mismatches);
+  for (const m of mismatches) {
+    const what =
+      m.field === "employer"
+        ? "employer isn't in the official record"
+        : `${m.field} says ${m.claimed ?? "?"}, official record says ${m.official ?? "?"}`;
+    deps.print(`${SOURCE_LABEL[m.source]} · ${m.employer} · ${m.title}: ${what}`);
+  }
+  if (mismatches.length === 0) {
+    deps.print(
+      `All ${plural(claims.length, "resume role")} ${claims.length === 1 ? "agrees" : "agree"} with the official record.`,
+    );
+    return 0;
+  }
+  deps.print(
+    `${plural(mismatches.length, "mismatch", "mismatches")}. Fix the resume to match the official record, then re-import it.`,
+  );
   return 1;
 }
 
