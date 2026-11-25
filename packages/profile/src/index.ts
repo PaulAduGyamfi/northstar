@@ -89,7 +89,20 @@ export {
   type ResumeDiff,
   type SkillChange,
 } from "./tailor/diff.js";
+export {
+  checkModelResume,
+  type ModelTailorResult,
+  resumeTailorInput,
+  tailorWithModel,
+} from "./tailor/model-tailor.js";
 export { HEADERS, renderResumeText } from "./tailor/render.js";
+export {
+  RESUME_TAILOR_VERSION,
+  type ResumeTailorInput,
+  renderJob,
+  renderProfile,
+  resumeTailorRoute,
+} from "./tailor/route.js";
 export {
   ATS_MIN_RECOVERED,
   type AtsCheck,
