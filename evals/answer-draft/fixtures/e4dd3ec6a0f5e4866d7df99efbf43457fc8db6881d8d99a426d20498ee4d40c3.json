@@ -1,0 +1,27 @@
+{
+  "requestSha256": "e4dd3ec6a0f5e4866d7df99efbf43457fc8db6881d8d99a426d20498ee4d40c3",
+  "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval answer-draft --record.",
+  "response": {
+    "id": "msg_handwritten_1",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-5-5",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"sentences\":[{\"text\":\"A customer needed the CSV export by Friday for their audit, and I had to ship it with two days left.\",\"cites\":[{\"id\":\"s-export\",\"quote\":\"A customer needed the CSV export by Friday for their audit.\"},{\"id\":\"s-export\",\"quote\":\"I had to ship it with two days left.\"}]},{\"text\":\"I cut the scope to CSV only and left PDF for later.\",\"cites\":[{\"id\":\"s-export\",\"quote\":\"I cut the scope to CSV only and left PDF for later.\"}]},{\"text\":\"We shipped on Thursday and the customer passed the audit.\",\"cites\":[{\"id\":\"s-export\",\"quote\":\"We shipped on Thursday and the customer passed the audit.\"}]}],\"followUps\":[]}",
+        "citations": null
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  }
+}
