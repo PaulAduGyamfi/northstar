@@ -81,6 +81,14 @@ export {
 export { soleCandidate } from "./candidate.js";
 export { type DbConfig, loadDbConfig } from "./config.js";
 export { connectDb } from "./connect.js";
+// The tenant registry and consent policy (NS-124): one account per tenant (ACC-006), and every
+// accepted notice kept with its text (ACC-008).
+export {
+  type ConsentError,
+  readConsentPolicy,
+  recordConsent,
+  setConsentPolicy,
+} from "./consent-write.js";
 export type { Db } from "./db.js";
 export type { StoredEvent } from "./events.js";
 export {
@@ -215,6 +223,15 @@ export {
   saveApprovedStory,
   startInterview,
 } from "./story-write.js";
+export {
+  type AccountActor,
+  beginAccountCreation,
+  listTenants,
+  type MoveError,
+  moveAccount,
+  registerTenant,
+  type TenantView,
+} from "./tenant-write.js";
 export * as thesisSchema from "./thesis-schema.js";
 export {
   readCurrentThesis,

@@ -232,6 +232,20 @@
       "when": 1795639390455,
       "tag": "0032_handoff_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1795640652613,
+      "tag": "0033_tenant_registry",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795640653812,
+      "tag": "0034_tenant_registry_append_only",
+      "breakpoints": true
     }
   ]
 }
