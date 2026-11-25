@@ -184,7 +184,11 @@ Exists now:
   turns breakers, kill switches and board watches into `healthy / degraded / down` per subsystem
   with a plain reason, and `feedLine` (`feed.ts`) turns an event into one plain sentence from
   checked payload fields only. `packages/db` reads them with `readSystemHealth` and `readFeed`
-  (newest first, paged by position). No UI or live push yet.
+  (newest first, paged by position) and `readFeedAfter` (what's new after a position).
+  Since NS-153 they're in the app: the API's `GET /system/health`, `GET /feed` and
+  `POST /system/kill-switches` (session only; a flip is Paul's, ADR-0002), the web app's
+  `/health` page with kill-switch toggles, the nav's health dot, and a feed on Today that polls
+  every 3 s (no pushed stream yet).
 - `packages/gateways/` (NS-120): the Apply Gateway, the only code that submits an application
   (ADR-0002). `submitApplication` checks the approval with the Gate at the moment it acts (no
   verified approval throws `NotApprovedError`), re-hashes the package and its files, claims the
@@ -235,9 +239,10 @@ Exists now:
   ATS (`detectAts`), through the same path as `jobs add <url>`; every other page is saved from its
   text (untrusted, the `job-extract` route only), so the server never fetches a host the page's
   owner controls. A captured job isn't scored until the next `jobs score` or poll pass.
-- `apps/web/` (NS-156): the Next.js shell (PillNav, B · Momentum colors as CSS variables) with one
-  authenticated page, Today. `/api/*` is rewritten to the API, and pages that need Paul go through
-  `readSession`/`todayView` (`src/session.ts`), which ask the API's `GET /me`. It holds no secret.
+- `apps/web/` (NS-156): the Next.js shell (PillNav, B · Momentum colors as CSS variables) with
+  Today and, since NS-153, `/health`. `/api/*` is rewritten to the API, and pages that need Paul go
+  through `readSession`/`todayView` or `readApi` (`src/session.ts`, `src/system.ts`), which forward
+  his session cookie to the API. It holds no secret.
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 

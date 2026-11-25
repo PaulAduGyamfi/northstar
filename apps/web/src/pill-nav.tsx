@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { DotStatus } from "./system";
 
 // The five tabs from tokens.md (PillNav). Only Today exists yet; each other tab becomes a link
 // when its page lands with its ticket, and until then says so instead of leading nowhere.
@@ -10,7 +11,14 @@ const TABS = [
   { label: "Inbox", href: null },
 ] as const;
 
-export function PillNav({ current }: { current: string }) {
+// The HealthDot (tokens.md, RES-013): the overall status as a dot, with words for screen readers.
+const DOT_LABEL: Record<DotStatus, string> = {
+  healthy: "System health: all working",
+  degraded: "System health: something needs a look",
+  down: "System health: can't be read",
+};
+
+export function PillNav({ current, health }: { current: string; health?: DotStatus | null }) {
   return (
     <nav className="pill-nav" aria-label="Main">
       {TABS.map((tab) =>
@@ -28,6 +36,17 @@ export function PillNav({ current }: { current: string }) {
           </Link>
         ),
       )}
+      {health ? (
+        <Link
+          href="/health"
+          className="health-dot"
+          data-status={health}
+          aria-label={DOT_LABEL[health]}
+          title={DOT_LABEL[health]}
+        >
+          <span aria-hidden="true">●</span>
+        </Link>
+      ) : null}
     </nav>
   );
 }
