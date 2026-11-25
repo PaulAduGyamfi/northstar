@@ -1,6 +1,6 @@
-import { MIN_QUOTE_WORDS } from "./answer/validate.js";
+import { MIN_QUOTE_WORDS, NUMBER_WORDS, STARTERS } from "./answer/validate.js";
 import { STAR_PARTS, type StarPart, type StoryDraft } from "./story-schema.js";
-import { normalize, numbers } from "./validate.js";
+import { hasWhole, normalize, numbers, quotedIn } from "./validate.js";
 
 // The deterministic provenance check for stories (ADR-0004, NFR-AIQ-002, NS-111): plain code, no
 // model. A story may only say what Paul said in the interview, plus what his resume line states.
@@ -19,6 +19,9 @@ export function validateStoryDraft(draft: StoryDraft, evidence: StoryEvidence): 
   // Each answer on its own: a quote must sit inside one answer, never stitched across two.
   const answers = evidence.answers.map((a) => normalize(a.answer)).filter((a) => a !== "");
   const atomNumbers = numbers(normalize(evidence.atom.sourceQuote));
+  // Where a story's names may come from: anything Paul said, or the resume line (NS-200).
+  const atomText = normalize(evidence.atom.sourceQuote);
+  const sources = [...answers, atomText].join(" \n ");
 
   for (const part of STAR_PARTS) {
     const { text, quotes } = draft[part];
@@ -45,6 +48,20 @@ export function validateStoryDraft(draft: StoryDraft, evidence: StoryEvidence): 
         failures.push({ item: part, problem: `number ${n} is not in its quotes or the atom` });
       }
     }
+    const ownQuotes = quotes.map((q) => normalize(q)).join(" \n ");
+    // Numbers in words ("a team of twenty") follow the same rule as digits.
+    for (const position of unbackedNumberWords(normalize(text), `${ownQuotes} \n ${atomText}`)) {
+      failures.push({
+        item: part,
+        problem: `number word at word ${position} is not in its quotes or the atom`,
+      });
+    }
+    for (const position of unbackedNames(normalize(text), sources, ownQuotes)) {
+      failures.push({
+        item: part,
+        problem: `name at word ${position} is not in the answers or the atom`,
+      });
+    }
   }
 
   const anyNumbers = new Set([...atomNumbers, ...answers.flatMap((a) => [...numbers(a)])]);
@@ -66,17 +83,40 @@ export function validateStoryDraft(draft: StoryDraft, evidence: StoryEvidence): 
   return failures.length === 0 ? { ok: true } : { ok: false, failures };
 }
 
-// Whether `quote` sits in `answer` (both normalised) as whole words and whole numbers: it may not
-// start or end inside a word, inside a number written with a decimal point or a thousands
-// separator ("5 million" out of "1.5 million", "200 users" out of "1,200 users"), or just after a
-// minus sign ("5%" out of "-5%"). Story-local on purpose: `hasWhole` is shared by other checks.
-export function quotedIn(answer: string, quote: string): boolean {
-  const needle = quote.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  if (needle === "") return false;
-  const word = "[\\p{L}\\p{N}+#]";
-  // A leading digit may not continue "1." / "1," or a minus sign; a trailing one may not run on
-  // into ".5" / ",200".
-  const before = `(?<!${word})(?<!\\d[.,])${/^\d/.test(quote) ? "(?<!-)" : ""}`;
-  const after = `(?!${word})(?![.,]\\d)`;
-  return new RegExp(`${before}${needle}${after}`, "u").test(answer);
+// Positions of number words ("twenty", "double", "half") in `text` that `sources` doesn't hold.
+export function unbackedNumberWords(text: string, sources: string): number[] {
+  const lower = sources.toLowerCase();
+  const out: number[] = [];
+  text.split(" ").forEach((raw, position) => {
+    const word = raw.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "").toLowerCase();
+    if (NUMBER_WORDS.has(word) && !hasWhole(lower, word)) out.push(position);
+  });
+  return out;
+}
+
+// Positions of capitalised words in `text` (normalised) that `sources` doesn't hold as whole
+// words: employers, tools, people or places the story would add. "I" and its contractions are
+// Paul, and a possessive "'s" is dropped ("Example Freight's"). A sentence's first word is
+// capitalised anyway, so it passes when it is an ordinary opener or the part's own quotes
+// (`openers`) hold it in lower case ("Deadlines slipped…"). Only the quotes, not all answers: an
+// employer that is also a common word ("Target") can't pass as an opener because Paul once said
+// "hit the target". Matching is case-sensitive for the same reason. Positions, never words: the
+// text is Paul's own material.
+export function unbackedNames(text: string, sources: string, openers: string): number[] {
+  const out: number[] = [];
+  const seen = new Set<string>();
+  let sentenceStart = true;
+  text.split(" ").forEach((raw, position) => {
+    const first = sentenceStart;
+    // The next word starts a sentence when this one ends one.
+    sentenceStart = /[.!?]["')\]]*$/.test(raw);
+    // Edge punctuation and a possessive off ("Go." → "Go", "Globex's" → "Globex"), keeping name
+    // characters such as + and #.
+    const word = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}+#]+$/gu, "").replace(/'s$/u, "");
+    if (!/^\p{Lu}/u.test(word) || /^I(?:'\p{L}+)?$/u.test(word) || seen.has(word)) return;
+    if (first && (STARTERS.has(word) || hasWhole(openers, word.toLowerCase()))) return;
+    seen.add(word);
+    if (!hasWhole(sources, word)) out.push(position);
+  });
+  return out;
 }
