@@ -10,7 +10,8 @@ export type FakeMessage = {
   html?: string | undefined;
 };
 
-type Failure = { status: number; retryAfter?: string };
+// `body`: the JSON error Google sends with the status (default "{}").
+type Failure = { status: number; retryAfter?: string; body?: string };
 
 export function fakeGmail(
   messages: FakeMessage[],
@@ -30,7 +31,7 @@ export function fakeGmail(
     const failure = failures.shift();
     if (failure) {
       const headers = failure.retryAfter ? { "retry-after": failure.retryAfter } : undefined;
-      return new Response("{}", { status: failure.status, headers });
+      return new Response(failure.body ?? "{}", { status: failure.status, headers });
     }
     if (url.pathname.startsWith("/gmail/v1/users/me/threads/")) {
       const thread = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
