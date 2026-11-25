@@ -5,6 +5,13 @@ export { type DbConfig, loadDbConfig } from "./config.js";
 export { connectDb } from "./connect.js";
 export type { Db } from "./db.js";
 export type { StoredEvent } from "./events.js";
+export {
+  type OfficialPosition,
+  readEmploymentFacts,
+  recordFactsCheck,
+  type SetFactsResult,
+  setEmploymentFacts,
+} from "./facts-write.js";
 export * as profileSchema from "./profile-schema.js";
 export {
   currentResumeHash,

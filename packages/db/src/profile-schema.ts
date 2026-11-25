@@ -185,6 +185,46 @@ export const certification = pgTable(
   ],
 );
 
+// The official employment record (DX-011): what Paul's employers' HR records say, entered by Paul.
+// It is the single source of truth that the resume, LinkedIn, site and application forms are
+// checked against. Dates are "YYYY-MM" or "YYYY-MM-DD" (HR records are at least that precise).
+// Setting a new record marks the old rows superseded; nothing is deleted.
+const DATE = "'^[0-9]{4}-(0[1-9]|1[0-2])(-(0[1-9]|[12][0-9]|3[01]))?$'";
+export const employmentFact = pgTable(
+  "employment_fact",
+  {
+    id: id(),
+    candidateId: candidateId(),
+    employer: text("employer").notNull(),
+    title: text("title").notNull(),
+    startDate: text("start_date").notNull(),
+    // null exactly when the position is ongoing.
+    endDate: text("end_date"),
+    isCurrent: boolean("is_current").notNull(),
+    // Order in Paul's record file (0-based); rows from one record share created_at.
+    position: integer("position").notNull(),
+    createdAt: createdAt(),
+    supersededAt: timestamp("superseded_at", { withTimezone: true }),
+  },
+  (t) => [
+    // One active record per candidate: if two `facts set` runs race, the second one's insert
+    // fails instead of leaving two mixed sets as the source of truth.
+    uniqueIndex("employment_fact_one_active_position")
+      .on(t.candidateId, t.position)
+      .where(sql`${t.supersededAt} is null`),
+    check("employment_fact_start_format", sql`${t.startDate} ~ ${sql.raw(DATE)}`),
+    check(
+      "employment_fact_end_format",
+      sql`${t.endDate} is null or ${t.endDate} ~ ${sql.raw(DATE)}`,
+    ),
+    check("employment_fact_current_xor_end", sql`${t.isCurrent} = (${t.endDate} is null)`),
+    check(
+      "employment_fact_not_blank",
+      sql`length(trim(${t.employer})) > 0 and length(trim(${t.title})) > 0`,
+    ),
+  ],
+);
+
 export const profileLink = pgTable(
   "profile_link",
   {
