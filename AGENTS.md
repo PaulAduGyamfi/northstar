@@ -70,6 +70,12 @@ Exists now:
   Since GH-59 also answer reuse (ANS-003): `adaptAnswer` fills a banked answer's `{company}`
   slot and picks the variant that fits the form's limit (never cuts it), `reuseNote` and
   `narrativeKindOf`.
+  Since NS-117 also resume tailoring (`tailor/`, TLR-001…004), plain code with no model or
+  database yet: `tailorResume` selects and orders the master's atoms for a job (verbatim lines,
+  skills the job asks for first, a `not claimed` note for requirements nothing proves),
+  `validateTailoredResume` blocks any line without atom provenance, `diffResume` and
+  `applySkillToggles` for the diff view, and `preSendScore` (title match, keyword coverage, ATS
+  re-parse check) over the plain-text render.
 - The answer bank (GH-59, ANS-005/006) in `packages/db` (`answer-schema.ts`, `answer-write.ts`):
   append-only `bank_answer` (versioned per canonical question), `bank_answer_citation` and
   `bank_answer_use`. `saveApprovedAnswer` stores an answer only with a live Gate approval by Paul
