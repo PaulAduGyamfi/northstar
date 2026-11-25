@@ -1,0 +1,3 @@
+# Next writes this on every build, importing generated types from .next/ (NS-156). The
+# committed src/next-types.d.ts references the same Next types without them.
+next-env.d.ts
