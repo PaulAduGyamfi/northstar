@@ -129,7 +129,9 @@ Exists now:
   dependency in `packages/db` (`dependency_breaker`, `breaker-write.ts`: `acquireCall`,
   `recordCallOutcome`, `readBreakers`), and append-only kill switches per subsystem
   (`kill_switch`, `kill-switch-write.ts`: `setKillSwitch`, `isSubsystemOn`, `readKillSwitches`).
-  No caller uses them yet.
+  Since NS-147 board polling uses both: each board is read only while `source:<ats>` is switched
+  on and its breaker allows the call (`packages/sources`, `poll-guard.ts`). Other callers
+  (LLM gateway, Gmail, Apply Gateway) don't use them yet.
 - Health and feed (NS-125, RES-013, OBS-002): `systemHealth` (`packages/domain`, `health.ts`)
   turns breakers, kill switches and board watches into `healthy / degraded / down` per subsystem
   with a plain reason, and `feedLine` (`feed.ts`) turns an event into one plain sentence from

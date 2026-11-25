@@ -1,4 +1,5 @@
 import type { DedupeCandidate, NextState, PollResult, SaveResult, Watch } from "@northstar/db";
+import type { CallDecision, CallOutcome } from "@northstar/domain";
 import { trace } from "@opentelemetry/api";
 import {
   BasicTracerProvider,
@@ -40,13 +41,40 @@ const watch = (over: Partial<Watch>): Watch => ({
   ...over,
 });
 
+// Kill switches and breakers in memory: every subsystem on and every call allowed unless a test
+// says otherwise. `reports` keeps what pollDue told the breaker, in order.
+function fakeGuard() {
+  const off = new Set<string>();
+  const decisions = new Map<string, CallDecision>();
+  const reports: { dependency: string; outcome: CallOutcome; probeToken: string | null }[] = [];
+  const asked: string[] = [];
+  let broken = false;
+  const guard: PollDeps["guard"] = {
+    isOn: async (subsystem) => {
+      if (broken) throw new Error("database down");
+      return !off.has(subsystem);
+    },
+    acquire: async (dependency) => {
+      if (broken) throw new Error("database down");
+      asked.push(dependency);
+      return decisions.get(dependency) ?? { allowed: true, probe: false };
+    },
+    report: async (dependency, outcome, probeToken) => {
+      reports.push({ dependency, outcome, probeToken });
+    },
+  };
+  return { guard, off, decisions, reports, asked, breakAll: () => (broken = true) };
+}
+
 // An in-memory watchlist and job store: what packages/db does, without a database.
 function world(pages: Record<string, Page>, watches: Watch[]) {
   const web = fakeWeb(pages);
   const jobs: DedupeCandidate[] = [];
   const recorded: { watchId: string; result: PollResult; next: NextState }[] = [];
+  const g = fakeGuard();
   const deps: PollDeps = {
     ...web.deps,
+    guard: g.guard,
     store: {
       due: async (now) => watches.filter((w) => w.status !== "quarantined" && w.nextPollAt <= now),
       candidates: async () => structuredClone(jobs),
@@ -76,7 +104,7 @@ function world(pages: Record<string, Page>, watches: Watch[]) {
       },
     },
   };
-  return { deps, jobs, recorded, pages, asked: web.asked };
+  return { deps, jobs, recorded, pages, asked: web.asked, g };
 }
 
 const exporter = new InMemorySpanExporter();
@@ -217,6 +245,93 @@ describe("pollDue", () => {
   });
 });
 
+describe("kill switches and breakers (RES-002, RES-008)", () => {
+  const two = () => [
+    watch({}),
+    watch({ id: "w-initech", ats: "lever", board: "initech", tier: 2 }),
+  ];
+
+  it("a board whose source switch is off is not fetched or recorded, and other ATSs still poll", async () => {
+    const w = world({ [GH]: { body: { jobs: [ghJob(1)] } }, [LEVER]: { body: [] } }, two());
+    w.g.off.add("source:greenhouse");
+    const summary = await pollDue(w.deps, T0);
+    expect(w.asked).toEqual([LEVER]);
+    expect(w.recorded.map((r) => r.watchId)).toEqual(["w-initech"]);
+    expect(summary.paused).toBe(1);
+    expect(w.jobs).toHaveLength(0);
+  });
+
+  it("a board whose breaker refuses the call is not fetched or recorded, so it stays due", async () => {
+    const w = world({ [GH]: { body: { jobs: [ghJob(1)] } }, [LEVER]: { body: [] } }, two());
+    w.g.decisions.set("source:greenhouse", { allowed: false, retryAt: at(1), lastError: "Error" });
+    const summary = await pollDue(w.deps, T0);
+    expect(w.asked).toEqual([LEVER]);
+    expect(w.recorded.map((r) => r.watchId)).toEqual(["w-initech"]);
+    expect(summary.paused).toBe(1);
+  });
+
+  it("a board read reports success to its ATS's breaker, and a failed read reports its error name", async () => {
+    const w = world({ [GH]: { status: 503, body: "busy" }, [LEVER]: { body: [] } }, two());
+    await pollDue(w.deps, T0);
+    expect(w.g.reports).toEqual([
+      {
+        dependency: "source:greenhouse",
+        outcome: { ok: false, error: "BoardUnavailable" },
+        probeToken: null,
+      },
+      { dependency: "source:lever", outcome: { ok: true }, probeToken: null },
+    ]);
+  });
+
+  it("postings that fail to save don't count against the ATS: the read reports success", async () => {
+    const w = world({ [GH]: { body: { jobs: [ghJob(1)] } } }, [watch({})]);
+    w.deps.store.save = async () => {
+      throw new Error("database down");
+    };
+    await pollDue(w.deps, T0);
+    expect(w.recorded[0]?.result.outcome).toBe("failed");
+    expect(w.g.reports).toEqual([
+      { dependency: "source:greenhouse", outcome: { ok: true }, probeToken: null },
+    ]);
+  });
+
+  it("a probe passes its token back with the outcome", async () => {
+    const w = world({ [GH]: { body: { jobs: [] } } }, [watch({})]);
+    w.g.decisions.set("source:greenhouse", { allowed: true, probe: true, probeToken: "tok-1" });
+    await pollDue(w.deps, T0);
+    expect(w.g.reports).toEqual([
+      { dependency: "source:greenhouse", outcome: { ok: true }, probeToken: "tok-1" },
+    ]);
+  });
+
+  it("when the switch or breaker can't be checked, no board is read (fail safe)", async () => {
+    const w = world({ [GH]: { body: { jobs: [ghJob(1)] } }, [LEVER]: { body: [] } }, two());
+    w.g.breakAll();
+    const summary = await pollDue(w.deps, T0);
+    expect(w.asked).toEqual([]);
+    expect(w.recorded).toEqual([]);
+    expect(summary).toEqual({ boards: 2, added: 0, failed: 0, quarantined: 0, paused: 2 });
+  });
+
+  it("a breaker report that throws still records the board's result", async () => {
+    const w = world({ [GH]: { body: { jobs: [ghJob(1)] } } }, [watch({})]);
+    w.deps.guard.report = async () => {
+      throw new Error("database down");
+    };
+    await pollDue(w.deps, T0);
+    expect(w.recorded.map((r) => r.result.outcome)).toEqual(["ok"]);
+    expect(w.jobs).toHaveLength(1);
+  });
+
+  it("a Workday watch never asks the breaker or reports to it", async () => {
+    const w = world({}, [watch({ ats: "workday" })]);
+    await pollDue(w.deps, T0);
+    expect(w.g.asked).toEqual([]);
+    expect(w.g.reports).toEqual([]);
+    expect(w.recorded.map((r) => r.result.outcome)).toEqual(["failed"]);
+  });
+});
+
 describe("nextState", () => {
   it("doubles the interval per consecutive failure, capped at 6 hours", () => {
     const minutes = [0, 1, 2, 3, 4, 5].map((failures) => {
@@ -278,5 +393,46 @@ describe("source.poll span", () => {
     // The watch id, not a hash: board names are short and public, so a hash could be reversed.
     expect(span?.attributes["source.watch_id"]).toBe(WATCH_UUID);
     expect(JSON.stringify(span?.attributes)).not.toContain("globex");
+  });
+
+  it("a board held back by its switch leaves a source.poll.paused span saying so, and no source.poll span", async () => {
+    const w = world({ [GH]: { body: { jobs: [] } } }, [watch({ id: WATCH_UUID })]);
+    w.g.off.add("source:greenhouse");
+    await pollDue(w.deps, T0);
+    const spans = exporter.getFinishedSpans();
+    expect(spans.map((s) => s.name)).toEqual(["source.poll.paused"]);
+    expect(spans[0]?.attributes).toEqual({
+      "source.ats": "greenhouse",
+      "source.watch_id": WATCH_UUID,
+      "source.paused_by": "kill_switch",
+    });
+  });
+
+  it("a board refused by its breaker is paused_by breaker", async () => {
+    const w = world({ [GH]: { body: { jobs: [] } } }, [watch({})]);
+    w.g.decisions.set("source:greenhouse", { allowed: false, retryAt: at(1), lastError: null });
+    await pollDue(w.deps, T0);
+    const span = exporter.getFinishedSpans().find((s) => s.name === "source.poll.paused");
+    expect(span?.attributes["source.paused_by"]).toBe("breaker");
+  });
+
+  it("a guard that throws is paused_by guard_error with the error's name, never its message", async () => {
+    const w = world({ [GH]: { body: { jobs: [] } } }, [watch({})]);
+    w.g.breakAll();
+    await pollDue(w.deps, T0);
+    const span = exporter.getFinishedSpans().find((s) => s.name === "source.poll.paused");
+    expect(span?.attributes["source.paused_by"]).toBe("guard_error");
+    expect(span?.attributes["source.guard_error"]).toBe("Error");
+    expect(JSON.stringify(span?.attributes)).not.toContain("database down");
+  });
+
+  it("a breaker report that throws marks the source.poll span", async () => {
+    const w = world({ [GH]: { body: { jobs: [] } } }, [watch({})]);
+    w.deps.guard.report = async () => {
+      throw new Error("database down");
+    };
+    await pollDue(w.deps, T0);
+    const span = exporter.getFinishedSpans().find((s) => s.name === "source.poll");
+    expect(span?.attributes["source.breaker_report_failed"]).toBe(true);
   });
 });

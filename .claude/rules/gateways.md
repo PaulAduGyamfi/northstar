@@ -24,6 +24,8 @@ GitHub) don't exist yet: if you are about to create one outside its ticket, stop
   `boards/list.ts`) pass `BOARD_MAX_BYTES` (10 MB); nothing else does.
 - Board polling (`poll.ts`) never throws for one board: a failure is that board's result, it
   backs off, and after 5 failures it is quarantined until Paul retries it (RES-002/003).
+  Before each read it checks the `source:<ats>` kill switch and breaker (NS-147); a board held
+  back is not recorded and stays due. Only the board read reports to the breaker, never a save.
 
 For every gateway (the Apply Gateway now, the others when they land):
 
