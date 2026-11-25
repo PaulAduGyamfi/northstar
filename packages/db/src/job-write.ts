@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { type CandidateId, err, ok, type Result } from "@northstar/domain";
 import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import type { Db } from "./db.js";
+import { fitScore } from "./fit-schema.js";
 import { type ATS_KINDS, company, domainEvent, job, jobSource } from "./schema.js";
 
 // The job write path (NS-114, SRC-001/006/009). packages/sources decides what a posting says and
@@ -296,6 +297,13 @@ export type JobListItem = {
   firstSeenAt: Date;
   sources: number;
   missingFields: string[];
+  // The latest fit score (NS-116), or null before the job is scored.
+  fit: {
+    score: number;
+    band: "queue" | "suggest" | "skip";
+    reason: string;
+    stretch: boolean;
+  } | null;
 };
 
 // Jobs newest first (SRC-009): by posting time when the source gave one, else first seen.
@@ -311,6 +319,9 @@ export async function listJobs(db: Db, candidateId: CandidateId): Promise<JobLis
       firstSeenAt: job.firstSeenAt,
       missingFields: job.missingFields,
       sources: sql<number>`(select count(*)::int from ${jobSource} where ${jobSource.jobId} = ${job.id})`,
+      fit: sql<
+        JobListItem["fit"]
+      >`(select json_build_object('score', ${fitScore.score}, 'band', ${fitScore.band}, 'reason', ${fitScore.reason}, 'stretch', ${fitScore.stretch}) from ${fitScore} where ${fitScore.jobId} = ${job.id} order by ${fitScore.scoredAt} desc limit 1)`,
     })
     .from(job)
     .leftJoin(company, eq(company.id, job.companyId))
