@@ -1,6 +1,6 @@
 import { MIN_QUOTE_WORDS } from "./answer/validate.js";
 import { STAR_PARTS, type StarPart, type StoryDraft } from "./story-schema.js";
-import { hasWhole, normalize, numbers } from "./validate.js";
+import { normalize, numbers } from "./validate.js";
 
 // The deterministic provenance check for stories (ADR-0004, NFR-AIQ-002, NS-111): plain code, no
 // model. A story may only say what Paul said in the interview, plus what his resume line states.
@@ -25,9 +25,9 @@ export function validateStoryDraft(draft: StoryDraft, evidence: StoryEvidence): 
     if (quotes.length === 0) failures.push({ item: part, problem: "no quote" });
     quotes.forEach((quote, i) => {
       const q = normalize(quote);
-      // Whole words only (NS-184): a quote cut from inside a word or number ("2% to 3%" out of
-      // "12% to 3%") would otherwise back a number Paul never said.
-      if (q === "" || !answers.some((a) => hasWhole(a, q))) {
+      // Whole words and whole numbers only (NS-184): a quote cut from inside a word or number
+      // ("2% to 3%" out of "12% to 3%") would otherwise back a number Paul never said.
+      if (q === "" || !answers.some((a) => quotedIn(a, q))) {
         failures.push({ item: part, problem: `quote ${i} is not in the answers` });
       } else if (q.split(" ").length < MIN_QUOTE_WORDS) {
         // Two words at least, as for answers: a single word can't make a part "quoted".
@@ -64,4 +64,19 @@ export function validateStoryDraft(draft: StoryDraft, evidence: StoryEvidence): 
   }
 
   return failures.length === 0 ? { ok: true } : { ok: false, failures };
+}
+
+// Whether `quote` sits in `answer` (both normalised) as whole words and whole numbers: it may not
+// start or end inside a word, inside a number written with a decimal point or a thousands
+// separator ("5 million" out of "1.5 million", "200 users" out of "1,200 users"), or just after a
+// minus sign ("5%" out of "-5%"). Story-local on purpose: `hasWhole` is shared by other checks.
+export function quotedIn(answer: string, quote: string): boolean {
+  const needle = quote.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (needle === "") return false;
+  const word = "[\\p{L}\\p{N}+#]";
+  // A leading digit may not continue "1." / "1," or a minus sign; a trailing one may not run on
+  // into ".5" / ",200".
+  const before = `(?<!${word})(?<!\\d[.,])${/^\d/.test(quote) ? "(?<!-)" : ""}`;
+  const after = `(?!${word})(?![.,]\\d)`;
+  return new RegExp(`${before}${needle}${after}`, "u").test(answer);
 }

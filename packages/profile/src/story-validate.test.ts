@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { StoryDraft } from "./story-schema.js";
-import { validateStoryDraft } from "./story-validate.js";
+import { quotedIn, validateStoryDraft } from "./story-validate.js";
 
 // A synthetic atom and interview (invented company and people).
 const atom = {
@@ -198,5 +198,32 @@ describe("validateStoryDraft", () => {
 
   it("the draft schema refuses the same competency twice", () => {
     expect(StoryDraft.safeParse(draft({ competencies: ["scale", "scale"] })).success).toBe(false);
+  });
+});
+
+describe("quotedIn", () => {
+  it("refuses a quote that starts or ends inside a decimal, a separated number or a minus sign", () => {
+    expect([
+      quotedIn("Revenue grew 1.5 million dollars", "5 million dollars"),
+      quotedIn("We served 1,200 users daily", "200 users daily"),
+      quotedIn("Latency dropped to 0.8 seconds", "8 seconds"),
+      quotedIn("we were 1.5 teams", "we were 1"),
+      quotedIn("cost fell -5% overall", "5% overall"),
+      quotedIn("we were 12 engineers", "2 engineers"),
+    ]).toEqual([false, false, false, false, false, false]);
+  });
+
+  it("accepts whole numbers, a sentence's last full stop and a quote that keeps its sign", () => {
+    expect([
+      quotedIn("Revenue grew 1.5 million dollars", "1.5 million dollars"),
+      quotedIn("We served 1,200 users daily.", "1,200 users daily."),
+      quotedIn("cost fell -5% overall", "-5% overall"),
+      quotedIn("we shipped in 2021. Then we grew", "shipped in 2021"),
+      quotedIn("pay is C++ and C# work", "C++ and C#"),
+    ]).toEqual([true, true, true, true, true]);
+  });
+
+  it("treats regex characters in a quote as plain text", () => {
+    expect([quotedIn("a (b) c", "(b) c"), quotedIn("abc", "a.c")]).toEqual([true, false]);
   });
 });
