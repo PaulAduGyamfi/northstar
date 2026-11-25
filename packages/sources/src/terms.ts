@@ -19,6 +19,10 @@ const ATS_HOSTS: [RegExp, string][] = [
   [/^jobs\.(eu\.)?lever\.co$/, "lever"],
   [/^jobs\.ashbyhq\.com$/, "ashby"],
   [/\.myworkdayjobs\.com$/, "workday"],
+  [/^(api|jobs|careers)\.smartrecruiters\.com$/, "smartrecruiters"],
+  [/^(apply|www)\.workable\.com$/, "workable"],
+  // The board APIs NS-115 polls, on their own hosts.
+  [/^(boards-api\.greenhouse\.io|api\.lever\.co|api\.ashbyhq\.com)$/, "ats-api"],
 ];
 
 export function termsFor(url: string): SourceTerms {

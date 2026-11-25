@@ -13,7 +13,7 @@ import { safeJson } from "./greenhouse.js";
 
 // Lever's public postings API (api.lever.co/v0/postings). It doesn't return the company's display
 // name, so the company is the board's own slug as written in the URL, never an invented name.
-const Posting = z.object({
+export const LeverPosting = z.object({
   id: z.string(),
   text: z.string(),
   categories: z
@@ -48,9 +48,13 @@ export async function lever(
   const url = `https://api.lever.co/v0/postings/${encodeURIComponent(t.company)}/${encodeURIComponent(t.postingId)}`;
   const res = await safeFetch(deps, url);
   if (res.status !== 200) return null;
-  const parsed = Posting.safeParse(safeJson(res.body));
+  const parsed = LeverPosting.safeParse(safeJson(res.body));
   if (!parsed.success) return null;
-  const p = parsed.data;
+  return fromLever(parsed.data, t.company);
+}
+
+// One Lever posting as a job; the company is the board slug (Lever gives no display name).
+export function fromLever(p: z.infer<typeof LeverPosting>, company: string): Extraction {
   const location = p.categories?.location ?? null;
   const sections = (p.lists ?? []).map((l) => ({
     heading: l.text,
@@ -67,7 +71,7 @@ export async function lever(
     fields: {
       ...emptyFields(),
       title: p.text,
-      company: t.company,
+      company,
       location,
       remote: remoteFrom(p.workplaceType, location),
       salaryMin: wholeOrNull(range?.min),

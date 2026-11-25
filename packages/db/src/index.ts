@@ -88,3 +88,17 @@ export {
   type TransitionResult,
   transitionApplication,
 } from "./transition-application.js";
+export {
+  addWatch,
+  dueWatches,
+  listWatches,
+  type NextState,
+  type PollResult,
+  removeWatch,
+  retryWatch,
+  savePollResult,
+  type Watch,
+  type WatchAts,
+  type WatchInput,
+  type WatchStatus,
+} from "./watch-write.js";
