@@ -14,6 +14,7 @@
     "@northstar/inbox": "workspace:*",
     "@northstar/llm": "workspace:*",
     "@northstar/profile": "workspace:*",
+    "@northstar/sources": "workspace:*",
     "zod": "4.6.7"
   }
 }
