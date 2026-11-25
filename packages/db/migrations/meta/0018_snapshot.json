@@ -1,6 +1,6 @@
 {
-  "id": "8181520b-bbbf-4c6a-9c5c-889eb257c307",
-  "prevId": "25841a2a-70ac-4922-adfe-0ebbe7400bea",
+  "id": "b2aecefa-a58c-4e96-9b21-26549c0e2877",
+  "prevId": "b6591120-28bb-4f5c-ac10-8ec111dfac61",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -53,49 +53,49 @@
         "application_candidate_id_candidate_id_fk": {
           "name": "application_candidate_id_candidate_id_fk",
           "tableFrom": "application",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "application_job_same_candidate_fk": {
           "name": "application_job_same_candidate_fk",
           "tableFrom": "application",
+          "tableTo": "job",
           "columnsFrom": [
             "job_id",
             "candidate_id"
           ],
-          "tableTo": "job",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "application_one_per_job": {
           "name": "application_one_per_job",
+          "nullsNotDistinct": false,
           "columns": [
             "candidate_id",
             "job_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         },
         "application_id_candidate_unique": {
           "name": "application_id_candidate_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "id",
             "candidate_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -176,26 +176,26 @@
         "company_candidate_id_candidate_id_fk": {
           "name": "company_candidate_id_candidate_id_fk",
           "tableFrom": "company",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "company_id_candidate_unique": {
           "name": "company_id_candidate_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "id",
             "candidate_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -302,27 +302,27 @@
         "company_watch_candidate_id_candidate_id_fk": {
           "name": "company_watch_candidate_id_candidate_id_fk",
           "tableFrom": "company_watch",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "company_watch_board_unique": {
           "name": "company_watch_board_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "candidate_id",
             "ats",
             "board"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -366,15 +366,15 @@
           "primaryKey": false,
           "notNull": true,
           "identity": {
+            "type": "always",
             "name": "domain_event_position_seq",
+            "schema": "public",
             "increment": "1",
+            "startWith": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
-            "startWith": "1",
             "cache": "1",
-            "cycle": false,
-            "schema": "public",
-            "type": "always"
+            "cycle": false
           }
         },
         "candidate_id": {
@@ -449,33 +449,33 @@
         "domain_event_candidate_id_candidate_id_fk": {
           "name": "domain_event_candidate_id_candidate_id_fk",
           "tableFrom": "domain_event",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "domain_event_idempotency_unique": {
           "name": "domain_event_idempotency_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "candidate_id",
             "idempotency_key"
-          ],
-          "nullsNotDistinct": false
+          ]
         },
         "domain_event_position_unique": {
           "name": "domain_event_position_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "position"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -636,41 +636,41 @@
         "job_candidate_id_candidate_id_fk": {
           "name": "job_candidate_id_candidate_id_fk",
           "tableFrom": "job",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "job_company_same_candidate_fk": {
           "name": "job_company_same_candidate_fk",
           "tableFrom": "job",
+          "tableTo": "company",
           "columnsFrom": [
             "company_id",
             "candidate_id"
           ],
-          "tableTo": "company",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "job_id_candidate_unique": {
           "name": "job_id_candidate_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "id",
             "candidate_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -789,51 +789,51 @@
             }
           ],
           "isUnique": true,
-          "with": {},
-          "method": "btree",
           "where": "\"job_source\".\"ats_posting_id\" is not null",
-          "concurrently": false
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
         "job_source_candidate_id_candidate_id_fk": {
           "name": "job_source_candidate_id_candidate_id_fk",
           "tableFrom": "job_source",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "job_source_job_same_candidate_fk": {
           "name": "job_source_job_same_candidate_fk",
           "tableFrom": "job_source",
+          "tableTo": "job",
           "columnsFrom": [
             "job_id",
             "candidate_id"
           ],
-          "tableTo": "job",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "job_source_url_unique": {
           "name": "job_source_url_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "candidate_id",
             "url"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -900,30 +900,30 @@
         "certification_candidate_id_candidate_id_fk": {
           "name": "certification_candidate_id_candidate_id_fk",
           "tableFrom": "certification",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "certification_source_same_candidate_fk": {
           "name": "certification_source_same_candidate_fk",
           "tableFrom": "certification",
+          "tableTo": "profile_source",
           "columnsFrom": [
             "source_id",
             "candidate_id"
           ],
-          "tableTo": "profile_source",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1010,30 +1010,30 @@
         "education_candidate_id_candidate_id_fk": {
           "name": "education_candidate_id_candidate_id_fk",
           "tableFrom": "education",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "education_source_same_candidate_fk": {
           "name": "education_source_same_candidate_fk",
           "tableFrom": "education",
+          "tableTo": "profile_source",
           "columnsFrom": [
             "source_id",
             "candidate_id"
           ],
-          "tableTo": "profile_source",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1136,25 +1136,25 @@
             }
           ],
           "isUnique": true,
-          "with": {},
-          "method": "btree",
           "where": "\"employment_fact\".\"superseded_at\" is null",
-          "concurrently": false
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
         "employment_fact_candidate_id_candidate_id_fk": {
           "name": "employment_fact_candidate_id_candidate_id_fk",
           "tableFrom": "employment_fact",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1277,56 +1277,56 @@
         "experience_atom_candidate_id_candidate_id_fk": {
           "name": "experience_atom_candidate_id_candidate_id_fk",
           "tableFrom": "experience_atom",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "experience_atom_source_same_candidate_fk": {
           "name": "experience_atom_source_same_candidate_fk",
           "tableFrom": "experience_atom",
+          "tableTo": "profile_source",
           "columnsFrom": [
             "source_id",
             "candidate_id"
           ],
-          "tableTo": "profile_source",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "experience_atom_role_same_candidate_fk": {
           "name": "experience_atom_role_same_candidate_fk",
           "tableFrom": "experience_atom",
+          "tableTo": "role",
           "columnsFrom": [
             "role_id",
             "candidate_id"
           ],
-          "tableTo": "role",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "experience_atom_id_candidate_unique": {
           "name": "experience_atom_id_candidate_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "id",
             "candidate_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -1391,30 +1391,30 @@
         "profile_link_candidate_id_candidate_id_fk": {
           "name": "profile_link_candidate_id_candidate_id_fk",
           "tableFrom": "profile_link",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "profile_link_source_same_candidate_fk": {
           "name": "profile_link_source_same_candidate_fk",
           "tableFrom": "profile_link",
+          "tableTo": "profile_source",
           "columnsFrom": [
             "source_id",
             "candidate_id"
           ],
-          "tableTo": "profile_source",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1495,36 +1495,36 @@
             }
           ],
           "isUnique": true,
-          "with": {},
-          "method": "btree",
           "where": "\"profile_source\".\"superseded_at\" is null",
-          "concurrently": false
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
         "profile_source_candidate_id_candidate_id_fk": {
           "name": "profile_source_candidate_id_candidate_id_fk",
           "tableFrom": "profile_source",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "profile_source_id_candidate_unique": {
           "name": "profile_source_id_candidate_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "id",
             "candidate_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -1620,41 +1620,41 @@
         "role_candidate_id_candidate_id_fk": {
           "name": "role_candidate_id_candidate_id_fk",
           "tableFrom": "role",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "role_source_same_candidate_fk": {
           "name": "role_source_same_candidate_fk",
           "tableFrom": "role",
+          "tableTo": "profile_source",
           "columnsFrom": [
             "source_id",
             "candidate_id"
           ],
-          "tableTo": "profile_source",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "role_id_candidate_unique": {
           "name": "role_id_candidate_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "id",
             "candidate_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -1709,42 +1709,42 @@
         "skill_candidate_id_candidate_id_fk": {
           "name": "skill_candidate_id_candidate_id_fk",
           "tableFrom": "skill",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "skill_source_same_candidate_fk": {
           "name": "skill_source_same_candidate_fk",
           "tableFrom": "skill",
+          "tableTo": "profile_source",
           "columnsFrom": [
             "source_id",
             "candidate_id"
           ],
-          "tableTo": "profile_source",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "skill_unique_per_source": {
           "name": "skill_unique_per_source",
+          "nullsNotDistinct": false,
           "columns": [
             "candidate_id",
             "source_id",
             "name"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -1848,41 +1848,41 @@
         "story_candidate_id_candidate_id_fk": {
           "name": "story_candidate_id_candidate_id_fk",
           "tableFrom": "story",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "story_interview_same_candidate_fk": {
           "name": "story_interview_same_candidate_fk",
           "tableFrom": "story",
+          "tableTo": "story_interview",
           "columnsFrom": [
             "interview_id",
             "candidate_id"
           ],
-          "tableTo": "story_interview",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "story_id_candidate_unique": {
           "name": "story_id_candidate_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "id",
             "candidate_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -1960,41 +1960,41 @@
         "story_answer_candidate_id_candidate_id_fk": {
           "name": "story_answer_candidate_id_candidate_id_fk",
           "tableFrom": "story_answer",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "story_answer_interview_same_candidate_fk": {
           "name": "story_answer_interview_same_candidate_fk",
           "tableFrom": "story_answer",
+          "tableTo": "story_interview",
           "columnsFrom": [
             "interview_id",
             "candidate_id"
           ],
-          "tableTo": "story_interview",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "story_answer_one_per_position": {
           "name": "story_answer_one_per_position",
+          "nullsNotDistinct": false,
           "columns": [
             "interview_id",
             "position"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -2034,45 +2034,45 @@
         "story_atom_candidate_id_candidate_id_fk": {
           "name": "story_atom_candidate_id_candidate_id_fk",
           "tableFrom": "story_atom",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "story_atom_story_same_candidate_fk": {
           "name": "story_atom_story_same_candidate_fk",
           "tableFrom": "story_atom",
+          "tableTo": "story",
           "columnsFrom": [
             "story_id",
             "candidate_id"
           ],
-          "tableTo": "story",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "story_atom_atom_same_candidate_fk": {
           "name": "story_atom_atom_same_candidate_fk",
           "tableFrom": "story_atom",
+          "tableTo": "experience_atom",
           "columnsFrom": [
             "atom_id",
             "candidate_id"
           ],
-          "tableTo": "experience_atom",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -2145,51 +2145,51 @@
             }
           ],
           "isUnique": true,
-          "with": {},
-          "method": "btree",
           "where": "\"story_interview\".\"status\" = 'open'",
-          "concurrently": false
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
         "story_interview_candidate_id_candidate_id_fk": {
           "name": "story_interview_candidate_id_candidate_id_fk",
           "tableFrom": "story_interview",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "story_interview_atom_same_candidate_fk": {
           "name": "story_interview_atom_same_candidate_fk",
           "tableFrom": "story_interview",
+          "tableTo": "experience_atom",
           "columnsFrom": [
             "atom_id",
             "candidate_id"
           ],
-          "tableTo": "experience_atom",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "story_interview_id_candidate_unique": {
           "name": "story_interview_id_candidate_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "id",
             "candidate_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -2304,25 +2304,25 @@
             }
           ],
           "isUnique": true,
-          "with": {},
-          "method": "btree",
           "where": "\"funnel_manual_row\".\"superseded_at\" is null",
-          "concurrently": false
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
         "funnel_manual_row_candidate_id_candidate_id_fk": {
           "name": "funnel_manual_row_candidate_id_candidate_id_fk",
           "tableFrom": "funnel_manual_row",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -2490,35 +2490,35 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {
         "funnel_message_candidate_id_candidate_id_fk": {
           "name": "funnel_message_candidate_id_candidate_id_fk",
           "tableFrom": "funnel_message",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "funnel_message_gmail_unique": {
           "name": "funnel_message_gmail_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "candidate_id",
             "gmail_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -2550,6 +2550,356 @@
         "funnel_message_review_has_reason": {
           "name": "funnel_message_review_has_reason",
           "value": "\"funnel_message\".\"status\" <> 'needs_review' or \"funnel_message\".\"review_reason\" is not null"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.fit_score": {
+      "name": "fit_score",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "job_id": {
+          "name": "job_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "preference_id": {
+          "name": "preference_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "profile_source_id": {
+          "name": "profile_source_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "job_fingerprint": {
+          "name": "job_fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "score": {
+          "name": "score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "band": {
+          "name": "band",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stretch": {
+          "name": "stretch",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "components": {
+          "name": "components",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence": {
+          "name": "evidence",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "method": {
+          "name": "method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scored_at": {
+          "name": "scored_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "fit_score_candidate_id_candidate_id_fk": {
+          "name": "fit_score_candidate_id_candidate_id_fk",
+          "tableFrom": "fit_score",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fit_score_job_same_candidate_fk": {
+          "name": "fit_score_job_same_candidate_fk",
+          "tableFrom": "fit_score",
+          "tableTo": "job",
+          "columnsFrom": [
+            "job_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fit_score_preference_same_candidate_fk": {
+          "name": "fit_score_preference_same_candidate_fk",
+          "tableFrom": "fit_score",
+          "tableTo": "search_preference",
+          "columnsFrom": [
+            "preference_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fit_score_profile_source_same_candidate_fk": {
+          "name": "fit_score_profile_source_same_candidate_fk",
+          "tableFrom": "fit_score",
+          "tableTo": "profile_source",
+          "columnsFrom": [
+            "profile_source_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "fit_score_key_unique": {
+          "name": "fit_score_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "candidate_id",
+            "job_id",
+            "preference_id",
+            "profile_source_id",
+            "job_fingerprint"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "fit_score_range": {
+          "name": "fit_score_range",
+          "value": "\"fit_score\".\"score\" between 0 and 100"
+        },
+        "fit_score_band_valid": {
+          "name": "fit_score_band_valid",
+          "value": "\"fit_score\".\"band\" in ('queue', 'suggest', 'skip')"
+        },
+        "fit_score_method_valid": {
+          "name": "fit_score_method_valid",
+          "value": "\"fit_score\".\"method\" in ('rules')"
+        },
+        "fit_score_fingerprint_format": {
+          "name": "fit_score_fingerprint_format",
+          "value": "\"fit_score\".\"job_fingerprint\" ~ '^[0-9a-f]{64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.search_preference": {
+      "name": "search_preference",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "titles": {
+          "name": "titles",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "seniority": {
+          "name": "seniority",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "locations": {
+          "name": "locations",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "remote": {
+          "name": "remote",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "dealbreakers": {
+          "name": "dealbreakers",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "comp_floor": {
+          "name": "comp_floor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "comp_target": {
+          "name": "comp_target",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'USD'"
+        },
+        "queue_at": {
+          "name": "queue_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 80
+        },
+        "suggest_at": {
+          "name": "suggest_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 60
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "search_preference_candidate_id_candidate_id_fk": {
+          "name": "search_preference_candidate_id_candidate_id_fk",
+          "tableFrom": "search_preference",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "search_preference_version_unique": {
+          "name": "search_preference_version_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "candidate_id",
+            "version"
+          ]
+        },
+        "search_preference_id_candidate_unique": {
+          "name": "search_preference_id_candidate_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "candidate_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "search_preference_version_positive": {
+          "name": "search_preference_version_positive",
+          "value": "\"search_preference\".\"version\" >= 1"
+        },
+        "search_preference_remote_valid": {
+          "name": "search_preference_remote_valid",
+          "value": "\"search_preference\".\"remote\" <@ array['onsite', 'hybrid', 'remote']::text[]"
+        },
+        "search_preference_thresholds": {
+          "name": "search_preference_thresholds",
+          "value": "\"search_preference\".\"suggest_at\" between 0 and 100 and \"search_preference\".\"queue_at\" between 0 and 100 and \"search_preference\".\"suggest_at\" <= \"search_preference\".\"queue_at\""
+        },
+        "search_preference_comp_order": {
+          "name": "search_preference_comp_order",
+          "value": "\"search_preference\".\"comp_floor\" is null or \"search_preference\".\"comp_target\" is null or \"search_preference\".\"comp_floor\" <= \"search_preference\".\"comp_target\""
+        },
+        "search_preference_comp_nonnegative": {
+          "name": "search_preference_comp_nonnegative",
+          "value": "coalesce(\"search_preference\".\"comp_floor\", 0) >= 0 and coalesce(\"search_preference\".\"comp_target\", 0) >= 0"
+        },
+        "search_preference_currency_format": {
+          "name": "search_preference_currency_format",
+          "value": "\"search_preference\".\"currency\" ~ '^[A-Z]{3}$'"
         }
       },
       "isRLSEnabled": false
@@ -2625,56 +2975,56 @@
         "approval_decision_candidate_id_candidate_id_fk": {
           "name": "approval_decision_candidate_id_candidate_id_fk",
           "tableFrom": "approval_decision",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "approval_decision_request_same_candidate_fk": {
           "name": "approval_decision_request_same_candidate_fk",
           "tableFrom": "approval_decision",
+          "tableTo": "approval_request",
           "columnsFrom": [
             "request_id",
             "candidate_id"
           ],
-          "tableTo": "approval_request",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "approval_decision_policy_set_same_candidate_fk": {
           "name": "approval_decision_policy_set_same_candidate_fk",
           "tableFrom": "approval_decision",
+          "tableTo": "approval_policy_set",
           "columnsFrom": [
             "policy_set_id",
             "candidate_id"
           ],
-          "tableTo": "approval_policy_set",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "approval_decision_id_candidate_unique": {
           "name": "approval_decision_id_candidate_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "id",
             "candidate_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -2719,15 +3069,15 @@
           "primaryKey": false,
           "notNull": true,
           "identity": {
+            "type": "always",
             "name": "approval_policy_set_version_seq",
+            "schema": "public",
             "increment": "1",
+            "startWith": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
-            "startWith": "1",
             "cache": "1",
-            "cycle": false,
-            "schema": "public",
-            "type": "always"
+            "cycle": false
           }
         },
         "candidate_id": {
@@ -2754,26 +3104,26 @@
         "approval_policy_set_candidate_id_candidate_id_fk": {
           "name": "approval_policy_set_candidate_id_candidate_id_fk",
           "tableFrom": "approval_policy_set",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "approval_policy_set_id_candidate_unique": {
           "name": "approval_policy_set_id_candidate_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "id",
             "candidate_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -2850,34 +3200,34 @@
         "approval_request_candidate_id_candidate_id_fk": {
           "name": "approval_request_candidate_id_candidate_id_fk",
           "tableFrom": "approval_request",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "approval_request_id_candidate_unique": {
           "name": "approval_request_id_candidate_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "id",
             "candidate_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         },
         "approval_request_idempotency_unique": {
           "name": "approval_request_idempotency_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "candidate_id",
             "idempotency_key"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -2932,40 +3282,40 @@
         "approval_undo_candidate_id_candidate_id_fk": {
           "name": "approval_undo_candidate_id_candidate_id_fk",
           "tableFrom": "approval_undo",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "approval_undo_decision_same_candidate_fk": {
           "name": "approval_undo_decision_same_candidate_fk",
           "tableFrom": "approval_undo",
+          "tableTo": "approval_decision",
           "columnsFrom": [
             "decision_id",
             "candidate_id"
           ],
-          "tableTo": "approval_decision",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "approval_undo_one_per_decision": {
           "name": "approval_undo_one_per_decision",
+          "nullsNotDistinct": false,
           "columns": [
             "decision_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -3037,57 +3387,57 @@
         "bank_answer_candidate_id_candidate_id_fk": {
           "name": "bank_answer_candidate_id_candidate_id_fk",
           "tableFrom": "bank_answer",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "bank_answer_decision_same_candidate_fk": {
           "name": "bank_answer_decision_same_candidate_fk",
           "tableFrom": "bank_answer",
+          "tableTo": "approval_decision",
           "columnsFrom": [
             "approval_decision_id",
             "candidate_id"
           ],
-          "tableTo": "approval_decision",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "bank_answer_id_candidate_unique": {
           "name": "bank_answer_id_candidate_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "id",
             "candidate_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         },
         "bank_answer_version_unique": {
           "name": "bank_answer_version_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "candidate_id",
             "canonical_id",
             "version"
-          ],
-          "nullsNotDistinct": false
+          ]
         },
         "bank_answer_one_per_approval": {
           "name": "bank_answer_one_per_approval",
+          "nullsNotDistinct": false,
           "columns": [
             "approval_decision_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -3156,79 +3506,79 @@
         "bank_answer_citation_candidate_id_candidate_id_fk": {
           "name": "bank_answer_citation_candidate_id_candidate_id_fk",
           "tableFrom": "bank_answer_citation",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "bank_answer_citation_answer_same_candidate_fk": {
           "name": "bank_answer_citation_answer_same_candidate_fk",
           "tableFrom": "bank_answer_citation",
+          "tableTo": "bank_answer",
           "columnsFrom": [
             "answer_id",
             "candidate_id"
           ],
-          "tableTo": "bank_answer",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "bank_answer_citation_story_same_candidate_fk": {
           "name": "bank_answer_citation_story_same_candidate_fk",
           "tableFrom": "bank_answer_citation",
+          "tableTo": "story",
           "columnsFrom": [
             "story_id",
             "candidate_id"
           ],
-          "tableTo": "story",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "bank_answer_citation_atom_same_candidate_fk": {
           "name": "bank_answer_citation_atom_same_candidate_fk",
           "tableFrom": "bank_answer_citation",
+          "tableTo": "experience_atom",
           "columnsFrom": [
             "atom_id",
             "candidate_id"
           ],
-          "tableTo": "experience_atom",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "bank_answer_citation_story_once": {
           "name": "bank_answer_citation_story_once",
+          "nullsNotDistinct": false,
           "columns": [
             "answer_id",
             "story_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         },
         "bank_answer_citation_atom_once": {
           "name": "bank_answer_citation_atom_once",
+          "nullsNotDistinct": false,
           "columns": [
             "answer_id",
             "atom_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -3294,56 +3644,56 @@
         "bank_answer_use_candidate_id_candidate_id_fk": {
           "name": "bank_answer_use_candidate_id_candidate_id_fk",
           "tableFrom": "bank_answer_use",
+          "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
           ],
-          "tableTo": "candidate",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "bank_answer_use_answer_same_candidate_fk": {
           "name": "bank_answer_use_answer_same_candidate_fk",
           "tableFrom": "bank_answer_use",
+          "tableTo": "bank_answer",
           "columnsFrom": [
             "answer_id",
             "candidate_id"
           ],
-          "tableTo": "bank_answer",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "bank_answer_use_application_same_candidate_fk": {
           "name": "bank_answer_use_application_same_candidate_fk",
           "tableFrom": "bank_answer_use",
+          "tableTo": "application",
           "columnsFrom": [
             "application_id",
             "candidate_id"
           ],
-          "tableTo": "application",
           "columnsTo": [
             "id",
             "candidate_id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "bank_answer_use_once": {
           "name": "bank_answer_use_once",
+          "nullsNotDistinct": false,
           "columns": [
             "answer_id",
             "application_id"
-          ],
-          "nullsNotDistinct": false
+          ]
         }
       },
       "policies": {},
@@ -3362,10 +3712,10 @@
   },
   "enums": {},
   "schemas": {},
-  "views": {},
   "sequences": {},
   "roles": {},
   "policies": {},
+  "views": {},
   "_meta": {
     "columns": {},
     "schemas": {},

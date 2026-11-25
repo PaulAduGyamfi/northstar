@@ -1,5 +1,5 @@
 {
-  "id": "25841a2a-70ac-4922-adfe-0ebbe7400bea",
+  "id": "b6591120-28bb-4f5c-ac10-8ec111dfac61",
   "prevId": "4af3328c-ad27-4183-93ab-564585a14d44",
   "version": "7",
   "dialect": "postgresql",
@@ -87,14 +87,6 @@
           "columns": [
             "candidate_id",
             "job_id"
-          ]
-        },
-        "application_id_candidate_unique": {
-          "name": "application_id_candidate_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "id",
-            "candidate_id"
           ]
         }
       },
@@ -2554,6 +2546,356 @@
       },
       "isRLSEnabled": false
     },
+    "public.fit_score": {
+      "name": "fit_score",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "job_id": {
+          "name": "job_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "preference_id": {
+          "name": "preference_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "profile_source_id": {
+          "name": "profile_source_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "job_fingerprint": {
+          "name": "job_fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "score": {
+          "name": "score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "band": {
+          "name": "band",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stretch": {
+          "name": "stretch",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "components": {
+          "name": "components",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence": {
+          "name": "evidence",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "method": {
+          "name": "method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scored_at": {
+          "name": "scored_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "fit_score_candidate_id_candidate_id_fk": {
+          "name": "fit_score_candidate_id_candidate_id_fk",
+          "tableFrom": "fit_score",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fit_score_job_same_candidate_fk": {
+          "name": "fit_score_job_same_candidate_fk",
+          "tableFrom": "fit_score",
+          "tableTo": "job",
+          "columnsFrom": [
+            "job_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fit_score_preference_same_candidate_fk": {
+          "name": "fit_score_preference_same_candidate_fk",
+          "tableFrom": "fit_score",
+          "tableTo": "search_preference",
+          "columnsFrom": [
+            "preference_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fit_score_profile_source_same_candidate_fk": {
+          "name": "fit_score_profile_source_same_candidate_fk",
+          "tableFrom": "fit_score",
+          "tableTo": "profile_source",
+          "columnsFrom": [
+            "profile_source_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "fit_score_key_unique": {
+          "name": "fit_score_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "candidate_id",
+            "job_id",
+            "preference_id",
+            "profile_source_id",
+            "job_fingerprint"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "fit_score_range": {
+          "name": "fit_score_range",
+          "value": "\"fit_score\".\"score\" between 0 and 100"
+        },
+        "fit_score_band_valid": {
+          "name": "fit_score_band_valid",
+          "value": "\"fit_score\".\"band\" in ('queue', 'suggest', 'skip')"
+        },
+        "fit_score_method_valid": {
+          "name": "fit_score_method_valid",
+          "value": "\"fit_score\".\"method\" in ('rules')"
+        },
+        "fit_score_fingerprint_format": {
+          "name": "fit_score_fingerprint_format",
+          "value": "\"fit_score\".\"job_fingerprint\" ~ '^[0-9a-f]{64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.search_preference": {
+      "name": "search_preference",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "titles": {
+          "name": "titles",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "seniority": {
+          "name": "seniority",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "locations": {
+          "name": "locations",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "remote": {
+          "name": "remote",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "dealbreakers": {
+          "name": "dealbreakers",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "comp_floor": {
+          "name": "comp_floor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "comp_target": {
+          "name": "comp_target",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'USD'"
+        },
+        "queue_at": {
+          "name": "queue_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 80
+        },
+        "suggest_at": {
+          "name": "suggest_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 60
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "search_preference_candidate_id_candidate_id_fk": {
+          "name": "search_preference_candidate_id_candidate_id_fk",
+          "tableFrom": "search_preference",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "search_preference_version_unique": {
+          "name": "search_preference_version_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "candidate_id",
+            "version"
+          ]
+        },
+        "search_preference_id_candidate_unique": {
+          "name": "search_preference_id_candidate_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "candidate_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "search_preference_version_positive": {
+          "name": "search_preference_version_positive",
+          "value": "\"search_preference\".\"version\" >= 1"
+        },
+        "search_preference_remote_valid": {
+          "name": "search_preference_remote_valid",
+          "value": "\"search_preference\".\"remote\" <@ array['onsite', 'hybrid', 'remote']::text[]"
+        },
+        "search_preference_thresholds": {
+          "name": "search_preference_thresholds",
+          "value": "\"search_preference\".\"suggest_at\" between 0 and 100 and \"search_preference\".\"queue_at\" between 0 and 100 and \"search_preference\".\"suggest_at\" <= \"search_preference\".\"queue_at\""
+        },
+        "search_preference_comp_order": {
+          "name": "search_preference_comp_order",
+          "value": "\"search_preference\".\"comp_floor\" is null or \"search_preference\".\"comp_target\" is null or \"search_preference\".\"comp_floor\" <= \"search_preference\".\"comp_target\""
+        },
+        "search_preference_comp_nonnegative": {
+          "name": "search_preference_comp_nonnegative",
+          "value": "coalesce(\"search_preference\".\"comp_floor\", 0) >= 0 and coalesce(\"search_preference\".\"comp_target\", 0) >= 0"
+        },
+        "search_preference_currency_format": {
+          "name": "search_preference_currency_format",
+          "value": "\"search_preference\".\"currency\" ~ '^[A-Z]{3}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.approval_decision": {
       "name": "approval_decision",
       "schema": "",
@@ -2970,393 +3312,6 @@
       },
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.bank_answer": {
-      "name": "bank_answer",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "candidate_id": {
-          "name": "candidate_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "canonical_id": {
-          "name": "canonical_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "short_text": {
-          "name": "short_text",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "long_text": {
-          "name": "long_text",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "approval_decision_id": {
-          "name": "approval_decision_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "bank_answer_candidate_id_candidate_id_fk": {
-          "name": "bank_answer_candidate_id_candidate_id_fk",
-          "tableFrom": "bank_answer",
-          "tableTo": "candidate",
-          "columnsFrom": [
-            "candidate_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "bank_answer_decision_same_candidate_fk": {
-          "name": "bank_answer_decision_same_candidate_fk",
-          "tableFrom": "bank_answer",
-          "tableTo": "approval_decision",
-          "columnsFrom": [
-            "approval_decision_id",
-            "candidate_id"
-          ],
-          "columnsTo": [
-            "id",
-            "candidate_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "bank_answer_id_candidate_unique": {
-          "name": "bank_answer_id_candidate_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "id",
-            "candidate_id"
-          ]
-        },
-        "bank_answer_version_unique": {
-          "name": "bank_answer_version_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "candidate_id",
-            "canonical_id",
-            "version"
-          ]
-        },
-        "bank_answer_one_per_approval": {
-          "name": "bank_answer_one_per_approval",
-          "nullsNotDistinct": false,
-          "columns": [
-            "approval_decision_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "bank_answer_kind_valid": {
-          "name": "bank_answer_kind_valid",
-          "value": "\"bank_answer\".\"kind\" in ('reusable_narrative', 'company_specific')"
-        },
-        "bank_answer_canonical_id_format": {
-          "name": "bank_answer_canonical_id_format",
-          "value": "\"bank_answer\".\"canonical_id\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'"
-        },
-        "bank_answer_version_positive": {
-          "name": "bank_answer_version_positive",
-          "value": "\"bank_answer\".\"version\" >= 1"
-        },
-        "bank_answer_short_not_empty": {
-          "name": "bank_answer_short_not_empty",
-          "value": "length(trim(\"bank_answer\".\"short_text\")) > 0"
-        },
-        "bank_answer_long_not_empty": {
-          "name": "bank_answer_long_not_empty",
-          "value": "\"bank_answer\".\"long_text\" is null or length(trim(\"bank_answer\".\"long_text\")) > 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.bank_answer_citation": {
-      "name": "bank_answer_citation",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "candidate_id": {
-          "name": "candidate_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "answer_id": {
-          "name": "answer_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "story_id": {
-          "name": "story_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "atom_id": {
-          "name": "atom_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "bank_answer_citation_candidate_id_candidate_id_fk": {
-          "name": "bank_answer_citation_candidate_id_candidate_id_fk",
-          "tableFrom": "bank_answer_citation",
-          "tableTo": "candidate",
-          "columnsFrom": [
-            "candidate_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "bank_answer_citation_answer_same_candidate_fk": {
-          "name": "bank_answer_citation_answer_same_candidate_fk",
-          "tableFrom": "bank_answer_citation",
-          "tableTo": "bank_answer",
-          "columnsFrom": [
-            "answer_id",
-            "candidate_id"
-          ],
-          "columnsTo": [
-            "id",
-            "candidate_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "bank_answer_citation_story_same_candidate_fk": {
-          "name": "bank_answer_citation_story_same_candidate_fk",
-          "tableFrom": "bank_answer_citation",
-          "tableTo": "story",
-          "columnsFrom": [
-            "story_id",
-            "candidate_id"
-          ],
-          "columnsTo": [
-            "id",
-            "candidate_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "bank_answer_citation_atom_same_candidate_fk": {
-          "name": "bank_answer_citation_atom_same_candidate_fk",
-          "tableFrom": "bank_answer_citation",
-          "tableTo": "experience_atom",
-          "columnsFrom": [
-            "atom_id",
-            "candidate_id"
-          ],
-          "columnsTo": [
-            "id",
-            "candidate_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "bank_answer_citation_story_once": {
-          "name": "bank_answer_citation_story_once",
-          "nullsNotDistinct": false,
-          "columns": [
-            "answer_id",
-            "story_id"
-          ]
-        },
-        "bank_answer_citation_atom_once": {
-          "name": "bank_answer_citation_atom_once",
-          "nullsNotDistinct": false,
-          "columns": [
-            "answer_id",
-            "atom_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "bank_answer_citation_one_target": {
-          "name": "bank_answer_citation_one_target",
-          "value": "num_nonnulls(\"bank_answer_citation\".\"story_id\", \"bank_answer_citation\".\"atom_id\") = 1"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.bank_answer_use": {
-      "name": "bank_answer_use",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "candidate_id": {
-          "name": "candidate_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "answer_id": {
-          "name": "answer_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "application_id": {
-          "name": "application_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "how": {
-          "name": "how",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "edited": {
-          "name": "edited",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "bank_answer_use_candidate_id_candidate_id_fk": {
-          "name": "bank_answer_use_candidate_id_candidate_id_fk",
-          "tableFrom": "bank_answer_use",
-          "tableTo": "candidate",
-          "columnsFrom": [
-            "candidate_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "bank_answer_use_answer_same_candidate_fk": {
-          "name": "bank_answer_use_answer_same_candidate_fk",
-          "tableFrom": "bank_answer_use",
-          "tableTo": "bank_answer",
-          "columnsFrom": [
-            "answer_id",
-            "candidate_id"
-          ],
-          "columnsTo": [
-            "id",
-            "candidate_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "bank_answer_use_application_same_candidate_fk": {
-          "name": "bank_answer_use_application_same_candidate_fk",
-          "tableFrom": "bank_answer_use",
-          "tableTo": "application",
-          "columnsFrom": [
-            "application_id",
-            "candidate_id"
-          ],
-          "columnsTo": [
-            "id",
-            "candidate_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "bank_answer_use_once": {
-          "name": "bank_answer_use_once",
-          "nullsNotDistinct": false,
-          "columns": [
-            "answer_id",
-            "application_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "bank_answer_use_how_valid": {
-          "name": "bank_answer_use_how_valid",
-          "value": "\"bank_answer_use\".\"how\" in ('approved', 'reused')"
-        },
-        "bank_answer_use_reuse_unedited": {
-          "name": "bank_answer_use_reuse_unedited",
-          "value": "\"bank_answer_use\".\"how\" = 'approved' or not \"bank_answer_use\".\"edited\""
-        }
-      },
       "isRLSEnabled": false
     }
   },

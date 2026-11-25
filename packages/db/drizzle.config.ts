@@ -9,6 +9,7 @@ export default defineConfig({
     "./src/profile-schema.ts",
     "./src/story-schema.ts",
     "./src/funnel-schema.ts",
+    "./src/fit-schema.ts",
     "./src/approval-schema.ts",
     "./src/answer-schema.ts",
   ],

@@ -17,7 +17,7 @@ import { story } from "./story-schema.js";
 
 // The answer bank (ANS-003, ANS-005, ANS-006, GH-59): Paul's approved answers to narrative
 // canonical questions, what they cite and where they were used. All three tables are append-only
-// (a trigger in migration 0018 refuses UPDATE, DELETE and TRUNCATE). Write them only through
+// (a trigger in migration 0019 refuses UPDATE, DELETE and TRUNCATE). Write them only through
 // answer-write.ts. The answer text is Paul's words: it never goes into events, spans or logs.
 
 // The kinds the bank stores. Factual questions are answered from settings, never banked.

@@ -9,11 +9,20 @@ import {
   listJobs,
   listWatches,
   loadDbConfig,
+  readAtomTexts,
   readDedupeCandidates,
+  readFitScore,
+  readPreferences,
+  readScorableJobs,
+  readScoreKeys,
+  readScoringProfile,
+  recordRescore,
   removeWatch,
   retryWatch,
+  saveFitScore,
   saveIngestedJob,
   savePollResult,
+  savePreferences,
   setJobField,
   soleCandidate,
 } from "@northstar/db";
@@ -25,6 +34,7 @@ import {
 } from "@northstar/llm";
 import { sql } from "drizzle-orm";
 import { main } from "./cli.js";
+import { scorePending } from "./fit/run.js";
 import { type IngestDeps, ingestText, ingestUrl } from "./ingest.js";
 import { jobExtractRoute } from "./job-extract-route.js";
 import { pollDue } from "./poll.js";
@@ -63,6 +73,16 @@ try {
       save: (input) => saveIngestedJob(db, { candidateId, ...input }),
     },
   };
+  // One scoring pass over the current preferences and resume import (NS-116).
+  const score = () =>
+    scorePending({
+      preferences: () => readPreferences(db, candidateId),
+      profile: () => readScoringProfile(db, candidateId),
+      jobs: () => readScorableJobs(db, candidateId),
+      keys: (preferenceId, profileSourceId) =>
+        readScoreKeys(db, { candidateId, preferenceId, profileSourceId }),
+      save: (input) => saveFitScore(db, { ...input, candidateId, now: new Date() }),
+    });
   process.exitCode = await main({
     argv: process.argv.slice(2),
     print: (line) => console.log(printable(line)),
@@ -99,6 +119,15 @@ try {
           new Date(),
         ),
       wait: (ms) => waitOrStop(ms),
+    },
+    fit: {
+      preferences: () => readPreferences(db, candidateId),
+      savePreferences: (values) => savePreferences(db, { candidateId, values, now: new Date() }),
+      score,
+      recordRescore: (preference, counts) =>
+        recordRescore(db, { candidateId, preference, counts, now: new Date() }),
+      why: (jobId) => readFitScore(db, { candidateId, jobId }),
+      atomTexts: (ids) => readAtomTexts(db, { candidateId, ids }),
     },
   });
 } catch (error) {
