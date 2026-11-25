@@ -23,17 +23,24 @@ const migrationsFolder = fileURLToPath(new URL("../../migrations", import.meta.u
 // starts its own PGlite from that file (createTestDb), so no test hook runs the migrations. CI
 // runs every package's tests in parallel, and migrating inside the first beforeEach of each file
 // passed the hook limit there (NS-111 follow-up).
+// It runs once per Vitest process: in watch mode (`vitest`), restart after adding or editing a
+// migration, or tests keep the old schema. `pnpm test` (`vitest run`) always starts fresh.
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
   const dir = await mkdtemp(join(tmpdir(), "northstar-pglite-"));
+  const cleanup = () => rm(dir, { recursive: true, force: true });
   const path = join(dir, "migrated.tar");
   const client = new PGlite({ extensions: { vector } });
   try {
     await migrate(drizzle({ client, schema }), { migrationsFolder });
     const dump = await client.dumpDataDir("none");
     await writeFile(path, Buffer.from(await dump.arrayBuffer()));
+  } catch (error) {
+    // A failed migration fails the whole run; don't leave the half-written folder behind.
+    await cleanup();
+    throw error;
   } finally {
     await client.close();
   }
   project.provide("pgliteSnapshot", path);
-  return () => rm(dir, { recursive: true, force: true });
+  return cleanup;
 }
