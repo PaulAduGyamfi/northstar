@@ -10,6 +10,7 @@ export default defineConfig({
     "./src/story-schema.ts",
     "./src/funnel-schema.ts",
     "./src/approval-schema.ts",
+    "./src/apply-schema.ts",
   ],
   out: "./migrations",
 });

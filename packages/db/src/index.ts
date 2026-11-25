@@ -1,5 +1,21 @@
 // Public entry of @northstar/db: the schema, the status-change write path and the event reader.
 
+export * as applySchema from "./apply-schema.js";
+export {
+  type ClaimError,
+  type Claimed,
+  type ClaimInput,
+  claimSubmission,
+  DEFAULT_DAILY_CAP,
+  DEFAULT_MIN_GAP_MS,
+  type Existing,
+  type NotInProgress,
+  type ProofInput,
+  type ProofView,
+  recordNeedsHuman,
+  recordSubmitted,
+  type SubmissionView,
+} from "./apply-write.js";
 export * as approvalSchema from "./approval-schema.js";
 export {
   type AlreadyDecided,

@@ -120,6 +120,20 @@
       "when": 1795616963453,
       "tag": "0016_approval_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795619881292,
+      "tag": "0017_apply_gateway",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795619885121,
+      "tag": "0018_apply_guards",
+      "breakpoints": true
     }
   ]
 }
