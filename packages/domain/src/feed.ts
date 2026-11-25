@@ -43,6 +43,21 @@ function board(p: Payload): string {
   return `${article(ats)} ${capitalize(ats)} board`;
 }
 
+// "a Greenhouse form", or "a form" when the ATS is unknown (human handoffs, NS-121).
+function form(p: Payload): string {
+  const ats = name(p, "ats");
+  if (!ats) return "a form";
+  return `${article(ats)} ${capitalize(ats)} form`;
+}
+
+// The challenge a handoff stopped at, in plain words (NEEDS_HUMAN_REASONS' challenge codes).
+const CHALLENGE_WORDS: Record<string, string> = {
+  captcha: "a CAPTCHA",
+  login: "a sign-in",
+  mfa: "a verification code",
+  account: "an account sign-up",
+};
+
 type Template = (p: Payload, e: FeedEvent) => string;
 
 const TEMPLATES: Record<string, Template> = {
@@ -86,6 +101,17 @@ const TEMPLATES: Record<string, Template> = {
     if (reason === "ambiguous")
       return "An email could belong to more than one application: link it";
     return "An email couldn't be linked to an application: link it";
+  },
+  "handoff.opened": (p) => {
+    const reason = name(p, "reason");
+    const challenge = (reason && CHALLENGE_WORDS[reason]) ?? "a check";
+    return `Needs your hands: ${form(p)} stopped at ${challenge}`;
+  },
+  "handoff.resolved": (p, e) => {
+    const outcome = name(p, "outcome");
+    if (outcome === "submitted") return `${who(e.actor)} finished an application by hand`;
+    if (outcome === "gave_up") return `${who(e.actor)} set an application aside after a challenge`;
+    return `${who(e.actor)} closed a handoff`;
   },
   "breaker.probing": (p) =>
     `Trying ${name(p, "dependency") ?? "a dependency"} again with one test call`,

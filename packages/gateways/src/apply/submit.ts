@@ -173,9 +173,10 @@ async function submit(
     const moved = await move(from, to);
     if (!moved.ok) throw new ApplyInvariantError(`move ${from} to ${to}: ${moved.error.kind}`);
   };
-  // The ledger first (it frees the ATS lane), then the application.
+  // The ledger first (it frees the ATS lane), then the application. The apply URL (its host
+  // already checked above) lets a challenge open a handoff Paul finishes by hand (NS-121).
   const handOff = async (reason: NeedsHumanReason, from: ApplicationStatus | null) => {
-    const recorded = await ports.recordNeedsHuman(input.candidateId, id, reason);
+    const recorded = await ports.recordNeedsHuman(input.candidateId, id, reason, pkg.applyUrl);
     if (!recorded.ok) throw new ApplyInvariantError(`needs_human: ${recorded.error.kind}`);
     if (from !== null) await mustMove(from, "needs_human");
     return ok({ outcome: "needs_human" as const, submissionId: id, reason, replayed: false });

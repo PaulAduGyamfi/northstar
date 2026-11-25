@@ -1,0 +1,27 @@
+{
+  "requestSha256": "6fa591dfca440e87c6590d975ed9fca6a0187917e831720415c718e0046d0ead",
+  "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval verification-extract --record.",
+  "response": {
+    "id": "msg_handwritten_1",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-5-5",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"choice\":1}",
+        "citations": null
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  }
+}

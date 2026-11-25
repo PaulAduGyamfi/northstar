@@ -4,6 +4,7 @@ import {
   claimSubmission,
   type Db,
   decideApprovals,
+  listOpenHandoffs,
   requestApproval,
   schema,
 } from "@northstar/db";
@@ -138,6 +139,18 @@ describe("submitApplication on the real write paths", () => {
       await applicationStatus(),
       await ledger(),
     ]).toEqual(["captcha", "needs_human", [{ status: "needs_human", reason: "captcha" }]]);
+  });
+
+  it("opens a handoff with the package's apply URL when a CAPTCHA stops the form", async () => {
+    const decisionId = await approve();
+    await submitApplication(
+      ports(async () => ({ kind: "challenge", challenge: "captcha" })),
+      { candidateId, decisionId, package: pkg },
+    );
+    const open = await listOpenHandoffs(db, candidateId);
+    expect(open.map((h) => [h.applicationId, h.reason, h.applyUrl])).toEqual([
+      [pkg.applicationId, "captcha", pkg.applyUrl],
+    ]);
   });
 
   it("hands a stale claim from a dead run to Paul and never opens the form", async () => {

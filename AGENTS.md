@@ -143,7 +143,10 @@ Exists now:
   windows (sender allowlist, 10-minute window, single use), deterministic code and link
   extraction, the magic-link host check, and resend-once-then-`needs_human`. Codes and links come
   back in a `VerificationSecret` that prints `[redacted]`. Plain code, windows in memory: no Gmail
-  push, database or model yet.
+  push or database yet. Since NS-149, `offerAssisted(message, pick)` puts an ambiguous mail (several
+  codes, or several links) to a pick before it becomes `needs_human`; `modelPick` backs it with the
+  `verification-extract` route, which only returns the index of a candidate plain code found
+  (never a code or link), and a chosen link still passes `checkLink`. Off by default.
   Since NS-150 also `isVerificationMail` (headers) and `hasVerificationCode` (body), which the
   funnel backfill uses to drop ATS verification mail before it is classified, sent to the model
   or stored (VER-005).
@@ -224,6 +227,12 @@ Exists now:
   are in `packages/domain` (`apply-package.ts`). Its tests run on fakes and, through `dbPorts`,
   on the real write paths: `@northstar/db/testing` exports `createTestDb` and friends for that. There is no real browser driver yet, so
   nothing can be submitted until the Playwright driver lands.
+  Since NS-121 a challenge (`captcha`, `login`, `mfa`, `account`) also opens a human handoff:
+  `recordNeedsHuman` stores `apply_handoff` (the apply URL, https only) in the same transaction,
+  `listOpenHandoffs` and `resolveHandoff` (`handoff-write.ts`, append-only) serve the API's
+  `GET /handoffs` and `POST /handoffs/resolve`, and Today shows a "Needs your hands" card. Paul's
+  "I submitted it" moves the application `needs_human` → `submitted` once
+  (`application:<id>:handoff:<handoffId>:submitted`). No pre-fill through the extension yet.
 - The credential vault (NS-122, ADR-0010, CRD-001/002/003/005): append-only `vault_secret`
   (envelope-encrypted tenant passwords, one row per version) and `vault_access` (every opening,
   under a Gate decision id) in `packages/db` (`vault-schema.ts`, `vault-write.ts`:

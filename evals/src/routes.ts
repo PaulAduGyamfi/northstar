@@ -6,6 +6,7 @@ import { positioningThesisEval } from "./sets/positioning-thesis.js";
 import { profileExtractEval } from "./sets/profile-extract.js";
 import { resumeTailorEval } from "./sets/resume-tailor.js";
 import { storyDraftEval } from "./sets/story-draft.js";
+import { verificationExtractEval } from "./sets/verification-extract.js";
 import type { RegisteredEval } from "./types.js";
 
 // Every route's eval set, by route name. `eval --all` (CI) replays each one.
@@ -18,4 +19,5 @@ export const registry: Readonly<Record<string, RegisteredEval>> = {
   "profile-extract": profileExtractEval,
   "resume-tailor": resumeTailorEval,
   "story-draft": storyDraftEval,
+  "verification-extract": verificationExtractEval,
 };

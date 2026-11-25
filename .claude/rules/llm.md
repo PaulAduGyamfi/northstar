@@ -37,6 +37,11 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
   it only through `draftTheses`, which keeps a candidate only when `thesisProblems` finds
   nothing. It is off by default (`enabled: true` turns it on), because its fixtures are
   hand-written. Never run `profile thesis draft|set|show` yourself: they read Paul's profile.
+- The `verification-extract` route (NS-149) lives in `packages/inbox/src/verify/model-pick.ts`.
+  Use it only through `modelPick` and the catcher's `offerAssisted`: the model answers with an
+  index into the candidates plain code found, never a code or link (VER-005), and the catcher
+  checks the choice. Fixtures use placeholder codes (`111111`) and `example.com` links only. It is
+  off by default (`enabled: true` turns it on), because its fixtures are hand-written.
 - A new route with no real recordings gets hand-written fixtures (ADR-0016 item 8). Write the
   expected outputs to `evals/<route>/handwritten.jsonl` and run
   `node evals/dist/handwrite-bin.js <route>` (after building `evals`). Each fixture is marked
