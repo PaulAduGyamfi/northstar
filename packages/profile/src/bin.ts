@@ -6,14 +6,17 @@ import {
   currentResumeHash,
   loadDbConfig,
   nextAtomForInterview,
+  readCurrentThesis,
   readEmploymentFacts,
   readInterviewAnswers,
   readProfile,
   readStories,
+  readThesisProfile,
   recordAnswer,
   recordDraftOutcome,
   recordFactsCheck,
   saveApprovedStory,
+  saveApprovedThesis,
   setEmploymentFacts,
   soleCandidate,
   startInterview,
@@ -27,6 +30,7 @@ import { type Choice, runInterview, type Terminal } from "./interview.js";
 import { profileExtractRoute } from "./route.js";
 import { storyDraftRoute } from "./story-route.js";
 import { fileToText } from "./text.js";
+import { draftTheses } from "./thesis-draft.js";
 
 // Entry point for `pnpm --filter @northstar/profile profile …`. The only place in this package
 // that reads process.env (DATABASE_URL, ANTHROPIC_API_KEY from .env).
@@ -104,6 +108,18 @@ try {
     setFacts: (positions) => setEmploymentFacts(db, { candidateId, positions }),
     readFacts: () => readEmploymentFacts(db, candidateId),
     recordCheck: (claims, mismatches) => recordFactsCheck(db, { candidateId, claims, mismatches }),
+    readThesisProfile: () => readThesisProfile(db, candidateId),
+    // Off until Paul records real fixtures and sets the baseline (ADR-0016 item 8); with it off,
+    // no gateway (and no API key) is needed.
+    draftTheses: (profile, asOf) =>
+      draftTheses(
+        { gateway: { call: (route, input) => gateway().call(route, input) }, enabled: false },
+        profile,
+        asOf,
+      ),
+    saveThesis: (text, atomIds) => saveApprovedThesis(db, { candidateId, text, atomIds }),
+    readThesis: () => readCurrentThesis(db, candidateId),
+    month: () => new Date().toISOString().slice(0, 7),
   });
   process.exitCode = exitCode;
 } catch (error) {

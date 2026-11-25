@@ -1,0 +1,27 @@
+{
+  "requestSha256": "72213859a8edd51fd77f6bb3a3bc86b77abac1a39cafd3c3550e0d5236cdbb86",
+  "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval positioning-thesis --record.",
+  "response": {
+    "id": "msg_handwritten_2",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-5-5",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"candidates\":[{\"text\":\"Data engineer who helped migrate 12 nightly pipelines to Airflow and wrote the data-quality checks for a claims warehouse.\",\"atomIds\":[\"atom-1\",\"atom-2\"]}]}",
+        "citations": null
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  }
+}

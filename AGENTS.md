@@ -111,7 +111,11 @@ Exists now:
   the cited quotes, roles or skills, a plain "N years" by the roles' locked dates). Since NS-155
   its approved versions are stored in `packages/db` (`thesis-schema.ts`, `thesis-write.ts`:
   `saveApprovedThesis`, `readCurrentThesis`, `readThesisHistory`; append-only, each version
-  cites atoms of the current resume import). Drafting and a CLI are follow-ups (NS-152).
+  cites atoms of the current resume import). Since NS-152 also the guided draft and the CLI:
+  `readThesisProfile` (`packages/db`) and `thesis-draft.ts` (`packages/profile`): the
+  `positioning-thesis` route drafts up to three theses citing atoms, and `draftTheses` keeps only
+  those `thesisProblems` passes (`checkThesis` plus unknown atom ids). Off by default
+  (hand-written fixtures); nothing is saved until Paul runs `profile thesis set`.
 - Answer drafting (NS-135, ANS-004) in `packages/profile/src/answer/`:
   - `selectEvidence` picks Paul's stories and atoms by the question's words (plain code).
   - The `answer-draft` route drafts from them.
@@ -314,6 +318,8 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/profile profile stories` | list approved stories and the competencies with none yet. Paul only: it prints his real stories; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile facts set data/<file>` | store Paul's official employment record, one `Employer \| Title \| start \| end` line per position (dates `YYYY-MM` or `YYYY-MM-DD`, end `present` when ongoing); a file with any bad line stores nothing. Paul only: real data, needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile facts check` | compare the imported resume's roles with the official record and list every mismatch (exits 1 on any). Paul only: it prints his real employment facts; agents never run it |
+| repo root | `pnpm --filter @northstar/profile profile thesis draft` | up to three positioning theses that pass the deterministic check, with the atoms each cites; says so while drafting is off. Paul only: it reads his real profile; agents never run it |
+| repo root | `pnpm --filter @northstar/profile profile thesis set "<text>" --atoms <id,id>` / `profile thesis show` | check a thesis against the cited atoms, roles and skills and save it as a new version (a failure saves nothing) / print the current one. Paul only: needs `DATABASE_URL`; agents never run them |
 | repo root | `pnpm --filter @northstar/funnel funnel backfill [--since YYYY-MM-DD] [--max-messages N]` | sign in to Gmail read-only (browser consent every run), rebuild the funnel from job mail since `--since` (default 2026-02-01); prints the model-call count and estimated cost first and stops at `--max-messages` (default 500). Safe to rerun. Paul only: his real mail, needs `DATABASE_URL`, `GOOGLE_OAUTH_CLIENT_*` and `ANTHROPIC_API_KEY`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel import data/<file>.csv` | import a tracker export (`company, role, applied_on, stage_reached, outcome` plus optional `outcome_on, channel, notes`); a file with any bad row stores nothing. Paul only |
 | repo root | `pnpm --filter @northstar/funnel funnel review` | place or discard the messages the backfill couldn't decide, with a link to each in Gmail. Paul only |

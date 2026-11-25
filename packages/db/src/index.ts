@@ -202,6 +202,8 @@ export {
   type ProfileImportInput,
   type ProfileView,
   readProfile,
+  readThesisProfile,
+  type ThesisProfile,
   writeProfileImport,
 } from "./profile-write.js";
 export { readEventsAfter } from "./read-events.js";

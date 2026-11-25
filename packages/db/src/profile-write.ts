@@ -336,3 +336,64 @@ export async function readProfile(db: Db, candidateId: CandidateId): Promise<Pro
     skills: skills.map((s) => s.name),
   };
 }
+
+// What the positioning thesis needs (NS-152, DX-009): the current resume import's roles with
+// their locked dates, each atom's id and verbatim resume line, and the skills. Null before any
+// import. Read-only; shown back to Paul only, never put in events or spans.
+export type ThesisProfile = {
+  roles: {
+    employer: string;
+    title: string;
+    startMonth: string | null;
+    endMonth: string | null;
+    current: boolean;
+  }[];
+  atoms: { id: string; roleId: string | null; quote: string }[];
+  skills: string[];
+};
+
+export async function readThesisProfile(
+  db: Db,
+  candidateId: CandidateId,
+): Promise<ThesisProfile | null> {
+  const [source] = await db
+    .select({ id: profileSource.id })
+    .from(profileSource)
+    .where(
+      and(
+        eq(profileSource.candidateId, candidateId),
+        eq(profileSource.kind, "resume"),
+        isNull(profileSource.supersededAt),
+      ),
+    );
+  if (!source) return null;
+  const roles = await db
+    .select()
+    .from(role)
+    .where(eq(role.sourceId, source.id))
+    .orderBy(role.position);
+  const atoms = await db
+    .select({
+      id: experienceAtom.id,
+      roleId: experienceAtom.roleId,
+      quote: experienceAtom.sourceQuote,
+    })
+    .from(experienceAtom)
+    .where(eq(experienceAtom.sourceId, source.id))
+    .orderBy(experienceAtom.position);
+  const skills = await db
+    .select({ name: skill.name })
+    .from(skill)
+    .where(eq(skill.sourceId, source.id));
+  return {
+    roles: roles.map((r) => ({
+      employer: r.employer,
+      title: r.title,
+      startMonth: r.startMonth,
+      endMonth: r.endMonth,
+      current: r.isCurrent,
+    })),
+    atoms,
+    skills: skills.map((s) => s.name),
+  };
+}

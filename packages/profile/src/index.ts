@@ -151,6 +151,18 @@ export {
   type ThesisRole,
   yearsOfExperience,
 } from "./thesis.js";
+export {
+  type DraftedThesis,
+  draftTheses,
+  MAX_CANDIDATES,
+  POSITIONING_THESIS_VERSION,
+  positioningThesisRoute,
+  renderThesisProfile,
+  ThesisCandidates,
+  type ThesisDraftResult,
+  thesisEvidence,
+  thesisProblems,
+} from "./thesis-draft.js";
 export { normalize, type ProvenanceFailure, validateProvenance } from "./validate.js";
 export {
   AVOID_AFTER,

@@ -3,13 +3,17 @@ import {
   COMPETENCIES,
   type OfficialPosition,
   type ProfileView,
+  type SaveThesisResult,
   type SetFactsResult,
   type StoryView,
+  type ThesisProfile,
+  type ThesisView,
 } from "@northstar/db";
 import { LlmTransportError } from "@northstar/llm";
 import { type Claim, checkEmploymentFacts, type Mismatch, parseOfficialRecord } from "./facts.js";
 import type { ImportResult } from "./import.js";
 import type { InterviewOutcome } from "./interview.js";
+import { type ThesisDraftResult, thesisProblems } from "./thesis-draft.js";
 
 // Everything main() touches, injected so tests run with no database, model or file.
 export type CliDeps = {
@@ -29,10 +33,17 @@ export type CliDeps = {
   setFacts: (positions: OfficialPosition[]) => Promise<SetFactsResult>;
   readFacts: () => Promise<OfficialPosition[]>;
   recordCheck: (claims: number, mismatches: Mismatch[]) => Promise<void>;
+  // The positioning thesis (NS-152, DX-009). bin.ts decides whether drafting is on.
+  readThesisProfile: () => Promise<ThesisProfile | null>;
+  draftTheses: (profile: ThesisProfile, asOf: string) => Promise<ThesisDraftResult>;
+  saveThesis: (text: string, atomIds: string[]) => Promise<SaveThesisResult>;
+  readThesis: () => Promise<ThesisView | null>;
+  // Today's month (YYYY-MM) for "N years", from the clock bin.ts passes in.
+  month: () => string;
 };
 
 const USAGE =
-  "usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check";
+  'usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check | profile thesis draft | profile thesis set "<text>" --atoms <id,id> | profile thesis show';
 
 // `profile import-resume <path>`, `profile show`, `profile interview` and `profile stories`.
 // Import output is counts only, never resume text; `show`, `interview` and `stories` show Paul's
@@ -54,6 +65,19 @@ export async function main(deps: CliDeps): Promise<number> {
     return factsSetCommand(deps, flags[0]);
   }
   if (command === "facts" && path === "check" && flags.length === 0) return factsCheckCommand(deps);
+  if (command === "thesis" && path === "draft" && flags.length === 0)
+    return thesisDraftCommand(deps);
+  if (command === "thesis" && path === "show" && flags.length === 0) return thesisShowCommand(deps);
+  if (command === "thesis" && path === "set" && flags.length === 3 && flags[1] === "--atoms") {
+    const [text, , atoms] = flags;
+    const atomIds = (atoms ?? "")
+      .split(",")
+      .map((a) => a.trim())
+      .filter((a) => a.length > 0);
+    if (text && text.trim().length > 0 && atomIds.length > 0) {
+      return thesisSetCommand(deps, text.trim(), atomIds);
+    }
+  }
   deps.print(USAGE);
   return 1;
 }
@@ -281,5 +305,127 @@ async function storiesCommand(deps: CliDeps): Promise<number> {
       ? "Every competency has a story."
       : `No story yet for: ${missing.join(", ")}`,
   );
+  return 0;
+}
+
+const FAILED_DRAFT = {
+  refused: "was a refusal",
+  truncated: "was cut off",
+  invalid_output: "wasn't in the expected shape",
+} as const;
+
+const NO_PROFILE = "No resume imported yet. Run: import-resume <path>";
+
+// `profile thesis draft`: up to three candidates that passed checkThesis, with the atoms each
+// cites. Nothing is saved; Paul picks one and runs `thesis set`.
+async function thesisDraftCommand(deps: CliDeps): Promise<number> {
+  const profile = await deps.readThesisProfile();
+  if (!profile) {
+    deps.print(NO_PROFILE);
+    return 1;
+  }
+  let result: ThesisDraftResult;
+  try {
+    result = await deps.draftTheses(profile, deps.month());
+  } catch (error) {
+    if (error instanceof LlmTransportError) {
+      deps.print(
+        `The Claude API didn't answer (status ${error.status ?? "none"}). Nothing was saved; try again later.`,
+      );
+      return 1;
+    }
+    throw error;
+  }
+  switch (result.kind) {
+    case "skipped":
+      deps.print(
+        result.reason === "off"
+          ? 'Thesis drafting is off until its eval fixtures are recorded. Write your own and run: profile thesis set "<text>" --atoms <id,id>'
+          : "Your profile has no atoms to cite. Import a resume first.",
+      );
+      return result.reason === "off" ? 0 : 1;
+    case "failed":
+      deps.print(`No draft: the model's answer ${FAILED_DRAFT[result.reason]}. Nothing was saved.`);
+      return 1;
+    case "drafted": {
+      result.theses.forEach((t, i) => {
+        deps.print(`${i + 1}. ${t.text}`);
+        deps.print(`   atoms: ${t.atomIds.join(",")}`);
+      });
+      if (result.dropped > 0) {
+        deps.print(
+          `${plural(result.dropped, "draft")} dropped: ${result.dropped === 1 ? "it says" : "each says"} something your resume doesn't.`,
+        );
+      }
+      if (result.theses.length === 0) {
+        deps.print("No draft passed the check. Write your own and run: profile thesis set");
+        return 1;
+      }
+      deps.print(
+        'Pick one (edit it if you like) and run: profile thesis set "<text>" --atoms <id,id>',
+      );
+      return 0;
+    }
+  }
+}
+
+// `profile thesis set "<text>" --atoms <id,id>`: checkThesis first (plain code, ADR-0004); any
+// failure saves nothing.
+async function thesisSetCommand(deps: CliDeps, text: string, atomIds: string[]): Promise<number> {
+  const profile = await deps.readThesisProfile();
+  if (!profile) {
+    deps.print(NO_PROFILE);
+    return 1;
+  }
+  const problems = thesisProblems({ text, atomIds }, profile, deps.month());
+  if (problems.length > 0) {
+    deps.print("Not saved: the thesis says something its atoms don't back. Nothing was changed.");
+    for (const p of problems) deps.print(`  ${describeProblem(p)}`);
+    return 1;
+  }
+  const saved = await deps.saveThesis(text, [...new Set(atomIds)]);
+  if (!saved.ok) {
+    const e = saved.error;
+    deps.print(
+      e.kind === "AtomNotCurrent"
+        ? `Not saved: ${e.atomIds.join(",")} not in your current resume import.`
+        : e.kind === "NoAtoms"
+          ? "Not saved: cite at least one atom."
+          : "Not saved: a thesis is one line of at most 200 characters.",
+    );
+    return 1;
+  }
+  deps.print(
+    saved.saved
+      ? `Thesis saved as version ${saved.version}.`
+      : `Thesis unchanged (version ${saved.version}).`,
+  );
+  return 0;
+}
+
+function describeProblem(p: ReturnType<typeof thesisProblems>[number]): string {
+  switch (p.kind) {
+    case "unknown_atom":
+      return `atom ${p.id} isn't in your profile`;
+    case "no_citation":
+      return "cite at least one atom from your profile";
+    case "not_one_sentence":
+      return "write one sentence";
+    case "unbacked_number":
+      return `"${p.token}" isn't in a cited atom (or more years than your roles span)`;
+    case "unbacked_name":
+      return `"${p.token}" isn't in a cited atom, your roles or your skills`;
+  }
+}
+
+// `profile thesis show`: the current thesis, its version and the atoms it cites.
+async function thesisShowCommand(deps: CliDeps): Promise<number> {
+  const thesis = await deps.readThesis();
+  if (!thesis) {
+    deps.print("No thesis yet. Run: profile thesis draft");
+    return 0;
+  }
+  deps.print(thesis.text);
+  deps.print(`Version ${thesis.version}, atoms: ${thesis.atomIds.join(",")}`);
   return 0;
 }
