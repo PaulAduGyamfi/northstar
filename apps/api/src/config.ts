@@ -42,3 +42,20 @@ export function loadApiConfig(env: Record<string, string | undefined>): ApiConfi
     webOrigin: parsed.data.NORTHSTAR_WEB_ORIGIN,
   };
 }
+
+const ExtensionHash = z.string().regex(/^[0-9a-f]{64}$/);
+
+// The extension token's SHA-256 (NS-128), or null to leave the extension off: unset or still
+// change-me means every extension request is refused, so sign-in works without it.
+export function loadExtensionTokenHash(env: Record<string, string | undefined>): string | null {
+  const raw = env.NORTHSTAR_EXTENSION_TOKEN_SHA256;
+  if (raw === undefined || raw === "" || raw === "change-me") return null;
+  const parsed = ExtensionHash.safeParse(raw);
+  if (!parsed.success) {
+    // Name the setting, never its value.
+    throw new Error(
+      "NORTHSTAR_EXTENSION_TOKEN_SHA256 must be the SHA-256 of the extension token (64 lowercase hex), or change-me to leave the extension off",
+    );
+  }
+  return parsed.data;
+}

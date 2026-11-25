@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadApiConfig } from "./config.js";
+import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
 
 // A made-up hash (sha256 of "test-key"); never a real key.
 const HASH = "62af8704764faf8ea82fc61ce9c4c3908b6cb97d463a634e9e587d7c885db0ef";
@@ -42,5 +42,25 @@ describe("loadApiConfig", () => {
         NORTHSTAR_WEB_ORIGIN: "http://localhost:4000",
       }),
     ).toEqual({ signinKeySha256: HASH, port: 9100, webOrigin: "http://localhost:4000" });
+  });
+});
+
+describe("loadExtensionTokenHash", () => {
+  it("is null when the extension token isn't set, so every extension request is refused", () => {
+    expect(loadExtensionTokenHash({})).toBeNull();
+  });
+
+  it("is null for the change-me placeholder", () => {
+    expect(loadExtensionTokenHash({ NORTHSTAR_EXTENSION_TOKEN_SHA256: "change-me" })).toBeNull();
+  });
+
+  it("reads a SHA-256 when set", () => {
+    expect(loadExtensionTokenHash({ NORTHSTAR_EXTENSION_TOKEN_SHA256: HASH })).toBe(HASH);
+  });
+
+  it("refuses anything else that is set, naming the setting", () => {
+    expect(() => loadExtensionTokenHash({ NORTHSTAR_EXTENSION_TOKEN_SHA256: "abc" })).toThrow(
+      "NORTHSTAR_EXTENSION_TOKEN_SHA256 must be the SHA-256 of the extension token (64 lowercase hex), or change-me to leave the extension off",
+    );
   });
 });
