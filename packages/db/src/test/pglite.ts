@@ -1,35 +1,23 @@
-import { fileURLToPath } from "node:url";
+import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import { vector } from "@electric-sql/pglite-pgvector";
 import type { ApplicationStatus } from "@northstar/domain";
 import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { inject } from "vitest";
 import type { Db } from "../db.js";
 import * as schema from "../schema.js";
 
-const migrationsFolder = fileURLToPath(new URL("../../migrations", import.meta.url));
-
-// The migrated, empty database as a data-directory snapshot, built once per test file. Applying
-// every migration for each test made the first beforeEach of a file pass Vitest's 10 s hook limit
-// on a busy CI runner; starting each test from the snapshot skips that work.
-let migrated: Promise<Blob> | undefined;
-
-async function migratedSnapshot(): Promise<Blob> {
-  const client = new PGlite({ extensions: { vector } });
-  try {
-    await migrate(drizzle({ client, schema }), { migrationsFolder });
-    return await client.dumpDataDir("none");
-  } finally {
-    await client.close();
-  }
-}
+// The migrated, empty data directory that global-setup.ts built once for this run, read once per
+// test file. No test hook applies migrations: that work made the first beforeEach of a file pass
+// Vitest's 10 s hook limit when CI ran every package's tests at once.
+let snapshot: Promise<Blob> | undefined;
 
 // A fresh in-memory Postgres (PGlite, ADR-0012) with every committed migration applied, and no
 // rows: each test gets its own copy of the snapshot. It never touches a server, so the "_test
 // database names only" rule can't be broken from here.
 export async function createTestDb(): Promise<{ db: Db; close: () => Promise<void> }> {
-  migrated ??= migratedSnapshot();
-  const client = new PGlite({ extensions: { vector }, loadDataDir: await migrated });
+  snapshot ??= readFile(inject("pgliteSnapshot")).then((bytes) => new Blob([bytes]));
+  const client = new PGlite({ extensions: { vector }, loadDataDir: await snapshot });
   const db = drizzle({ client, schema });
   return { db, close: () => client.close() };
 }
