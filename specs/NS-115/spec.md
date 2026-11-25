@@ -1,10 +1,10 @@
 # NS-115: ATS board polling with freshness SLOs and fresh-first queue
 
-Status: draft
+Status: approved by Paul (2026-11-25, including ADR-0015: plain scheduler for now)
 Requirements: SRC-003, SRC-009, SRC-012 (tier cadence; adaptive timing deferred), SRC-013 (the
 freshness half), SRC-014 (posted → detected), RES-002/003 (per-board backoff and quarantine);
 SRC-015 deferred (see Out of scope)
-Rules that apply: ADR-0001 (Proposed), ADR-0003, ADR-0007, a new ADR-0015 (below),
+Rules that apply: ADR-0015 (plain scheduler for now), ADR-0001 (Proposed), ADR-0003, ADR-0007,
 `.claude/rules/gateways.md`, `db.md`, `tests.md`
 
 ## Why
