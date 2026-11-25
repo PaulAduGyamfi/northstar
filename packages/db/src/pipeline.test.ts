@@ -60,10 +60,10 @@ async function secondApplication(): Promise<string> {
 }
 
 // An event about this application from another aggregate (a handoff, say), naming it in the payload.
-async function eventNaming(id: string, type: string): Promise<void> {
+async function eventNaming(id: string, type: string, owner: string = candidateId): Promise<void> {
   await db.insert(domainEvent).values({
     id: randomUUID(),
-    candidateId,
+    candidateId: owner,
     aggregate: `apply_handoff:${randomUUID()}`,
     type,
     actor: "agent:apply",
@@ -111,6 +111,13 @@ describe("readApplicationTimeline", () => {
   it("leaves out another application's events", async () => {
     const second = await secondApplication();
     await eventNaming(second, "handoff.opened");
+    const timeline = await readApplicationTimeline(db, candidateId, applicationId);
+    expect(timeline?.items).toEqual([]);
+  });
+
+  it("leaves out another candidate's event even when its payload names this application", async () => {
+    const other = await seedApplication(db, "queued");
+    await eventNaming(applicationId, "handoff.opened", other.candidateId);
     const timeline = await readApplicationTimeline(db, candidateId, applicationId);
     expect(timeline?.items).toEqual([]);
   });

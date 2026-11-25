@@ -10,6 +10,9 @@ import { portOf, type Sent, send } from "./test/http.js";
 // The pipeline endpoints (NS-168) over a real http server, with the database faked. Synthetic
 // jobs only.
 const HASH = "62af8704764faf8ea82fc61ce9c4c3908b6cb97d463a634e9e587d7c885db0ef"; // sha256("test-key")
+// The real SHA-256 of "test-extension-token", so the token sent below is valid (as in
+// capture.test.ts): a 401 proves these session endpoints ignore it.
+const EXT_HASH = "2f50a0607c1fb6606c98272169b134502f7c188b1e17f3d1579320aa3e3fb6c4";
 const WEB = "http://northstar.localhost:3100";
 const T = new Date("2026-11-25T12:00:00Z");
 const A1 = "0b6f3f8e-6a55-4c7e-9a52-5d6b2f8a1c01";
@@ -62,6 +65,7 @@ beforeEach(async () => {
     createApi({
       config,
       sessions,
+      extensionTokenSha256: EXT_HASH,
       extra: pipelineEndpoints({ list: () => ports.list(), timeline: (id) => ports.timeline(id) }),
     }),
   );
@@ -88,6 +92,16 @@ describe("who may call them", () => {
   it("each endpoint refuses a request without a session with 401 and reads nothing", async () => {
     expect((await get("/applications", false)).status).toBe(401);
     expect((await get(`/applications/timeline?id=${A1}`, false)).status).toBe(401);
+    expect(calls).toEqual([]);
+  });
+
+  it("a valid extension token can't read the pipeline", async () => {
+    const bearer = { authorization: "Bearer test-extension-token" };
+    const read = (path: string) => send(server, { method: "GET", path, headers: bearer });
+    expect([
+      (await read("/applications")).status,
+      (await read(`/applications/timeline?id=${A1}`)).status,
+    ]).toEqual([401, 401]);
     expect(calls).toEqual([]);
   });
 });

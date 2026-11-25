@@ -92,12 +92,14 @@ export async function readApplicationTimeline(
           ),
         ),
       )
-      .orderBy(asc(domainEvent.position))
+      // The newest MAX_TIMELINE, so a long history drops its oldest events, never its latest.
+      .orderBy(desc(domainEvent.position))
       .limit(MAX_TIMELINE);
     span.setAttribute("northstar.pipeline.events", events.length);
     return {
       application: toRow(row),
-      items: events.map((e) => ({
+      // Shown oldest first.
+      items: events.reverse().map((e) => ({
         occurredAt: e.occurredAt,
         type: e.type,
         actor: e.actor,
