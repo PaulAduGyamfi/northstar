@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { fileToText } from "./text.js";
+import { normalize } from "./validate.js";
 
 const fixture = (name: string) =>
   fileURLToPath(new URL(`./test/fixtures/${name}`, import.meta.url));
@@ -30,6 +31,41 @@ describe("fileToText", () => {
   it("reads the text of a .pdf resume", async () => {
     const text = await fileToText(fixture("sample.pdf"));
     for (const line of LINES) expect(text).toContain(line);
+  });
+
+  it("reads a single-column .pdf exactly as pdf.js's plain reading does", async () => {
+    expect(await fileToText(fixture("sample.pdf"))).toBe(LINES.join("\n"));
+  });
+
+  it("reads a two-column .pdf one column at a time, so each bullet stays whole", async () => {
+    // The `two-column-pdf` eval case's content as a real two-column PDF (make-fixtures.py).
+    expect(await fileToText(fixture("two-column.pdf"))).toBe(
+      [
+        "Riley Example",
+        "Platform Engineer",
+        "EXPERIENCE",
+        "Platform Engineer, Northgate Systems",
+        "June 2019 – Present",
+        "• Rebuilt the deploy pipeline with",
+        "GitHub Actions, cutting deploys from",
+        "40 minutes to 9.",
+        "• Ran the Kubernetes upgrade to 1.29.",
+        "",
+        "SKILLS",
+        "Terraform",
+        "Kubernetes",
+        "AWS",
+        "CERTIFICATIONS",
+        "Example Cloud Practitioner (Example Cloud)",
+      ].join("\n"),
+    );
+  });
+
+  it("keeps a wrapped two-column bullet quotable verbatim, as the provenance check needs", async () => {
+    const text = normalize(await fileToText(fixture("two-column.pdf")));
+    const quote =
+      "• Rebuilt the deploy pipeline with GitHub Actions, cutting deploys from 40 minutes to 9.";
+    expect(text.includes(normalize(quote))).toBe(true);
   });
 
   it("refuses other file types by name", async () => {
