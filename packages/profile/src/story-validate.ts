@@ -70,12 +70,6 @@ export function validateStoryDraft(draft: StoryDraft, evidence: StoryEvidence): 
       failures.push({ item: "title", problem: `number ${n} is not in the answers or the atom` });
     }
   }
-  for (const position of unbackedNumberWords(normalize(draft.title), sources)) {
-    failures.push({
-      item: "title",
-      problem: `number word at word ${position} is not in the answers or the atom`,
-    });
-  }
 
   draft.atomIds.forEach((id, i) => {
     if (id !== evidence.atom.id) {

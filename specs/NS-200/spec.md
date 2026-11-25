@@ -24,8 +24,9 @@ tool or person that none of Paul's answers or the resume line mention: only numb
    part's own quotes hold it in lower case, so an employer that is a common word ("Target") can't
    pass as an opener. A failure names the part and the word's position, never the word.
 3. Story parts' number words ("twenty", "double", "half") must be in their own quotes or the
-   resume line; the title's in any answer or the resume line. Titles get no name rule (they may
-   be title case).
+   resume line. Titles keep the digit rule only: no name rule (they may be title case) and no
+   number-word rule (a title summarises: "…, twice" for "rolled it out again"; the recorded
+   `failure-and-learning` fixture does exactly that). Both are #177.
 
 ## Acceptance criteria
 - [ ] An answer quote cut from inside "1.5 million", "1,200" or "-5%" is refused.
