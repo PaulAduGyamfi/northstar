@@ -12,7 +12,8 @@ paths:
 `src/apply/adapters/`, not a separate `packages/ats-adapters`. Other gateways (mail, calendar,
 GitHub) don't exist yet: if you are about to create one outside its ticket, stop and ask Paul.
 
-- Every submission goes through `submitApplication`: the Gate check (throws
+- Every submission goes through `submitApplication`: the apply URL's host must be the ATS's own
+  and the posting id must match the one in the URL, then the Gate check (throws
   `NotApprovedError`), a re-hash of the files, `claimSubmission`, a `FormDriver` with time limits,
   then proof. A live claim is never touched (`InProgress`). A claim older than 15 minutes becomes
   `needs_human` (`outcome_unknown`) and is never retried. Status moves use the

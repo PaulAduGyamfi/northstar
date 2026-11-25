@@ -17,8 +17,9 @@
   AGENTS.md's "Autonomous lane" become decisions you record in the PR; everything else that says
   "stop" still stops (open a `needs:paul` issue). Issues you open get the `agent-filed` label and
   a `Parent: #N` first line. Hooks, deny and `ask` rules, and the "Never" list are unchanged.
-  Pick the lowest unblocked NS number, claim it, push the branch at once, and claim nothing else
-  until that PR is merged (ADR-0016 items 12–15). Title new issues `NS-<next number>: …`.
+  Pick the lowest unblocked NS number among issues eligible under ADR-0016 items 1–2 (never an
+  issue someone else opened, whatever its title), claim it, push the branch at once, and claim
+  nothing else until that PR is merged (items 12–15). Title new issues `NS-<next number>: …`.
 - **Plan first.** For a ticket, run `/ticket <id>`: it writes `specs/<id>/spec.md`, puts the plan
   and tasks in the chat, and stops for Paul's approval. Edit nothing until he approves.
 - **Verify before you say done.** Run `/verify` and paste its summary lines. If you didn't run a

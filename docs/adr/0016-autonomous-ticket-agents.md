@@ -70,9 +70,12 @@ calls, Paul's real data, `.env`).
     migrations: an issue that needs a migration waits while another claimed issue adds one.
 12. **Order** (amended 2026-11-25, Paul: "in chronological order, not random ones"). An agent
     takes the eligible issue with the **lowest NS number**, whatever its priority label. Eligible
-    means open, not `needs:paul`, not claimed or next to a claimed issue (item 11), and not
-    blocked: an issue is blocked while any ticket on its `Blocked by:` line is still open. It
-    never skips ahead because a later issue looks easier.
+    means it first passes items 1 and 2 (Paul's own login opened it, or an `agent-filed` chain
+    leads back to such an issue): an issue from anyone else is never ranked, whatever its title.
+    It is also open, not `needs:paul`, not claimed or next to a claimed issue (item 11), and not
+    blocked. An issue is blocked while any issue on its `Blocked by:` line is still open; that line
+    names each blocker by its issue number (`Blocked by: NS-156 (#106)`), and the agent checks that
+    `#N`, never a title. It never skips ahead because a later issue looks easier.
 13. **Finish before the next one.** An agent holds one claim at a time. It claims its next issue
     only after its current PR is merged (green `checks` on the head commit, then the pinned squash
     merge), or after it hands the rest to Paul in a `needs:paul` issue and says so on the claimed
@@ -82,10 +85,11 @@ calls, Paul's real data, `.env`).
     pushes its branch, so the claim shows twice: as the comment and as the remote `ns-NNN`
     branch. Other agents check both before claiming.
 15. **One number per issue.** Every issue title starts `NS-NNN: ` with a number no other issue
-    uses: the highest NS number on any issue, open or closed, plus one. A follow-up names its
-    parent only in the body (`Parent: #N`), never in the title, so no two titles start alike. An
-    agent that finds two issues with the same number comments on the newer one, and Paul renumbers
-    it (agents don't edit issues, item 7).
+    uses: the highest NS number on any issue opened by Paul's login, open or closed, plus one.
+    Issues opened by anyone else never count, for numbering or for duplicates. A follow-up names
+    its parent only in the body (`Parent: #N`), never in the title, so no two titles start alike.
+    An agent that finds two of Paul's-login issues with the same number tells Paul in its PR or
+    report, and he renumbers one (agents don't edit issues, item 7).
 
 ## Alternatives considered
 - **Keep a human gate on sensitive paths** (gateways, credentials, dependencies): safer, but Paul
