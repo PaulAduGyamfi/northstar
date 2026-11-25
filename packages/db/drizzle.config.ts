@@ -4,6 +4,11 @@ import { defineConfig } from "drizzle-kit";
 // needs no database. Migrations are applied by src/migrate.ts, which reads the typed config.
 export default defineConfig({
   dialect: "postgresql",
-  schema: ["./src/schema.ts", "./src/profile-schema.ts", "./src/story-schema.ts"],
+  schema: [
+    "./src/schema.ts",
+    "./src/profile-schema.ts",
+    "./src/story-schema.ts",
+    "./src/funnel-schema.ts",
+  ],
   out: "./migrations",
 });

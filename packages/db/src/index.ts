@@ -12,6 +12,28 @@ export {
   type SetFactsResult,
   setEmploymentFacts,
 } from "./facts-write.js";
+export * as funnelSchema from "./funnel-schema.js";
+export {
+  type Channel,
+  type FunnelMessageInput,
+  type FunnelMessageRow,
+  type FunnelOutcome,
+  type FunnelStage,
+  knownGmailIds,
+  latestFactsCheck,
+  type MailKind,
+  type ManualRowInput,
+  type ReviewDecision,
+  type ReviewError,
+  type ReviewReason,
+  readFunnelMessages,
+  readManualRows,
+  recordFunnelEvent,
+  resolveReview,
+  type StageSignal,
+  saveFunnelMessages,
+  setManualRows,
+} from "./funnel-write.js";
 export * as profileSchema from "./profile-schema.js";
 export {
   currentResumeHash,
