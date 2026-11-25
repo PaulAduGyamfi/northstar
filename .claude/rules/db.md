@@ -108,3 +108,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   append-only (triggers), written only through `handoff-write.ts`: `openHandoff` inside
   `recordNeedsHuman`'s transaction, `resolveHandoff` for Paul. Their events carry ids, the ATS,
   the reason and the outcome, never the URL.
+- The tenant registry (NS-124) is `employer_tenant` (one per candidate and tenant key, never
+  changed) and `tenant_account_status` (append-only; the newest row is the account's status, none
+  means `none`), written only through `tenant-write.ts`. Start an account only with
+  `beginAccountCreation`, which takes the tenant's row lock so one caller wins (ACC-006). Consent
+  is `consent_policy` and `consent_record` (append-only, marketing refused by a CHECK), written
+  only through `consent-write.ts`. Their events carry tenant keys, statuses, reason codes, the
+  policy, the notice kind and its SHA-256: never the account email, a URL or a notice's text.
