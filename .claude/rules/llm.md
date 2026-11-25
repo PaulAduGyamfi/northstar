@@ -19,6 +19,8 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
 - Never run `profile import-resume`, `profile show`, `profile interview` or `profile stories`
   yourself: they read and print Paul's real resume, profile, answers and stories. Test with the
   synthetic fixtures; Paul runs the real commands.
+- The `mail-classify` route (NS-113) lives in `packages/inbox`. Never run any `funnel` command
+  yourself: they read Paul's real Gmail and print his real applications.
 
 - Call the model only through `createLlmGateway(...).call(route, input)`. Handle every
   `LlmOutcome` kind (`Ok`, `Refused`, `Truncated`, `InvalidOutput`). Let `LlmTransportError`

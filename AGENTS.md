@@ -63,6 +63,14 @@ Exists now:
   Since NS-112 also the employment-facts check (DX-011): Paul's official HR record
   (`employment_fact`, set from a file in `data/`) and `checkEmploymentFacts`, plain code that
   compares the resume (later LinkedIn, the site and application forms) against it.
+- `packages/inbox/` (NS-113): read-only Gmail (ADR-0014: `gmail.readonly`, desktop OAuth with
+  PKCE, token in memory for one run, never stored), the job-mail pre-filter (headers only; ATS
+  senders, job phrases, same-thread follow-ups), confirmation rules, and the `mail-classify` route
+  with a provenance check (every extracted name must be in the email).
+- `packages/funnel/` (NS-113): the 9-month backfill, funnel records derived by plain code from
+  `funnel_message` and `funnel_manual_row` (`packages/db`, `funnel-schema.ts`), the tracker CSV
+  import, the funnel report (Wilson intervals, rejection latency) and the hypothesis board.
+  `funnel-baselines.json` holds the assumed conversion rates; every one is labelled an assumption.
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write
@@ -106,6 +114,10 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/profile profile stories` | list approved stories and the competencies with none yet. Paul only: it prints his real stories; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile facts set data/<file>` | store Paul's official employment record, one `Employer \| Title \| start \| end` line per position (dates `YYYY-MM` or `YYYY-MM-DD`, end `present` when ongoing); a file with any bad line stores nothing. Paul only: real data, needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile facts check` | compare the imported resume's roles with the official record and list every mismatch (exits 1 on any). Paul only: it prints his real employment facts; agents never run it |
+| repo root | `pnpm --filter @northstar/funnel funnel backfill [--since YYYY-MM-DD] [--max-messages N]` | sign in to Gmail read-only (browser consent every run), rebuild the funnel from job mail since `--since` (default 2026-02-01); prints the model-call count and estimated cost first and stops at `--max-messages` (default 500). Safe to rerun. Paul only: his real mail, needs `DATABASE_URL`, `GOOGLE_OAUTH_CLIENT_*` and `ANTHROPIC_API_KEY`; agents never run it |
+| repo root | `pnpm --filter @northstar/funnel funnel import data/<file>.csv` | import a tracker export (`company, role, applied_on, stage_reached, outcome` plus optional `outcome_on, channel, notes`); a file with any bad row stores nothing. Paul only |
+| repo root | `pnpm --filter @northstar/funnel funnel review` | place or discard the messages the backfill couldn't decide, with a link to each in Gmail. Paul only |
+| repo root | `pnpm --filter @northstar/funnel funnel report` / `funnel hypotheses` | the funnel report and the hypothesis board. Paul only: they print his real applications; agents never run them |
 | repo root | `cp .env.example .env` | once per clone (Paul): then replace every `change-me` in `.env` |
 | repo root | `docker compose -f docker-compose.yml up -d --wait` | local stack: Postgres+pgvector :5432, Temporal :7233 (UI :8233), SeaweedFS S3 :8333, Grafana :3000 + OTLP :4317/:4318, all on 127.0.0.1. Agents must use this exact form (runs outside the sandbox) |
 | repo root | `docker compose -f docker-compose.yml ps` | each service's health and ports |

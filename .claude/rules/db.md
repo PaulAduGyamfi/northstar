@@ -18,6 +18,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
 - The official employment record (NS-112, DX-011) is `employment_fact`, written only through
   `facts-write.ts`. A new record supersedes the old rows; nothing is deleted. Its events carry
   counts only, never employers, titles or dates.
+- The funnel backfill (NS-113) stores `funnel_message` (Gmail ids, dates and extracted fields;
+  never a subject, body or address) and `funnel_manual_row` (Paul's tracker export, replaced per
+  import), through `funnel-write.ts` only. Funnel records are derived in `packages/funnel`, never
+  stored. Funnel events carry counts and fixed names only.
 
 - Migrations are generated (`db:generate`; `--custom` for SQL Drizzle can't express, such as
   extensions and triggers), reviewed and committed. Never edit an applied migration; add a new one.
