@@ -233,6 +233,27 @@ if [[ $code -eq 2 ]]; then echo "ok    guard-bash.sh block (no CLAUDE_PROJECT_DI
 else echo "FAIL  guard-bash.sh expected block without CLAUDE_PROJECT_DIR, got $code"; fails=$((fails+1)); fi
 rm -f -- "$proj/.env" "$proj/docker-compose.yml"; rmdir -- "$proj/sub" "$proj"
 
+# guard-github (ADR-0015 item 7): an allowlist for the GitHub connector.
+gh_call() { python3 -c 'import json,sys; print(json.dumps({"tool_name":"mcp__github__"+sys.argv[1],"tool_input":json.loads(sys.argv[2])}))' "$1" "$2"; }
+head=0123456789abcdef0123456789abcdef01234567
+run guard-github.sh pass  "$(gh_call issue_read '{"method":"get","issue_number":1}')"
+run guard-github.sh pass  "$(gh_call list_issues '{}')"
+run guard-github.sh pass  "$(gh_call create_pull_request '{"head":"ns-116","base":"main"}')"
+run guard-github.sh pass  "$(gh_call merge_pull_request "{\"merge_method\":\"rebase\",\"expectedHeadSha\":\"$head\"}")"
+run guard-github.sh block "$(gh_call merge_pull_request '{"merge_method":"rebase"}')"
+run guard-github.sh block "$(gh_call merge_pull_request "{\"merge_method\":\"squash\",\"expectedHeadSha\":\"$head\"}")"
+run guard-github.sh block "$(gh_call merge_pull_request "{\"expectedHeadSha\":\"$head\"}")"
+run guard-github.sh pass  "$(gh_call issue_write '{"method":"create","labels":["agent-filed"],"body":"Parent: #54\nScope"}')"
+run guard-github.sh pass  "$(gh_call issue_write '{"method":"create","labels":["agent-filed","idea"],"body":"Requirements: DNA-001"}')"
+run guard-github.sh block "$(gh_call issue_write '{"method":"create","labels":["area:profiles"],"body":"Parent: #54"}')"
+run guard-github.sh block "$(gh_call issue_write '{"method":"create","labels":["agent-filed"],"body":"Scope only"}')"
+run guard-github.sh block "$(gh_call issue_write '{"method":"update","issue_number":54,"labels":[]}')"
+run guard-github.sh block "$(gh_call push_files '{}')"
+run guard-github.sh block "$(gh_call update_pull_request '{}')"
+run guard-github.sh block "$(gh_call create_gist '{}')"
+run guard-github.sh block "$(gh_call sub_issue_write '{}')"
+run guard-github.sh block "$(gh_call pull_request_review_write '{"method":"submit_pending","event":"APPROVE"}')"
+
 # protect-files
 # Compose files: the stack runs outside the sandbox, so every compose edit asks Paul (NS-109).
 run protect-files.sh ask   "$(file docker-compose.yml)"
