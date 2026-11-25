@@ -20,6 +20,22 @@ export {
 } from "./profile-write.js";
 export { readEventsAfter } from "./read-events.js";
 export * as schema from "./schema.js";
+export * as storySchema from "./story-schema.js";
+export { COMPETENCIES, type Competency } from "./story-schema.js";
+export {
+  type ApprovedStoryInput,
+  type AtomView,
+  abandonInterview,
+  type InterviewAnswer,
+  nextAtomForInterview,
+  readInterviewAnswers,
+  readStories,
+  recordAnswer,
+  recordDraftOutcome,
+  type StoryView,
+  saveApprovedStory,
+  startInterview,
+} from "./story-write.js";
 export {
   type IdempotencyKeyReused,
   type NotFound,

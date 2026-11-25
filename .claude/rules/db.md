@@ -6,11 +6,15 @@ paths:
 # Database schema and migrations (Postgres 16 + pgvector, Drizzle)
 
 Lives in `packages/db` since NS-105. The event log design and PGlite tests are ADR-0012. The
-profile graph (NS-110) is in `src/profile-schema.ts`.
+profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
+`src/story-schema.ts`.
 
 - Locked facts (CPG-004): `role` employer/title/dates/is_current and `education` school/degree/field/dates
   are guarded by a trigger. Change them only through `editLockedFact` (Paul's own edits); never
   set `northstar.locked_edit` anywhere else.
+- Approved stories (NS-111) are locked by a trigger: no update or delete, and no change to their
+  `story_atom` links. Write the story bank only through `story-write.ts`. `story_answer` holds
+  Paul's own words: never copy them into events, spans, logs or fixtures.
 
 - Migrations are generated (`db:generate`; `--custom` for SQL Drizzle can't express, such as
   extensions and triggers), reviewed and committed. Never edit an applied migration; add a new one.

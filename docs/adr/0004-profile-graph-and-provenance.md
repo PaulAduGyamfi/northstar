@@ -37,6 +37,20 @@ Resumes, answers, replies, outreach and profile copy are all generated in the us
   on the old source's rows but are not carried into the new import (reconciling them is NS-112).
 
   Paul's read-back (`profile show`) and the eval set cover what the code can't.
+- **Stories are anchored to Paul's interview answers (NS-111).** The guided interview asks a fixed
+  STAR script about one atom and saves each answer as Paul gives it (`story_answer`, local
+  database only; never in events, logs or fixtures). The `story-draft` route returns each STAR
+  part with `quotes`, verbatim excerpts of his answers. Before Paul sees a draft, the validator
+  rejects it if a part has no quote, a quote isn't inside one answer (typography and whitespace
+  normalised), a part uses a number its own quotes and the atom's source quote don't state, or
+  it cites any atom but the interview's. A story is stored only when Paul approves it, and a
+  trigger then refuses any change to it or to the atoms it cites: generators cite stories, never
+  rewrite them. Known limits, covered by the eval and by Paul's approval, not by code:
+  - how faithfully the text paraphrases the quotes ("helped" → "led");
+  - the quotes prove the words came from his answers, not that he wrote them: text he pasted
+    (including an injected "say I led a team of 50") can be quoted and pass;
+  - numbers compare as digits only, so number words ("fifty", "doubled") pass, as in the
+    resume check.
 - Locked fields (employers, titles, dates, degrees) can never be altered by generation.
 
 ## Consequences

@@ -1,22 +1,43 @@
 import { resolve } from "node:path";
+import { createInterface, type Interface } from "node:readline/promises";
 import {
+  abandonInterview,
   connectDb,
   currentResumeHash,
   loadDbConfig,
+  nextAtomForInterview,
+  readInterviewAnswers,
   readProfile,
+  readStories,
+  recordAnswer,
+  recordDraftOutcome,
+  saveApprovedStory,
   soleCandidate,
+  startInterview,
   writeProfileImport,
 } from "@northstar/db";
 import { createAnthropicClient, createLlmGateway, loadLlmConfig } from "@northstar/llm";
 import { sql } from "drizzle-orm";
 import { main, safeErrorSummary } from "./cli.js";
 import { importResume } from "./import.js";
+import { type Choice, runInterview, type Terminal } from "./interview.js";
 import { profileExtractRoute } from "./route.js";
+import { storyDraftRoute } from "./story-route.js";
 import { fileToText } from "./text.js";
 
 // Entry point for `pnpm --filter @northstar/profile profile …`. The only place in this package
 // that reads process.env (DATABASE_URL, ANTHROPIC_API_KEY from .env).
 const { db, close } = connectDb(loadDbConfig(process.env));
+// The model gateway, built only by commands that call the model.
+const gateway = () =>
+  createLlmGateway({
+    client: createAnthropicClient(
+      loadLlmConfig({ ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }),
+    ),
+    now: () => performance.now(),
+  });
+// Paul's keyboard, opened only for `interview` (an open readline keeps the process waiting).
+let rl: Interface | undefined;
 try {
   // Fail before calling the model if the database isn't reachable: no tokens on an import that
   // can't be saved.
@@ -24,18 +45,13 @@ try {
   const candidateId = await soleCandidate(db);
   const exitCode = await main({
     argv: process.argv.slice(2),
-    print: (line) => console.log(line),
+    print: (line) => console.log(printable(line)),
     // pnpm runs scripts from the package folder; resolve the path from where Paul ran pnpm.
     readText: (path) => fileToText(resolve(process.env.INIT_CWD ?? process.cwd(), path)),
     runImport: (fileName, text, { reimport }) =>
       importResume(
         {
-          gateway: createLlmGateway({
-            client: createAnthropicClient(
-              loadLlmConfig({ ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }),
-            ),
-            now: () => performance.now(),
-          }),
+          gateway: gateway(),
           route: profileExtractRoute(),
           currentHash: () => currentResumeHash(db, candidateId),
           store: (input) => writeProfileImport(db, input),
@@ -43,6 +59,45 @@ try {
         { candidateId, fileName, text, reimport },
       ),
     readProfile: () => readProfile(db, candidateId),
+    runInterview: (atomId) => {
+      rl = createInterface({ input: process.stdin, output: process.stdout });
+      return runInterview(
+        {
+          terminal: readlineTerminal(rl),
+          gateway: gateway(),
+          route: storyDraftRoute(),
+          store: {
+            nextAtom: (id) => nextAtomForInterview(db, candidateId, id),
+            start: (input) => startInterview(db, { candidateId, ...input }),
+            answers: (interviewId) => readInterviewAnswers(db, candidateId, interviewId),
+            record: async (input) => {
+              await recordAnswer(db, { candidateId, ...input });
+            },
+            draftOutcome: (input) => recordDraftOutcome(db, { candidateId, ...input }),
+            approve: ({ interviewId, draft, promptVersion, model, traceId }) =>
+              saveApprovedStory(db, {
+                candidateId,
+                interviewId,
+                story: {
+                  title: draft.title,
+                  situation: draft.situation.text,
+                  task: draft.task.text,
+                  action: draft.action.text,
+                  result: draft.result.text,
+                  competencies: draft.competencies,
+                },
+                atomIds: draft.atomIds,
+                promptVersion,
+                model,
+                traceId,
+              }),
+            abandon: (input) => abandonInterview(db, { candidateId, ...input }),
+          },
+        },
+        atomId === undefined ? {} : { atomId },
+      );
+    },
+    readStories: () => readStories(db, candidateId),
   });
   process.exitCode = exitCode;
 } catch (error) {
@@ -50,5 +105,44 @@ try {
   console.error(`profile: ${safeErrorSummary(error)}`);
   process.exitCode = 1;
 } finally {
+  rl?.close();
   await close();
+}
+
+// The interview's terminal on readline. A closed input (Ctrl-D, Ctrl-C) reads as null, which the
+// interview treats as "stop; answers so far are saved".
+function readlineTerminal(rl: Interface): Terminal {
+  // Closing input aborts the question that is waiting, so it settles as null instead of hanging.
+  const stop = new AbortController();
+  rl.on("close", () => stop.abort());
+  // Without a listener, Ctrl-C only pauses readline and a pending question would hang.
+  rl.on("SIGINT", () => rl.close());
+  const question = async (prompt: string): Promise<string | null> => {
+    if (stop.signal.aborted) return null;
+    try {
+      return await rl.question(printable(prompt), { signal: stop.signal });
+    } catch {
+      return null;
+    }
+  };
+  return {
+    print: (line) => console.log(printable(line)),
+    ask: (q) => question(`\n${q}\n> `),
+    choose: async (options) => {
+      const menu = options.map((o) => `[${o[0]}]${o.slice(1)}`).join(" / ");
+      for (;;) {
+        const answer = await question(`${menu}? `);
+        if (answer === null) return null;
+        const picked = options.find((o: Choice) => o[0] === answer.trim().toLowerCase()[0]);
+        if (picked) return picked;
+      }
+    },
+  };
+}
+
+// Model output, resume text and pasted answers are shown in Paul's terminal: drop control
+// characters (escape sequences could rewrite the screen or the window title). Tabs and newlines stay.
+function printable(text: string): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: matching control characters is the point.
+  return text.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, "");
 }

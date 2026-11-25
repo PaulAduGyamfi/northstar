@@ -1,0 +1,175 @@
+import { describe, expect, it } from "vitest";
+import { StoryDraft } from "./story-schema.js";
+import { validateStoryDraft } from "./story-validate.js";
+
+// A synthetic atom and interview (invented company and people).
+const atom = {
+  id: "8c0b3a52-4c4e-4c41-9d1e-0e6f6f3b9a01",
+  sourceQuote: "Rebuilt the route planner for 40 depots at Example Freight.",
+};
+
+const answers = [
+  {
+    answer:
+      "Drivers were getting routes at 6am that ignored road closures, so deliveries ran late.",
+  },
+  { answer: "I owned the route planner and had to fix it before peak season." },
+  {
+    answer:
+      "I paired with the dispatch lead every morning for two weeks.\nThen I added a closures feed to the planner.",
+  },
+  { answer: "Late deliveries went from 12% to 3% in the first month." },
+  { answer: "" },
+];
+
+const draft = (overrides: Partial<StoryDraft> = {}): StoryDraft => ({
+  title: "Fixing routes before peak season",
+  situation: {
+    text: "Drivers were getting routes that ignored road closures, so deliveries ran late.",
+    quotes: [
+      "Drivers were getting routes at 6am that ignored road closures, so deliveries ran late.",
+    ],
+  },
+  task: {
+    text: "I owned the route planner and had to fix it before peak season.",
+    quotes: ["I owned the route planner and had to fix it before peak season."],
+  },
+  action: {
+    text: "I paired with the dispatch lead every morning, then added a closures feed to the planner.",
+    quotes: [
+      "I paired with the dispatch lead every morning for two weeks.",
+      "Then I added a closures feed to the planner.",
+    ],
+  },
+  result: {
+    text: "Late deliveries across our 40 depots went from 12% to 3% in the first month.",
+    quotes: ["Late deliveries went from 12% to 3% in the first month."],
+  },
+  atomIds: [atom.id],
+  competencies: ["ownership", "collaboration"],
+  followUps: [],
+  ...overrides,
+});
+
+describe("validateStoryDraft", () => {
+  it("a clean draft passes", () => {
+    expect(validateStoryDraft(draft(), { atom, answers })).toEqual({ ok: true });
+  });
+
+  it("a quote that is not in Paul's answers is rejected", () => {
+    const d = draft({
+      task: { text: "I led the planner team.", quotes: ["I led the planner team."] },
+    });
+    expect(validateStoryDraft(d, { atom, answers })).toEqual({
+      ok: false,
+      failures: [{ item: "task", problem: "quote 0 is not in the answers" }],
+    });
+  });
+
+  it("a number in the result that no quote or atom states is rejected", () => {
+    const d = draft({
+      result: {
+        text: "Late deliveries went from 12% to 2% in the first month.",
+        quotes: ["Late deliveries went from 12% to 3% in the first month."],
+      },
+    });
+    expect(validateStoryDraft(d, { atom, answers })).toEqual({
+      ok: false,
+      failures: [{ item: "result", problem: "number 2 is not in its quotes or the atom" }],
+    });
+  });
+
+  it("a number another part quotes does not count for this part", () => {
+    const d = draft({
+      situation: {
+        text: "Deliveries ran late for 12% of drivers.",
+        quotes: ["so deliveries ran late."],
+      },
+    });
+    expect(validateStoryDraft(d, { atom, answers })).toEqual({
+      ok: false,
+      failures: [{ item: "situation", problem: "number 12 is not in its quotes or the atom" }],
+    });
+  });
+
+  it("a number in the title that nothing states is rejected", () => {
+    const d = draft({ title: "Cutting late deliveries by 75%" });
+    expect(validateStoryDraft(d, { atom, answers })).toEqual({
+      ok: false,
+      failures: [{ item: "title", problem: "number 75 is not in the answers or the atom" }],
+    });
+  });
+
+  it("a draft citing an atom outside the interview is rejected", () => {
+    const d = draft({ atomIds: [atom.id, "11111111-2222-4333-8444-555555555555"] });
+    expect(validateStoryDraft(d, { atom, answers })).toEqual({
+      ok: false,
+      failures: [{ item: "atomIds", problem: "atom 1 is not the interview's atom" }],
+    });
+  });
+
+  it("a draft that does not cite the interview's atom is rejected", () => {
+    const d = draft({ atomIds: [] });
+    expect(validateStoryDraft(d, { atom, answers })).toEqual({
+      ok: false,
+      failures: [{ item: "atomIds", problem: "the interview's atom is not cited" }],
+    });
+  });
+
+  it("a part with no quote is rejected", () => {
+    const d = draft({ action: { text: "I fixed it.", quotes: [] } });
+    expect(validateStoryDraft(d, { atom, answers })).toEqual({
+      ok: false,
+      failures: [{ item: "action", problem: "no quote" }],
+    });
+  });
+
+  it("a quote that joins two different answers is rejected", () => {
+    const d = draft({
+      task: {
+        text: "Deliveries ran late and I owned the planner.",
+        quotes: ["so deliveries ran late. I owned the route planner"],
+      },
+    });
+    expect(validateStoryDraft(d, { atom, answers })).toEqual({
+      ok: false,
+      failures: [{ item: "task", problem: "quote 0 is not in the answers" }],
+    });
+  });
+
+  it("curly quotes and line breaks in answers do not cause a false rejection", () => {
+    const typed = [
+      { answer: "We couldn’t ship —\nthe planner   ignored closures." },
+      ...answers.slice(1),
+    ];
+    const d = draft({
+      situation: {
+        text: "We couldn't ship: the planner ignored closures.",
+        quotes: ["We couldn't ship - the planner ignored closures."],
+      },
+    });
+    expect(validateStoryDraft(d, { atom, answers: typed })).toEqual({ ok: true });
+  });
+
+  it("lists every failure, naming parts and never quoting their text", () => {
+    const d = draft({
+      task: { text: "I led 9 people.", quotes: ["I led 9 people."] },
+      atomIds: ["11111111-2222-4333-8444-555555555555"],
+    });
+    const result = validateStoryDraft(d, { atom, answers });
+    expect(result).toEqual({
+      ok: false,
+      failures: [
+        // The 9 sits in the invented quote, which already fails the draft.
+        { item: "task", problem: "quote 0 is not in the answers" },
+        { item: "atomIds", problem: "atom 0 is not the interview's atom" },
+        { item: "atomIds", problem: "the interview's atom is not cited" },
+      ],
+    });
+    expect(JSON.stringify(result)).not.toContain("led");
+  });
+
+  it("the draft schema refuses the same competency twice", () => {
+    expect(StoryDraft.safeParse(draft({ competencies: ["scale", "scale"] })).success).toBe(false);
+  });
+});

@@ -1,7 +1,8 @@
 import { basename } from "node:path";
-import type { ProfileView } from "@northstar/db";
+import { COMPETENCIES, type ProfileView, type StoryView } from "@northstar/db";
 import { LlmTransportError } from "@northstar/llm";
 import type { ImportResult } from "./import.js";
+import type { InterviewOutcome } from "./interview.js";
 
 // Everything main() touches, injected so tests run with no database, model or file.
 export type CliDeps = {
@@ -14,17 +15,31 @@ export type CliDeps = {
     options: { reimport: boolean },
   ) => Promise<ImportResult>;
   readProfile: () => Promise<ProfileView | null>;
+  // The guided story interview (NS-111), with Paul's terminal already wired in by bin.ts.
+  runInterview: (atomId?: string) => Promise<InterviewOutcome>;
+  readStories: () => Promise<StoryView[]>;
 };
 
-// `profile import-resume <path>` and `profile show`. Import output is counts only, never resume
-// text; `show` reads Paul's own profile back to Paul in his terminal.
+const USAGE =
+  "usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories";
+
+// `profile import-resume <path>`, `profile show`, `profile interview` and `profile stories`.
+// Import output is counts only, never resume text; `show`, `interview` and `stories` show Paul's
+// own profile and stories back to Paul in his terminal.
 export async function main(deps: CliDeps): Promise<number> {
   const [command, path, ...flags] = deps.argv;
   if (command === "import-resume" && path) {
     return importCommand(deps, path, flags.includes("--reimport"));
   }
   if (command === "show") return showCommand(deps);
-  deps.print("usage: profile import-resume <path> [--reimport] | profile show");
+  if (command === "interview") {
+    const rest = deps.argv.slice(1);
+    if (rest.length === 0) return interviewCommand(deps);
+    if (rest.length === 2 && rest[0] === "--atom" && rest[1])
+      return interviewCommand(deps, rest[1]);
+  }
+  if (command === "stories" && deps.argv.length === 1) return storiesCommand(deps);
+  deps.print(USAGE);
   return 1;
 }
 
@@ -105,5 +120,73 @@ async function showCommand(deps: CliDeps): Promise<number> {
     for (const atom of view.unassignedAtoms) deps.print(`  - ${atom}`);
   }
   if (view.skills.length > 0) deps.print(`Skills: ${view.skills.join(", ")}`);
+  return 0;
+}
+
+async function interviewCommand(deps: CliDeps, atomId?: string): Promise<number> {
+  let outcome: InterviewOutcome;
+  try {
+    outcome = await deps.runInterview(atomId);
+  } catch (error) {
+    if (error instanceof LlmTransportError) {
+      deps.print(
+        `The Claude API didn't answer (status ${error.status ?? "none"}). Your answers are saved; run \`profile interview\` again later.`,
+      );
+      return 1;
+    }
+    deps.print(`Interview stopped: ${safeErrorSummary(error)}. Answers given so far are saved.`);
+    return 1;
+  }
+  switch (outcome.kind) {
+    case "approved": {
+      // Every call of the interview (follow-ups, redrafts), not just the last one.
+      const rs = outcome.records;
+      const last = rs.at(-1);
+      const sum = (f: (r: (typeof rs)[number]) => number) => rs.reduce((n, r) => n + f(r), 0);
+      const cost = rs.some((r) => r.costUsd === null)
+        ? "cost unknown"
+        : `$${Math.round(sum((r) => r.costUsd ?? 0) * 1e8) / 1e8}`;
+      deps.print(
+        `Model ${last?.modelServed ?? "?"}, prompt v${last?.promptVersion ?? "?"}, ${rs.length} call(s), ${sum((r) => r.inputTokens)} in / ${sum((r) => r.outputTokens)} out tokens, ${cost}.`,
+      );
+      deps.print(
+        "Run `profile interview` for the next atom, or `profile stories` to read them back.",
+      );
+      return 0;
+    }
+    case "skipped":
+    case "stopped":
+      return 0;
+    case "no_atoms":
+      deps.print(
+        "No atom left to interview about: import a resume first, or every atom has a story.",
+      );
+      return 0;
+    case "atom_not_found":
+      deps.print("No atom with that id in your profile.");
+      return 1;
+  }
+}
+
+async function storiesCommand(deps: CliDeps): Promise<number> {
+  const stories = await deps.readStories();
+  if (stories.length === 0) {
+    deps.print("No stories yet. Run: profile interview");
+  }
+  for (const s of stories) {
+    deps.print(`${s.title} [${s.competencies.join(", ")}]`);
+    deps.print(`  Situation: ${s.situation}`);
+    deps.print(`  Task: ${s.task}`);
+    deps.print(`  Action: ${s.action}`);
+    deps.print(`  Result: ${s.result}`);
+  }
+  // Which competencies have no story yet (CPG-003): where the next interview helps most.
+  const covered = new Set(stories.flatMap((s) => s.competencies));
+  const missing = COMPETENCIES.filter((c) => !covered.has(c));
+  deps.print(
+    missing.length === 0
+      ? "Every competency has a story."
+      : `No story yet for: ${missing.join(", ")}`,
+  );
   return 0;
 }

@@ -137,6 +137,8 @@ export const experienceAtom = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
+    // Target of the same-candidate foreign keys from the story bank (story-schema.ts).
+    unique("experience_atom_id_candidate_unique").on(t.id, t.candidateId),
     sourceFk("experience_atom_source_same_candidate_fk", t),
     foreignKey({
       name: "experience_atom_role_same_candidate_fk",

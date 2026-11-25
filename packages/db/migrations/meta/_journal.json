@@ -64,6 +64,20 @@
       "when": 1795567890020,
       "tag": "0008_current_has_no_end",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795579439049,
+      "tag": "0009_story_bank",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795579448074,
+      "tag": "0010_lock_approved_story",
+      "breakpoints": true
     }
   ]
 }

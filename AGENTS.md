@@ -56,6 +56,10 @@ Exists now:
   `profile-extract` route, with a deterministic provenance check (every atom quotes the resume
   verbatim; no invented numbers, employers, titles or dates). `packages/db` holds the profile
   tables; roles' and education's facts are locked by a trigger (CPG-004).
+  Since NS-111 also the guided story interview: a fixed STAR script per atom, the `story-draft`
+  route, and a provenance check that every story part quotes Paul's answers verbatim. Stories
+  are stored only when Paul approves them, then locked by a trigger (`packages/db`,
+  `story-schema.ts`).
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write
@@ -95,6 +99,8 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/prompts lock` | add new prompt versions to `prompts.lock.json` (never rewrites an existing hash) |
 | repo root | `pnpm --filter @northstar/profile profile import-resume data/<file> [--reimport]` | import Paul's resume into the profile graph (`--reimport` redoes it even when the file is unchanged) (Paul only: real data, needs `DATABASE_URL` and `ANTHROPIC_API_KEY`; prints counts only) |
 | repo root | `pnpm --filter @northstar/profile profile show` | read the imported profile back (roles, atoms, skills). Paul only: it prints his real profile; agents never run it |
+| repo root | `pnpm --filter @northstar/profile profile interview [--atom <id>]` | guided story interview about the next atom with no story; answers are saved as you go, rerun to resume (Paul only: his real answers, needs `DATABASE_URL` and `ANTHROPIC_API_KEY`; agents never run it) |
+| repo root | `pnpm --filter @northstar/profile profile stories` | list approved stories and the competencies with none yet. Paul only: it prints his real stories; agents never run it |
 | repo root | `cp .env.example .env` | once per clone (Paul): then replace every `change-me` in `.env` |
 | repo root | `docker compose -f docker-compose.yml up -d --wait` | local stack: Postgres+pgvector :5432, Temporal :7233 (UI :8233), SeaweedFS S3 :8333, Grafana :3000 + OTLP :4317/:4318, all on 127.0.0.1. Agents must use this exact form (runs outside the sandbox) |
 | repo root | `docker compose -f docker-compose.yml ps` | each service's health and ports |

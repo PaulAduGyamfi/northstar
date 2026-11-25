@@ -9,15 +9,16 @@ paths:
 # LLM gateway, prompts, agents and evals (ADR-0004, ADR-0006)
 
 `packages/llm` and `evals/` exist since NS-106 (ADR-0013); `packages/prompts` and the first
-route (`profile-extract` in `packages/profile`) since NS-110. `packages/agents` doesn't exist
-yet. Ask Paul before creating it.
+route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` since NS-111.
+`packages/agents` doesn't exist yet. Ask Paul before creating it.
 
 - Load prompts with `loadPrompt(id, version)`. A new or changed prompt is a new file
   (`prompts/<route>/vN+1.md`) plus `pnpm --filter @northstar/prompts lock`; the lock test fails
   if a committed version changes.
 - Register every route's eval set in `evals/src/routes.ts`; CI replays them all.
-- Never run `profile import-resume` or `profile show` yourself: they read and print Paul's real
-  resume and profile. Test with the synthetic fixtures; Paul runs the real commands.
+- Never run `profile import-resume`, `profile show`, `profile interview` or `profile stories`
+  yourself: they read and print Paul's real resume, profile, answers and stories. Test with the
+  synthetic fixtures; Paul runs the real commands.
 
 - Call the model only through `createLlmGateway(...).call(route, input)`. Handle every
   `LlmOutcome` kind (`Ok`, `Refused`, `Truncated`, `InvalidOutput`). Let `LlmTransportError`
