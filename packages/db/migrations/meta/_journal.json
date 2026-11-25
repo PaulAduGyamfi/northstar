@@ -155,20 +155,6 @@
       "when": 1795622971314,
       "tag": "0021_kill_switch_append_only",
       "breakpoints": true
-    },
-    {
-      "idx": 22,
-      "version": "7",
-      "when": 1795624597618,
-      "tag": "0022_positioning_thesis",
-      "breakpoints": true
-    },
-    {
-      "idx": 23,
-      "version": "7",
-      "when": 1795624598746,
-      "tag": "0023_thesis_append_only",
-      "breakpoints": true
     }
   ]
 }

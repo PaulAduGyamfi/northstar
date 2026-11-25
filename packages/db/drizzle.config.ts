@@ -13,7 +13,6 @@ export default defineConfig({
     "./src/approval-schema.ts",
     "./src/answer-schema.ts",
     "./src/resilience-schema.ts",
-    "./src/thesis-schema.ts",
   ],
   out: "./migrations",
 });

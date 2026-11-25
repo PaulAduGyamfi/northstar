@@ -1,4 +1,4 @@
-# NS-127: Positioning thesis (slice 1: provenance check and versioned storage)
+# NS-127: Positioning thesis (slice 1: the provenance check)
 
 Status: autonomous (ADR-0016; agent-planned, not reviewed by Paul before the build)
 Requirements: DX-009, in part (a one-sentence thesis, versioned, which later drives the resume
@@ -27,8 +27,11 @@ then quote. Like everything else, it may claim only what his profile backs up.
    - `unbacked_name`: any capitalised word, the first included (a company, product, technology
      or title word), that isn't in a cited quote, a role's employer or title, or the skills.
      Matching uses whole words and is case-sensitive.
-2. **Stored versions** (`packages/db`, `positioning_thesis` and `positioning_thesis_atom`,
-   `thesis-write.ts`).
+2. **Stored versions: moved to a follow-up.** ADR-0016 (amended 2026-11-25) lets one agent at a
+   time change `packages/db` migrations, and NS-120 is adding one. The storage below was built
+   and reviewed, then taken out of this PR. It waits for NS-120 to merge, and nothing in this
+   slice depends on it. Planned design: `positioning_thesis` and `positioning_thesis_atom`,
+   written through `thesis-write.ts`.
    - `saveApprovedThesis` stores the text Paul approved as the next version, with the atoms it
      cites (at least one, from his current resume), and writes one `thesis.approved` event. The
      event carries the version and the atom count, never the text.
@@ -42,9 +45,9 @@ then quote. Like everything else, it may claim only what his profile backs up.
       more whole years. A number, company or technology not in the evidence fails with its kind
       and the offending token. Two sentences, an empty text and over-length text fail
       (profile tests).
-- [ ] Saving gives versions 1, 2, …; the same text twice stores one version. A thesis with no
-      atom, or another candidate's atom, is refused. The event has no text. The rows can't be
-      updated or deleted (db tests).
+- [ ] (Follow-up, with storage.) Saving gives versions 1, 2, …; the same text and atoms twice
+      store one version. A thesis with no atom, or another candidate's atom, is refused. The
+      event has no text. The rows can't be updated or deleted.
 - [ ] `pnpm turbo run lint typecheck test build --force` exits 0, and `checks` is green.
 
 ## Failure modes
@@ -53,12 +56,14 @@ then quote. Like everything else, it may claim only what his profile backs up.
   ADR-0004).
 - **Sentence detection splits "Inc." or "e.g."** and reports `not_one_sentence`. That errs on
   the side of asking Paul to reword.
-- No external dependency; Postgres down means the save throws and nothing is stored.
+- No I/O in this slice, so no dependency can be down.
 
 ## Observability
-`thesis.approved` domain event (version, atom count) in the same transaction as the row.
+None in this slice: a pure function. The storage follow-up writes `thesis.approved` (version and
+atom count, never the text).
 
 ## Out of scope (follow-up issues, `agent-filed`, `Parent: #26`)
+- Storing Paul's approved versions (above), once NS-120's migration has merged.
 - The guided session and a `positioning-thesis` model route that drafts candidate theses from
   the profile, checked by `checkThesis` (DX-009). It needs hand-written fixtures, and Paul
   records real ones.

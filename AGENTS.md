@@ -75,11 +75,10 @@ Exists now:
   `bank_answer_use`. `saveApprovedAnswer` stores an answer only with a live Gate approval by Paul
   of kind `answer`, subject `answer:<id>` and `answerContentSha256`; `readBankAnswer` and
   `recordAnswerReuse` serve reuse. No CLI or UI yet.
-- The positioning thesis (NS-127, DX-009): `checkThesis` in `packages/profile` (`thesis.ts`,
-  plain code: one sentence, cites atoms, every number and capitalised name backed by the cited
-  quotes, roles or skills, "N years" by the roles' locked dates), and Paul's approved versions
-  in `packages/db` (`positioning_thesis`, append-only, `thesis-write.ts`: `saveApprovedThesis`,
-  `readCurrentThesis`, `readThesisHistory`). No drafting route or CLI yet.
+- The positioning thesis check (NS-127, DX-009): `checkThesis` in `packages/profile`
+  (`thesis.ts`, plain code: one sentence, cites atoms, every number and capitalised name backed by
+  the cited quotes, roles or skills, a plain "N years" by the roles' locked dates). Storage,
+  drafting and a CLI are follow-ups.
 - `packages/inbox/` (NS-113): read-only Gmail (ADR-0014: `gmail.readonly`, desktop OAuth with
   PKCE, token in memory for one run, never stored), the job-mail pre-filter (headers only; ATS
   senders, job phrases, same-thread follow-ups), confirmation rules, and the `mail-classify` route
