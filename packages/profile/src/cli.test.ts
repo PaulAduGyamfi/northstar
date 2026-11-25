@@ -522,7 +522,7 @@ describe("profile thesis cli", () => {
     expect(printed).toEqual([
       `1. ${goodThesis} (2026-11)`,
       "   atoms: atom-1",
-      "1 draft dropped: it said something your resume doesn't.",
+      "1 draft dropped: it says something your resume doesn't.",
       'Pick one (edit it if you like) and run: profile thesis set "<text>" --atoms <id,id>',
     ]);
   });

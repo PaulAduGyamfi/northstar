@@ -1,5 +1,5 @@
 {
-  "requestSha256": "8e0b9e54833062f7f85cd7262db68b1c949b3e8a9ccd5214f86845b24726ee3e",
+  "requestSha256": "c417fe7f141e1c8b8e16b70259b199a4c29909f6270d4ea9144550452c02e7b7",
   "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval positioning-thesis --record.",
   "response": {
     "id": "msg_handwritten_1",

@@ -308,6 +308,12 @@ async function storiesCommand(deps: CliDeps): Promise<number> {
   return 0;
 }
 
+const FAILED_DRAFT = {
+  refused: "was a refusal",
+  truncated: "was cut off",
+  invalid_output: "wasn't in the expected shape",
+} as const;
+
 const NO_PROFILE = "No resume imported yet. Run: import-resume <path>";
 
 // `profile thesis draft`: up to three candidates that passed checkThesis, with the atoms each
@@ -339,7 +345,7 @@ async function thesisDraftCommand(deps: CliDeps): Promise<number> {
       );
       return result.reason === "off" ? 0 : 1;
     case "failed":
-      deps.print(`No draft: the model's answer was ${result.reason}. Nothing was saved.`);
+      deps.print(`No draft: the model's answer ${FAILED_DRAFT[result.reason]}. Nothing was saved.`);
       return 1;
     case "drafted": {
       result.theses.forEach((t, i) => {
@@ -348,7 +354,7 @@ async function thesisDraftCommand(deps: CliDeps): Promise<number> {
       });
       if (result.dropped > 0) {
         deps.print(
-          `${plural(result.dropped, "draft")} dropped: it said something your resume doesn't.`,
+          `${plural(result.dropped, "draft")} dropped: ${result.dropped === 1 ? "it says" : "each says"} something your resume doesn't.`,
         );
       }
       if (result.theses.length === 0) {
