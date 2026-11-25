@@ -70,6 +70,12 @@ Exists now:
   Since GH-59 also answer reuse (ANS-003): `adaptAnswer` fills a banked answer's `{company}`
   slot and picks the variant that fits the form's limit (never cuts it), `reuseNote` and
   `narrativeKindOf`.
+  Since NS-117 also resume tailoring (`tailor/`, TLR-001…004), plain code with no model or
+  database yet: `tailorResume` selects and orders the master's atoms for a job (verbatim lines,
+  skills the job asks for first, a `not claimed` note for requirements nothing proves),
+  `validateTailoredResume` blocks any line without atom provenance, `diffResume` and
+  `applySkillToggles` for the diff view, and `preSendScore` (title match, keyword coverage, ATS
+  re-parse check) over the plain-text render.
 - The answer bank (GH-59, ANS-005/006) in `packages/db` (`answer-schema.ts`, `answer-write.ts`):
   append-only `bank_answer` (versioned per canonical question), `bank_answer_citation` and
   `bank_answer_use`. `saveApprovedAnswer` stores an answer only with a live Gate approval by Paul
@@ -122,6 +128,19 @@ Exists now:
   with a plain reason, and `feedLine` (`feed.ts`) turns an event into one plain sentence from
   checked payload fields only. `packages/db` reads them with `readSystemHealth` and `readFeed`
   (newest first, paged by position). No UI or live push yet.
+- `packages/gateways/` (NS-120): the Apply Gateway, the only code that submits an application
+  (ADR-0002). `submitApplication` checks the approval with the Gate at the moment it acts (no
+  verified approval throws `NotApprovedError`), re-hashes the package and its files, claims the
+  submission once in `packages/db` (`apply-write.ts`: idempotency key, requisition dedupe,
+  one in progress per ATS, 90 s gap, 25 a day), drives the form through a `FormDriver`, and
+  stores proof (`submission_proof`, append-only). Anything it can't finish is `needs_human`
+  with a reason code, never retried blindly: a repeated call finds a live claim `InProgress`,
+  and only a claim older than 15 minutes becomes `needs_human` (`outcome_unknown`). The
+  requisition is the posting id read from the apply URL. Greenhouse, Lever and Ashby adapters map the
+  package onto the form and recognize the confirmation page. The package schema and its hash
+  are in `packages/domain` (`apply-package.ts`). Its tests run on fakes and, through `dbPorts`,
+  on the real write paths: `@northstar/db/testing` exports `createTestDb` and friends for that. There is no real browser driver yet, so
+  nothing can be submitted until the Playwright driver lands.
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write
@@ -137,7 +156,7 @@ with the ticket that needs it.
 
 ```
 apps/web  apps/api  apps/worker  apps/extension
-packages/agents  gateways  ats-adapters  ui
+packages/agents  ats-adapters  ui
 ops/  docs/runbooks/
 ```
 

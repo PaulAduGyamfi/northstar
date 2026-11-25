@@ -16,6 +16,24 @@ export {
   type StoryNotApproved,
   saveApprovedAnswer,
 } from "./answer-write.js";
+export * as applySchema from "./apply-schema.js";
+export {
+  type AtsBusy,
+  CLAIM_STALE_AFTER_MS,
+  type ClaimError,
+  type Claimed,
+  type ClaimInput,
+  claimSubmission,
+  DEFAULT_DAILY_CAP,
+  DEFAULT_MIN_GAP_MS,
+  type Existing,
+  type NotInProgress,
+  type ProofInput,
+  type ProofView,
+  recordNeedsHuman,
+  recordSubmitted,
+  type SubmissionView,
+} from "./apply-write.js";
 export * as approvalSchema from "./approval-schema.js";
 export {
   type AlreadyDecided,
