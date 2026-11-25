@@ -1,6 +1,6 @@
 # ADR-0015 — Poll job boards with a plain scheduler for now; Temporal later
 
-**Status:** Proposed · **Date:** 2026-11-25
+**Status:** Accepted · **Date:** 2026-11-25
 
 ## Context
 NS-115 watches company job boards and adds new postings within each tier's freshness SLO
