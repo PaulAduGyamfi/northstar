@@ -9,7 +9,7 @@ describe("loadApiConfig", () => {
     expect(loadApiConfig({ NORTHSTAR_SIGNIN_KEY_SHA256: HASH })).toEqual({
       signinKeySha256: HASH,
       port: 8787,
-      webOrigin: "http://127.0.0.1:3100",
+      webOrigin: "http://northstar.localhost:3100",
     });
   });
 
@@ -29,7 +29,9 @@ describe("loadApiConfig", () => {
         NORTHSTAR_SIGNIN_KEY_SHA256: HASH,
         NORTHSTAR_WEB_ORIGIN: "http://127.0.0.1:3100/app",
       }),
-    ).toThrow("NORTHSTAR_WEB_ORIGIN must be an http(s) origin such as http://127.0.0.1:3100");
+    ).toThrow(
+      "NORTHSTAR_WEB_ORIGIN must be an http(s) origin such as http://northstar.localhost:3100",
+    );
   });
 
   it("reads a port and web origin when set", () => {

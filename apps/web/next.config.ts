@@ -23,6 +23,8 @@ const config: NextConfig = {
     ];
   },
   poweredByHeader: false,
+  // Paul opens the app at its own name (ADR-0018), which `next dev` must allow.
+  allowedDevOrigins: ["northstar.localhost"],
   // `pnpm typecheck` runs tsc (TypeScript 7, ADR-0011); Next's own build-time check uses the
   // TypeScript JS API, which TypeScript 7 doesn't ship.
   typescript: { ignoreBuildErrors: true },

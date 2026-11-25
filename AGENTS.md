@@ -158,7 +158,8 @@ Exists now:
   127.0.0.1, one endpoint pattern (`endpoint()`: Zod input, Zod-checked output, `auth: "session"`
   answers 401 first) and an `api.request` span per request. Paul's sign-in (ADR-0018): a random key
   whose SHA-256 is `NORTHSTAR_SIGNIN_KEY_SHA256`, in-memory sessions in an HttpOnly,
-  SameSite=Strict cookie, 5 wrong keys a minute then 429, and `Host`/`Origin`/content-type checks.
+  SameSite=Strict cookie on the web app's own `northstar.localhost` name, 5 wrong keys a minute
+  then 429, and `Host`, `x-forwarded-host`, `Origin` and content-type checks.
   Every endpoint that acts for Paul uses `auth: "session"`.
 - `apps/web/` (NS-156): the Next.js shell (PillNav, B · Momentum colors as CSS variables) with one
   authenticated page, Today. `/api/*` is rewritten to the API, and pages that need Paul go through
@@ -218,7 +219,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/db db:generate` | new migration from `packages/db/src/schema.ts` (no database needed); prints "No schema changes" when migrations match |
 | repo root | `pnpm --filter @northstar/db db:migrate` | apply pending migrations to `DATABASE_URL`, which Node loads from the root `.env` (Paul, outside the sandbox, stack up). Builds `domain` and `db` first |
 | repo root | `pnpm --filter @northstar/api start` | build and run the API on 127.0.0.1:`NORTHSTAR_API_PORT` (8787), reading the root `.env`; refuses to start until `NORTHSTAR_SIGNIN_KEY_SHA256` is set (Paul) |
-| repo root | `pnpm --filter @northstar/web build` / `pnpm --filter @northstar/web start` | build and serve the web app on 127.0.0.1:3100 (`NORTHSTAR_API_ORIGIN`, default `http://127.0.0.1:8787`, is read at build and at start); `pnpm --filter @northstar/web dev` while developing |
+| repo root | `pnpm --filter @northstar/web build` / `pnpm --filter @northstar/web start` | build and serve the web app on 127.0.0.1:3100; open it at `http://northstar.localhost:3100` (`NORTHSTAR_WEB_ORIGIN`, ADR-0018). It doesn't read the root `.env`: export `NORTHSTAR_API_ORIGIN` (default `http://127.0.0.1:8787`) in the shell before build and start if the API's port changed. `pnpm --filter @northstar/web dev` while developing |
 
 **Done** means every check passes in every package you touched and you showed the output.
 

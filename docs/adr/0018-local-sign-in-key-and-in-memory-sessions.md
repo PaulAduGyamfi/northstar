@@ -24,16 +24,25 @@ on 127.0.0.1 only.
    `ns_session` (`HttpOnly; SameSite=Strict; Path=/; Max-Age=43200`, 12 h). The API keeps only
    the token's SHA-256 and its expiry, in a `Map`. Sign-out deletes it, and a restart forgets
    all of them. No `Secure` flag while the app is served over http on loopback. Add it with https.
-4. **Request checks** (`apps/api/src/server.ts`):
-   - `Host` must be `127.0.0.1:<port>` or `localhost:<port>` (421 otherwise), against DNS
-     rebinding.
-   - A `POST` with an `Origin` other than `NORTHSTAR_WEB_ORIGIN` gets 403.
-   - A `POST` that isn't `application/json` gets 415.
-   - `auth: "session"` endpoints answer 401 before reading the body.
-5. **One origin for the browser.** The web app rewrites `/api/*` to the API, so the cookie is
-   same-site and the web app holds no secret. Its pages ask `GET /me` with the cookie and render
-   only for a live session.
-6. **Passkeys later.** WebAuthn replaces the sign-in key as the primary method in a follow-up
+4. **Its own host name.** Paul opens the app at `http://northstar.localhost:3100`
+   (`NORTHSTAR_WEB_ORIGIN`; browsers resolve `*.localhost` to loopback). Cookies are scoped by
+   host, not port, so on `127.0.0.1` the session cookie would also go to Grafana, the Temporal UI,
+   SeaweedFS and any other local dev server. On its own name it goes only to Northstar.
+5. **Request checks** (`apps/api/src/server.ts`):
+   - `Host` must be `127.0.0.1:<port>` or `localhost:<port>` (421 otherwise). This covers direct
+     calls only: the web app's proxy replaces `Host` with the API's own.
+   - When the request came through the web app's proxy, `x-forwarded-host` must be the web
+     origin's host (421 otherwise). This is the DNS-rebinding check: a page whose name was rebound
+     to 127.0.0.1 keeps its own name there.
+   - Every `POST` must carry `Origin: NORTHSTAR_WEB_ORIGIN` (403 otherwise, a missing one
+     included) and `Content-Type: application/json` (415 otherwise). Together with
+     SameSite=Strict and the host-only cookie, these are the cross-site defenses.
+   - `auth: "session"` endpoints answer 401 before reading the body. Bodies stop at 16 KB (413,
+     and the connection closes).
+6. **One origin for the browser.** The web app rewrites `/api/*` to the API, so the browser talks
+   to one origin and the web app holds no secret. Its pages ask `GET /me` with the cookie and
+   render only for a live session.
+7. **Passkeys later.** WebAuthn replaces the sign-in key as the primary method in a follow-up
    ticket, once a migration slot is free. The sign-in key then becomes the recovery path, or
    goes away. That follow-up decides which, in its own ADR.
 
@@ -53,6 +62,12 @@ on 127.0.0.1 only.
 - − Paul signs in again after every API restart and every 12 hours.
 - − A key is weaker than a passkey against phishing. Mitigated by loopback-only serving and the
   same-origin rule. The passkey follow-up closes it.
+- − The throttle is global, not per client. A local process sending 5 wrong keys a minute keeps
+  Paul locked out while it runs (browser pages can't: Origin and content type stop them).
+  Accepted: anything running as Paul on his machine can do worse.
+- − Paul must open the app at its own name. A browser that doesn't resolve `*.localhost` needs a
+  hosts-file entry, or `NORTHSTAR_WEB_ORIGIN` set to `http://127.0.0.1:3100`, which gives up
+  item 4's cookie isolation.
 - − Sessions don't survive more than one API process. Fine for one local user; a hosted
   deployment must revisit this (Q-02).
 - Every new endpoint that acts for Paul uses `auth: "session"`, and every new page that shows

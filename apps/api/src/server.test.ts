@@ -16,7 +16,7 @@ import { portOf, type Sent, send } from "./test/http.js";
 // The API on a real http server on a random loopback port. Synthetic key only.
 const KEY = "test-key";
 const HASH = "62af8704764faf8ea82fc61ce9c4c3908b6cb97d463a634e9e587d7c885db0ef"; // sha256(KEY)
-const WEB = "http://127.0.0.1:3100";
+const WEB = "http://northstar.localhost:3100";
 
 const exporter = new InMemorySpanExporter();
 beforeAll(() => {
@@ -127,6 +127,17 @@ describe("POST /auth/sign-in", () => {
     expect(res.headers["set-cookie"]).toBeUndefined();
   });
 
+  it("refuses a POST without an Origin with 403", async () => {
+    const res = await send(server, {
+      method: "POST",
+      path: "/auth/sign-in",
+      headers: json,
+      body: JSON.stringify({ key: KEY }),
+    });
+    expect(res.status).toBe(403);
+    expect(res.headers["set-cookie"]).toBeUndefined();
+  });
+
   it("refuses a cross-site Origin with 403", async () => {
     const res = await signIn(KEY, { origin: "https://evil.example.com" });
     expect(res.status).toBe(403);
@@ -166,13 +177,24 @@ describe("POST /auth/sign-in", () => {
     expect(JSON.parse(res.body)).toEqual({ error: "invalid_json" });
   });
 
-  it("a body over 16 KB is 413", async () => {
+  it("a body over 16 KB is 413, and the connection is closed instead of read to the end", async () => {
     const res = await signIn("x".repeat(17_000));
     expect(res.status).toBe(413);
+    expect(res.headers.connection).toBe("close");
   });
 });
 
 describe("POST /auth/sign-out", () => {
+  it("without a session answers 401 before reading the body, even one over 16 KB", async () => {
+    const res = await send(server, {
+      method: "POST",
+      path: "/auth/sign-out",
+      headers: { ...json, origin: WEB },
+      body: "x".repeat(17_000),
+    });
+    expect(res.status).toBe(401);
+  });
+
   it("ends the session and clears the cookie", async () => {
     const cookie = cookieOf(await signIn(KEY));
     const res = await send(server, {
@@ -188,6 +210,24 @@ describe("POST /auth/sign-out", () => {
 });
 
 describe("every request", () => {
+  it("a request the web app proxied for a foreign host is refused with 421 (DNS rebinding)", async () => {
+    const res = await send(server, {
+      method: "GET",
+      path: "/me",
+      headers: { "x-forwarded-host": "evil.example.com:3100" },
+    });
+    expect(res.status).toBe(421);
+  });
+
+  it("a request the web app proxied for its own host is accepted", async () => {
+    const res = await send(server, {
+      method: "GET",
+      path: "/me",
+      headers: { "x-forwarded-host": "northstar.localhost:3100" },
+    });
+    expect(res.status).toBe(401);
+  });
+
   it("a foreign Host is refused with 421 (DNS rebinding)", async () => {
     const res = await send(server, {
       method: "GET",

@@ -25,9 +25,12 @@ know a request comes from Paul.
    - Every request gets an `api.request` span with the method, the route pattern and the status.
      Never the body, the cookie or the query string.
    - Endpoints in this slice: `POST /auth/sign-in`, `POST /auth/sign-out`, `GET /me`.
-   - Requests whose `Host` isn't the API's own loopback host and port are refused (421), against
-     DNS rebinding. A `POST` must carry `Content-Type: application/json` and, when an `Origin`
-     header is present, the web app's origin (403 otherwise), against cross-site requests.
+   - Requests whose `Host` isn't the API's own loopback host and port are refused (421). Requests
+     the web app proxied (its proxy replaces `Host`) must carry the web origin's host in
+     `x-forwarded-host` (421 otherwise): that is the DNS-rebinding check. Every `POST` must carry
+     `Content-Type: application/json` (415) and `Origin` equal to the web app's origin (403,
+     a missing one included), against cross-site requests. Bodies stop at 16 KB (413, and the
+     connection closes).
 2. **Paul's sign-in (slice 1: a local sign-in key).** Paul generates a random key and stores only
    its SHA-256 in `.env` (`NORTHSTAR_SIGNIN_KEY_SHA256`). `POST /auth/sign-in { key }` compares the
    key's hash with it in constant time.
@@ -50,8 +53,9 @@ know a request comes from Paul.
      `prefers-color-scheme`. Fonts fall back to system fonts (no font download at build time).
    - A web app manifest (PWA install). No service worker yet.
 4. **Config** through one typed module per app: `NORTHSTAR_SIGNIN_KEY_SHA256` (64 hex),
-   `NORTHSTAR_API_PORT` (default 8787), `NORTHSTAR_WEB_ORIGIN` (default `http://127.0.0.1:3100`)
-   for the API, and `NORTHSTAR_API_ORIGIN` (default `http://127.0.0.1:8787`) for the web app. New
+   `NORTHSTAR_API_PORT` (default 8787), `NORTHSTAR_WEB_ORIGIN` (default
+   `http://northstar.localhost:3100`, its own name so the cookie isn't sent to other local
+   services) for the API, and `NORTHSTAR_API_ORIGIN` (default `http://127.0.0.1:8787`) for the web app. New
    settings go in `.env.example` with placeholders.
 5. **ADR-0018** records the sign-in method, the in-memory sessions and why passkeys come later.
 
@@ -61,8 +65,8 @@ know a request comes from Paul.
 - [ ] A wrong key gets 401 and no cookie. A sixth failure within a minute gets 429, even with the
       right key. The right key gets an HttpOnly, SameSite=Strict cookie.
 - [ ] A signed-out or expired session is refused.
-- [ ] A foreign `Host` is refused (421). A cross-site `Origin` and a non-JSON POST are refused
-      (403, 415).
+- [ ] A foreign `Host` or forwarded host is refused (421). A cross-site or missing `Origin` and a
+      non-JSON POST are refused (403, 415).
 - [ ] Bad input is 400 without echoing values, and output that fails its schema is 500.
 - [ ] The Today page's guard redirects to `/sign-in` on 401, renders for a signed-in session, and
       never renders when the API is down (web tests).

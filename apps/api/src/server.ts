@@ -12,6 +12,8 @@ import type { Sessions } from "./sessions.js";
 // The largest body read; anything bigger is refused before parsing.
 export const MAX_BODY_BYTES = 16 * 1024;
 
+// A session token as sessions.ts makes it (32 random bytes, base64url). Any other cookie value is
+// treated as no session without hashing or looking it up.
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 
 export function createApi(deps: { config: ApiConfig; sessions: Sessions; extra?: AnyEndpoint[] }) {
@@ -20,6 +22,10 @@ export function createApi(deps: { config: ApiConfig; sessions: Sessions; extra?:
   // Loopback names only, on the API's own port: a page that rebinds its own DNS name to
   // 127.0.0.1 still sends its own name as Host, and is refused.
   const ownHosts = new Set([`127.0.0.1:${deps.config.port}`, `localhost:${deps.config.port}`]);
+  // The web app proxies /api/* with its own Host replaced by ours (Next's changeOrigin), and the
+  // browser's Host moved to x-forwarded-host. That must be the web app's own host, or a page
+  // whose name was rebound to 127.0.0.1 could reach the API through the proxy.
+  const webHost = new URL(deps.config.webOrigin).host;
 
   return (req: IncomingMessage, res: ServerResponse): void => {
     void tracer.startActiveSpan("api.request", async (span) => {
@@ -44,6 +50,10 @@ export function createApi(deps: { config: ApiConfig; sessions: Sessions; extra?:
 
   async function handle(req: IncomingMessage, res: ServerResponse, span: Span): Promise<number> {
     if (!ownHosts.has(req.headers.host ?? "")) return reply(res, 421, { error: "misdirected" });
+    const forwarded = req.headers["x-forwarded-host"];
+    if (forwarded !== undefined && forwarded !== webHost) {
+      return reply(res, 421, { error: "misdirected" });
+    }
     // The query string never selects a route (no endpoint reads one yet).
     const path = (req.url ?? "/").split("?")[0] as string;
     const forPath = endpoints.filter((e) => e.path === path);
@@ -53,11 +63,11 @@ export function createApi(deps: { config: ApiConfig; sessions: Sessions; extra?:
     span.setAttribute("http.route", ep.path);
 
     if (ep.method === "POST") {
-      // Browsers send Origin on every cross-site POST; a request from the web app (through its
-      // /api proxy) carries the web origin. A JSON content type can't be sent cross-site without
+      // Browsers send Origin on every POST made with fetch or a form, and the web app's own
+      // (through its /api proxy) carry the web origin. A POST without one isn't from Paul's
+      // browser page, so it is refused too. A JSON content type can't be sent cross-site without
       // a preflight, which this API never answers.
-      const origin = req.headers.origin;
-      if (origin !== undefined && origin !== deps.config.webOrigin) {
+      if (req.headers.origin !== deps.config.webOrigin) {
         return reply(res, 403, { error: "forbidden_origin" });
       }
       const type = req.headers["content-type"] ?? "";
@@ -74,7 +84,11 @@ export function createApi(deps: { config: ApiConfig; sessions: Sessions; extra?:
     let raw: unknown = {};
     if (ep.method === "POST") {
       const body = await readBody(req);
-      if (body === null) return reply(res, 413, { error: "too_large" });
+      if (body === null) {
+        // Not read to the end: answer now and close the connection.
+        res.setHeader("connection", "close");
+        return reply(res, 413, { error: "too_large" });
+      }
       try {
         raw = body.length === 0 ? {} : JSON.parse(body);
       } catch {
@@ -116,13 +130,19 @@ function readBody(req: IncomingMessage): Promise<string | null> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
-    let tooBig = false;
-    req.on("data", (chunk: Buffer) => {
+    const onData = (chunk: Buffer) => {
       size += chunk.length;
-      if (size > MAX_BODY_BYTES) tooBig = true;
-      else chunks.push(chunk);
-    });
-    req.on("end", () => resolve(tooBig ? null : Buffer.concat(chunks).toString("utf8")));
+      if (size <= MAX_BODY_BYTES) {
+        chunks.push(chunk);
+        return;
+      }
+      // Stop reading at once: a client can't hold the connection by sending more.
+      req.off("data", onData);
+      req.pause();
+      resolve(null);
+    };
+    req.on("data", onData);
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
     req.on("error", reject);
   });
 }

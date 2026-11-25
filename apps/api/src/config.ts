@@ -16,13 +16,15 @@ const MESSAGES: Record<string, string> = {
     "NORTHSTAR_SIGNIN_KEY_SHA256 must be the SHA-256 of your sign-in key (64 lowercase hex)",
   NORTHSTAR_API_PORT: "NORTHSTAR_API_PORT must be a port from 1024 to 65535",
   NORTHSTAR_WEB_ORIGIN:
-    "NORTHSTAR_WEB_ORIGIN must be an http(s) origin such as http://127.0.0.1:3100",
+    "NORTHSTAR_WEB_ORIGIN must be an http(s) origin such as http://northstar.localhost:3100",
 };
 
 const Env = z.object({
   NORTHSTAR_SIGNIN_KEY_SHA256: z.string().regex(/^[0-9a-f]{64}$/),
   NORTHSTAR_API_PORT: z.coerce.number().int().min(1024).max(65535).default(8787),
-  NORTHSTAR_WEB_ORIGIN: z.string().regex(ORIGIN).default("http://127.0.0.1:3100"),
+  // Its own *.localhost name, not 127.0.0.1: cookies are scoped by host, not port, so on
+  // 127.0.0.1 the session cookie would reach every other local service (ADR-0018).
+  NORTHSTAR_WEB_ORIGIN: z.string().regex(ORIGIN).default("http://northstar.localhost:3100"),
 });
 
 // The one place the API reads settings. Callers pass the environment in, so only bin.ts touches

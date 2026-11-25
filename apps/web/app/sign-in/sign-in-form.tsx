@@ -6,6 +6,8 @@ import { type FormEvent, useState } from "react";
 // What each API answer means for Paul, in plain words.
 const MESSAGES: Record<number, string> = {
   401: "That key didn't match.",
+  // The API accepts sign-in only from the web app's own address (NORTHSTAR_WEB_ORIGIN).
+  403: "Open Northstar at http://northstar.localhost:3100 (or your NORTHSTAR_WEB_ORIGIN) and try again.",
   429: "Too many tries. Wait a minute, then try again.",
 };
 
