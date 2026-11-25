@@ -200,6 +200,21 @@ export {
   type TransitionResult,
   transitionApplication,
 } from "./transition-application.js";
+// Only the audit table is exported: sealed rows are read only through openSealedSecret, so code
+// outside this package can't fetch them without an audit row and the kill-switch check.
+export { vaultAccess } from "./vault-schema.js";
+export {
+  type InvalidVaultInput,
+  type NotApproved,
+  type OpenInput,
+  openSealedSecret,
+  type SealedSecret,
+  type SealedVersion,
+  type SecretNotFound,
+  storeSealedSecret,
+  VAULT_SUBSYSTEM,
+  type VaultLocked,
+} from "./vault-write.js";
 export {
   addWatch,
   dueWatches,

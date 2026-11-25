@@ -169,6 +169,20 @@
       "when": 1795623985511,
       "tag": "0023_apply_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795629785429,
+      "tag": "0024_vault",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795629786230,
+      "tag": "0025_vault_append_only",
+      "breakpoints": true
     }
   ]
 }
