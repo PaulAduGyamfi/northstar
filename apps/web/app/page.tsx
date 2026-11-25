@@ -44,11 +44,13 @@ export default async function TodayPage() {
         </div>
         <div className="card">
           <h2>Activity</h2>
-          {feed.kind === "ok" ? (
-            <LiveFeed initial={feed.body.items} />
-          ) : (
-            <p className="muted">The activity feed can't be read right now.</p>
+          {feed.kind === "ok" ? null : (
+            <p className="muted">
+              The activity feed can't be read right now. It fills in once it can.
+            </p>
           )}
+          {/* Always mounted, so polling picks the feed up once the API can read it again. */}
+          <LiveFeed initial={feed.kind === "ok" ? feed.body.items : []} />
         </div>
       </main>
     </>

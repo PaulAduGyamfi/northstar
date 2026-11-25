@@ -18,6 +18,7 @@ export type SystemPorts = {
     subsystem: string;
     enabled: boolean;
     reason: string;
+    actor: "user";
   }) => Promise<SetKillSwitchResult>;
 };
 
@@ -134,8 +135,10 @@ export function systemEndpoints(ports: SystemPorts): AnyEndpoint[] {
     auth: "session",
     input: Flip,
     output: z.object({ changed: z.boolean() }),
-    handler: async (input) => {
-      const r = await ports.setSwitch(input);
+    handler: async ({ subsystem, enabled, reason }) => {
+      // Only Paul's signed-in path reaches this, so the flip is his (ADR-0002), whatever the
+      // request body says: the fields are picked by name, never spread.
+      const r = await ports.setSwitch({ subsystem, enabled, reason, actor: "user" });
       if (!r.ok) return { ok: false, status: 400, error: ERRORS[r.error.kind] };
       return { ok: true, body: { changed: r.changed } };
     },

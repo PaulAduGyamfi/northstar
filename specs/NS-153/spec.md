@@ -62,7 +62,8 @@ Paul can only see or flip them from code. The app now has a signed-in shell (NS-
 
 ## Observability
 `api.request` spans as today. `kill_switch.set` events and the `kill_switch.set` span come from
-`setKillSwitch` (NS-126). `feed.read` and `health.read` spans come from `packages/db`.
+`setKillSwitch` (NS-126). `feed.read`, `feed.read_after` and `health.read` spans come from
+`packages/db`.
 
 ## Out of scope (follow-up issues, `agent-filed`, `Parent: #99`)
 - Names in feed lines (join aggregate ids to jobs and applications in the API).

@@ -76,9 +76,8 @@ try {
     health: async () => readSystemHealth(db, await candidateId()),
     feedBefore: async (before, limit) => readFeed(db, await candidateId(), { before, limit }),
     feedAfter: async (after, limit) => readFeedAfter(db, await candidateId(), { after, limit }),
-    setSwitch: async (input) =>
-      // The input first: the actor and candidate are always the server's, whatever is sent.
-      setKillSwitch(db, { ...input, candidateId: await candidateId(), actor: "user" }),
+    // system.ts sets the actor to Paul; the candidate is always the server's own.
+    setSwitch: async (input) => setKillSwitch(db, { ...input, candidateId: await candidateId() }),
   });
   const handler = createApi({
     config,

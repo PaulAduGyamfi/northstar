@@ -32,7 +32,7 @@ export default async function HealthPage() {
             <p className="muted">
               {result.kind === "unreachable"
                 ? "The Northstar API isn't answering. Start it with pnpm --filter @northstar/api start."
-                : "The API can't read Northstar's state. Is Postgres running?"}
+                : "The API can't read Northstar's state. Check that Postgres is running and the database is migrated."}
             </p>
           </div>
         </main>

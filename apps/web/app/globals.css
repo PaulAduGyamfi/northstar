@@ -177,8 +177,10 @@ input {
 .pill-nav .health-dot[data-status="degraded"] {
   color: var(--iris);
 }
+/* The dot is a glyph drawn as text, so it takes the text-safe coral (tokens.md: --coral is for
+   fills only). */
 .pill-nav .health-dot[data-status="down"] {
-  color: var(--coral);
+  color: var(--coral-text);
 }
 
 .status-list,

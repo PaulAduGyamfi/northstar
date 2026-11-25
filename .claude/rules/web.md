@@ -6,7 +6,7 @@ paths:
 
 # Web app and UI kit (ADR-0009: B · Momentum)
 
-`apps/web` exists since NS-156 (a Next.js shell with one page). `packages/ui` doesn't exist yet: if
+`apps/web` exists since NS-156 (a Next.js shell; Today, and `/health` since NS-153). `packages/ui` doesn't exist yet: if
 you are about to create it outside its ticket, stop and ask Paul. Until it lands, the color tokens
 are CSS variables in `apps/web/app/globals.css`.
 

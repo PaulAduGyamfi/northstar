@@ -198,7 +198,14 @@ describe("POST /system/kill-switches", () => {
     expect(res.status).toBe(200);
     expect(JSON.parse(res.body)).toEqual({ changed: true });
     expect(calls).toEqual([
-      ["switch", { subsystem: "auto_apply", enabled: false, reason: "On holiday" }],
+      ["switch", { subsystem: "auto_apply", enabled: false, reason: "On holiday", actor: "user" }],
+    ]);
+  });
+
+  it("records the flip as Paul's even when the request names another actor", async () => {
+    await flip({ subsystem: "auto_apply", enabled: false, reason: "x", actor: "system" });
+    expect(calls).toEqual([
+      ["switch", { subsystem: "auto_apply", enabled: false, reason: "x", actor: "user" }],
     ]);
   });
 

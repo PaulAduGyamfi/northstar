@@ -4,6 +4,14 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import type { SwitchItem } from "../../src/system";
 
+// What each refusal from POST /system/kill-switches means, in plain words.
+const MESSAGES: Record<string, string> = {
+  reason_required: "Add a reason, then try again.",
+  invalid_subsystem: "Northstar doesn't know that switch.",
+  invalid_input: "Add a reason (up to 200 characters), then try again.",
+  unauthenticated: "You've been signed out. Sign in again.",
+};
+
 // Kill-switch toggles (RES-008). Each flip asks for Paul's reason first; the API stores it with
 // the switch, as Paul (ADR-0002), and the page then reloads its state from the API.
 export function KillSwitches({ items }: { items: SwitchItem[] }) {
@@ -25,8 +33,13 @@ export function KillSwitches({ items }: { items: SwitchItem[] }) {
         body: JSON.stringify({ subsystem: item.subsystem, enabled: !item.on, reason }),
       });
       if (!res.ok) {
+        // The API's refusal code picks the message; anything unknown gets a plain retry.
+        const body: unknown = await res.json().catch(() => null);
+        const code = (body as { error?: unknown } | null)?.error;
         setError(
-          res.status === 400 ? "Add a reason, then try again." : "That didn't work. Try again.",
+          typeof code === "string" && code in MESSAGES
+            ? (MESSAGES[code] as string)
+            : "That didn't work. Try again.",
         );
         return;
       }
