@@ -54,6 +54,17 @@ const TEMPLATES: Record<string, Template> = {
     const error = typeof e === "string" && ERROR_NAME.test(e) ? ` (${e})` : "";
     return `Paused ${dep} after ${after}${error}`;
   },
+  // The vault (NS-122): the tenant key and purpose code only, never anything secret.
+  "vault_secret.stored": (p) => {
+    const tenant = name(p, "tenant") ?? "an employer account";
+    const v = count(p, "version");
+    return `${v !== undefined && v > 1 ? "Changed" : "Saved"} the password for ${tenant}`;
+  },
+  "vault.opened": (p) => {
+    const tenant = name(p, "tenant") ?? "an employer account";
+    const purpose = name(p, "purpose");
+    return `Used the saved password for ${tenant}${purpose ? ` to ${words(purpose)}` : ""}`;
+  },
   "breaker.probing": (p) =>
     `Trying ${name(p, "dependency") ?? "a dependency"} again with one test call`,
   "breaker.closed": (p) => `${name(p, "dependency") ?? "A dependency"} is working again`,

@@ -206,6 +206,25 @@ describe("feedLine: fallbacks and bad payloads", () => {
       "source.retried",
       "source.unwatched",
       "source.watched",
+      "vault.opened",
+      "vault_secret.stored",
     ]);
+  });
+});
+
+describe("feedLine: credential vault", () => {
+  it("says a password was saved, and changed on a later version", () => {
+    expect(feedLine(ev("vault_secret.stored", { tenant: "workday:acme", version: 1 }))).toBe(
+      "Saved the password for workday:acme",
+    );
+    expect(feedLine(ev("vault_secret.stored", { tenant: "workday:acme", version: 2 }))).toBe(
+      "Changed the password for workday:acme",
+    );
+  });
+
+  it("says a saved password was used and what for", () => {
+    expect(
+      feedLine(ev("vault.opened", { tenant: "workday:acme", version: 1, purpose: "sign_in" })),
+    ).toBe("Used the saved password for workday:acme to sign in");
   });
 });
