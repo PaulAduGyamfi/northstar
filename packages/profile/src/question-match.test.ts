@@ -69,6 +69,7 @@ describe("questionConcepts", () => {
     expect([...questionConcepts("WHY ARE YOU INTERESTED IN THIS POSITION?")].sort()).toEqual([
       "interest",
       "role",
+      "why",
     ]);
   });
 
@@ -106,7 +107,7 @@ describe("matchQuestion", () => {
     expect(matchQuestion("Why are you interested in working here at Example?")).toEqual({
       status: "matched",
       canonical: CANONICAL_QUESTIONS.find((q) => q.id === "why-this-company"),
-      confidence: 0.86,
+      confidence: 0.89,
     });
   });
 
@@ -127,6 +128,26 @@ describe("matchQuestion", () => {
       confidence: 0.75,
       nearest: "sponsorship",
     });
+  });
+
+  it("treats 'with no sponsorship' as negated too", () => {
+    const match = matchQuestion("Are you able to work in the US with no sponsorship?");
+    expect(match.status === "new" ? match.reason : match.status).toBe("negated");
+  });
+
+  it("does not read 'worked with a skill before' as previous employment", () => {
+    expect(idOf("Have you worked with React before?")).not.toBe("previously-employed");
+  });
+
+  it("treats a question that asks two factual things as ambiguous", () => {
+    const match = matchQuestion(
+      "Are you legally authorized to work in the US and will you require sponsorship?",
+    );
+    expect(match.status === "new" ? match.reason : match.status).toBe("ambiguous");
+  });
+
+  it("does not read a filler word written in capitals as a name", () => {
+    expect(questionConcepts("Are you NOT willing to relocate?").has("{name}")).toBe(false);
   });
 
   it("does not read 'tell us' as naming the company", () => {
@@ -179,10 +200,11 @@ describe("classifyQuestion", () => {
     });
   });
 
-  it("classifies 'why us' as company-specific", () => {
+  it("maps 'why us' to 'why this company', a company-specific question", () => {
     expect(classifyQuestion("Why us?")).toMatchObject({
       kind: "company_specific",
       factualField: null,
+      match: { status: "matched", canonical: { id: "why-this-company" } },
     });
   });
 

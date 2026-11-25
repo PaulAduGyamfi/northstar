@@ -8,7 +8,9 @@ export const QUESTION_KINDS = ["factual", "reusable_narrative", "company_specifi
 export type QuestionKind = (typeof QUESTION_KINDS)[number];
 
 // The profile setting that answers each factual question. The settings themselves arrive with the
-// answer bank; these names are the contract between the two.
+// answer bank; these names are the contract between the two. years_of_experience is keyed by the
+// question's {skill}: one number for every skill would be invented for most of them, so a skill
+// with no stored value goes to Paul, never to a default.
 export const FACTUAL_FIELDS = [
   "work_authorization",
   "needs_sponsorship",
@@ -117,8 +119,9 @@ export const CANONICAL_QUESTIONS = [
     id: "previously-employed",
     kind: "factual",
     factualField: "previously_employed",
-    text: "Have you previously worked for {company}?",
-    examples: ["Have you ever been employed by {company}?", "Have you worked here before?"],
+    // Every wording names employment: "Have you worked with {skill} before?" is another question.
+    text: "Have you previously been employed by {company}?",
+    examples: ["Are you a former employee of {company}?", "Have you ever been employed here?"],
   },
   {
     id: "linkedin-url",
@@ -243,6 +246,8 @@ export const CANONICAL_QUESTIONS = [
     factualField: null,
     text: "Why do you want to work at {company}?",
     examples: [
+      "Why us?",
+      "Why {company}?",
       "Why do you want to work here?",
       "Why do you want to join {company}?",
       "What interests you about {company}?",

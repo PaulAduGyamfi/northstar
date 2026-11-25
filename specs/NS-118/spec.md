@@ -29,7 +29,9 @@ company ("Why us?"). This slice is that first step, as plain code with no model 
    - filler words dropped ("tell me about a time", "describe", "you", "the");
    - words with the same intent mapped to one concept by prefix ("excites", "interested",
      "motivates", "want" → `interest`; "role", "position", "job", "opportunity" → `role`;
-     "us", "our", "here", "company" → `company`);
+     "us", "our", "here", "company" → `company`). "why" is its own concept (it carries "Why us?"
+     and "Why this role?"), and so is employment ("employed", "employee"), kept apart from "work"
+     so "Have you worked with React before?" isn't read as "Have you been employed by X?";
    - a capitalised word that isn't the first of a sentence (a company, a country, a skill such as
      "PostgreSQL") becomes the single concept `{name}`, as do the catalog's `{slot}` markers and
      "US". This is checked before the filler words, so a company called "Example" stays a name. A
@@ -49,9 +51,12 @@ company ("Why us?"). This slice is that first step, as plain code with no model 
    Factual questions are held to more because their answer is filled in from a setting with no
    draft for Paul to read: "Have you applied to Northwind before?" (0.67 against "Have you
    previously worked for {company}?") must not be answered from `previously_employed`. For the
-   same reason a factual match whose wording is negated ("without", "not", "never", "n't") is
+   same reason a factual match whose wording is negated ("without", "not", "no", "never", "n't") is
    `new` / `negated`: "Can you work in the US without sponsorship?" shares the
-   `needs_sponsorship` field with "Do you need sponsorship?" but has the opposite answer.
+   `needs_sponsorship` field with "Do you need sponsorship?" but has the opposite answer. And a
+   factual question that passes the factual threshold for two canonical questions ("Are you
+   authorized to work in the US and will you require sponsorship?") is `ambiguous`: one setting
+   can't answer both.
 4. **`classifyQuestion(text)`** returns the match plus the question's kind and factual field:
    - matched: the canonical question's kind and field;
    - new: `company_specific` when the question names the company (`company` or `{name}` concept),
@@ -90,6 +95,10 @@ executed, stored or sent anywhere by this code.
 - **A new question that names a country** ("…in the US…") is classified company-specific,
   because any name counts as naming the company. Both narrative paths need approval, so this costs
   a fresh draft at worst.
+- **`years_of_experience` is per skill.** The question's `{skill}` keys the setting; a skill with
+  no stored value goes to Paul, never to a default number. A yes/no wording ("Do you have
+  experience with Kubernetes?") also maps here (0.8), so the answer bank must answer it in the
+  question's own form.
 - No I/O, so no dependency can be down.
 
 ## Observability
