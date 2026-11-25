@@ -155,6 +155,20 @@
       "when": 1795622971314,
       "tag": "0021_kill_switch_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1795623984116,
+      "tag": "0022_apply_gateway",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1795623985511,
+      "tag": "0023_apply_guards",
+      "breakpoints": true
     }
   ]
 }
