@@ -53,6 +53,9 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
 - Call the model only through `createLlmGateway(...).call(route, input)`. Handle every
   `LlmOutcome` kind (`Ok`, `Refused`, `Truncated`, `InvalidOutput`). Let `LlmTransportError`
   throw so Temporal retries it. Put the `CallRecord` in the domain event.
+- In a CLI or service, pass the gateway a `guard` wired to the stored kill switches and breakers
+  (NS-174), as the funnel and sources CLIs do. Let its `HeldBack` throw, like a transport error:
+  the call never went out, and it is retryable.
 - Wrap untrusted text with `untrustedBlock(kind, text)` in the route's volatile part.
 - Only `packages/llm` imports `@anthropic-ai/sdk`. Agents call the gateway, never the SDK.
 - Default model `claude-opus-5-5` with adaptive thinking and an explicit `effort` per route.

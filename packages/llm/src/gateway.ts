@@ -1,6 +1,7 @@
 import { type Attributes, SpanStatusCode, trace } from "@opentelemetry/api";
 import type { MessagesClient } from "./client.js";
 import { LlmTransportError, toTransportError } from "./errors.js";
+import { admit, type CallGuard, type GuardOutcome, HeldBack } from "./guard.js";
 import { type CallRecord, callRecord, interpretMessage, type LlmOutcome } from "./outcome.js";
 import { buildRequest } from "./request.js";
 import type { Route } from "./route.js";
@@ -9,19 +10,69 @@ export type LlmGateway = {
   call<I, O>(route: Route<I, O>, input: I): Promise<LlmOutcome<O>>;
 };
 
-// The one door to the model (ADR-0006). `now` is injected so latency is testable.
-export function createLlmGateway(deps: { client: MessagesClient; now: () => number }): LlmGateway {
+// The breaker every model call goes through (RES-002).
+export const ANTHROPIC_DEPENDENCY = "anthropic";
+
+// The kill switch for one route (RES-008).
+export const agentSwitch = (route: string) => `agent:${route}`;
+
+// The one door to the model (ADR-0006). `now` is injected so latency is testable. With a `guard`
+// (NS-174), each call first needs its route's `agent:<route>` switch on and the `anthropic`
+// breaker's leave, and reports how the API answered. Without one, calls go out unguarded (evals,
+// tests).
+export function createLlmGateway(deps: {
+  client: MessagesClient;
+  now: () => number;
+  guard?: CallGuard;
+}): LlmGateway {
   const tracer = trace.getTracer("@northstar/llm");
+  const guard = deps.guard;
 
   return {
     call(route, input) {
       return tracer.startActiveSpan("llm.call", async (span) => {
+        // Tells the breaker how the API answered. A report that fails is noted, never thrown:
+        // the reply is already here.
+        let probeToken: string | null = null;
+        const report = async (outcome: GuardOutcome) => {
+          if (!guard) return;
+          try {
+            await guard.report(ANTHROPIC_DEPENDENCY, outcome, probeToken);
+          } catch {
+            span.setAttribute("northstar.llm.breaker_report_failed", true);
+          }
+        };
         try {
+          if (guard) {
+            const admission = await admit(guard, {
+              subsystem: agentSwitch(route.name),
+              dependency: ANTHROPIC_DEPENDENCY,
+            });
+            if (!admission.ok) {
+              span.setAttribute("northstar.llm.held_by", admission.held.by);
+              // The error's name only: its message could name a host or a credential.
+              if (admission.errorName !== null) {
+                span.setAttribute("northstar.llm.guard_error", admission.errorName);
+              }
+              throw admission.held;
+            }
+            probeToken = admission.probeToken;
+          }
           const { params, options } = buildRequest(route, input);
           const started = deps.now();
-          const message = await deps.client.create(params, options).catch((error: unknown) => {
-            throw toTransportError(error);
-          });
+          const message = await deps.client
+            .create(params, options)
+            .catch(async (error: unknown) => {
+              const transport = toTransportError(error);
+              // Only the API's own trouble counts against it. A non-retryable status (400, 401)
+              // means it answered and our request or key is wrong.
+              await report(
+                transport.retryable ? { ok: false, error: transport.name } : { ok: true },
+              );
+              throw transport;
+            });
+          // Any reply, a refusal or a cut-off one included, is the API working.
+          await report({ ok: true });
           const record = callRecord(route, message, deps.now() - started);
           const outcome = interpretMessage(route, message, record);
           span.setAttributes({
@@ -37,7 +88,11 @@ export function createLlmGateway(deps: { client: MessagesClient; now: () => numb
             // TransportError only for API failures; anything else (a bug, a missing fixture)
             // is a plain Error so dashboards don't blame the API for it.
             "northstar.llm.outcome":
-              error instanceof LlmTransportError ? "TransportError" : "Error",
+              error instanceof LlmTransportError
+                ? "TransportError"
+                : error instanceof HeldBack
+                  ? "HeldBack"
+                  : "Error",
           });
           span.setStatus({ code: SpanStatusCode.ERROR, message: kind });
           throw error;
