@@ -1,0 +1,27 @@
+{
+  "requestSha256": "1db668bee1057176f7f27ad5c3f590846bf57a0cf9e35ae3acc5a5dbd77054ac",
+  "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval positioning-thesis --record.",
+  "response": {
+    "id": "msg_handwritten_0",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-5-5",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"candidates\":[{\"text\":\"Software engineer who built card-authorization services handling 3,000 requests per second and now ships production AI agents in Python.\",\"atomIds\":[\"atom-1\",\"atom-2\"]},{\"text\":\"Founding engineer at Sample Labs who ships production AI agents for claims triage, after 4 years of payments work at Example Payments.\",\"atomIds\":[\"atom-2\",\"atom-1\"]},{\"text\":\"Engineer who cut checkout latency by 38% and now brings that care to production AI agents.\",\"atomIds\":[\"atom-3\",\"atom-2\"]}]}",
+        "citations": null
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  }
+}
