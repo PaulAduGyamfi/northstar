@@ -59,6 +59,12 @@ Exists now:
   tables; roles' and education's facts are locked by a trigger (CPG-004).
   Since NS-134 a two-column PDF page reads one column at a time (`pdf-layout.ts`, plain code
   over pdf.js positions); any other page reads exactly as before.
+  Since NS-133 also Paul's LinkedIn data export (`linkedin.ts`, plain code, no model): his
+  unzipped `Positions.csv` (with `Education.csv`, `Skills.csv`) is read by column name into roles,
+  one atom per Description line verbatim, education and skills, and stored as its own
+  `profile_source` of kind `linkedin` beside the resume (it supersedes only an earlier export).
+  Resume readers ignore it; `profile facts check` compares its positions with the official
+  record too.
   Since NS-111 also the guided story interview: a fixed STAR script per atom, the `story-draft`
   route, and a provenance check that every story part quotes Paul's answers verbatim (whole words
   and whole numbers, `quotedIn`, NS-184/NS-200), with its numbers, number words and capitalised
@@ -336,6 +342,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm turbo run build --filter=evals... && node evals/dist/handwrite-bin.js <route>` | write a new route's hand-written fixtures from `evals/<route>/handwritten.jsonl` (offline and free; refuses where recorded fixtures exist; ADR-0016 item 8) |
 | repo root | `pnpm --filter @northstar/prompts lock` | add new prompt versions to `prompts.lock.json` (never rewrites an existing hash) |
 | repo root | `pnpm --filter @northstar/profile profile import-resume data/<file> [--reimport]` | import Paul's resume into the profile graph (`--reimport` redoes it even when the file is unchanged) (Paul only: real data, needs `DATABASE_URL` and `ANTHROPIC_API_KEY`; prints counts only) |
+| repo root | `pnpm --filter @northstar/profile profile import-linkedin data/<folder>` | import Paul's unzipped LinkedIn data export (`Positions.csv` required; `Education.csv`, `Skills.csv` optional) as its own source; an unchanged export is a no-op. Paul only: real data, needs `DATABASE_URL`; prints counts only; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile show` | read the imported profile back (roles, atoms, skills). Paul only: it prints his real profile; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile interview [--atom <id>]` | guided story interview about the next atom with no story; answers are saved as you go, rerun to resume (Paul only: his real answers, needs `DATABASE_URL` and `ANTHROPIC_API_KEY`; agents never run it) |
 | repo root | `pnpm --filter @northstar/profile profile stories` | list approved stories and the competencies with none yet. Paul only: it prints his real stories; agents never run it |

@@ -4,8 +4,9 @@ import { err, ok, type Result } from "@northstar/domain";
 // Employment-facts consistency (DX-011): every place that states Paul's employers, titles and
 // dates is checked against his official HR record. Plain code decides; no model is involved.
 
-// Where a claim comes from. Only the resume is wired up today (NS-112); LinkedIn, the site and
-// application forms (NS-120's Apply Gateway) pass their claims through the same check.
+// Where a claim comes from. The resume (NS-112) and the LinkedIn export (NS-133) are wired up;
+// the site and application forms (NS-120's Apply Gateway) pass their claims through the same
+// check when they arrive.
 export type ClaimSource = "resume" | "linkedin" | "site" | "application_form";
 
 // One stated position. Dates keep the precision the place gives ("YYYY", "YYYY-MM" or

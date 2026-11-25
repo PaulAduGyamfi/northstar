@@ -232,7 +232,11 @@ const TEMPLATES: Record<string, Template> = {
     return `${who(e.actor)} set ${what}${v ? ` (version ${v})` : ""}`;
   },
 
-  "profile.imported": () => "Imported your resume into the profile graph",
+  // A LinkedIn export (NS-133) says so; a resume event carries no kind.
+  "profile.imported": (p) =>
+    name(p, "kind") === "linkedin"
+      ? "Imported your LinkedIn export into the profile graph"
+      : "Imported your resume into the profile graph",
   "profile.locked_fact_edited": (p, e) => {
     const table = name(p, "table");
     return `${who(e.actor)} edited a locked fact${table ? ` (${words(table)})` : ""}`;
