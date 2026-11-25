@@ -24,6 +24,8 @@ import {
 } from "@northstar/llm";
 import { type IngestDeps, ingestText, ingestUrl, jobExtractRoute } from "@northstar/sources";
 import { accountsEndpoints } from "./accounts.js";
+import { dbApprovalPorts } from "./approval-ports.js";
+import { approvalEndpoints } from "./approvals.js";
 import { captureEndpoint } from "./capture.js";
 import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
 import { handoffEndpoints } from "./handoffs.js";
@@ -111,11 +113,14 @@ try {
   const accounts = accountsEndpoints({
     listTenants: async () => listTenants(db, await candidateId()),
   });
+  // The approval queue (NS-139): the only path to decideApprovals and undoDecision, behind
+  // Paul's session, so every decision is his (ADR-0002).
+  const approvals = approvalEndpoints(dbApprovalPorts(db, candidateId));
   const handler = createApi({
     config,
     sessions: createSessions(Date.now),
     extensionTokenSha256,
-    extra: [capture, ...system, ...handoffs, ...accounts],
+    extra: [capture, ...system, ...handoffs, ...accounts, ...approvals],
   });
   const server = createServer(handler);
   server.listen(config.port, "127.0.0.1", () => {
