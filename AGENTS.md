@@ -145,7 +145,12 @@ Exists now:
   stores proof (`submission_proof`, append-only). Anything it can't finish is `needs_human`
   with a reason code, never retried blindly: a repeated call finds a live claim `InProgress`,
   and only a claim older than 15 minutes becomes `needs_human` (`outcome_unknown`). The
-  requisition is the posting id read from the apply URL. Greenhouse, Lever and Ashby adapters map the
+  requisition is the posting id read from the apply URL. Since NS-143, `sweepStaleClaims`
+  (`stale.ts`) closes such dead claims without waiting for a repeat call, through the same helper,
+  so the ATS lane frees up; nothing schedules it until the worker exists. The pacing limits come
+  only from `loadApplyLimits` (`packages/db`, `apply-config.ts`: `APPLY_DAILY_CAP`,
+  `APPLY_MIN_GAP_SECONDS`, which may lower APPLY-007's 25 a day and 90 s but never raise them),
+  passed to `dbPorts`. Greenhouse, Lever and Ashby adapters map the
   package onto the form and recognize the confirmation page. The package schema and its hash
   are in `packages/domain` (`apply-package.ts`). Its tests run on fakes and, through `dbPorts`,
   on the real write paths: `@northstar/db/testing` exports `createTestDb` and friends for that. There is no real browser driver yet, so
