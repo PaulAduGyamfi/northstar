@@ -17,8 +17,10 @@ HttpOnly cookie on the web app's `northstar.localhost` name. The extension runs 
 2. **`auth: "extension"`** in `apps/api` (`server.ts`): `Authorization: Bearer <token>` is hashed
    and compared in constant time (`keyMatches`). It opens only extension endpoints. The session
    cookie isn't read for them, and the token is never checked for a session endpoint.
-3. **Origin:** an extension POST must come from `chrome-extension://<32 letters a-p>`. This only
-   filters: any installed extension can send such an Origin, so the token is the check.
+3. **Origin:** an extension request, of any method, must come from
+   `chrome-extension://<32 letters a-p>`. This only filters: any installed extension can send such
+   an Origin, so the token is the check. Wrong tokens count toward sign-in's limit (5 a minute
+   across both, ADR-0018 item 2).
 4. **Endpoints:** only `POST /jobs/capture` today, with a 96 KB body limit (`maxBodyBytes`).
    Everything else keeps 16 KB.
 5. **The extension reaches only `http://127.0.0.1/*`.** Its options refuse any other API address,
@@ -38,3 +40,7 @@ HttpOnly cookie on the web app's `northstar.localhost` name. The extension runs 
 - − Two secrets to manage instead of one. Rotating the token means a new hash in `.env` and a new
   paste in the options.
 - Every new extension endpoint uses `auth: "extension"` and states its body limit.
+- A page Paul captures is chosen by whoever runs that site, so the server fetches a captured link
+  only when it is on a known ATS, whose hosts its owner doesn't control. `safeFetch` checks an
+  address and then resolves the name again (a DNS-rebinding gap it accepts for links Paul types).
+  Fetching other captured links would need the checked address pinned for the connection first.

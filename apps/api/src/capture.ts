@@ -1,11 +1,14 @@
-import type { IngestResult } from "@northstar/sources";
+import { detectAts, type IngestResult } from "@northstar/sources";
 import { z } from "zod";
 import { type AnyEndpoint, endpoint } from "./endpoint.js";
 
-// POST /jobs/capture (NS-128, SRC-002): the browser extension's "Save to Northstar". The page is
-// read by the same paths as `jobs add`: the link first (ATS API, then JSON-LD, with LinkedIn,
-// Indeed and Glassdoor refused by their terms), then the page text Paul is looking at. The text
-// is untrusted data: it only ever reaches the job-extract route, whose provenance check applies.
+// POST /jobs/capture (NS-128, SRC-002): the browser extension's "Save to Northstar". A posting on
+// a known ATS (Greenhouse, Lever, Ashby, Workday, …) is read through the ATS's own API, the same
+// path as `jobs add <url>`. Any other page is saved from the text Paul is looking at, the same
+// path as `jobs add --text`: the server never fetches a host the page's owner controls, because
+// safeFetch checks an address and then resolves the name again, and a page owner controls their
+// DNS (rebinding to a local address). The text is untrusted data: it only ever reaches the
+// job-extract route, whose provenance check applies.
 
 // The longest page text taken. The model reads the first 12,000 characters (PAGE_LIMIT in
 // packages/sources); a little more leaves room for the page's header before the posting.
@@ -37,9 +40,8 @@ const Captured = z.object({
 });
 type Captured = z.infer<typeof Captured>;
 
-// What reading the link can end in that the page text may still save: refused (a site whose
-// terms forbid fetching, such as LinkedIn), failed (the site didn't answer), or not a job (a
-// sign-in wall in front of the posting).
+// What reading an ATS link can end in that the page text may still save: refused (a link the
+// ATS client won't read), failed (the ATS didn't answer), or not a job.
 const TRY_TEXT = new Set<IngestResult["status"]>(["refused", "failed", "not_a_job"]);
 
 export function captureEndpoint(ports: CapturePorts): AnyEndpoint {
@@ -51,8 +53,10 @@ export function captureEndpoint(ports: CapturePorts): AnyEndpoint {
     input: Capture,
     output: Captured,
     handler: async ({ url, title, text }) => {
-      const byLink = await ports.byUrl(url);
-      if (!TRY_TEXT.has(byLink.status)) return { ok: true, body: answer(byLink, "link") };
+      if (detectAts(url) !== null) {
+        const byLink = await ports.byUrl(url);
+        if (!TRY_TEXT.has(byLink.status)) return { ok: true, body: answer(byLink, "link") };
+      }
       // The title leads, so the model sees it with the description.
       const page = title ? `${title}\n\n${text}` : text;
       return { ok: true, body: answer(await ports.byText(url, page), "text") };

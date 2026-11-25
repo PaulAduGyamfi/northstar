@@ -74,17 +74,19 @@ export function createApi(deps: {
     if (!ep) return reply(res, 405, { error: "method_not_allowed" });
     span.setAttribute("http.route", ep.path);
 
+    // The extension calls the API directly, from its own chrome-extension:// origin, whatever the
+    // method.
+    if (ep.auth === "extension" && !EXTENSION_ORIGIN.test(req.headers.origin ?? "")) {
+      return reply(res, 403, { error: "forbidden_origin" });
+    }
     if (ep.method === "POST") {
       // Browsers send Origin on every POST made with fetch or a form, and the web app's own
       // (through its /api proxy) carry the web origin. A POST without one isn't from Paul's
       // browser page, so it is refused too. A JSON content type can't be sent cross-site without
       // a preflight, which this API never answers.
-      // The extension calls the API directly, from its own chrome-extension:// origin.
-      const originOk =
-        ep.auth === "extension"
-          ? EXTENSION_ORIGIN.test(req.headers.origin ?? "")
-          : req.headers.origin === deps.config.webOrigin;
-      if (!originOk) return reply(res, 403, { error: "forbidden_origin" });
+      if (ep.auth !== "extension" && req.headers.origin !== deps.config.webOrigin) {
+        return reply(res, 403, { error: "forbidden_origin" });
+      }
       const type = req.headers["content-type"] ?? "";
       if (!/^application\/json(;|$)/.test(type)) {
         return reply(res, 415, { error: "unsupported_media_type" });
@@ -98,9 +100,17 @@ export function createApi(deps: {
       return reply(res, 401, { error: "unauthenticated" });
     }
     if (ep.auth === "extension") {
+      // Wrong tokens share sign-in's limit: 5 a minute across both, then every try waits.
+      if (deps.sessions.throttled()) {
+        span.setAttribute("northstar.auth.outcome", "throttled");
+        return reply(res, 429, { error: "throttled" });
+      }
       const ok = extensionTokenOk(req.headers.authorization);
       span.setAttribute("northstar.auth.outcome", ok ? "extension_ok" : "extension_refused");
-      if (!ok) return reply(res, 401, { error: "unauthenticated" });
+      if (!ok) {
+        deps.sessions.recordFailure();
+        return reply(res, 401, { error: "unauthenticated" });
+      }
     }
 
     let raw: unknown = {};

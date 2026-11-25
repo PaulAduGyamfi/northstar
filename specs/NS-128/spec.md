@@ -28,17 +28,22 @@ browser does the same in one click, from the page he is already reading.
 2. **`POST /jobs/capture`** in `apps/api` with a new `auth: "extension"`:
    - The extension token's SHA-256 is `NORTHSTAR_EXTENSION_TOKEN_SHA256`, compared in constant
      time to the `Authorization: Bearer` token. When it isn't set, every extension request gets
-     401.
+     401. Wrong tokens count toward sign-in's limit (5 a minute across both, then 429).
    - Scoped: an extension token never opens a session endpoint, and a session cookie never opens
      an extension endpoint.
-   - Extension POSTs must carry a `chrome-extension://<id>` Origin (403 otherwise). The token is
-     the real check, because an id can't be known before Paul loads the extension.
+   - Extension requests, of any method, must carry a `chrome-extension://<id>` Origin (403
+     otherwise). The token is the real check, because an id can't be known before Paul loads the
+     extension.
    - The body limit is per endpoint: capture allows 96 KB, everything else keeps 16 KB.
-   - The handler first tries `ingestUrl(url)`, the same path as `jobs add <url>`: the ATS API,
-     then the page's JSON-LD, with LinkedIn, Indeed and Glassdoor refused by their terms. When
-     that is refused or fails, it calls `ingestText(url, text)`, the same path as
-     `jobs add --text`. The page text only ever goes to the `job-extract` route as untrusted data
-     (its provenance check applies).
+   - A posting on a known ATS (`detectAts`: Greenhouse, Lever, Ashby, Workday, SmartRecruiters,
+     Workable) is read by `ingestUrl(url)`, the same path as `jobs add <url>`, through the ATS's
+     own API. When that is refused, fails or finds no job, and for every other page, the handler
+     calls `ingestText(url, text)`, the same path as `jobs add --text`. The server never fetches a
+     host the page's owner controls: `safeFetch` checks an address and then resolves the name
+     again, and a page owner controls their DNS, so they could point the second lookup at a local
+     address (security review). LinkedIn, Indeed and Glassdoor are never fetched either. The page
+     text only ever goes to the `job-extract` route as untrusted data (its provenance check
+     applies).
    - The answer is the status, the job id, and the names of the fields found and missing, never
      field values.
 3. **Wiring:** the API connects to `DATABASE_URL` and builds the LLM gateway only on first use
@@ -49,8 +54,10 @@ browser does the same in one click, from the page he is already reading.
       The extension token doesn't open `GET /me`.
 - [ ] A capture with a non-extension Origin gets 403.
 - [ ] A capture body up to 96 KB is read, and other endpoints still stop at 16 KB.
-- [ ] A capture tries the link first and stores what it read. When the link is refused (a
-      LinkedIn URL), it stores from the page text. The answer lists field names only.
+- [ ] A capture on a known ATS reads the link first and stores what it read, falling back to the
+      page text when that fails. Any other page, LinkedIn included, is stored from its text with
+      no server fetch. The answer lists field names only.
+- [ ] Five wrong tokens in a minute make the next capture 429, even with the right token.
 - [ ] Bad input (no URL, empty text) is 400.
 - [ ] The extension's request is built with the token, JSON and the capped text. Its result
       messages cover saved, already known, refused and unreachable (extension tests).

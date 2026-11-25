@@ -14,7 +14,10 @@ const EXT_TOKEN = "test-extension-token";
 const EXT_HASH = "2f50a0607c1fb6606c98272169b134502f7c188b1e17f3d1579320aa3e3fb6c4"; // sha256(EXT_TOKEN)
 const WEB = "http://northstar.localhost:3100";
 const EXT_ORIGIN = `chrome-extension://${"a".repeat(32)}`;
-const URL_LINK = "https://jobs.example.com/postings/123";
+// A posting on a known ATS: its link is read through the ATS's own API.
+const URL_LINK = "https://boards.greenhouse.io/globex/jobs/123";
+// A posting on the company's own site: saved from the page text, never fetched by the server.
+const OWN_SITE = "https://jobs.example.com/postings/123";
 const LINKEDIN = "https://www.linkedin.com/jobs/view/123";
 
 const created = (jobId: string, method: "ats_api" | "text"): IngestResult => ({
@@ -116,6 +119,13 @@ describe("POST /jobs/capture: who may call it", () => {
     expect((await capture(page)).status).toBe(401);
   });
 
+  it("after five wrong tokens in a minute, even the right token gets 429", async () => {
+    for (let i = 0; i < 5; i++) await capture(page, { authorization: "Bearer wrong-token" });
+    const res = await capture(page);
+    expect(res.status).toBe(429);
+    expect(calls).toEqual([]);
+  });
+
   it("the extension token doesn't open a session endpoint", async () => {
     const res = await send(server, {
       method: "GET",
@@ -132,7 +142,7 @@ describe("POST /jobs/capture: who may call it", () => {
 });
 
 describe("POST /jobs/capture: what it stores", () => {
-  it("reads the link first and answers with field names only", async () => {
+  it("reads a known ATS's link first and answers with field names only", async () => {
     const res = await capture(page);
     expect(res.status).toBe(200);
     expect(JSON.parse(res.body)).toEqual({
@@ -146,13 +156,25 @@ describe("POST /jobs/capture: what it stores", () => {
     expect(calls).toEqual([`url ${URL_LINK}`]);
   });
 
-  it("falls back to the page text when the link is refused (a LinkedIn posting)", async () => {
-    byUrl = async () => ({ status: "refused", reason: "LinkedIn doesn't allow automated reading" });
-    const res = await capture({ ...page, url: LINKEDIN });
+  it("saves a page off any known ATS from its text, without the server fetching it", async () => {
+    // The page's owner controls its DNS, so the server never fetches it (DNS rebinding).
+    const res = await capture({ ...page, url: OWN_SITE });
     expect(JSON.parse(res.body)).toMatchObject({ status: "created", via: "text", jobId: "job-2" });
     // The title leads the text, so the model sees it with the description.
     const text = `${page.title}\n\n${page.text}`;
-    expect(calls).toEqual([`url ${LINKEDIN}`, `text ${LINKEDIN} ${text.length}`]);
+    expect(calls).toEqual([`text ${OWN_SITE} ${text.length}`]);
+  });
+
+  it("saves a LinkedIn posting from its text and never reads the link", async () => {
+    const res = await capture({ ...page, url: LINKEDIN });
+    expect(JSON.parse(res.body)).toMatchObject({ status: "created", via: "text" });
+    expect(calls.map((c) => c.split(" ")[0])).toEqual(["text"]);
+  });
+
+  it("falls back to the page text when the ATS refused the link", async () => {
+    byUrl = async () => ({ status: "refused", reason: "not a valid link" });
+    const res = await capture(page);
+    expect(JSON.parse(res.body)).toMatchObject({ status: "created", via: "text" });
   });
 
   it("falls back to the page text when the link read failed", async () => {
@@ -190,9 +212,9 @@ describe("POST /jobs/capture: what it stores", () => {
   });
 
   it("passes a refusal from the text path back with its reason", async () => {
-    byUrl = async () => ({ status: "refused", reason: "not a valid link" });
     byText = async () => ({ status: "refused", reason: "--url must be an http(s) link" });
     const res = await capture({ ...page, url: "ftp://example.com/x" });
+    expect(calls.map((c) => c.split(" ")[0])).toEqual(["text"]);
     expect(JSON.parse(res.body)).toEqual({
       status: "refused",
       via: "text",
