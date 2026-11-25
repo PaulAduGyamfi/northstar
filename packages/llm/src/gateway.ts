@@ -43,6 +43,9 @@ export function createLlmGateway(deps: {
           }
         };
         try {
+          // Built before the breaker is asked, so a bug in building it can't leave a probe
+          // unreported (the breaker would stay half-open until the probe window ends).
+          const { params, options } = buildRequest(route, input);
           if (guard) {
             const admission = await admit(guard, {
               subsystem: agentSwitch(route.name),
@@ -58,7 +61,6 @@ export function createLlmGateway(deps: {
             }
             probeToken = admission.probeToken;
           }
-          const { params, options } = buildRequest(route, input);
           const started = deps.now();
           const message = await deps.client
             .create(params, options)
