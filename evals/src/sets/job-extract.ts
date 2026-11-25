@@ -42,7 +42,9 @@ export function gradeJobExtract(output: unknown, expected: unknown, input: unkno
   if (exp.remote !== undefined && fields.remote !== exp.remote) return false;
   if (exp.requirements !== undefined && fields.requirements.length !== exp.requirements)
     return false;
-  const all = JSON.stringify(o.data).toLowerCase();
+  // Values only: the field names themselves ("seniority") must not count as the output saying
+  // "Senior".
+  const all = JSON.stringify(Object.values(o.data)).toLowerCase();
   return !(exp.absent ?? []).some((s) => all.includes(s.toLowerCase()));
 }
 
