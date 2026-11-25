@@ -30,8 +30,8 @@ the next free numbers after merging the latest `main`:
 - [ ] The restored tests in `packages/db/src/thesis.test.ts` pass on PGlite against the
       regenerated migrations.
 - [ ] `db:generate` reports no schema changes after the new migrations.
-- [ ] The `thesis.approved` event shows in the feed as a plain sentence (a feed template), since
-      its writer gives no reason sentence.
+- [ ] The `thesis.approved` event shows in the feed as its reason sentence ("Paul approved a
+      positioning thesis", the same style as stories and answers), so it needs no template.
 - [ ] `.claude/rules/db.md` has the thesis bullet (#96) and AGENTS.md mentions the storage.
 
 ## Failure modes
