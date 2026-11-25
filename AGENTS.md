@@ -40,6 +40,10 @@ Exists now:
   `biome.json` (code files only; `.claude/` excluded), `tsconfig.base.json` (strict).
 - `packages/domain/` (NS-105): the application state machine (`nextStatus`), the `DomainEvent`
   Zod schema and branded ids. Pure code, no I/O.
+  Since NS-171 also the weekly growth planner (`growth.ts`, GRW-001…004): `planWeek` puts at-risk
+  tracks first, then priority, target date and id; the first `wipLimit` (default 3) are in focus
+  with at least two blocks each, the rest get one maintenance block, and the week never exceeds
+  `weeklyMinutes` (default 480, Q-09). No storage, settings page or calendar blocks yet.
 - `packages/db/` (NS-105): Drizzle schema, committed migrations (`migrations/`), the one write
   path for status changes (`transitionApplication`: status + event in one transaction) and
   `readEventsAfter`. `domain_event` is append-only (ADR-0012). Tests run on in-process PGlite.
