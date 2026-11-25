@@ -2,7 +2,7 @@ import { CandidateId, FAILURE_THRESHOLD } from "@northstar/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { acquireCall, recordCallOutcome } from "./breaker-write.js";
 import type { Db } from "./db.js";
-import { readFeed } from "./feed-read.js";
+import { readFeed, readFeedAfter } from "./feed-read.js";
 import { readSystemHealth } from "./health-read.js";
 import { setKillSwitch } from "./kill-switch-write.js";
 import { candidate } from "./schema.js";
@@ -154,5 +154,49 @@ describe("readFeed", () => {
         "feed page size must be 1 to 200",
       );
     }
+  });
+});
+
+describe("readFeedAfter", () => {
+  const off = (subsystem: string) =>
+    setKillSwitch(db, { candidateId, subsystem, enabled: false, actor: "user", reason: "x" });
+
+  it("returns only the lines after the position, oldest first", async () => {
+    await off("auto_apply");
+    const [newest] = await readFeed(db, candidateId, { limit: 1 });
+    if (!newest) throw new Error("no event");
+    await off("outreach_send");
+    await off("inbox_auto_label");
+    const after = await readFeedAfter(db, candidateId, { after: newest.position, limit: 10 });
+    expect(after.map((f) => f.line)).toEqual([
+      "You switched off outreach_send",
+      "You switched off inbox_auto_label",
+    ]);
+  });
+
+  it("returns nothing when nothing is newer", async () => {
+    await off("auto_apply");
+    const [newest] = await readFeed(db, candidateId, { limit: 1 });
+    if (!newest) throw new Error("no event");
+    expect(await readFeedAfter(db, candidateId, { after: newest.position, limit: 10 })).toEqual([]);
+  });
+
+  it("shows only the candidate's own events", async () => {
+    const [other] = await db.insert(candidate).values({ displayName: "Other" }).returning();
+    if (!other) throw new Error("no candidate");
+    await setKillSwitch(db, {
+      candidateId: CandidateId.parse(other.id),
+      subsystem: "auto_apply",
+      enabled: false,
+      actor: "user",
+      reason: "x",
+    });
+    expect(await readFeedAfter(db, candidateId, { after: 0n, limit: 10 })).toEqual([]);
+  });
+
+  it("refuses a page size outside 1 to 200", async () => {
+    await expect(readFeedAfter(db, candidateId, { after: 0n, limit: 0 })).rejects.toThrow(
+      "feed page size must be 1 to 200",
+    );
   });
 });

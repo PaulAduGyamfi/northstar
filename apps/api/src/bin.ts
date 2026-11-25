@@ -4,7 +4,11 @@ import {
   connectDb,
   loadDbConfig,
   readDedupeCandidates,
+  readFeed,
+  readFeedAfter,
+  readSystemHealth,
   saveIngestedJob,
+  setKillSwitch,
   soleCandidate,
 } from "@northstar/db";
 import {
@@ -18,6 +22,7 @@ import { captureEndpoint } from "./capture.js";
 import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
 import { createApi } from "./server.js";
 import { createSessions } from "./sessions.js";
+import { systemEndpoints } from "./system.js";
 
 // Entry point for `pnpm --filter @northstar/api start`. The only place in this app that reads
 // process.env. Listens on loopback only: Northstar is local first (NS-156, ADR-0018).
@@ -65,11 +70,20 @@ try {
     byUrl: (url) => ingestUrl(ingest, url),
     byText: (url, text) => ingestText(ingest, url, text),
   });
+  // System Health, the feed and kill switches (NS-153), on packages/db's read paths and its one
+  // kill-switch write path. A flip from the app is always Paul's (actor "user", ADR-0002).
+  const system = systemEndpoints({
+    health: async () => readSystemHealth(db, await candidateId()),
+    feedBefore: async (before, limit) => readFeed(db, await candidateId(), { before, limit }),
+    feedAfter: async (after, limit) => readFeedAfter(db, await candidateId(), { after, limit }),
+    setSwitch: async (input) =>
+      setKillSwitch(db, { candidateId: await candidateId(), actor: "user", ...input }),
+  });
   const handler = createApi({
     config,
     sessions: createSessions(Date.now),
     extensionTokenSha256,
-    extra: [capture],
+    extra: [capture, ...system],
   });
   const server = createServer(handler);
   server.listen(config.port, "127.0.0.1", () => {
