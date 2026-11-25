@@ -55,7 +55,7 @@ try {
     },
     now: () => new Date(),
     baselines,
-    runBackfill: async (options) => {
+    runBackfill: async (options, counts) => {
       const access = await authorizeGmail({
         config: loadGoogleConfig(process.env),
         fetchToken: googleTokenEndpoint(fetch),
@@ -91,6 +91,7 @@ try {
           print,
         },
         options,
+        counts,
       );
     },
     // pnpm runs scripts from the package folder; resolve the path from where Paul ran pnpm.
@@ -115,13 +116,23 @@ try {
 // Best effort: the URL is printed too. execFile passes it as one argument, with no shell.
 function openInBrowser(url: string): void {
   const command =
-    process.platform === "darwin" ? "open" : process.platform === "win32" ? "explorer" : "xdg-open";
+    process.platform === "darwin"
+      ? "/usr/bin/open"
+      : process.platform === "win32"
+        ? // A full path: Windows searches the current folder first, so a bare name could pick up
+          // a planted program.
+          `${process.env.SystemRoot ?? "C:\\Windows"}\\explorer.exe`
+        : "xdg-open";
   execFile(command, [url], () => {});
 }
 
 // Company and role names come from emails (untrusted): drop control characters before they reach
 // Paul's terminal, so an escape sequence can't rewrite the screen. Tabs and newlines stay.
 function printable(text: string): string {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: matching control characters is the point.
-  return text.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, "");
+  // Also invisible direction and zero-width characters, so an email's name can't reorder a line.
+  return text.replace(
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: matching control characters is the point.
+    /[\u0000-\u0008\u000b-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩﻿]/g,
+    "",
+  );
 }

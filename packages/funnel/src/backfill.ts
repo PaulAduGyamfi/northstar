@@ -1,9 +1,11 @@
 import type { FunnelMessageInput, FunnelMessageRow, ReviewReason } from "@northstar/db";
 import {
+  BODY_LIMIT,
   backfillQuery,
   checkMailProvenance,
   classifyByRules,
   type GmailClient,
+  isAuthenticatedSender,
   isJobMail,
   type MailClassification,
   type MailClassifyInput,
@@ -45,15 +47,15 @@ export type BackfillCounts = {
   // Job messages left for the next run because of --max-messages.
   deferred: number;
   modelCalls: number;
+  // Messages fetched in full (job mail only) and found through a job thread's listing.
+  fetched: number;
+  fromThreads: number;
   // null when a call's model had no known price.
   costUsd: number | null;
 };
 
-export async function runBackfill(
-  deps: BackfillDeps,
-  options: { since: string; maxMessages: number },
-): Promise<BackfillCounts> {
-  const counts: BackfillCounts = {
+export function emptyCounts(): BackfillCounts {
+  return {
     listed: 0,
     alreadyKnown: 0,
     notJob: 0,
@@ -62,8 +64,18 @@ export async function runBackfill(
     review: 0,
     deferred: 0,
     modelCalls: 0,
+    fetched: 0,
+    fromThreads: 0,
     costUsd: 0,
   };
+}
+
+// `counts` is filled in as the run goes, so a caller still has the progress if the run stops.
+export async function runBackfill(
+  deps: BackfillDeps,
+  options: { since: string; maxMessages: number },
+  counts: BackfillCounts = emptyCounts(),
+): Promise<BackfillCounts> {
   const listed = await deps.gmail.listIds(backfillQuery(options.since));
   counts.listed = listed.length;
   const known = await deps.store.knownIds(listed.map((m) => m.id));
@@ -75,29 +87,53 @@ export async function runBackfill(
   );
 
   // Pass 1: headers only. A message is job mail by its sender or subject (INB-002), or because
-  // it's in the same Gmail thread as job mail: a reply titled "Intro call" in a confirmation's
-  // thread is part of that application. Non-job mail is stored as ids alone, never fetched in full.
+  // it's in a thread that holds job mail. A search lists matching messages, not whole threads, so
+  // each job thread is listed too: that's how a reply titled "Intro call" is found at all.
+  const seen = new Set(known);
   const fresh: MessageHeaders[] = [];
   for (const { id } of listed) {
-    if (!known.has(id)) fresh.push(await deps.gmail.getHeaders(id));
+    if (seen.has(id)) continue;
+    seen.add(id);
+    fresh.push(await deps.gmail.getHeaders(id));
   }
   const jobThreads = new Set(stored.map((m) => m.threadId));
-  const kept = new Set<string>();
   for (const h of fresh) {
-    if (isJobMail(h, knownDomains) || jobThreads.has(h.threadId)) {
-      kept.add(h.id);
-      jobThreads.add(h.threadId);
+    if (readable(h) && isJobMail(h, knownDomains)) jobThreads.add(h.threadId);
+  }
+  const threadIds = [...jobThreads];
+  for (const threadId of threadIds) {
+    for (const { id } of await deps.gmail.threadMessageIds(threadId)) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      fresh.push(await deps.gmail.getHeaders(id));
+      counts.fromThreads += 1;
     }
   }
+  const knownAfterThreads = await deps.store.knownIds(fresh.map((h) => h.id));
   const jobs: { headers: MessageHeaders; rule: ReturnType<typeof classifyByRules> }[] = [];
   for (const h of fresh) {
-    // The second look catches a thread's earlier messages listed before its job mail.
-    if (!kept.has(h.id) && !jobThreads.has(h.threadId)) {
+    // Stored by an earlier run (found again through its thread): nothing to do.
+    if (knownAfterThreads.has(h.id)) continue;
+    const job = jobThreads.has(h.threadId);
+    if (!readable(h)) {
+      // Gmail returned something unreadable (no sender, no date): Paul looks if it may be job
+      // mail, nothing else does. It never reaches the model (DX-001 failure modes).
+      const status = job ? "needs_review" : "not_job";
+      await deps.store.save({
+        ...base({ ...h, receivedAt: validDate(h.receivedAt) }, status, null),
+        reviewReason: job ? "unparseable" : null,
+      });
+      if (job) counts.review += 1;
+      else counts.notJob += 1;
+      continue;
+    }
+    if (!job) {
       await deps.store.save(base(h, "not_job", null));
       counts.notJob += 1;
       continue;
     }
-    jobs.push({ headers: h, rule: classifyByRules(h) });
+    // Rules only for a sender Gmail verified: a forged "Thank you for applying" goes to the model.
+    jobs.push({ headers: h, rule: isAuthenticatedSender(h) ? classifyByRules(h) : null });
   }
   // Oldest first, so records grow in the order things happened.
   jobs.sort((a, b) => a.headers.receivedAt.getTime() - b.headers.receivedAt.getTime());
@@ -139,7 +175,9 @@ export async function runBackfill(
     await deps.store.save(input);
     if (input.status === "classified") {
       placed.push(asRow(input));
-      if (input.senderDomain) knownDomains.add(input.senderDomain);
+      // Only a verified sender's domain lets later mail through on the domain alone.
+      if (input.senderDomain && isAuthenticatedSender(headers))
+        knownDomains.add(input.senderDomain);
     }
   }
   return counts;
@@ -151,6 +189,7 @@ async function classifyWithModel(
   counts: BackfillCounts,
 ): Promise<FunnelMessageInput> {
   const full = await deps.gmail.getFull(headers.id);
+  counts.fetched += 1;
   const outcome = await deps.gateway.call(deps.route, {
     from: full.from,
     subject: full.subject,
@@ -180,7 +219,13 @@ async function classifyWithModel(
       // No employer named: Paul places it, or nothing does.
       if (o.company === null) return review("ambiguous");
       // Code decides: every name must be in the email itself (ADR-0004).
-      if (checkMailProvenance(o, full).length > 0) return review("provenance");
+      // Checked against the text the model saw (the body is cut at BODY_LIMIT for it).
+      const seenText = {
+        from: full.from,
+        subject: full.subject,
+        body: full.body.slice(0, BODY_LIMIT),
+      };
+      if (checkMailProvenance(o, seenText).length > 0) return review("provenance");
       return {
         ...base(headers, "classified", "model"),
         ...stamp,
@@ -229,4 +274,14 @@ function asRow(input: FunnelMessageInput): FunnelMessageRow {
     id: input.gmailId,
     status: input.status === "classified" ? "classified" : "needs_review",
   };
+}
+
+// A message the pipeline can work with: a sender domain and a real date.
+function readable(h: MessageHeaders): boolean {
+  return h.senderDomain !== "" && !Number.isNaN(h.receivedAt.getTime());
+}
+
+// The database needs a date: an unreadable one becomes "now" (the review item shows it as found).
+function validDate(d: Date): Date {
+  return Number.isNaN(d.getTime()) ? new Date() : d;
 }

@@ -5,6 +5,7 @@ import { type BackfillDeps, runBackfill } from "./backfill.js";
 import { gmailRecords, nameKey } from "./records.js";
 import {
   EXPECTED,
+  type FakeMessage,
   fakeGmailClient,
   mailbox,
   memoryStore,
@@ -135,8 +136,8 @@ describe("runBackfill on a synthetic 9-month mailbox", () => {
     });
     await expect(runBackfill(deps, OPTIONS)).rejects.toThrow(LlmTransportError);
     expect(calls).toBe(1);
-    // The pre-filter's drops and the rule-classified confirmations before it are stored.
-    expect(store.rows.some((r) => r.status === "not_job")).toBe(true);
+    // Oldest first: the two confirmations before the first model call (Globex's intro) are stored.
+    expect(store.rows.filter((r) => r.classifiedBy === "rules").length).toBe(2);
   });
 });
 
@@ -164,10 +165,10 @@ describe("model outcomes other than Ok", () => {
 });
 
 describe("the pre-filter's known gap", () => {
-  it("drops a recruiter's first email in a new thread when its subject has no job phrase", async () => {
+  it("never lists a recruiter's first email in a new thread when its subject has no job phrase", async () => {
     // Narrow on purpose (NFR-SEC-005): personal mail must not reach the model. Paul adds such an
     // application with `funnel import`; later messages in its thread are kept once one is known.
-    const { deps, store } = setup();
+    const { deps, store, gateway } = setup();
     const cold = {
       id: "cold-1",
       threadId: "cold",
@@ -177,6 +178,95 @@ describe("the pre-filter's known gap", () => {
     };
     deps.gmail = fakeGmailClient([cold]);
     await runBackfill(deps, OPTIONS);
-    expect(store.rows).toEqual([expect.objectContaining({ gmailId: "cold-1", status: "not_job" })]);
+    expect(store.rows).toEqual([]);
+    expect(gateway.calls).toEqual([]);
+  });
+});
+
+describe("hardening", () => {
+  const msg = (over: Partial<FakeMessage> & { id: string }): FakeMessage => ({
+    threadId: over.id,
+    internalDate: "2026-03-02T10:00:00Z",
+    headers: {
+      From: "Globex <careers@globex.example>",
+      Subject: "Thank you for applying to Globex",
+    },
+    text: "We received your application.",
+    ...over,
+  });
+
+  it("finds a thread's replies through the thread, though the search never lists them", async () => {
+    const { deps, store } = setup();
+    deps.gmail = fakeGmailClient([
+      msg({ id: "a", threadId: "t" }),
+      msg({
+        id: "b",
+        threadId: "t",
+        internalDate: "2026-03-09T10:00:00Z",
+        headers: { From: "Globex <careers@globex.example>", Subject: "Intro call" },
+        text: "Globex would like a call.",
+      }),
+    ]);
+    deps.gateway = scriptedGateway(() => ({
+      kind: "Ok",
+      output: {
+        kind: "interview_request",
+        company: "Globex",
+        role: null,
+        requisition: null,
+        stageSignal: "screen",
+      },
+      record: record(),
+    }));
+    const counts = await runBackfill(deps, OPTIONS);
+    expect(counts.listed).toBe(1);
+    expect(counts.fromThreads).toBe(1);
+    expect(store.rows.find((r) => r.gmailId === "b")?.stageSignal).toBe("screen");
+  });
+
+  it("sends a confirmation from an unverified sender to the model, not the rules", async () => {
+    const { deps, store } = setup();
+    deps.gmail = fakeGmailClient([msg({ id: "spoof" })]);
+    const gateway = scriptedGateway(() => ({
+      kind: "Ok",
+      output: {
+        kind: "confirmation",
+        company: "Globex",
+        role: null,
+        requisition: null,
+        stageSignal: "none",
+      },
+      record: record(),
+    }));
+    deps.gateway = gateway;
+    await runBackfill(deps, OPTIONS);
+    expect(gateway.calls).toHaveLength(1);
+    expect(store.rows[0]?.classifiedBy).toBe("model");
+  });
+
+  it("puts an unreadable message in a job thread in review, never to the model", async () => {
+    const { deps, store } = setup();
+    deps.gmail = fakeGmailClient([
+      msg({ id: "ok", threadId: "t" }),
+      msg({ id: "bad", threadId: "t", internalDate: "not a date", headers: { Subject: "Re:" } }),
+    ]);
+    const gateway = scriptedGateway(() => ({
+      kind: "Ok",
+      output: {
+        kind: "confirmation",
+        company: "Globex",
+        role: null,
+        requisition: null,
+        stageSignal: "none",
+      },
+      record: record(),
+    }));
+    deps.gateway = gateway;
+    await runBackfill(deps, OPTIONS);
+    expect(store.rows.find((r) => r.gmailId === "bad")).toMatchObject({
+      status: "needs_review",
+      reviewReason: "unparseable",
+    });
+    expect(gateway.calls).toHaveLength(1);
   });
 });

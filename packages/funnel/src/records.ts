@@ -104,7 +104,14 @@ export function placeMessage(groups: readonly Group[], m: FunnelMessageRow): Pla
       ),
     );
     if (byRole) return byRole;
-    return { kind: "new" };
+    // A confirmation often names no role ("Thank you for applying to Globex"): a later message
+    // that does name one belongs to that application, not a new one.
+    const roleless = pick(
+      indexes(
+        (g) => sameCompany(g) && recent(g) && g.messages.every((x) => nameKey(x.role) === ""),
+      ),
+    );
+    return roleless ?? { kind: "new" };
   }
   return pick(indexes((g) => sameCompany(g) && recent(g))) ?? { kind: "new" };
 }
@@ -160,8 +167,8 @@ function groupToRecord(g: Group, now: Date): FunnelRecord {
 }
 
 // Groups the classified messages (oldest first) into Gmail records. An ambiguous message here
-// joins the newest candidate: the backfill already sent truly ambiguous ones to review, so this
-// only happens for Paul's own placements, which name a company and role.
+// joins the newest candidate. The backfill sends ambiguous messages to review, so this happens
+// mainly for Paul's own placements; a rerun with an earlier --since can also reorder messages.
 export function gmailRecords(messages: readonly FunnelMessageRow[], now: Date): FunnelRecord[] {
   return buildGroups(messages).map((g) => groupToRecord(g, now));
 }
@@ -238,12 +245,16 @@ export function mergeRecords(
         gmailOutcome: g.outcome,
       });
     }
+    // Both dates from one source: Gmail's are exact, the tracker's are days. Mixing an exact apply
+    // time with a midnight outcome day would skew rejection latency (a same-day no going negative).
+    const gmailDates = row.outcome === g.outcome && g.outcomeAt !== null;
     records.push({
       ...fromRow,
-      // Gmail's timestamps are exact; the tracker has days only.
-      appliedAt: g.appliedAt,
-      outcomeAt: row.outcome === g.outcome ? (g.outcomeAt ?? fromRow.outcomeAt) : fromRow.outcomeAt,
+      appliedAt: gmailDates ? g.appliedAt : fromRow.appliedAt,
+      outcomeAt: gmailDates ? g.outcomeAt : fromRow.outcomeAt,
       stage: maxStage(g.stage, row.stageReached),
+      // An empty tracker cell doesn't erase what Gmail knows (a recruiter's first message).
+      channel: row.channel ?? g.channel,
       source: "both",
     });
   }

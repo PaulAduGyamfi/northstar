@@ -276,7 +276,8 @@ export async function latestFactsCheck(
     .limit(1);
   if (!row) return null;
   const mismatches = (row.payload as { mismatches?: unknown }).mismatches;
-  return { mismatches: typeof mismatches === "number" ? mismatches : 0 };
+  // An unreadable count is "unknown", not "no mismatch": H11 stays untested rather than weakened.
+  return typeof mismatches === "number" ? { mismatches } : null;
 }
 
 async function insertEvent(

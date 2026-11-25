@@ -8,12 +8,20 @@ import { err, ok, type Result } from "@northstar/domain";
 // RFC 4180 CSV: comma-separated, fields may be quoted, "" is a quote inside quotes, and a quoted
 // field may hold commas and newlines. Returns rows of raw strings; blank lines are skipped.
 export function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
+  return parseCsvLines(text).map((r) => r.cells);
+}
+
+// The same, with the file line each row starts on (blank lines and multi-line fields counted).
+export function parseCsvLines(text: string): { cells: string[]; line: number }[] {
+  const rows: { cells: string[]; line: number }[] = [];
   let row: string[] = [];
   let field = "";
   let quoted = false;
+  let line = 1;
+  let start = 1;
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
+    if (c === "\n") line += 1;
     if (quoted) {
       if (c === '"' && text[i + 1] === '"') {
         field += '"';
@@ -26,15 +34,19 @@ export function parseCsv(text: string): string[][] {
       field = "";
     } else if (c === "\n" || c === "\r") {
       // \r\n is one line end.
-      if (c === "\r" && text[i + 1] === "\n") i++;
+      if (c === "\r" && text[i + 1] === "\n") {
+        i++;
+        line += 1;
+      } else if (c === "\r") line += 1;
       row.push(field);
-      if (row.some((f) => f !== "")) rows.push(row);
+      if (row.some((f) => f !== "")) rows.push({ cells: row, line: start });
       row = [];
       field = "";
+      start = line;
     } else field += c;
   }
   row.push(field);
-  if (row.some((f) => f !== "")) rows.push(row);
+  if (row.some((f) => f !== "")) rows.push({ cells: row, line: start });
   return rows;
 }
 
@@ -51,8 +63,9 @@ function isDay(s: string): boolean {
 }
 
 export function parseTracker(text: string): Result<ManualRowInput[], TrackerError[]> {
-  const [header, ...rows] = parseCsv(text);
-  const columns = (header ?? []).map((h) => h.trim().toLowerCase());
+  // Excel's "CSV UTF-8" starts with a byte-order mark, which would hide the first column's name.
+  const [header, ...rows] = parseCsvLines(text.replace(/^\uFEFF/, ""));
+  const columns = (header?.cells ?? []).map((h) => h.trim().toLowerCase());
   const errors: TrackerError[] = [];
   for (const c of REQUIRED)
     if (!columns.includes(c)) errors.push({ line: 1, problem: `missing column ${c}` });
@@ -67,14 +80,12 @@ export function parseTracker(text: string): Result<ManualRowInput[], TrackerErro
   if (errors.length > 0) return err(errors);
 
   const out: ManualRowInput[] = [];
-  // Line numbers count the header as line 1 (a quoted multi-line field shifts them; rare in exports).
-  rows.forEach((cells, i) => {
-    const line = i + 2;
+  for (const { cells, line } of rows) {
     const get = (name: string) => (cells[columns.indexOf(name)] ?? "").trim();
     const problem = validateRow(get);
     if (problem) {
       errors.push({ line, problem });
-      return;
+      continue;
     }
     const outcomeOn = get("outcome_on");
     const channel = get("channel");
@@ -88,7 +99,7 @@ export function parseTracker(text: string): Result<ManualRowInput[], TrackerErro
       outcomeOn: outcomeOn === "" ? null : outcomeOn,
       channel: channel === "" ? null : (channel as ManualRowInput["channel"]),
     });
-  });
+  }
   if (errors.length > 0) return err(errors);
   if (out.length === 0) return err([{ line: 0, problem: "no rows in the file" }]);
   return ok(out);

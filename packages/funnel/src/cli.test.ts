@@ -25,6 +25,8 @@ const COUNTS: BackfillCounts = {
   review: 1,
   deferred: 0,
   modelCalls: 26,
+  fetched: 26,
+  fromThreads: 12,
   costUsd: 0.26,
 };
 const reviewItem: FunnelMessageRow = {
@@ -105,14 +107,15 @@ describe("funnel cli", () => {
     expect(bad.printed[0]?.startsWith("usage:")).toBe(true);
   });
 
-  it("a cancelled Google consent stops the backfill with its reason and records nothing", async () => {
+  it("a stopped backfill prints its reason and records its partial counts in the feed", async () => {
     const { d, printed, events } = deps(["backfill"]);
-    d.runBackfill = async () => {
+    d.runBackfill = async (_o, counts) => {
+      counts.modelCalls = 3;
       throw new OAuthError("Google consent was not given (access_denied)");
     };
     expect(await main(d)).toBe(1);
     expect(printed[0]).toBe("Backfill stopped: Google consent was not given (access_denied)");
-    expect(events).toEqual([]);
+    expect(events[0]?.payload).toMatchObject({ modelCalls: 3, stopped: "OAuthError" });
   });
 
   it("an unexpected error is named, never quoted", async () => {
@@ -183,6 +186,14 @@ describe("funnel cli", () => {
       },
     ]);
     expect(printed.at(-1)).toBe("1 decision(s) saved.");
+  });
+
+  it("review offers no default from a name that failed the provenance check", async () => {
+    const { d, printed, decisions } = deps(["review"], ["p", "rejection", "", "", "none"]);
+    d.readMessages = async () => [{ ...reviewItem, company: "Oscorp", role: "CTO" }];
+    await main(d);
+    expect(decisions).toEqual([]);
+    expect(printed).toContain("  a company is needed to place it; skipped.");
   });
 
   it("review skips an item placed without a company and keeps going", async () => {

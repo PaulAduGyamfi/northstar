@@ -107,6 +107,23 @@ describe("gmail client", () => {
     expect(sleeps).toEqual([500, 1000, 2000, 4000, 8000]);
   });
 
+  it("caps a Retry-After at 60 seconds", async () => {
+    const gmail = fakeGmail([message], { failures: [{ status: 429, retryAfter: "86400" }] });
+    await client(gmail).getHeaders("m1");
+    expect(sleeps).toEqual([60_000]);
+  });
+
+  it("lists every message in a thread with format=minimal", async () => {
+    const reply = { ...message, id: "m2", headers: { ...message.headers, Subject: "Intro call" } };
+    const other = { ...message, id: "m3", threadId: "t9" };
+    const gmail = fakeGmail([message, reply, other]);
+    expect(await client(gmail).threadMessageIds("t1")).toEqual([
+      { id: "m1", threadId: "t1" },
+      { id: "m2", threadId: "t1" },
+    ]);
+    expect(gmail.requests.at(-1)?.url).toContain("/threads/t1?format=minimal");
+  });
+
   it("doesn't retry a 404", async () => {
     const gmail = fakeGmail([message], { failures: [{ status: 404 }] });
     await expect(client(gmail).getHeaders("m1")).rejects.toThrow("Gmail answered 404");

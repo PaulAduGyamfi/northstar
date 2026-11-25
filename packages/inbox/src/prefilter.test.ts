@@ -1,43 +1,94 @@
 import { describe, expect, it } from "vitest";
 import { classifyByRules } from "./classify-rules.js";
-import { backfillQuery, isJobMail } from "./prefilter.js";
+import { authenticatedDomains, backfillQuery, isJobMail } from "./prefilter.js";
 
 // Synthetic headers only (the repo is public). The domains are the real ATS vendors' sending
 // domains, which are public facts, not anyone's personal data.
-const h = (senderDomain: string, subject: string) => ({ senderDomain, subject });
+const h = (senderDomain: string, subject: string, authenticationResults: string | null = null) => ({
+  senderDomain,
+  subject,
+  authenticationResults,
+});
 
 describe("isJobMail", () => {
-  it("keeps mail from a known ATS sending domain, including its subdomains", () => {
-    expect(isJobMail(h("us.greenhouse-mail.io", "Hello"), new Set())).toBe(true);
-    expect(isJobMail(h("hire.lever.co", "Update"), new Set())).toBe(true);
-    expect(isJobMail(h("myworkday.com", "Update"), new Set())).toBe(true);
+  it("keeps mail from a known ATS domain, including subdomains, when Gmail verified the sender", () => {
+    const verified = (d: string) => `mx.example; dmarc=pass header.from=${d}`;
+    expect(
+      isJobMail(h("us.greenhouse-mail.io", "Hello", verified("greenhouse-mail.io")), new Set()),
+    ).toBe(true);
+    expect(
+      isJobMail(h("hire.lever.co", "Update", "mx.example; dkim=pass header.d=lever.co"), new Set()),
+    ).toBe(true);
   });
 
-  it("keeps mail whose subject is a job-mail phrase", () => {
-    expect(isJobMail(h("globex.example.com", "Thank you for applying to Globex"), new Set())).toBe(
+  it("doesn't trust a forged ATS sender: no DMARC or DKIM pass for that domain", () => {
+    expect(isJobMail(h("myworkday.com", "Update", null), new Set())).toBe(false);
+    expect(
+      isJobMail(
+        h("myworkday.com", "Update", "mx.example; dmarc=fail header.from=myworkday.com"),
+        new Set(),
+      ),
+    ).toBe(false);
+    expect(
+      isJobMail(
+        h("myworkday.com", "Update", "mx.example; dmarc=pass header.from=evil.example"),
+        new Set(),
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps mail whose subject is a job-specific phrase", () => {
+    expect(isJobMail(h("globex.example", "Thank you for applying to Globex"), new Set())).toBe(
       true,
     );
     expect(
-      isJobMail(h("globex.example.com", "Interview invitation: Backend Engineer"), new Set()),
+      isJobMail(h("globex.example", "Interview invitation: Backend Engineer"), new Set()),
     ).toBe(true);
-    expect(isJobMail(h("globex.example.com", "Your application status"), new Set())).toBe(true);
+    expect(isJobMail(h("globex.example", "Your candidacy"), new Set())).toBe(true);
+  });
+
+  it("doesn't keep a generic phrase on its own: a mortgage or visa email isn't job mail", () => {
+    expect(
+      isJobMail(h("bank.example", "Next steps for your mortgage application"), new Set()),
+    ).toBe(false);
+    expect(isJobMail(h("visa.example", "Your application status"), new Set())).toBe(false);
+    expect(isJobMail(h("press.example", "Interview request from a podcast"), new Set())).toBe(
+      false,
+    );
   });
 
   it("keeps mail from a domain already on a funnel message", () => {
-    expect(
-      isJobMail(h("globex.example.com", "Quick question"), new Set(["globex.example.com"])),
-    ).toBe(true);
+    expect(isJobMail(h("globex.example", "Quick question"), new Set(["globex.example"]))).toBe(
+      true,
+    );
   });
 
   it("drops newsletters and promotions, even ones that say offer or opportunity", () => {
-    expect(isJobMail(h("shop.example.com", "Special offer: 20% off"), new Set())).toBe(false);
-    expect(isJobMail(h("news.example.com", "A new opportunity to save"), new Set())).toBe(false);
-    expect(isJobMail(h("friend.example.com", "Dinner on Friday?"), new Set())).toBe(false);
+    expect(isJobMail(h("shop.example", "Special offer: 20% off"), new Set())).toBe(false);
+    expect(isJobMail(h("news.example", "A new opportunity to save"), new Set())).toBe(false);
+    expect(isJobMail(h("friend.example", "Dinner on Friday?"), new Set())).toBe(false);
   });
 
   it("doesn't let a look-alike domain pass as an ATS", () => {
-    expect(isJobMail(h("greenhouse.io.evil.example.com", "Hi"), new Set())).toBe(false);
-    expect(isJobMail(h("notlever.co", "Hi"), new Set())).toBe(false);
+    const pass = (d: string) => `mx.example; dmarc=pass header.from=${d}`;
+    expect(
+      isJobMail(
+        h("greenhouse.io.evil.example", "Hi", pass("greenhouse.io.evil.example")),
+        new Set(),
+      ),
+    ).toBe(false);
+    expect(isJobMail(h("notlever.co", "Hi", pass("notlever.co")), new Set())).toBe(false);
+  });
+});
+
+describe("authenticatedDomains", () => {
+  it("reads DMARC header.from and DKIM header.d or header.i, passes only", () => {
+    expect(
+      authenticatedDomains(
+        "mx.example; dkim=pass header.i=@mail.globex.example; spf=pass; dmarc=pass header.from=globex.example; dkim=fail header.d=evil.example",
+      ),
+    ).toEqual(["mail.globex.example", "globex.example"]);
+    expect(authenticatedDomains(null)).toEqual([]);
   });
 });
 

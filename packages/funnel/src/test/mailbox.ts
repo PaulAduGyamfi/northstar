@@ -6,6 +6,7 @@ import type {
 } from "@northstar/db";
 import {
   type GmailClient,
+  isJobMail,
   type MailClassification,
   type MailClassifyInput,
   type MessageHeaders,
@@ -103,7 +104,7 @@ const apps: { company: string; steps: Step[]; expected: Expected }[] = [
     steps: [
       m(
         "2026-02-12T12:00:00Z",
-        "Application received",
+        "Thanks for applying!",
         "Hooli received your application for Data Engineer.",
         "confirmation",
         "Hooli",
@@ -208,7 +209,7 @@ const apps: { company: string; steps: Step[]; expected: Expected }[] = [
     steps: [
       m(
         "2026-05-04T16:00:00Z",
-        "Interview opportunity at Wayne Tech",
+        "Interview invitation from Wayne Tech",
         "A recruiter at Wayne Tech saw your profile.",
         "recruiter_inbound",
         "Wayne Tech",
@@ -325,7 +326,7 @@ const newsletters: Step[] = [
 // Passes the pre-filter ("your application" in the subject), but the model says it's a job alert.
 const jobAlert = m(
   "2026-06-15T07:00:00Z",
-  "Boost your application with these tips",
+  "Job offer alert: 10 new roles for you",
   "Job board tips.",
   "info_other",
   "JobBoard",
@@ -333,7 +334,7 @@ const jobAlert = m(
 // The model names an employer that isn't in the email: the provenance check sends it to review.
 export const badExtraction = m(
   "2026-06-20T07:00:00Z",
-  "Interview next week",
+  "Phone screen next week",
   "The team would like to meet you.",
   "interview_request",
   "Oscorp",
@@ -347,21 +348,31 @@ export function mailbox(): { messages: FakeMessage[]; answers: Map<string, MailC
   const messages: FakeMessage[] = [];
   const answers = new Map<string, MailClassification>();
   let i = 0;
-  const add = (s: Step, thread: string, from: string) => {
+  const add = (s: Step, thread: string, from: string, verified: string | null = null) => {
     i += 1;
     const id = `msg-${String(i).padStart(3, "0")}`;
     messages.push({
       id,
       threadId: thread,
       internalDate: s.at,
-      headers: { From: s.from ?? from, Subject: s.subject, Date: s.at },
+      headers: {
+        From: s.from ?? from,
+        Subject: s.subject,
+        Date: s.at,
+        // Company mail passes DMARC; the newsletters and the stray sender carry no verdict.
+        ...(verified
+          ? { "Authentication-Results": `mx.example; dmarc=pass header.from=${verified}` }
+          : {}),
+      },
       text: s.body,
     });
     if (s.answer) answers.set(id, s.answer);
   };
   for (const [n, a] of apps.entries()) {
     const domain = a.company.toLowerCase().replace(/[^a-z]/g, "");
-    for (const s of a.steps) add(s, `thread-${n}`, `${a.company} <careers@${domain}.example>`);
+    for (const s of a.steps) {
+      add(s, `thread-${n}`, `${a.company} <careers@${domain}.example>`, `${domain}.example`);
+    }
   }
   for (const [n, s] of newsletters.entries()) add(s, `news-${n}`, "");
   add(jobAlert, "alert", "JobBoard <tips@jobboard.example>");
@@ -444,15 +455,21 @@ export function fakeGmailClient(messages: FakeMessage[]): GmailClient & { fullFe
     senderDomain: senderDomain(msg.headers.From ?? ""),
     subject: msg.headers.Subject ?? "",
     deliveredTo: null,
-    authenticationResults: null,
+    authenticationResults: msg.headers["Authentication-Results"] ?? null,
     receivedAt: new Date(msg.internalDate),
   });
   return {
     fullFetches,
-    // Newest first, as Gmail lists them.
+    // Like Gmail: only messages matching the search (approximated by the same rule the search
+    // encodes: a verified ATS sender or a job-specific subject phrase), newest first.
     listIds: async () =>
       [...messages]
+        .filter((x) => isJobMail(headersOf(x), new Set()))
         .sort((a, b) => b.internalDate.localeCompare(a.internalDate))
+        .map((x) => ({ id: x.id, threadId: x.threadId })),
+    threadMessageIds: async (threadId) =>
+      messages
+        .filter((x) => x.threadId === threadId)
         .map((x) => ({ id: x.id, threadId: x.threadId })),
     getHeaders: async (id) => headersOf(byId(id)),
     getFull: async (id) => {

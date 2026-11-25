@@ -192,7 +192,8 @@ export function renderReport(r: Report): string[] {
   lines.push(
     `Rejection latency: < 24 h ${l.lt24h} · 1–7 d ${l.d1to7} · > 7 d ${l.gt7d} · never answered ${l.never}`,
   );
-  if (r.fastShare !== null && r.fastShare >= 0.3) {
+  // The call-out needs the same sample as the H2 rule: one fast "no" isn't a pattern.
+  if (r.fastShare !== null && r.fastShare >= 0.3 && l.lt24h + l.d1to7 + l.gt7d >= MIN_SAMPLE) {
     lines.push(
       `  ${pct(r.fastShare)} of timed rejections came within 24 h: likely knockout questions or ATS filters, not a person reading.`,
     );

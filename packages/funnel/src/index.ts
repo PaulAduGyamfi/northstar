@@ -5,6 +5,7 @@ export {
   type BackfillDeps,
   type BackfillStore,
   ESTIMATED_USD_PER_CALL,
+  emptyCounts,
   runBackfill,
 } from "./backfill.js";
 export { parseCsv, parseTracker, type TrackerError } from "./csv.js";

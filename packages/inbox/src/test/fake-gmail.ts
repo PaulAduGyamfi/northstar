@@ -32,6 +32,15 @@ export function fakeGmail(
       const headers = failure.retryAfter ? { "retry-after": failure.retryAfter } : undefined;
       return new Response("{}", { status: failure.status, headers });
     }
+    if (url.pathname.startsWith("/gmail/v1/users/me/threads/")) {
+      const thread = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
+      return Response.json({
+        id: thread,
+        messages: messages
+          .filter((x) => x.threadId === thread)
+          .map((x) => ({ id: x.id, threadId: x.threadId })),
+      });
+    }
     const path = url.pathname.replace("/gmail/v1/users/me/messages", "");
     if (path === "") {
       const start = Number(url.searchParams.get("pageToken") ?? "0");

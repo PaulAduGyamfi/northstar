@@ -105,9 +105,6 @@ importers:
 
   packages/inbox:
     dependencies:
-      '@northstar/domain':
-        specifier: workspace:*
-        version: link:../domain
       '@northstar/llm':
         specifier: workspace:*
         version: link:../llm

@@ -28,5 +28,12 @@ export {
   type OAuthDeps,
   OAuthError,
 } from "./oauth.js";
-export { ATS_DOMAINS, backfillQuery, isJobMail, JOB_PHRASES } from "./prefilter.js";
+export {
+  ATS_DOMAINS,
+  authenticatedDomains,
+  backfillQuery,
+  isAuthenticatedSender,
+  isJobMail,
+  JOB_PHRASES,
+} from "./prefilter.js";
 export { checkMailProvenance, type ProvenanceFailure } from "./provenance.js";

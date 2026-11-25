@@ -87,6 +87,24 @@ describe("judgeHypotheses", () => {
     expect(status(records, "H4")).toBe("supported");
   });
 
+  it("H4: weakened when responded → screen is at baseline, untested without the data", () => {
+    const records = [...recs(10, { stage: "responded" }), ...recs(30, { stage: "screen" })];
+    expect(status(records, "H4")).toBe("weakened");
+    expect(status(recs(5, { stage: "responded" }), "H4")).toBe("untested");
+  });
+
+  it("H8: supported when a technical step leaks, weakened when both hold, untested without data", () => {
+    const leak = [...recs(38, { stage: "screen" }), ...recs(2, { stage: "technical" })];
+    expect(status(leak, "H8")).toBe("supported");
+    const holds = [
+      ...recs(10, { stage: "screen" }),
+      ...recs(10, { stage: "technical" }),
+      ...recs(20, { stage: "onsite" }),
+    ];
+    expect(status(holds, "H8")).toBe("weakened");
+    expect(status([], "H8")).toBe("untested");
+  });
+
   it("H1, H3, H5 and H9 stay untested and name the data they need", () => {
     const h = board(recs(50));
     for (const id of ["H1", "H3", "H5", "H9"])
