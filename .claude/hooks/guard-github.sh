@@ -2,7 +2,7 @@
 # PreToolUse hook for MCP tools, ADR-0016 item 7: an allowlist for GitHub connector calls.
 # Reads pass. Writes must target PaulAduGyamfi/northstar, and only: open a PR from the current
 # branch, comment or reply on a PR, resolve a review thread, open an issue labelled agent-filed
-# (never edit one, so the label and the "Parent: #N" line stay as filed), and rebase-merge with the
+# (never edit one, so the label and the "Parent: #N" line stay as filed), and squash-merge with the
 # head commit pinned to this checkout's HEAD. Any other GitHub tool, or a GitHub server under
 # another name, is blocked. Fails closed: if the check itself breaks, the call is blocked.
 #   exit 2 + stderr   -> the call is blocked and the agent reads the reason
@@ -60,8 +60,9 @@ if name == "create_pull_request":
 if name == "merge_pull_request":
     sha = str(args.get("expectedHeadSha", ""))
     head = os.environ.get("HEAD_SHA", "")
-    if args.get("merge_method") != "rebase" or not re.fullmatch(r"[0-9a-f]{40}", sha):
-        print("merge only with merge_method rebase and expectedHeadSha set to the full head commit.")
+    # Squash: one commit per PR, so a branch that merged main in still merges cleanly (ADR-0016).
+    if args.get("merge_method") != "squash" or not re.fullmatch(r"[0-9a-f]{40}", sha):
+        print("merge only with merge_method squash and expectedHeadSha set to the full head commit.")
     elif sha != head:
         print("merge only your own PR: expectedHeadSha must equal this checkout'"'"'s HEAD.")
     else:

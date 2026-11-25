@@ -45,27 +45,55 @@ const lower = (s: string) => s.toLowerCase();
 
 // True for the domain itself or a subdomain of it: hire.lever.co is lever.co, but
 // lever.co.evil.example.com and notlever.co are not.
-function underDomain(domain: string, root: string): boolean {
+export function underDomain(domain: string, root: string): boolean {
   return domain === root || domain.endsWith(`.${root}`);
 }
 
+// Removes RFC 8601 comments ("(...)", nestable) from an Authentication-Results value. Returns
+// null when the value can't be read unambiguously: unbalanced parentheses, or any double quote or
+// backslash. Those only appear when a sender chose a quoted envelope address, whose text Gmail
+// copies into the header, and a quoted local part may hold ";" and spaces that would read as a
+// result of its own. Failing closed costs at most one email treated as unverified.
+function withoutComments(value: string): string | null {
+  if (/["\\]/.test(value)) return null;
+  let depth = 0;
+  let out = "";
+  for (const ch of value) {
+    if (ch === "(") depth++;
+    else if (ch === ")") {
+      if (depth === 0) return null;
+      depth--;
+    } else if (depth === 0) out += ch;
+  }
+  return depth === 0 ? out : null;
+}
+
+const DOMAIN = /^[a-z0-9.-]+$/;
+
 // The domains Gmail verified for this message, from its Authentication-Results header: the
 // header.from of a DMARC pass, or the signing domain of a DKIM pass. The From header alone can be
-// forged by anyone; these can't.
+// forged by anyone; these can't. The header is read by its structure, not searched as text: the
+// envelope sender (`smtp.mailfrom`, and the SPF comment that quotes it) is chosen by whoever sent
+// the mail, so "dkim=pass header.d=x" written there must never count. Each ";" part after the
+// first (the authserv-id) is one result; it counts only when its method is the first token, and
+// its domain is read only from that result's own header.* property tokens.
 export function authenticatedDomains(authenticationResults: string | null): string[] {
   if (!authenticationResults) return [];
+  const value = withoutComments(lower(authenticationResults));
+  if (value === null) return [];
   const out: string[] = [];
-  for (const part of authenticationResults.split(";")) {
-    const p = lower(part);
-    if (/\bdmarc=pass\b/.test(p)) {
-      const d = /header\.from=([a-z0-9.-]+)/.exec(p)?.[1];
-      if (d) out.push(d);
+  for (const part of value.split(";").slice(1)) {
+    const [method, ...props] = part.trim().split(/\s+/);
+    const prop = (name: string) =>
+      props.find((t) => t.startsWith(`${name}=`))?.slice(name.length + 1);
+    let domain: string | undefined;
+    if (method === "dmarc=pass") domain = prop("header.from");
+    if (method === "dkim=pass") {
+      // header.i is an identity like "@mail.example.com" or "user@example.com".
+      const identity = prop("header.i");
+      domain = prop("header.d") ?? identity?.slice(identity.lastIndexOf("@") + 1);
     }
-    if (/\bdkim=pass\b/.test(p)) {
-      const d =
-        /header\.d=([a-z0-9.-]+)/.exec(p)?.[1] ?? /header\.i=[^@\s]*@([a-z0-9.-]+)/.exec(p)?.[1];
-      if (d) out.push(d);
-    }
+    if (domain && DOMAIN.test(domain)) out.push(domain);
   }
   return out;
 }
