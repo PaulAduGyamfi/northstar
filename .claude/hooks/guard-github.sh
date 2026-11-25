@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PreToolUse hook for MCP tools, ADR-0015 item 7: an allowlist for GitHub connector calls.
+# PreToolUse hook for MCP tools, ADR-0016 item 7: an allowlist for GitHub connector calls.
 # Reads pass. Writes must target PaulAduGyamfi/northstar, and only: open a PR from the current
 # branch, comment or reply on a PR, resolve a review thread, open an issue labelled agent-filed
 # (never edit one, so the label and the "Parent: #N" line stay as filed), and rebase-merge with the
@@ -74,14 +74,14 @@ if name == "issue_write":
     if args.get("method") != "create":
         print("issues are never edited, so the agent-filed label and the Parent line stay as filed.")
     elif not isinstance(labels, list) or "agent-filed" not in labels:
-        print("every issue an agent opens carries the agent-filed label (ADR-0015).")
+        print("every issue an agent opens carries the agent-filed label (ADR-0016).")
     elif not re.match(r"Parent: #\d+\s", body) and "idea" not in labels:
-        print("an agent-filed issue starts with a Parent: #N line (ADR-0015).")
+        print("an agent-filed issue starts with a Parent: #N line (ADR-0016).")
     else:
         print("ok")
     sys.exit()
 
-print(f"{name} is not on the GitHub allowlist in ADR-0015 item 7.")
+print(f"{name} is not on the GitHub allowlist in ADR-0016 item 7.")
 ' <<<"$input" 2>/dev/null)
 
 case "$reason" in

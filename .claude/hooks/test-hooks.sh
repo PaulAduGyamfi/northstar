@@ -233,7 +233,7 @@ if [[ $code -eq 2 ]]; then echo "ok    guard-bash.sh block (no CLAUDE_PROJECT_DI
 else echo "FAIL  guard-bash.sh expected block without CLAUDE_PROJECT_DIR, got $code"; fails=$((fails+1)); fi
 rm -f -- "$proj/.env" "$proj/docker-compose.yml"; rmdir -- "$proj/sub" "$proj"
 
-# guard-github (ADR-0015 item 7): an allowlist for GitHub connector calls.
+# guard-github (ADR-0016 item 7): an allowlist for GitHub connector calls.
 gh_call() { python3 -c 'import json,sys; a=json.loads(sys.argv[2]); a.setdefault("owner","PaulAduGyamfi"); a.setdefault("repo","northstar"); print(json.dumps({"tool_name":sys.argv[1],"tool_input":a}))' "$1" "$2"; }
 head=$(git -C "$root" rev-parse HEAD)
 cur=$(git -C "$root" branch --show-current)
