@@ -1,5 +1,21 @@
 // Public entry of @northstar/db: the schema, the status-change write path and the event reader.
 
+export * as answerSchema from "./answer-schema.js";
+export { BANK_KINDS, type BankKind } from "./answer-schema.js";
+export {
+  type AlreadySaved,
+  type AnswerContent,
+  answerContentSha256,
+  type BankAnswerView,
+  type DecidedByPolicy,
+  type InvalidAnswer,
+  readBankAnswer,
+  recordAnswerReuse,
+  type SaveAnswerError,
+  type SaveAnswerInput,
+  type StoryNotApproved,
+  saveApprovedAnswer,
+} from "./answer-write.js";
 export * as approvalSchema from "./approval-schema.js";
 export {
   type AlreadyDecided,

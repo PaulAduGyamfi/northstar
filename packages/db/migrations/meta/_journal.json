@@ -127,6 +127,20 @@
       "when": 1795619646075,
       "tag": "0017_fit_scoring",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795620652674,
+      "tag": "0018_answer_bank",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795620654379,
+      "tag": "0019_answer_bank_append_only",
+      "breakpoints": true
     }
   ]
 }
