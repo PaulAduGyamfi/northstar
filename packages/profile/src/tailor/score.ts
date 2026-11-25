@@ -56,7 +56,7 @@ function wordCounts(text: string): Map<string, number> {
 
 // Compares what a parser read back (`reparsed`) with what was rendered: the share of rendered
 // words recovered (rounded to 3 places) and every header the render used, each on a line of its
-// own. The PDF renderer (TLR-005) will pass the text read back from its PDF.
+// own. preSendScoreFromPdf (NS-145) passes the text read back from the rendered PDF.
 export function atsParseCheck(rendered: string, reparsed: string): AtsCheck {
   const want = wordCounts(rendered);
   const got = wordCounts(reparsed);

@@ -89,6 +89,10 @@ Exists now:
     their roles or the skills, never from the job.
 
   Otherwise it falls back to the deterministic resume. Off by default (hand-written fixtures).
+  Since NS-145 also PDF and DOCX resumes from the same lines as the text render
+  (`renderResumePdf` with pdf-lib, `renderResumeDocx` with docx; ADR-0020). `tailorToPages`
+  keeps the most lines that fit the page budget, measured on the PDF (1 page by default), and
+  `preSendScoreFromPdf` runs the ATS check on what `pdfToText` reads back from the PDF.
 - The answer bank (GH-59, ANS-005/006) in `packages/db` (`answer-schema.ts`, `answer-write.ts`):
   append-only `bank_answer` (versioned per canonical question), `bank_answer_citation` and
   `bank_answer_use`. `saveApprovedAnswer` stores an answer only with a live Gate approval by Paul

@@ -89,12 +89,15 @@ export {
   type ResumeDiff,
   type SkillChange,
 } from "./tailor/diff.js";
+export { renderResumeDocx } from "./tailor/docx.js";
+export { type FittedResume, preSendScoreFromPdf, tailorToPages } from "./tailor/fit.js";
 export {
   checkModelResume,
   type ModelTailorResult,
   resumeTailorInput,
   tailorWithModel,
 } from "./tailor/model-tailor.js";
+export { type RenderedPdf, renderResumePdf } from "./tailor/pdf.js";
 export { HEADERS, renderResumeText } from "./tailor/render.js";
 export {
   RESUME_TAILOR_VERSION,
@@ -128,7 +131,7 @@ export {
   type TailorValidation,
   validateTailoredResume,
 } from "./tailor/validate.js";
-export { fileToText } from "./text.js";
+export { fileToText, pdfToText } from "./text.js";
 export {
   checkThesis,
   THESIS_MAX_LENGTH,

@@ -2,8 +2,8 @@ import { normalize } from "../validate.js";
 import type { MasterResume, MasterRole, TailoredResume } from "./types.js";
 
 // The ATS-safe plain-text resume (NS-117): one column, fixed upper-case headers, `- ` bullets, no
-// tables or columns a parser could scramble. The PDF and DOCX renderers (TLR-005) will follow
-// the same structure. Employer, title, school, degree and dates come from the master, never from
+// tables or columns a parser could scramble. The PDF and DOCX renderers (TLR-005, NS-145) lay out
+// these same lines. Employer, title, school, degree and dates come from the master, never from
 // the tailored resume (CPG-004).
 
 export const HEADERS = ["SUMMARY", "EXPERIENCE", "PROJECTS", "EDUCATION", "SKILLS"] as const;
