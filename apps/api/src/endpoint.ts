@@ -21,7 +21,11 @@ export type Endpoint<I = unknown, O = unknown> = {
   method: "GET" | "POST";
   path: string;
   // "session": refused with 401 before the body is read unless Paul is signed in.
-  auth: "none" | "session";
+  // "extension": the same, unless the request carries the extension's own token (NS-128). The two
+  // never stand in for each other.
+  auth: "none" | "session" | "extension";
+  // The largest body this endpoint reads, in bytes (server.ts's MAX_BODY_BYTES when unset).
+  maxBodyBytes?: number;
   input: z.ZodType<I>;
   output: z.ZodType<O>;
   handler: (input: I, ctx: Context) => Promise<Result<O>>;

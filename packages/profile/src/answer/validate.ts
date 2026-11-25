@@ -12,7 +12,7 @@ export type AnswerValidation = { ok: true } | { ok: false; failures: AnswerFailu
 
 // Ordinary sentence openers. A first word not on this list is checked like any other capitalised
 // word, so "Globex asked me…" can't slip a name in at the start.
-const STARTERS = new Set(
+export const STARTERS = new Set(
   (
     "A After Afterwards Again All Also Although An And As At Because Before Both But By During " +
     "Each Earlier Eventually Every Finally First For From However I If In Initially It Last " +
@@ -25,7 +25,7 @@ export const MIN_QUOTE_WORDS = 2;
 
 // Numbers written as words. Like digits, they must come from the sentence's own quotes, so
 // "a team of twenty" can't be slipped in where the evidence says "a team".
-const NUMBER_WORDS = new Set(
+export const NUMBER_WORDS = new Set(
   (
     "zero two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen " +
     "sixteen seventeen eighteen nineteen twenty thirty forty fifty sixty seventy eighty ninety " +

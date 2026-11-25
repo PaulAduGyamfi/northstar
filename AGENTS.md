@@ -79,6 +79,16 @@ Exists now:
   `validateTailoredResume` blocks any line without atom provenance, `diffResume` and
   `applySkillToggles` for the diff view, and `preSendScore` (title match, keyword coverage, ATS
   re-parse check) over the plain-text render.
+  Since NS-144 also the `resume-tailor` route (`tailor/route.ts`). `tailorWithModel` lets the
+  model reword the deterministic resume's lines and write a summary. It uses the result only if
+  `checkModelResume` passes:
+  - `validateTailoredResume`;
+  - the deterministic tailor's sections, line order, atoms per line, skills and not-claimed
+    notes;
+  - in the model's text, every capitalised word and number word comes from the cited atoms,
+    their roles or the skills, never from the job.
+
+  Otherwise it falls back to the deterministic resume. Off by default (hand-written fixtures).
 - The answer bank (GH-59, ANS-005/006) in `packages/db` (`answer-schema.ts`, `answer-write.ts`):
   append-only `bank_answer` (versioned per canonical question), `bank_answer_citation` and
   `bank_answer_use`. `saveApprovedAnswer` stores an answer only with a live Gate approval by Paul
@@ -213,6 +223,14 @@ Exists now:
   SameSite=Strict cookie on the web app's own `northstar.localhost` name, 5 wrong keys a minute
   then 429, and `Host`, `x-forwarded-host`, `Origin` and content-type checks.
   Every endpoint that acts for Paul uses `auth: "session"`.
+- `apps/extension/` (NS-128): "Save to Northstar", a Chrome MV3 extension compiled by `tsc` (no
+  bundler or framework). Permissions `activeTab`, `scripting`, `storage` and the local API host
+  only; nothing runs until Paul clicks. It reads the visible page and posts it to the API's
+  `POST /jobs/capture` with its own token (`NORTHSTAR_EXTENSION_TOKEN_SHA256`, `auth:
+  "extension"`, which never opens a session endpoint). The API reads the link only for a known
+  ATS (`detectAts`), through the same path as `jobs add <url>`; every other page is saved from its
+  text (untrusted, the `job-extract` route only), so the server never fetches a host the page's
+  owner controls. A captured job isn't scored until the next `jobs score` or poll pass.
 - `apps/web/` (NS-156): the Next.js shell (PillNav, B · Momentum colors as CSS variables) with one
   authenticated page, Today. `/api/*` is rewritten to the API, and pages that need Paul go through
   `readSession`/`todayView` (`src/session.ts`), which ask the API's `GET /me`. It holds no secret.
@@ -223,7 +241,7 @@ Planned (`docs/architecture/system-design.md` §7). **Don't create these early:*
 with the ticket that needs it.
 
 ```
-apps/worker  apps/extension
+apps/worker
 packages/agents  ats-adapters  ui
 ops/  docs/runbooks/
 ```
@@ -271,8 +289,9 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `docker compose down` | stop the stack, **keep the data** (Paul runs it; agents ask). Never `down -v` (deletes every volume) |
 | repo root | `pnpm --filter @northstar/db db:generate` | new migration from `packages/db/src/schema.ts` (no database needed); prints "No schema changes" when migrations match |
 | repo root | `pnpm --filter @northstar/db db:migrate` | apply pending migrations to `DATABASE_URL`, which Node loads from the root `.env` (Paul, outside the sandbox, stack up). Builds `domain` and `db` first |
-| repo root | `pnpm --filter @northstar/api start` | build and run the API on 127.0.0.1:`NORTHSTAR_API_PORT` (8787), reading the root `.env`; refuses to start until `NORTHSTAR_SIGNIN_KEY_SHA256` is set (Paul) |
+| repo root | `pnpm --filter @northstar/api start` | build and run the API on 127.0.0.1:`NORTHSTAR_API_PORT` (8787), reading the root `.env`; refuses to start until `NORTHSTAR_SIGNIN_KEY_SHA256` and `DATABASE_URL` are set (Paul) |
 | repo root | `pnpm --filter @northstar/web build` / `pnpm --filter @northstar/web start` | build and serve the web app on 127.0.0.1:3100; open it at `http://northstar.localhost:3100` (`NORTHSTAR_WEB_ORIGIN`, ADR-0018). It doesn't read the root `.env`: export `NORTHSTAR_API_ORIGIN` (default `http://127.0.0.1:8787`) in the shell before build and start if the API's port changed. `pnpm --filter @northstar/web dev` while developing |
+| repo root | `pnpm --filter @northstar/extension build` | build the browser extension into `apps/extension/dist`; load that folder in `chrome://extensions` ("Load unpacked"), then paste the extension token in its options (Paul). The API needs `NORTHSTAR_EXTENSION_TOKEN_SHA256` and `DATABASE_URL` for captures |
 
 **Done** means every check passes in every package you touched and you showed the output.
 
