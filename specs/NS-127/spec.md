@@ -20,17 +20,20 @@ then quote. Like everything else, it may claim only what his profile backs up.
    when that list is empty:
    - `no_citation`: no atom is cited.
    - `not_one_sentence`: empty, over 200 characters, a line break, or more than one sentence.
-   - `unbacked_number`: a number that isn't in a cited quote. "N years" may instead be at most
-     the whole years of experience the roles' locked dates give.
-   - `unbacked_name`: a capitalised word after the first (a company, product, technology or
-     title word) that isn't in a cited quote, a role's employer or title, or the skills.
+   - `unbacked_number`: a number that isn't in a cited quote. A plain "N years" (or "N+ years")
+     may instead be at most the whole years of experience the roles' locked dates give, but
+     only where every place the number appears is such a claim. "N years of <Name>" is not
+     exempt, because the dates can't say what the years were spent on.
+   - `unbacked_name`: any capitalised word, the first included (a company, product, technology
+     or title word), that isn't in a cited quote, a role's employer or title, or the skills.
      Matching uses whole words and is case-sensitive.
 2. **Stored versions** (`packages/db`, `positioning_thesis` and `positioning_thesis_atom`,
    `thesis-write.ts`).
    - `saveApprovedThesis` stores the text Paul approved as the next version, with the atoms it
      cites (at least one, from his current resume), and writes one `thesis.approved` event. The
      event carries the version and the atom count, never the text.
-   - Saving the current text again stores nothing.
+   - Saving the current text with the same atoms again stores nothing. The same text citing other
+     atoms (say after a re-import) is a new version.
    - `readCurrentThesis` returns the newest version, and `readThesisHistory` returns all of them.
    - Both tables are append-only (a trigger), like approved stories.
 
@@ -65,8 +68,12 @@ then quote. Like everything else, it may claim only what his profile backs up.
   outreach.
 
 ## Open questions
-1. **Capitalised words** are treated as claims. A sentence-initial word is exempt, but other
-   capitalised everyday words ("Backend" mid-sentence) fail unless the evidence names them.
-   That's strict on purpose.
+1. **Capitalised words** are treated as claims, the first word included. A capitalised everyday
+   word ("Backend") fails unless the evidence names it. That's strict on purpose: "Globex
+   engineer…" must not pass.
 2. **Years of experience** sums each role's span from its locked dates, overlaps counted once.
-   A year-only date counts from January.
+   A year-only date counts as January at either end, the shortest span it can mean.
+3. **Not enforced by the database:** citations attached to an older version later (the only
+   write path never does this), and the check itself, which the caller runs because
+   `packages/db` can't import `packages/profile`. The CLI follow-up must run `checkThesis`
+   before it saves.

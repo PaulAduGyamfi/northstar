@@ -36,7 +36,7 @@ export const positioningThesis = pgTable(
     // One line of at most 200 characters (the same limit as checkThesis).
     check(
       "positioning_thesis_text_shape",
-      sql`length(trim(${t.text})) between 1 and 200 and position(E'\\n' in ${t.text}) = 0`,
+      sql`length(trim(${t.text})) between 1 and 200 and ${t.text} !~ E'[\\r\\n]'`,
     ),
   ],
 );

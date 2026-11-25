@@ -43,12 +43,8 @@ export function yearsOfExperience(roles: ThesisRole[], asOf: string): number {
   const spans = roles
     .map((r) => {
       const start = r.startMonth === null ? null : monthIndex(r.startMonth);
-      // A year-only end date counts to December of that year.
-      const end = r.current
-        ? now
-        : r.endMonth === null
-          ? null
-          : (monthIndex(r.endMonth) ?? 0) + (r.endMonth.length === 4 ? 11 : 0);
+      // A year-only date counts as January, at either end: the shortest span it can mean.
+      const end = r.current ? now : r.endMonth === null ? null : monthIndex(r.endMonth);
       return start === null || end === null || end < start ? null : [start, end + 1];
     })
     .filter((s): s is number[] => s !== null)
@@ -66,7 +62,9 @@ export function yearsOfExperience(roles: ThesisRole[], asOf: string): number {
 // One sentence: no line break, and no sentence end followed by more text.
 function isOneSentence(text: string): boolean {
   const t = text.trim();
-  return t.length > 0 && t.length <= THESIS_MAX_LENGTH && !/\n/.test(t) && !/[.!?]\s+\S/.test(t);
+  return (
+    t.length > 0 && t.length <= THESIS_MAX_LENGTH && !/[\r\n]/.test(t) && !/[.!?]\s+\S/.test(t)
+  );
 }
 
 // Checks a thesis Paul is about to approve, citing `citedAtoms` atoms. Empty means it passes.
@@ -86,9 +84,15 @@ export function checkThesis(
   const years = yearsOfExperience(evidence.roles, evidence.asOf);
   for (const n of numbers(thesis)) {
     if (quoted.has(n)) continue;
-    // "N years" / "N+ years" is backed by the roles' locked dates instead.
-    const yearsClaim = new RegExp(`(?<![\\d.,])${n}\\+?\\s*(?:years?|yrs?)\\b`, "i");
-    if (yearsClaim.test(thesis) && Number(n) <= years) continue;
+    // Otherwise every place the number appears must be a plain "N years" / "N+ years" claim,
+    // backed by the roles' locked dates. "N years of Kubernetes" names what the years were
+    // spent on, which the dates can't back, so it is not exempt.
+    const at = new RegExp(`(?<![\\d.,])${n.replace(/[.,]/g, "\\$&")}(?![\\d])`, "g");
+    const plainYears = /^\+?\s*(?:years?|yrs?)\b(?!\s+(?:of|in|with)\s+\p{Lu})/u;
+    const allYears = [...thesis.matchAll(at)].every((m) =>
+      plainYears.test(thesis.slice((m.index ?? 0) + n.length)),
+    );
+    if (allYears && Number(n) <= years) continue;
     failures.push({ kind: "unbacked_number", token: n });
   }
   const names = normalize(
@@ -98,7 +102,8 @@ export function checkThesis(
       ...evidence.skills,
     ].join(" \n "),
   );
-  const words = thesis.split(" ").slice(1);
+  // Every word, the first included: "Globex engineer…" is as much a claim as "…at Globex".
+  const words = thesis.split(" ");
   const seen = new Set<string>();
   for (const raw of words) {
     // Edge punctuation off ("Python." → "Python"), keeping name characters such as + and #.

@@ -40,14 +40,27 @@ export async function saveApprovedThesis(
         return { ok: false, error: { kind: "AtomNotCurrent", atomIds: missing } };
 
       const [latest] = await tx
-        .select({ version: positioningThesis.version, text: positioningThesis.text })
+        .select({
+          id: positioningThesis.id,
+          version: positioningThesis.version,
+          text: positioningThesis.text,
+        })
         .from(positioningThesis)
         .where(eq(positioningThesis.candidateId, input.candidateId))
         .orderBy(desc(positioningThesis.version))
         .limit(1);
-      // The same words again are not a new version.
-      if (latest && latest.text === text)
-        return { ok: true, version: latest.version, saved: false };
+      // The same words citing the same atoms are not a new version. New atoms (say after a
+      // resume re-import) are: the citations are part of what Paul approved.
+      if (latest && latest.text === text) {
+        const cited = await tx
+          .select({ atomId: positioningThesisAtom.atomId })
+          .from(positioningThesisAtom)
+          .where(eq(positioningThesisAtom.thesisId, latest.id));
+        const same =
+          cited.length === atomIds.length && cited.every((c) => atomIds.includes(c.atomId));
+        if (same) return { ok: true, version: latest.version, saved: false };
+      }
+      // Two saves racing for the same version: the unique constraint fails one, nothing doubles.
       const version = (latest?.version ?? 0) + 1;
       const [row] = await tx
         .insert(positioningThesis)

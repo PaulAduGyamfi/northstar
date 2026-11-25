@@ -99,6 +99,26 @@ describe("saveApprovedThesis", () => {
     expect((await db.select().from(positioningThesis)).length).toBe(1);
   });
 
+  it("stores the same text citing different atoms as a new version", async () => {
+    await saveApprovedThesis(db, { candidateId, text: THESIS_A, atomIds: atoms });
+    expect(
+      await saveApprovedThesis(db, { candidateId, text: THESIS_A, atomIds: [atoms[1] ?? ""] }),
+    ).toEqual({ ok: true, version: 2, saved: true });
+  });
+
+  it("refuses a line break of either kind in the database", async () => {
+    // The CHECK fails the insert statement itself, before the deferred atom check at commit.
+    const insertWith = (text: string) =>
+      db.transaction(async (tx) => {
+        const failed = await sqlState(
+          tx.insert(positioningThesis).values({ candidateId, version: 9, text }),
+        );
+        throw new Error(`insert:${failed}`);
+      });
+    await expect(insertWith("Line\rbreak")).rejects.toThrow("insert:23514");
+    await expect(insertWith("Line\nbreak")).rejects.toThrow("insert:23514");
+  });
+
   it("refuses a thesis with no atom, or with another candidate's atom", async () => {
     expect(await saveApprovedThesis(db, { candidateId, text: THESIS_A, atomIds: [] })).toEqual({
       ok: false,

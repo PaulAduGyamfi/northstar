@@ -1,6 +1,6 @@
 {
-  "id": "c2dc35e0-e8da-4642-ab3c-119af0322d3a",
-  "prevId": "2ce34a01-8be6-42b3-a987-4f93247ac671",
+  "id": "bc2c7f87-1bb2-43f6-9576-d4ff827cdab4",
+  "prevId": "464b7fa4-1cf9-47f8-b6ee-174b7e8dcf63",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -4010,7 +4010,7 @@
         },
         "positioning_thesis_text_shape": {
           "name": "positioning_thesis_text_shape",
-          "value": "length(trim(\"positioning_thesis\".\"text\")) between 1 and 200 and position(E'\\n' in \"positioning_thesis\".\"text\") = 0"
+          "value": "length(trim(\"positioning_thesis\".\"text\")) between 1 and 200 and \"positioning_thesis\".\"text\" !~ E'[\\r\\n]'"
         }
       },
       "isRLSEnabled": false

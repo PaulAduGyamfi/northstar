@@ -7,7 +7,7 @@ CREATE TABLE "positioning_thesis" (
 	CONSTRAINT "positioning_thesis_id_candidate_unique" UNIQUE("id","candidate_id"),
 	CONSTRAINT "positioning_thesis_version_unique" UNIQUE("candidate_id","version"),
 	CONSTRAINT "positioning_thesis_version_positive" CHECK ("positioning_thesis"."version" >= 1),
-	CONSTRAINT "positioning_thesis_text_shape" CHECK (length(trim("positioning_thesis"."text")) between 1 and 200 and position(E'\n' in "positioning_thesis"."text") = 0)
+	CONSTRAINT "positioning_thesis_text_shape" CHECK (length(trim("positioning_thesis"."text")) between 1 and 200 and "positioning_thesis"."text" !~ E'[\r\n]')
 );
 --> statement-breakpoint
 CREATE TABLE "positioning_thesis_atom" (
