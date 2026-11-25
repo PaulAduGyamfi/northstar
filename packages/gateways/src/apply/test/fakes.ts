@@ -32,6 +32,8 @@ export function fakeWorld(script: {
   open?: () => Promise<PageState>;
   submit?: () => Promise<PageState>;
   initialStatus?: ApplicationStatus;
+  // Whether a repeated in-progress claim is past CLAIM_STALE_AFTER_MS (the database decides).
+  claimStale?: boolean;
 }): FakeWorld {
   let status: ApplicationStatus = script.initialStatus ?? "awaiting_approval";
   type GateRefusal = "Rejected" | "Undone" | "UndoWindowOpen";
@@ -93,7 +95,8 @@ export function fakeWorld(script: {
       const existing = keys.get(key);
       if (existing) {
         const proof = proofs.find((p) => p.submissionId === existing.submissionId) ?? null;
-        return ok({ claimed: false as const, submission: { ...existing }, proof });
+        const stale = existing.status === "in_progress" && (script.claimStale ?? true);
+        return ok({ claimed: false as const, submission: { ...existing }, proof, stale });
       }
       const requisition = `${input.ats}:${input.postingId}`;
       if (requisitions.has(requisition)) return err({ kind: "DuplicateRequisition" as const });

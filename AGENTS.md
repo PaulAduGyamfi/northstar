@@ -98,9 +98,12 @@ Exists now:
   submission once in `packages/db` (`apply-write.ts`: idempotency key, requisition dedupe,
   one in progress per ATS, 90 s gap, 25 a day), drives the form through a `FormDriver`, and
   stores proof (`submission_proof`, append-only). Anything it can't finish is `needs_human`
-  with a reason code, never retried blindly. Greenhouse, Lever and Ashby adapters map the
+  with a reason code, never retried blindly: a repeated call finds a live claim `InProgress`,
+  and only a claim older than 15 minutes becomes `needs_human` (`outcome_unknown`). The
+  requisition is the posting id read from the apply URL. Greenhouse, Lever and Ashby adapters map the
   package onto the form and recognize the confirmation page. The package schema and its hash
-  are in `packages/domain` (`apply-package.ts`). There is no real browser driver yet, so
+  are in `packages/domain` (`apply-package.ts`). Its tests run on fakes and, through `dbPorts`,
+  on the real write paths: `@northstar/db/testing` exports `createTestDb` and friends for that. There is no real browser driver yet, so
   nothing can be submitted until the Playwright driver lands.
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.

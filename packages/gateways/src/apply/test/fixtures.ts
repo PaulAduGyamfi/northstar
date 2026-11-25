@@ -55,6 +55,12 @@ export const APPLY_URLS: Record<ApplyAts, string> = {
   ashby: "https://jobs.ashbyhq.com/examplecorp/0b0b0b0b-0000-4000-8000-000000000003/application",
 };
 
+export const POSTING_IDS: Record<ApplyAts, string> = {
+  greenhouse: "4001",
+  lever: "0a0a0a0a-0000-4000-8000-000000000002",
+  ashby: "0b0b0b0b-0000-4000-8000-000000000003",
+};
+
 export const CONFIRMATIONS: Record<ApplyAts, { url: string; html: string }> = {
   greenhouse: {
     url: "https://boards.greenhouse.io/examplecorp/jobs/4001/confirmation",
@@ -75,7 +81,7 @@ export function makePackage(ats: ApplyAts, overrides: Partial<ApplicationPackage
     packageId: "11111111-1111-4111-8111-111111111111",
     applicationId: "22222222-2222-4222-8222-222222222222",
     ats,
-    postingId: "4001",
+    postingId: POSTING_IDS[ats],
     applyUrl: APPLY_URLS[ats],
     contact: { firstName: "Ada", lastName: "Example", email: "ada@example.com", phone: null },
     resume: { fileName: "resume.pdf", sha256: sha(RESUME) },

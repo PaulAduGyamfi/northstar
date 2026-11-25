@@ -4,8 +4,11 @@ import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { applySubmission, submissionProof } from "./apply-schema.js";
 import {
+  CLAIM_STALE_AFTER_MS,
   type ClaimInput,
   claimSubmission,
+  DEFAULT_DAILY_CAP,
+  DEFAULT_MIN_GAP_MS,
   recordNeedsHuman,
   recordSubmitted,
 } from "./apply-write.js";
@@ -160,6 +163,26 @@ describe("claimSubmission", () => {
       ok: false,
       error: { kind: "DailyCapReached", retryAt: after(24 * 60 * 60_000) },
     });
+  });
+
+  it("calls a repeated in-progress claim live before 15 minutes", async () => {
+    const input = await claimInput();
+    await claimOk(input);
+    await setClock(after(CLAIM_STALE_AFTER_MS - 1_000));
+    const again = await claimSubmission(db, input);
+    expect(again.ok && !again.value.claimed && again.value.stale).toBe(false);
+  });
+
+  it("calls a repeated in-progress claim stale after 15 minutes", async () => {
+    const input = await claimInput();
+    await claimOk(input);
+    await setClock(after(CLAIM_STALE_AFTER_MS));
+    const again = await claimSubmission(db, input);
+    expect(again.ok && !again.value.claimed && again.value.stale).toBe(true);
+  });
+
+  it("defaults to 25 a day and 90 seconds apart (APPLY-007)", () => {
+    expect([DEFAULT_DAILY_CAP, DEFAULT_MIN_GAP_MS]).toEqual([25, 90_000]);
   });
 
   it("writes a claimed event with ids and the ATS only", async () => {

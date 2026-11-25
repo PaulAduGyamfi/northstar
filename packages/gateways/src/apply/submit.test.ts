@@ -5,15 +5,19 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PageState } from "./driver.js";
-import { NotApprovedError, submitApplication } from "./submit.js";
+import { NotApprovedError, SUBMIT_TIMEOUT_MS, submitApplication } from "./submit.js";
 import { type FakeWorld, fakeWorld } from "./test/fakes.js";
-import { CONFIRMATIONS, FORMS, makePackage } from "./test/fixtures.js";
+import { APPLY_URLS, CONFIRMATIONS, FORMS, makePackage } from "./test/fixtures.js";
 
 const candidateId = CandidateId.parse("33333333-3333-4333-8333-333333333333");
 const PNG = new Uint8Array([137, 80, 78, 71]);
-const form = async (): Promise<PageState> => ({ kind: "form", fields: FORMS.greenhouse });
+const form = async (): Promise<PageState> => ({
+  kind: "form",
+  url: APPLY_URLS.greenhouse,
+  fields: FORMS.greenhouse,
+});
 const confirmed = async (): Promise<PageState> => ({
   kind: "page",
   ...CONFIRMATIONS.greenhouse,
@@ -55,6 +59,7 @@ describe("approval", () => {
       await expect(run(world, world.approve(pkg, refusal))).rejects.toEqual(
         new NotApprovedError(refusal),
       );
+      expect([world.submissions.length, world.driverCalls.open]).toEqual([0, 0]);
     },
   );
 
@@ -67,6 +72,7 @@ describe("approval", () => {
     await expect(run(world, decisionId, edited)).rejects.toEqual(
       new NotApprovedError("ContentChanged"),
     );
+    expect([world.submissions.length, world.driverCalls.open]).toEqual([0, 0]);
   });
 
   it("throws NotApproved for an approval of another package", async () => {
@@ -75,6 +81,7 @@ describe("approval", () => {
     await expect(run(world, world.approve(other))).rejects.toEqual(
       new NotApprovedError("SubjectMismatch"),
     );
+    expect([world.submissions.length, world.driverCalls.open]).toEqual([0, 0]);
   });
 });
 
@@ -85,6 +92,15 @@ describe("refusals before anything is claimed", () => {
     expect(await run(world, world.approve(elsewhere), elsewhere)).toEqual({
       ok: false,
       error: { kind: "HostNotAllowed" },
+    });
+  });
+
+  it("refuses a posting id that isn't the one in the apply URL", async () => {
+    const world = fakeWorld({ open: form, submit: confirmed });
+    const other = makePackage("greenhouse", { postingId: "4002" });
+    expect(await run(world, world.approve(other), other)).toEqual({
+      ok: false,
+      error: { kind: "PostingMismatch" },
     });
   });
 
@@ -168,6 +184,24 @@ describe("submitting", () => {
     ]).toEqual(["outcome_unknown", 0, "needs_human"]);
   });
 
+  it("leaves a claim another run may still be driving alone", async () => {
+    const world = fakeWorld({ open: form, submit: confirmed, claimStale: false });
+    const decisionId = world.approve(pkg);
+    await world.ports.claimSubmission({
+      candidateId,
+      applicationId: pkg.applicationId,
+      decisionId,
+      ats: "greenhouse",
+      postingId: pkg.postingId,
+    });
+    const result = await run(world, decisionId);
+    expect([result, world.submissions[0]?.status, world.driverCalls.open]).toEqual([
+      { ok: false, error: { kind: "InProgress" } },
+      "in_progress",
+      0,
+    ]);
+  });
+
   it("hands a claim left before the move to submitting to Paul", async () => {
     const world = fakeWorld({ open: form, submit: confirmed });
     const decisionId = world.approve(pkg);
@@ -227,6 +261,7 @@ describe("needs_human", () => {
       {
         open: async () => ({
           kind: "form",
+          url: APPLY_URLS.greenhouse,
           fields: [...FORMS.greenhouse, { name: "question_7", type: "text", required: true }],
         }),
       },
@@ -237,6 +272,7 @@ describe("needs_human", () => {
       {
         open: async () => ({
           kind: "form",
+          url: APPLY_URLS.greenhouse,
           fields: FORMS.greenhouse.filter((f) => f.name !== "question_1002"),
         }),
       },
@@ -249,6 +285,29 @@ describe("needs_human", () => {
           kind: "page",
           url: pkg.applyUrl,
           html: "<p>Please fix the errors</p>",
+          screenshotPng: PNG,
+        }),
+      },
+      "no_confirmation",
+    ],
+    [
+      "a form reached by a redirect off the ATS's hosts",
+      {
+        open: async () => ({
+          kind: "form",
+          url: "https://apply.example.com/4001",
+          fields: FORMS.greenhouse,
+        }),
+      },
+      "form_changed",
+    ],
+    [
+      "a confirmation page on another host",
+      {
+        submit: async () => ({
+          kind: "page",
+          url: "https://apply.example.com/jobs/4001/confirmation",
+          html: CONFIRMATIONS.greenhouse.html,
           screenshotPng: PNG,
         }),
       },
@@ -286,10 +345,28 @@ describe("needs_human", () => {
     ]).toEqual([reason, "needs_human", "needs_human", 0, 1]);
   });
 
+  it("ends a submit that never returns as driver_error after its time limit", async () => {
+    vi.useFakeTimers();
+    try {
+      const world = fakeWorld({ open: form, submit: () => new Promise<PageState>(() => {}) });
+      const pending = run(world);
+      await vi.advanceTimersByTimeAsync(SUBMIT_TIMEOUT_MS);
+      const result = await pending;
+      expect([
+        result.ok && result.value.outcome === "needs_human" && result.value.reason,
+        world.status(),
+        world.driverCalls.close,
+      ]).toEqual(["driver_error", "needs_human", 1]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("types nothing when the form needs a field the package can't fill", async () => {
     const world = fakeWorld({
       open: async () => ({
         kind: "form",
+        url: APPLY_URLS.greenhouse,
         fields: [...FORMS.greenhouse, { name: "question_7", type: "text", required: true }],
       }),
       submit: confirmed,

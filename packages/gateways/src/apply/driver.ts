@@ -14,8 +14,8 @@ export type FormField = {
 export type Challenge = "captcha" | "login" | "mfa" | "account";
 
 export type PageState =
-  // An application form.
-  | { kind: "form"; fields: readonly FormField[] }
+  // An application form, and the URL it is on after any redirects.
+  | { kind: "form"; url: string; fields: readonly FormField[] }
   // Something only Paul's hands may get past.
   | { kind: "challenge"; challenge: Challenge }
   // Any other page, captured as proof material.
@@ -24,7 +24,8 @@ export type PageState =
 export type Fill = { field: string; value: string | readonly string[] };
 export type Upload = { field: string; fileName: string; bytes: Uint8Array };
 
-// One browser session for one submission.
+// One browser session for one submission. The gateway puts its own time limits around open and
+// fillAndSubmit; a real driver should also refuse to navigate off the adapter's hosts.
 export interface FormDriver {
   open(url: string): Promise<PageState>;
   // Types the values, attaches the files, presses submit, and returns the page that follows.

@@ -1,4 +1,4 @@
-import { type AtsAdapter, pageText } from "./adapter.js";
+import { type AtsAdapter, capture, pageText } from "./adapter.js";
 
 // Lever hosted postings (`jobs.lever.co/<company>/<posting>/apply`). Lever asks for one full
 // name and has no cover letter upload. Markers are hand-written (follow-up: record real pages).
@@ -10,6 +10,10 @@ export const lever: AtsAdapter = {
     email: c.email,
     ...(c.phone === null ? {} : { phone: c.phone }),
   }),
+  // `/<company>/<posting uuid>[/apply]`
+  postingIdOf: capture(
+    /^\/[^/]+\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/apply)?\/?$/i,
+  ),
   resumeField: "resume",
   coverLetterField: null,
   isConfirmation: ({ url, html }) =>

@@ -2,10 +2,15 @@ import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import { vector } from "@electric-sql/pglite-pgvector";
 import type { ApplicationStatus } from "@northstar/domain";
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { inject } from "vitest";
 import type { Db } from "../db.js";
 import * as schema from "../schema.js";
+
+// Test helpers, also built into dist and exported as `@northstar/db/testing` so other packages'
+// tests (the Apply Gateway, NS-120) can run against the real write paths. Never imported by
+// application code. A package using it points Vitest's globalSetup at dist/test/global-setup.js.
 
 // The migrated, empty data directory that global-setup.ts built once for this run, read once per
 // test file. No test hook applies migrations: that work made the first beforeEach of a file pass
@@ -71,4 +76,10 @@ export async function sqlState(query: PromiseLike<unknown>): Promise<string | nu
     const code = typeof own === "string" ? own : cause;
     return typeof code === "string" ? code : "no-sqlstate";
   }
+}
+
+// Pins the Gate's database clock (northstar_gate_now(), migration 0016) for this connection.
+// Test databases only: global-setup.ts makes the function read this setting.
+export async function setGateClock(db: Db, at: Date): Promise<void> {
+  await db.execute(sql`select set_config('northstar.gate_test_now', ${at.toISOString()}, false)`);
 }

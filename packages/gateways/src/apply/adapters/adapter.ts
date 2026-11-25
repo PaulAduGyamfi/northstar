@@ -12,7 +12,16 @@ export type AtsAdapter = {
   // null: this ATS has no cover letter upload.
   coverLetterField: string | null;
   isConfirmation: (page: { url: string; html: string }) => boolean;
+  // The ATS's posting id in an apply URL path, or null if the path isn't one of its postings.
+  // The requisition key comes from here, so a package can't name another posting than it opens.
+  postingIdOf: (path: string) => string | null;
 };
+
+// The first capture group of a path pattern, lower-cased (posting UUIDs differ only in case).
+export const capture =
+  (pattern: RegExp) =>
+  (path: string): string | null =>
+    pattern.exec(path)?.[1]?.toLowerCase() ?? null;
 
 // Lower-cased page text without tags, for marker checks.
 export const pageText = (html: string): string =>

@@ -5,9 +5,14 @@ export type { Challenge, Fill, FormDriver, FormField, PageState, Upload } from "
 export { type FieldPlan, type MapError, mapPackage } from "./apply/map.js";
 export { type ApplyPorts, dbPorts } from "./apply/ports.js";
 export {
+  ApplyInvariantError,
   type FileChanged,
   type HostNotAllowed,
+  type InProgress,
   NotApprovedError,
+  OPEN_TIMEOUT_MS,
+  type PostingMismatch,
+  SUBMIT_TIMEOUT_MS,
   type SubmitInput,
   type SubmitOutcome,
   type SubmitRefusal,

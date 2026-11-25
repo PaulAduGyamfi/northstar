@@ -24,6 +24,10 @@ type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 // APPLY-007 defaults: at most 25 started in any 24 hours, 90 s between two on the same ATS.
 export const DEFAULT_DAILY_CAP = 25;
 export const DEFAULT_MIN_GAP_MS = 90_000;
+// A claim still in progress this long after it started belongs to a run that died: no browser
+// session lives this long (the gateway's driver timeouts add up to far less). Before that, the
+// claim belongs to a run that may still be in the browser and must be left alone.
+export const CLAIM_STALE_AFTER_MS = 15 * 60_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type SubmissionView = {
@@ -61,7 +65,13 @@ export type ClaimInput = {
 
 export type Claimed = { claimed: true; submission: SubmissionView };
 // The idempotency key was used before: this is that submission, and nothing new was claimed.
-export type Existing = { claimed: false; submission: SubmissionView; proof: ProofView | null };
+// `stale`: still in_progress and older than CLAIM_STALE_AFTER_MS by the database clock.
+export type Existing = {
+  claimed: false;
+  submission: SubmissionView;
+  proof: ProofView | null;
+  stale: boolean;
+};
 
 export type DuplicateRequisition = { kind: "DuplicateRequisition" };
 export type AtsBusy = { kind: "AtsBusy" };
@@ -188,6 +198,7 @@ export async function claimSubmission(
         .from(candidate)
         .where(eq(candidate.id, input.candidateId))
         .for("update");
+      const now = await gateNow(tx);
       const key = submitIdempotencyKey(input.applicationId);
       const [existing] = await tx
         .select()
@@ -203,6 +214,9 @@ export async function claimSubmission(
           claimed: false,
           submission: toView(existing),
           proof: await proofOf(tx, existing.id),
+          stale:
+            existing.status === "in_progress" &&
+            now.getTime() - existing.startedAt.getTime() >= CLAIM_STALE_AFTER_MS,
         });
       }
       const requisition = requisitionKey(input.ats, input.postingId);
@@ -227,7 +241,6 @@ export async function claimSubmission(
         .where(and(sameAts, eq(applySubmission.status, "in_progress")));
       if (busy) return err({ kind: "AtsBusy" });
 
-      const now = await gateNow(tx);
       const [last] = await tx
         .select({ startedAt: applySubmission.startedAt })
         .from(applySubmission)

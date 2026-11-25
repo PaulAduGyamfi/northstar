@@ -30,6 +30,15 @@ describe.each(APPLY_ATS)("the %s adapter", (ats) => {
     expect(hostAllowed(adapter, "https://apply.example.com/jobs/4001")).toBe(false);
   });
 
+  it("reads the posting id from its own apply URL", () => {
+    const pkg = makePackage(ats);
+    expect(adapter.postingIdOf(new URL(pkg.applyUrl).pathname)).toBe(pkg.postingId);
+  });
+
+  it("finds no posting id in a board's front page", () => {
+    expect(adapter.postingIdOf("/examplecorp")).toBe(null);
+  });
+
   it("names a required field the package leaves empty", () => {
     const required = FORMS[ats].find((f) => f.required && f.name in makePackage(ats).fields);
     if (!required) throw new Error("fixture has no required custom field");

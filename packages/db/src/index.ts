@@ -2,6 +2,8 @@
 
 export * as applySchema from "./apply-schema.js";
 export {
+  type AtsBusy,
+  CLAIM_STALE_AFTER_MS,
   type ClaimError,
   type Claimed,
   type ClaimInput,
