@@ -27,8 +27,10 @@ All in `packages/profile/src/audit/`, plain code, no model, no database.
      ("helped", "worked on", "responsible for", "assisted", "participated", "involved in",
      "tasked with"). `weak_opener` names the opener found.
    - **ATS parseability:** the master rendered to PDF (`renderResumePdf`, NS-145) and read back
-     (`pdfToText`) gives the share of words recovered (`atsParseCheck`). Unencodable characters
-     and missing headers lower it; `ats` names how many words were lost.
+     (`pdfToText`) gives the share of words recovered (`atsParseCheck`), minus 10 per missing
+     header. Unencodable characters lower it; `ats` (about the whole resume) says words or a
+     header were lost. Messages carry no numbers of their own, so the only numbers in a
+     suggestion are words quoted from the master or a target term.
    - **Length:** 100 when the full master fits one page, minus 25 per extra page; bullets over 200
      characters get `long_line`.
    - **Keyword coverage:** the share of target terms the master names anywhere (atoms, skills).
@@ -37,7 +39,8 @@ All in `packages/profile/src/audit/`, plain code, no model, no database.
      "Manages", "Leading") gets `tense`. A role with no start date, or a past role with no end
      date, gets `missing_date`, which points Paul to his official record (`profile facts`),
      because dates are locked facts (CPG-004).
-   - An overall score, the mean of the six.
+   - An overall score, the rounded mean of the six. Suggestion ids are `<kind>:<target>`, the
+     same for the same master and targets, so a later decision store can key on them.
 2. **`applySuggestion(master, suggestion, newLine)`** (`apply.ts`, AUD-002) returns a new master
    in which only the suggested atom's resume line is Paul's new text. It refuses:
    - a suggestion that isn't about an atom line (roles, dates and keywords are not edited here);
