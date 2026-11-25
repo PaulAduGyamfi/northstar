@@ -164,6 +164,14 @@ export {
   saveApprovedStory,
   startInterview,
 } from "./story-write.js";
+export * as thesisSchema from "./thesis-schema.js";
+export {
+  readCurrentThesis,
+  readThesisHistory,
+  type SaveThesisResult,
+  saveApprovedThesis,
+  type ThesisView,
+} from "./thesis-write.js";
 export {
   type IdempotencyKeyReused,
   type NotFound,

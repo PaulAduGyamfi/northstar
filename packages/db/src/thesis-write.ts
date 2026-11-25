@@ -1,0 +1,127 @@
+import type { CandidateId } from "@northstar/domain";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import type { Db } from "./db.js";
+import { experienceAtom, profileSource } from "./profile-schema.js";
+import { appendEvent, inSpan } from "./resilience-event.js";
+import { positioningThesis, positioningThesisAtom } from "./thesis-schema.js";
+
+// The positioning thesis's only write path (DX-009, NS-127). The caller runs checkThesis
+// (packages/profile) and shows Paul the result first; this stores what he approved. Its event
+// carries the version and the atom count, never the text.
+
+export type SaveThesisResult =
+  | { ok: true; version: number; saved: boolean }
+  | { ok: false; error: { kind: "NoAtoms" } | { kind: "AtomNotCurrent"; atomIds: string[] } };
+
+export async function saveApprovedThesis(
+  db: Db,
+  input: { candidateId: CandidateId; text: string; atomIds: string[] },
+): Promise<SaveThesisResult> {
+  const atomIds = [...new Set(input.atomIds)];
+  if (atomIds.length === 0) return { ok: false, error: { kind: "NoAtoms" } };
+  const text = input.text.trim();
+  return inSpan("thesis.save", { "northstar.thesis.atoms": atomIds.length }, (span) =>
+    db.transaction(async (tx) => {
+      // Only atoms of Paul's current resume import may back his thesis.
+      const current = await tx
+        .select({ id: experienceAtom.id })
+        .from(experienceAtom)
+        .innerJoin(profileSource, eq(profileSource.id, experienceAtom.sourceId))
+        .where(
+          and(
+            eq(experienceAtom.candidateId, input.candidateId),
+            isNull(profileSource.supersededAt),
+            inArray(experienceAtom.id, atomIds),
+          ),
+        );
+      const found = new Set(current.map((a) => a.id));
+      const missing = atomIds.filter((id) => !found.has(id));
+      if (missing.length > 0)
+        return { ok: false, error: { kind: "AtomNotCurrent", atomIds: missing } };
+
+      const [latest] = await tx
+        .select({ version: positioningThesis.version, text: positioningThesis.text })
+        .from(positioningThesis)
+        .where(eq(positioningThesis.candidateId, input.candidateId))
+        .orderBy(desc(positioningThesis.version))
+        .limit(1);
+      // The same words again are not a new version.
+      if (latest && latest.text === text)
+        return { ok: true, version: latest.version, saved: false };
+      const version = (latest?.version ?? 0) + 1;
+      const [row] = await tx
+        .insert(positioningThesis)
+        .values({ candidateId: input.candidateId, version, text })
+        .returning({ id: positioningThesis.id, approvedAt: positioningThesis.approvedAt });
+      if (!row) throw new Error("positioning_thesis insert returned no row");
+      await tx
+        .insert(positioningThesisAtom)
+        .values(
+          atomIds.map((atomId) => ({ candidateId: input.candidateId, thesisId: row.id, atomId })),
+        );
+      await appendEvent(tx, span, {
+        candidateId: input.candidateId,
+        aggregate: `positioning_thesis:${row.id}`,
+        type: "thesis.approved",
+        actor: "user",
+        reason: "Paul approved a positioning thesis",
+        payload: { thesisId: row.id, version, atomCount: atomIds.length },
+        idempotencyKey: `thesis-approved:${row.id}`,
+        at: row.approvedAt,
+      });
+      return { ok: true, version, saved: true };
+    }),
+  );
+}
+
+export type ThesisView = { version: number; text: string; atomIds: string[]; approvedAt: Date };
+
+async function withAtoms(
+  db: Db,
+  candidateId: CandidateId,
+  rows: (typeof positioningThesis.$inferSelect)[],
+): Promise<ThesisView[]> {
+  if (rows.length === 0) return [];
+  const links = await db
+    .select()
+    .from(positioningThesisAtom)
+    .where(
+      and(
+        eq(positioningThesisAtom.candidateId, candidateId),
+        inArray(
+          positioningThesisAtom.thesisId,
+          rows.map((r) => r.id),
+        ),
+      ),
+    );
+  return rows.map((r) => ({
+    version: r.version,
+    text: r.text,
+    atomIds: links.filter((l) => l.thesisId === r.id).map((l) => l.atomId),
+    approvedAt: r.approvedAt,
+  }));
+}
+
+// The current thesis (newest version), or null before Paul approves one.
+export async function readCurrentThesis(
+  db: Db,
+  candidateId: CandidateId,
+): Promise<ThesisView | null> {
+  const rows = await db
+    .select()
+    .from(positioningThesis)
+    .where(eq(positioningThesis.candidateId, candidateId))
+    .orderBy(desc(positioningThesis.version))
+    .limit(1);
+  return (await withAtoms(db, candidateId, rows))[0] ?? null;
+}
+
+// Every version, newest first.
+export async function readThesisHistory(db: Db, candidateId: CandidateId): Promise<ThesisView[]> {
+  const rows = await db
+    .select()
+    .from(positioningThesis)
+    .where(eq(positioningThesis.candidateId, candidateId))
+    .orderBy(desc(positioningThesis.version));
+  return withAtoms(db, candidateId, rows);
+}

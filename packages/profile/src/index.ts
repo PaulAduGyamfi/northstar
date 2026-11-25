@@ -58,4 +58,12 @@ export {
 export { COMPETENCIES, STAR_PARTS, type StarPart, StoryDraft } from "./story-schema.js";
 export { type StoryEvidence, type StoryFailure, validateStoryDraft } from "./story-validate.js";
 export { fileToText } from "./text.js";
+export {
+  checkThesis,
+  THESIS_MAX_LENGTH,
+  type ThesisEvidence,
+  type ThesisFailure,
+  type ThesisRole,
+  yearsOfExperience,
+} from "./thesis.js";
 export { normalize, type ProvenanceFailure, validateProvenance } from "./validate.js";
