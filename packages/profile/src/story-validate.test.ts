@@ -66,6 +66,33 @@ describe("validateStoryDraft", () => {
     });
   });
 
+  it("a quote cut from inside a longer number is rejected, so it can't back that number", () => {
+    // "2% to 3%" is a substring of Paul's "12% to 3%", starting inside "12".
+    const d = draft({
+      result: {
+        text: "Late deliveries went from 2% to 3% in the first month.",
+        quotes: ["2% to 3% in the first month."],
+      },
+    });
+    expect(validateStoryDraft(d, { atom, answers })).toEqual({
+      ok: false,
+      failures: [{ item: "result", problem: "quote 0 is not in the answers" }],
+    });
+  });
+
+  it("a one-word quote is rejected as too short", () => {
+    const d = draft({ task: { text: "I owned the route planner.", quotes: ["owned"] } });
+    expect(validateStoryDraft(d, { atom, answers })).toEqual({
+      ok: false,
+      failures: [{ item: "task", problem: "quote 0 is shorter than 2 words" }],
+    });
+  });
+
+  it("a two-word quote of whole words passes", () => {
+    const d = draft({ task: { text: "I owned the route planner.", quotes: ["route planner"] } });
+    expect(validateStoryDraft(d, { atom, answers })).toEqual({ ok: true });
+  });
+
   it("a number in the result that no quote or atom states is rejected", () => {
     const d = draft({
       result: {
