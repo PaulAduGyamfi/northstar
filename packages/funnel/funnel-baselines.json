@@ -1,0 +1,25 @@
+{
+  "note": "Assumed conversion rates for each funnel step (DX-003). These are placeholders, not sourced statistics: replace each with a number you trust and say where it came from. The report prints 'assumed' next to every one.",
+  "steps": {
+    "applied>responded": {
+      "rate": 0.1,
+      "source": "assumption: placeholder for cold applications, not from a study"
+    },
+    "responded>screen": {
+      "rate": 0.6,
+      "source": "assumption: placeholder, not from a study"
+    },
+    "screen>technical": {
+      "rate": 0.5,
+      "source": "assumption: placeholder, not from a study"
+    },
+    "technical>onsite": {
+      "rate": 0.4,
+      "source": "assumption: placeholder, not from a study"
+    },
+    "onsite>offer": {
+      "rate": 0.3,
+      "source": "assumption: placeholder, not from a study"
+    }
+  }
+}
