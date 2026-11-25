@@ -34,6 +34,20 @@ export {
   saveFunnelMessages,
   setManualRows,
 } from "./funnel-write.js";
+export {
+  type Ats,
+  type DedupeCandidate,
+  type JobFields,
+  type JobListItem,
+  type JobSourceInput,
+  listJobs,
+  readDedupeCandidates,
+  type SaveResult,
+  type SetFieldError,
+  type SourceMethod,
+  saveIngestedJob,
+  setJobField,
+} from "./job-write.js";
 export * as profileSchema from "./profile-schema.js";
 export {
   currentResumeHash,

@@ -1,6 +1,6 @@
 # NS-114: Link ingest + extension capture
 
-Status: draft
+Status: approved by Paul (2026-11-25)
 Requirements: SRC-001, SRC-006 (deterministic part), SRC-009 (posting and first-seen times);
 SRC-002 moved to a follow-up (see Out of scope)
 Rules that apply: ADR-0003 (sourcing boundaries), ADR-0004 (provenance), ADR-0006, ADR-0012,

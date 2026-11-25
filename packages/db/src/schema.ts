@@ -4,11 +4,13 @@ import {
   bigint,
   check,
   foreignKey,
+  integer,
   jsonb,
   pgTable,
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -39,6 +41,11 @@ export const company = pgTable(
   (t) => [unique("company_id_candidate_unique").on(t.id, t.candidateId)],
 );
 
+// The ATSs Northstar reads job postings from (NS-114). A constant, so sql.raw builds no SQL from
+// input.
+export const ATS_KINDS = ["greenhouse", "lever", "ashby", "workday"] as const;
+const atsList = sql.raw(ATS_KINDS.map((a) => `'${a}'`).join(", "));
+
 export const job = pgTable(
   "job",
   {
@@ -46,10 +53,31 @@ export const job = pgTable(
     candidateId: uuid("candidate_id")
       .notNull()
       .references(() => candidate.id),
-    companyId: uuid("company_id").notNull(),
-    title: text("title").notNull(),
+    // Nullable for a draft (NS-114): extraction may not find them; a check requires both once ready.
+    companyId: uuid("company_id"),
+    title: text("title"),
+    // The canonical URL of the first source (tracking parameters removed).
     url: text("url").notNull(),
     createdAt: createdAt(),
+    // NS-114 (SRC-001, SRC-009). A draft lists the fields extraction couldn't find.
+    status: text("status").notNull().default("ready"),
+    missingFields: text("missing_fields").array().notNull().default(sql`'{}'::text[]`),
+    location: text("location"),
+    remote: text("remote"),
+    salaryMin: integer("salary_min"),
+    salaryMax: integer("salary_max"),
+    salaryCurrency: text("salary_currency"),
+    salaryPeriod: text("salary_period"),
+    seniority: text("seniority"),
+    requirements: text("requirements").array().notNull().default(sql`'{}'::text[]`),
+    niceToHaves: text("nice_to_haves").array().notNull().default(sql`'{}'::text[]`),
+    applyUrl: text("apply_url"),
+    ats: text("ats"),
+    // The posting's public description (not personal data); used for dedupe and later scoring.
+    description: text("description"),
+    // When the source says it was posted, and when Northstar first saw it (freshness, SRC-009).
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     unique("job_id_candidate_unique").on(t.id, t.candidateId),
@@ -58,6 +86,62 @@ export const job = pgTable(
       columns: [t.companyId, t.candidateId],
       foreignColumns: [company.id, company.candidateId],
     }),
+    check("job_status_valid", sql`${t.status} in ('draft', 'ready')`),
+    // A ready job always has a title and a company; only a draft may lack them.
+    check(
+      "job_ready_complete",
+      sql`${t.status} <> 'ready' or (${t.companyId} is not null and ${t.title} is not null and length(trim(${t.title})) > 0)`,
+    ),
+    check(
+      "job_remote_valid",
+      sql`${t.remote} is null or ${t.remote} in ('onsite', 'hybrid', 'remote')`,
+    ),
+    check(
+      "job_salary_order",
+      sql`${t.salaryMin} is null or ${t.salaryMax} is null or ${t.salaryMin} <= ${t.salaryMax}`,
+    ),
+    check(
+      "job_salary_period_valid",
+      sql`${t.salaryPeriod} is null or ${t.salaryPeriod} in ('year', 'month', 'hour')`,
+    ),
+    check("job_ats_valid", sql`${t.ats} is null or ${t.ats} in (${atsList})`),
+    // Shown as a link later: http(s) only, never javascript: or data:.
+    check("job_url_http", sql`${t.url} ~ '^https?://'`),
+    check("job_apply_url_http", sql`${t.applyUrl} is null or ${t.applyUrl} ~ '^https?://'`),
+  ],
+);
+
+// Every place a job was seen (SRC-006): the same role from two sources is one job with two rows
+// here. Adding the same URL twice changes nothing (unique on the canonical URL).
+export const jobSource = pgTable(
+  "job_source",
+  {
+    id: id(),
+    candidateId: uuid("candidate_id")
+      .notNull()
+      .references(() => candidate.id),
+    jobId: uuid("job_id").notNull(),
+    url: text("url").notNull(),
+    // How the job's fields were read from this source.
+    method: text("method").notNull(),
+    ats: text("ats"),
+    // The ATS's own id for the posting, the most reliable duplicate key.
+    atsPostingId: text("ats_posting_id"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    foreignKey({
+      name: "job_source_job_same_candidate_fk",
+      columns: [t.jobId, t.candidateId],
+      foreignColumns: [job.id, job.candidateId],
+    }),
+    unique("job_source_url_unique").on(t.candidateId, t.url),
+    uniqueIndex("job_source_ats_posting_unique")
+      .on(t.candidateId, t.ats, t.atsPostingId)
+      .where(sql`${t.atsPostingId} is not null`),
+    check("job_source_method_valid", sql`${t.method} in ('ats_api', 'jsonld', 'model', 'text')`),
+    check("job_source_ats_valid", sql`${t.ats} is null or ${t.ats} in (${atsList})`),
+    check("job_source_url_http", sql`${t.url} ~ '^https?://'`),
   ],
 );
 
