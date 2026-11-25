@@ -29,7 +29,7 @@ const FILLER = new Set(
     "a an the and or but of in on at to for with by from about as into over is are was were be " +
     "been being am do does did have has had having you your yours yourselves i me my we they " +
     "them their it its this that these those what which who whom whose when where " +
-    "why how many much can could would should will shall may might must please tell describe " +
+    "how many much can could would should will shall may might must please tell describe " +
     "share explain give provide walk talk example instance time times situation if so any some " +
     "most more best greatest biggest very just not no yes there then than also through made make " +
     "kind type one out up all each other such only own lot bit"
@@ -42,7 +42,11 @@ const CONCEPTS: Record<string, readonly string[]> = {
   interest: ["interest", "excit", "motivat", "attract", "appeal", "passion", "drawn", "want"],
   role: ["role", "position", "job", "opportunit", "opening", "vacanc", "posting"],
   company: ["us", "our", "here", "company", "compan", "organization", "organisation", "employer"],
-  work: ["work", "join", "employ"],
+  work: ["work", "join"],
+  // Kept apart from "work": "Have you worked with React before?" is not about employment.
+  employment: ["employ"],
+  // "why" carries the intent of "Why us?", "Why this role?" and "Why are you leaving?".
+  why: ["why"],
   year: ["year", "yrs"],
   experience: ["experienc", "familiar"],
   authorization: ["authori", "eligib", "legal", "right"],
@@ -82,7 +86,7 @@ const CONCEPTS: Record<string, readonly string[]> = {
 };
 
 // Words that flip a yes/no question's answer.
-const NEGATION = /\b(?:without|not|never)\b|n't\b/i;
+const NEGATION = /\b(?:without|not|no|never)\b|n't\b/i;
 
 // "us" after these verbs is the reader of the form ("Tell us about…"), not the company ("Why us?").
 const ADDRESS_VERBS = new Set(["tell", "give", "show", "send", "let"]);
@@ -135,7 +139,14 @@ export function questionConcepts(question: string): Set<string> {
     const concept = conceptOf(word);
     if (concept !== undefined) {
       concepts.add(concept);
-    } else if (!allCaps && !first && token.length > 1 && /^\p{Lu}/u.test(token)) {
+    } else if (
+      !allCaps &&
+      !first &&
+      token.length > 1 &&
+      /^\p{Lu}/u.test(token) &&
+      // A filler word in capitals ("Are you NOT willing…") is emphasis, not a name.
+      !(token === token.toUpperCase() && FILLER.has(word))
+    ) {
       // Checked before the filler words, so a company called "Example" is still a name. "I" is
       // one letter and never a name.
       concepts.add(NAME);
@@ -201,8 +212,16 @@ export function matchQuestion(question: string): QuestionMatch {
   if (canonical.kind === "factual" && NEGATION.test(normalize(question))) {
     return { status: "new", reason: "negated", confidence, nearest: canonical.id };
   }
+  // One setting can't answer two questions: "Are you authorized to work here and will you need
+  // sponsorship?" passes the factual threshold for both, so it is ambiguous whatever the margin.
+  const secondFactual =
+    canonical.kind === "factual" &&
+    ranked.slice(1).some(([q, s]) => q.kind === "factual" && s >= FACTUAL_THRESHOLD);
   // Compared on the rounded values so the margin means what it says (0.86 vs 0.76 is ambiguous).
-  if (runnerUp !== undefined && confidence - round(runnerUp[1]) <= AMBIGUITY_MARGIN) {
+  if (
+    secondFactual ||
+    (runnerUp !== undefined && confidence - round(runnerUp[1]) <= AMBIGUITY_MARGIN)
+  ) {
     return { status: "new", reason: "ambiguous", confidence, nearest: canonical.id };
   }
   return { status: "matched", canonical, confidence };
