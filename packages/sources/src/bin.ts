@@ -106,7 +106,10 @@ try {
         readScoreKeys(db, { candidateId, preferenceId, profileSourceId }),
       save: (input) => saveFitScore(db, { ...input, candidateId, now: new Date() }),
     });
-  const score = () => scoreThenAlert(scoreOnly, alerts);
+  const score = () =>
+    scoreThenAlert(scoreOnly, alerts, (name) =>
+      console.log(`Alerts didn't run (${name}); the next pass retries.`),
+    );
   process.exitCode = await main({
     argv: process.argv.slice(2),
     print: (line) => console.log(printable(line)),

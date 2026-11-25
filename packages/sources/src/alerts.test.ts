@@ -91,6 +91,12 @@ describe("alertPass", () => {
     ]);
   });
 
+  it("counts a posting dated in the future as just posted", async () => {
+    const { store, alerts } = memoryStore([candidate({}, -30)]);
+    expect(await alertPass(store, DAY, config)).toEqual({ sent: 1, held: 0, released: 0 });
+    expect((alerts[0] as { ageMinutes: number }).ageMinutes).toBe(0);
+  });
+
   it("sends nothing for a job an hour old or more", async () => {
     const { store, alerts } = memoryStore([candidate({}, 60)]);
     expect(await alertPass(store, DAY, config)).toEqual({ sent: 0, held: 0, released: 0 });
@@ -273,14 +279,16 @@ describe("loadAlertConfig", () => {
 });
 
 describe("scoreThenAlert", () => {
-  it("returns the scoring result even when the alert pass fails", async () => {
+  it("returns the scoring result when the alert pass fails, and reports the failure by name", async () => {
+    const reported: string[] = [];
     const result = await scoreThenAlert(
       async () => "scored",
       async () => {
-        throw new Error("database down");
+        throw new TypeError("row (secret) failed");
       },
+      (name) => reported.push(name),
     );
-    expect(result).toBe("scored");
+    expect([result, reported]).toEqual(["scored", ["TypeError"]]);
   });
 
   it("skips the alert pass when scoring fails", async () => {
@@ -293,6 +301,7 @@ describe("scoreThenAlert", () => {
         async () => {
           alerted++;
         },
+        () => {},
       ),
     ).rejects.toThrow(RangeError);
     expect(alerted).toBe(0);

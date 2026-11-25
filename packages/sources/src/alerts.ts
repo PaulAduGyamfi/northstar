@@ -203,16 +203,18 @@ export function alertPass(store: AlertStore, now: Date, config: AlertConfig): Pr
 }
 
 // After every scoring pass: run the alert pass too. An alert failure never fails scoring or the
-// command (its span records it, and the next pass retries safely); a scoring failure skips it.
+// command, but it is never silent either: `onError` gets its name (never its message, which can
+// quote a row), the span records it, and the next pass retries safely. A scoring failure skips it.
 export async function scoreThenAlert<T>(
   score: () => Promise<T>,
   alerts: () => Promise<unknown>,
+  onError: (errorName: string) => void,
 ): Promise<T> {
   const run = await score();
   try {
     await alerts();
-  } catch {
-    // Recorded on the sources.fresh_alerts span by name; the keys make the retry safe.
+  } catch (error) {
+    onError(error instanceof Error ? error.name : "Error");
   }
   return run;
 }
