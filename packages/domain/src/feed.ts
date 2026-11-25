@@ -1,0 +1,172 @@
+// Feed lines (OBS-002): one plain sentence per domain event, for the activity feed. Pure code.
+// A line uses only named payload fields of known event types, each checked for shape first, so
+// a payload written wrong (or by a future writer) can't break the feed or put free text on
+// screen. Ids are never shown. Events whose writers already give a full sentence as `reason`
+// (stories, answers, the funnel) need no template; any type without one shows its reason.
+
+export type FeedEvent = {
+  type: string;
+  actor: string;
+  reason: string;
+  payload: Record<string, unknown>;
+};
+
+type Payload = Record<string, unknown>;
+
+// A name from a fixed vocabulary (dependency, subsystem, ATS, status, band, table): lowercase
+// words joined by `_ . : -`. Anything else is treated as missing.
+const NAME = /^[a-z0-9]+([_.:-][a-z0-9]+)*$/;
+// An error name as breakers store it (TimeoutError, RateLimited).
+const ERROR_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
+
+function name(p: Payload, key: string): string | undefined {
+  const v = p[key];
+  return typeof v === "string" && v.length <= 64 && NAME.test(v) ? v : undefined;
+}
+
+function count(p: Payload, key: string): number | undefined {
+  const v = p[key];
+  return typeof v === "number" && Number.isSafeInteger(v) && v >= 0 ? v : undefined;
+}
+
+const words = (s: string) => s.replaceAll("_", " ");
+const capitalize = (s: string) => (s === "" ? s : s[0]?.toUpperCase() + s.slice(1));
+const who = (actor: string) => (actor === "user" ? "You" : "Northstar");
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+// "a Greenhouse board", "an Ashby board", or "a board" when the ATS is unknown.
+const article = (word: string) => (/^[aeiou]/i.test(word) ? "an" : "a");
+
+function board(p: Payload): string {
+  const ats = name(p, "ats");
+  if (!ats) return "a board";
+  return `${article(ats)} ${capitalize(ats)} board`;
+}
+
+type Template = (p: Payload, e: FeedEvent) => string;
+
+const TEMPLATES: Record<string, Template> = {
+  "breaker.opened": (p) => {
+    const dep = name(p, "dependency") ?? "a dependency";
+    const n = count(p, "consecutiveFailures");
+    const after = n === undefined ? "repeated failures" : `${n} failed calls`;
+    const e = p.lastError;
+    const error = typeof e === "string" && ERROR_NAME.test(e) ? ` (${e})` : "";
+    return `Paused ${dep} after ${after}${error}`;
+  },
+  "breaker.probing": (p) =>
+    `Trying ${name(p, "dependency") ?? "a dependency"} again with one test call`,
+  "breaker.closed": (p) => `${name(p, "dependency") ?? "A dependency"} is working again`,
+  "kill_switch.set": (p, e) => {
+    const on = p.enabled === true ? "on" : p.enabled === false ? "off" : undefined;
+    const subsystem = name(p, "subsystem") ?? "a subsystem";
+    return on
+      ? `${who(e.actor)} switched ${on} ${subsystem}`
+      : `${who(e.actor)} changed ${subsystem}`;
+  },
+
+  "source.watched": (p, e) => {
+    const tier = count(p, "tier");
+    return `${who(e.actor)} started watching ${board(p)}${tier ? ` (tier ${tier})` : ""}`;
+  },
+  "source.polled": (p) => {
+    if (name(p, "outcome") === "failed") return `Couldn't read ${board(p)}`;
+    const added = count(p, "added");
+    const seen = count(p, "seen");
+    if (added === undefined || seen === undefined) return capitalize(`read ${board(p)}`);
+    return `Read ${board(p)}: ${added} new of ${plural(seen, "posting", "postings")}`;
+  },
+  "source.quarantined": (p) => {
+    const n = count(p, "failures");
+    return `Quarantined ${board(p)}${n === undefined ? "" : ` after ${n} failed reads`}`;
+  },
+  "source.retried": (p, e) => `${who(e.actor)} put ${board(p)} back`,
+  "source.unwatched": (p, e) => `${who(e.actor)} stopped watching ${board(p)}`,
+
+  "job.ingested": (p) => {
+    const ats = name(p, "ats");
+    const from = ats ? `${article(ats)} ${capitalize(ats)} posting` : "a link";
+    const draft = p.draft === true ? " as a draft: some fields are missing" : "";
+    return `Added a job from ${from}${draft}`;
+  },
+  "job.merged": (p) => {
+    const n = count(p, "sources");
+    return `Found the same job again${n === undefined ? "" : ` (${n} sources now)`}`;
+  },
+  "job.draft_completed": (p, e) => {
+    const field = name(p, "field");
+    return `${who(e.actor)} completed a draft job${field ? ` (${words(field)})` : ""}`;
+  },
+  "job.scored": (p) => {
+    const score = count(p, "score");
+    const band = name(p, "band");
+    if (score === undefined) return "Scored a job";
+    return `Scored a job ${score}${band ? ` (${words(band)})` : ""}`;
+  },
+  "preferences.changed": (p, e) => {
+    const v = count(p, "toVersion");
+    return `${who(e.actor)} changed your search preferences${v ? ` (version ${v})` : ""}`;
+  },
+  "preferences.rescored": (p) => {
+    const jobs = count(p, "jobs");
+    const v = count(p, "version");
+    const what = jobs === undefined ? "jobs" : plural(jobs, "job", "jobs");
+    return `Re-scored ${what}${v ? ` for preferences version ${v}` : ""}`;
+  },
+
+  "application.*": (p) => {
+    const from = name(p, "from");
+    const to = name(p, "to");
+    if (from && to) return `Application moved from ${words(from)} to ${words(to)}`;
+    return to ? `Application is now ${words(to)}` : "Application status changed";
+  },
+  "approval.requested": (p) => {
+    const kind = name(p, "kind");
+    return kind ? `Waiting for your approval: ${words(kind)}` : "Waiting for your approval";
+  },
+  "approval.decided": (p) => {
+    const decision = name(p, "decision");
+    if (p.decidedBy === "policy" && decision === "approved") {
+      return "Auto-approved by one of your rules";
+    }
+    return decision ? `You ${decision} a request` : "A request was decided";
+  },
+  "approval.undone": () => "You undid a decision; it is waiting again",
+  "approval.policies_set": (p, e) => {
+    const rules = count(p, "rules");
+    const v = count(p, "version");
+    const what =
+      rules === undefined
+        ? "auto-approve rules"
+        : plural(rules, "auto-approve rule", "auto-approve rules");
+    return `${who(e.actor)} set ${what}${v ? ` (version ${v})` : ""}`;
+  },
+
+  "profile.imported": () => "Imported your resume into the profile graph",
+  "profile.locked_fact_edited": (p, e) => {
+    const table = name(p, "table");
+    return `${who(e.actor)} edited a locked fact${table ? ` (${words(table)})` : ""}`;
+  },
+  "profile.facts_set": (_p, e) => `${who(e.actor)} set your official employment record`,
+  "profile.facts_checked": (p) => {
+    const n = count(p, "mismatches");
+    const result =
+      n === undefined ? "" : `: ${n === 0 ? "no mismatches" : plural(n, "mismatch", "mismatches")}`;
+    return `Checked your resume against your employment record${result}`;
+  },
+};
+
+// The event types with a template ("application.*" covers every status move).
+export const FEED_TYPES: readonly string[] = Object.keys(TEMPLATES);
+
+export function feedLine(event: FeedEvent): string {
+  const template =
+    TEMPLATES[event.type] ??
+    (event.type.startsWith("application.") ? TEMPLATES["application.*"] : undefined);
+  const payload = event.payload !== null && typeof event.payload === "object" ? event.payload : {};
+  if (template) return template(payload, event);
+  const reason = event.reason.trim();
+  if (reason !== "") return reason;
+  // `widget.spun_up` → "Widget spun up".
+  return capitalize(words(event.type.replace(".", " ")));
+}

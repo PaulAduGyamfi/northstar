@@ -83,6 +83,7 @@ export {
   type SetFactsResult,
   setEmploymentFacts,
 } from "./facts-write.js";
+export { type FeedItem, MAX_FEED_PAGE, readFeed } from "./feed-read.js";
 export * as fitSchema from "./fit-schema.js";
 export {
   type FitBand,
@@ -129,6 +130,7 @@ export {
   saveFunnelMessages,
   setManualRows,
 } from "./funnel-write.js";
+export { readSystemHealth } from "./health-read.js";
 export {
   type Ats,
   type DedupeCandidate,

@@ -127,6 +127,11 @@ Exists now:
   `recordCallOutcome`, `readBreakers`), and append-only kill switches per subsystem
   (`kill_switch`, `kill-switch-write.ts`: `setKillSwitch`, `isSubsystemOn`, `readKillSwitches`).
   No caller uses them yet.
+- Health and feed (NS-125, RES-013, OBS-002): `systemHealth` (`packages/domain`, `health.ts`)
+  turns breakers, kill switches and board watches into `healthy / degraded / down` per subsystem
+  with a plain reason, and `feedLine` (`feed.ts`) turns an event into one plain sentence from
+  checked payload fields only. `packages/db` reads them with `readSystemHealth` and `readFeed`
+  (newest first, paged by position). No UI or live push yet.
 - `packages/gateways/` (NS-120): the Apply Gateway, the only code that submits an application
   (ADR-0002). `submitApplication` checks the approval with the Gate at the moment it acts (no
   verified approval throws `NotApprovedError`), re-hashes the package and its files, claims the

@@ -67,3 +67,8 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
 - One agent at a time changes this package's schema or migrations (ADR-0016): parallel agents
   renumbering migrations caused replacement PRs. Before adding a migration, merge the latest
   `main` and generate it then.
+- The feed and health views (NS-125) are read-only: `readFeed` (`feed-read.ts`) and
+  `readSystemHealth` (`health-read.ts`). Feed text comes only from `feedLine` in
+  `packages/domain`, which shows shape-checked payload fields and, for types without a template,
+  the event's `reason`. So keep `reason` a plain sentence with no names, ids, URLs or secrets, and
+  give a new event type a template in `feed.ts`.
