@@ -44,6 +44,12 @@ describe("listBoard", () => {
     });
   });
 
+  it("a Greenhouse posting without a company name takes the board's name, not a draft", async () => {
+    const { deps } = fakeWeb({ [GH]: { body: { jobs: [{ id: 5, title: "Analyst" }] } } });
+    const [p] = await listBoard(deps, { ats: "greenhouse", board: "globex" });
+    expect(p?.extraction.fields.company).toBe("globex");
+  });
+
   it("maps a Lever board, the company being the board slug", async () => {
     const { deps } = fakeWeb({
       [LEVER]: {
