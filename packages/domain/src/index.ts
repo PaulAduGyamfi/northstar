@@ -9,6 +9,7 @@ export * from "./breaker.js";
 export * from "./consent.js";
 export * from "./domain-event.js";
 export * from "./feed.js";
+export * from "./growth.js";
 export * from "./health.js";
 export * from "./ids.js";
 export * from "./result.js";
