@@ -1,13 +1,13 @@
 import Link from "next/link";
 import type { DotStatus } from "./system";
 
-// The five tabs from tokens.md (PillNav). Today and Queue (the approval queue, NS-139) exist; each
-// other tab becomes a link when its page lands with its ticket, and until then says so instead of
-// leading nowhere.
+// The five tabs from tokens.md (PillNav). Today, Queue (the approval queue, NS-139) and Pipeline
+// (NS-168) exist; each other tab becomes a link when its page lands with its ticket, and until then
+// says so instead of leading nowhere.
 const TABS = [
   { label: "Today", href: "/" },
   { label: "Queue", href: "/approvals" },
-  { label: "Pipeline", href: null },
+  { label: "Pipeline", href: "/pipeline" },
   { label: "Grow", href: null },
   { label: "Inbox", href: null },
 ] as const;

@@ -28,7 +28,7 @@ exist (`application`, `job`, `company`, `domain_event`).
 3. **Web** (`apps/web`, the Pipeline tab, `/pipeline`, behind `readApi`):
    - A board with one column per status that has applications, in the state machine's order.
      Each status is shown in words from UX-020's vocabulary (`.status-label`, never colour
-     alone): found, queued, awaiting you, submitting, submitted, needs your hands, in process,
+     alone): found, queued, awaiting you, submitting, submitted, needs your hands, interviewing,
      offer, closed.
    - Each card shows the job title, company and how long since it last changed, and links to its
      detail page.
