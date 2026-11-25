@@ -388,3 +388,111 @@ describe("secrets stay out of logs and spans (VER-005)", () => {
     ]);
   });
 });
+
+describe("offerAssisted (NS-149, VER-003 fallback)", () => {
+  const TWO_CODES = "Your code is 482913.\nYour old code 111222 expired.";
+  const OTHER = "https://acme.wd5.myworkdayjobs.com/confirm/other";
+  const pickIndex = (i: number | null) => async () => i;
+
+  it("returns the code the pick chose among the candidates plain code found", async () => {
+    catcher.open(SPEC);
+    const seen: string[][] = [];
+    const r = await catcher.offerAssisted(mail({ text: TWO_CODES }), async ({ candidates }) => {
+      seen.push(candidates);
+      return 1;
+    });
+    expect([
+      seen,
+      r.status,
+      r.status === "verified" && r.kind,
+      r.status === "verified" && r.secret.reveal(),
+    ]).toEqual([[["482913", "111222"]], "verified", "code", "111222"]);
+  });
+
+  it.each([
+    ["a null pick", pickIndex(null)],
+    ["an index out of range", pickIndex(2)],
+    ["a negative index", pickIndex(-1)],
+    [
+      "a pick that throws",
+      async () => {
+        throw new Error("model down");
+      },
+    ],
+  ])("ends as needs_human ambiguous_content with %s", async (_what, pick) => {
+    catcher.open(SPEC);
+    const r = await catcher.offerAssisted(mail({ text: TWO_CODES }), pick);
+    expect(r.status === "needs_human" && r.reason).toBe("ambiguous_content");
+  });
+
+  it("still checks a chosen link's host (VER-004)", async () => {
+    catcher.open(SPEC);
+    const text = `Verify: ${LINK}\nOr: https://evil.example.com/verify/x`;
+    const r = await catcher.offerAssisted(mail({ text }), pickIndex(1));
+    expect(r.status === "needs_human" && r.reason).toBe("link_host_not_allowed");
+  });
+
+  it("returns a chosen link on an allowed host", async () => {
+    catcher.open(SPEC);
+    const r = await catcher.offerAssisted(
+      mail({ text: `Verify: ${LINK}\nOr: ${OTHER}` }),
+      pickIndex(1),
+    );
+    expect([r.status, r.status === "verified" && r.secret.reveal()]).toEqual(["verified", OTHER]);
+  });
+
+  it("never asks the pick about a message that isn't ambiguous", async () => {
+    catcher.open(SPEC);
+    let calls = 0;
+    const r = await catcher.offerAssisted(mail(), async () => {
+      calls++;
+      return 0;
+    });
+    expect([r.status, calls]).toEqual(["verified", 0]);
+  });
+
+  it("settles nothing when a resend restarted the window while the pick waited", async () => {
+    const w = catcher.open(SPEC);
+    const r = await catcher.offerAssisted(mail({ text: TWO_CODES }), async () => {
+      clock = minutes(25);
+      catcher.timeout(w.id); // resend: the old window's codes are void
+      return 0;
+    });
+    // The restarted window still waits, and a later mail verifies it.
+    const later = catcher.offer(mail({ messageId: "m-2", receivedAt: minutes(26) }));
+    expect([r, later.status]).toEqual([{ status: "no_code_or_link", windowId: w.id }, "verified"]);
+  });
+
+  it("settles nothing when another mail closed the window while the pick waited", async () => {
+    catcher.open(SPEC);
+    const r = await catcher.offerAssisted(mail({ text: TWO_CODES }), async () => {
+      catcher.offer(mail({ messageId: "m-2" }));
+      return 0;
+    });
+    expect(r).toEqual({ status: "not_verification" });
+  });
+
+  it("marks a pick that threw on the span, with no message text", async () => {
+    catcher.open(SPEC);
+    await catcher.offerAssisted(mail({ text: TWO_CODES }), async () => {
+      throw new Error("model down 482913");
+    });
+    const last = exporter.getFinishedSpans().at(-1);
+    expect([
+      last?.attributes["verification.pick_error"],
+      JSON.stringify(last?.attributes).includes("model down"),
+    ]).toEqual([true, false]);
+  });
+
+  it("puts no code in any span, and marks that the model was asked", async () => {
+    catcher.open(SPEC);
+    await catcher.offerAssisted(mail({ text: TWO_CODES }), pickIndex(0));
+    const spans = exporter.getFinishedSpans();
+    const attrs = JSON.stringify(spans.map((x) => x.attributes));
+    expect([
+      attrs.includes("482913"),
+      attrs.includes("111222"),
+      spans.at(-1)?.attributes["verification.assisted"],
+    ]).toEqual([false, false, true]);
+  });
+});
