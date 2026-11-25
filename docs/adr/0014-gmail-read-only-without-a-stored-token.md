@@ -1,6 +1,6 @@
 # ADR-0014 — Gmail read-only access with an in-memory token, no stored credential
 
-**Status:** Proposed · **Date:** 2026-11-25
+**Status:** Accepted (by Paul, in chat, 2026-11-25) · **Date:** 2026-11-25
 
 ## Context
 NS-113 rebuilds nine months of applications from Paul's Gmail (DX-001) and needs to read mail
