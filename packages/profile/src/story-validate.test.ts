@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { StoryDraft } from "./story-schema.js";
-import { validateStoryDraft } from "./story-validate.js";
+import { quotedIn, validateStoryDraft } from "./story-validate.js";
 
 // A synthetic atom and interview (invented company and people).
 const atom = {
@@ -64,6 +64,47 @@ describe("validateStoryDraft", () => {
       ok: false,
       failures: [{ item: "task", problem: "quote 0 is not in the answers" }],
     });
+  });
+
+  it("a quote cut from inside a longer number is rejected", () => {
+    // "2% to 3%" is a substring of Paul's "12% to 3%", starting inside "12".
+    const d = draft({
+      result: {
+        text: "Late deliveries went from 2% to 3% in the first month.",
+        quotes: ["2% to 3% in the first month."],
+      },
+    });
+    expect(validateStoryDraft(d, { atom, answers })).toEqual({
+      ok: false,
+      failures: [{ item: "result", problem: "quote 0 is not in the answers" }],
+    });
+  });
+
+  it("a quote cut from inside a decimal is rejected", () => {
+    const decimal = [{ answer: "Late deliveries went from 12.5% to 3% in the first month." }];
+    const d = draft({
+      result: {
+        text: "Late deliveries went from 5% to 3%.",
+        quotes: ["5% to 3% in the first month."],
+      },
+    });
+    const result = validateStoryDraft(d, { atom, answers: [...answers, ...decimal] });
+    expect(result.ok ? [] : result.failures.filter((f) => f.item === "result")).toEqual([
+      { item: "result", problem: "quote 0 is not in the answers" },
+    ]);
+  });
+
+  it("a one-word quote is rejected as too short", () => {
+    const d = draft({ task: { text: "I owned the route planner.", quotes: ["owned"] } });
+    expect(validateStoryDraft(d, { atom, answers })).toEqual({
+      ok: false,
+      failures: [{ item: "task", problem: "quote 0 is shorter than 2 words" }],
+    });
+  });
+
+  it("a two-word quote of whole words passes", () => {
+    const d = draft({ task: { text: "I owned the route planner.", quotes: ["route planner"] } });
+    expect(validateStoryDraft(d, { atom, answers })).toEqual({ ok: true });
   });
 
   it("a number in the result that no quote or atom states is rejected", () => {
@@ -171,5 +212,33 @@ describe("validateStoryDraft", () => {
 
   it("the draft schema refuses the same competency twice", () => {
     expect(StoryDraft.safeParse(draft({ competencies: ["scale", "scale"] })).success).toBe(false);
+  });
+});
+
+describe("quotedIn", () => {
+  it("refuses a quote that starts or ends inside a decimal, a separated number or a minus sign", () => {
+    expect([
+      quotedIn("Revenue grew 1.5 million dollars", "5 million dollars"),
+      quotedIn("We served 1,200 users daily", "200 users daily"),
+      quotedIn("Latency dropped to 0.8 seconds", "8 seconds"),
+      quotedIn("we were 1.5 teams", "we were 1"),
+      quotedIn("cost fell -5% overall", "5% overall"),
+      quotedIn("we were 12 engineers", "2 engineers"),
+      quotedIn("Late deliveries went from 12.5% to 3%", "went from 12"),
+    ]).toEqual([false, false, false, false, false, false, false]);
+  });
+
+  it("accepts whole numbers, a sentence's last full stop and a quote that keeps its sign", () => {
+    expect([
+      quotedIn("Revenue grew 1.5 million dollars", "1.5 million dollars"),
+      quotedIn("We served 1,200 users daily.", "1,200 users daily."),
+      quotedIn("cost fell -5% overall", "-5% overall"),
+      quotedIn("we shipped in 2021. Then we grew", "shipped in 2021"),
+      quotedIn("pay is C++ and C# work", "C++ and C#"),
+    ]).toEqual([true, true, true, true, true]);
+  });
+
+  it("treats regex characters in a quote as plain text", () => {
+    expect([quotedIn("a (b) c", "(b) c"), quotedIn("abc", "a.c")]).toEqual([true, false]);
   });
 });
