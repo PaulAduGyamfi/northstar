@@ -114,13 +114,34 @@ describe("recordNeedsHuman with an apply URL", () => {
     expect(await listOpenHandoffs(db, candidateId)).toEqual([]);
   });
 
-  it("refuses an apply URL that isn't https, and stores nothing", async () => {
+  it.each([
+    ["isn't https", "javascript:alert(1)"],
+    ["is over 2048 characters", `https://boards.greenhouse.io/x/jobs/1?q=${"a".repeat(3000)}`],
+  ])("still records needs_human, with no handoff, for a link that %s", async (_why, bad) => {
+    const { submissionId } = await inProgress();
+    const r = await recordNeedsHuman(db, candidateId, submissionId, "captcha", bad);
+    expect(r.ok).toBe(true);
+    expect(await listOpenHandoffs(db, candidateId)).toEqual([]);
+  });
+
+  it.each([
+    ["an upper-case scheme and host", "HTTPS://Boards.Greenhouse.io/globex/jobs/123", APPLY_URL],
+    ["a space", `${APPLY_URL}?a=b c`, `${APPLY_URL}?a=b%20c`],
+  ])("stores a link with %s in its normal form", async (_what, given, stored) => {
+    const { submissionId } = await inProgress();
+    await recordNeedsHuman(db, candidateId, submissionId, "captcha", given);
+    const [h] = await listOpenHandoffs(db, candidateId);
+    expect(h?.applyUrl).toBe(stored);
+  });
+
+  it("the database refuses a link that isn't https", async () => {
     const { submissionId } = await inProgress();
     const state = await sqlState(
-      recordNeedsHuman(db, candidateId, submissionId, "captcha", "javascript:alert(1)"),
+      db
+        .insert(applyHandoff)
+        .values({ candidateId, submissionId, applyUrl: "javascript:alert(1)", createdAt: NOW }),
     );
     expect(state).toBe(CHECK_VIOLATION);
-    expect(await listOpenHandoffs(db, candidateId)).toEqual([]);
   });
 });
 
@@ -130,6 +151,11 @@ describe("resolveHandoff", () => {
     await recordNeedsHuman(db, candidateId, submissionId, "captcha", APPLY_URL);
     const [h] = await listOpenHandoffs(db, candidateId);
     if (!h) throw new Error("no handoff");
+    // The gateway moves the application to needs_human right after recordNeedsHuman.
+    await db
+      .update(application)
+      .set({ status: "needs_human" })
+      .where(eq(application.id, applicationId));
     const r = await resolveHandoff(db, {
       candidateId,
       handoffId: h.handoffId,
@@ -162,6 +188,24 @@ describe("resolveHandoff", () => {
     expect(resolved).toHaveLength(1);
   });
 
+  it("refuses 'submitted' once the application has left needs_human, and stores nothing", async () => {
+    const { submissionId, applicationId } = await inProgress();
+    await recordNeedsHuman(db, candidateId, submissionId, "captcha", APPLY_URL);
+    const [h] = await listOpenHandoffs(db, candidateId);
+    if (!h) throw new Error("no handoff");
+    await db
+      .update(application)
+      .set({ status: "withdrawn" })
+      .where(eq(application.id, applicationId));
+    const r = await resolveHandoff(db, {
+      candidateId,
+      handoffId: h.handoffId,
+      outcome: "submitted",
+    });
+    expect(r).toEqual({ ok: false, error: { kind: "NotNeedsHuman" } });
+    expect(await listOpenHandoffs(db, candidateId)).toHaveLength(1);
+  });
+
   it("refuses another candidate's handoff as not found", async () => {
     const { submissionId } = await inProgress();
     await recordNeedsHuman(db, candidateId, submissionId, "captcha", APPLY_URL);
@@ -185,5 +229,21 @@ describe("the handoff tables", () => {
       await sqlState(db.update(applyHandoff).set({ applyUrl: "https://example.com/other" })),
     ).toBe(RESTRICT_VIOLATION);
     expect(await sqlState(db.delete(applyHandoff))).toBe(RESTRICT_VIOLATION);
+    expect(await sqlState(db.execute(sql`truncate apply_handoff cascade`))).toBe(
+      RESTRICT_VIOLATION,
+    );
+  });
+
+  it("an outcome can't be updated, deleted or truncated", async () => {
+    const { submissionId } = await inProgress();
+    await recordNeedsHuman(db, candidateId, submissionId, "captcha", APPLY_URL);
+    const [h] = await listOpenHandoffs(db, candidateId);
+    if (!h) throw new Error("no handoff");
+    await resolveHandoff(db, { candidateId, handoffId: h.handoffId, outcome: "gave_up" });
+    expect(await sqlState(db.update(applyHandoffDone).set({ outcome: "submitted" }))).toBe(
+      RESTRICT_VIOLATION,
+    );
+    expect(await sqlState(db.delete(applyHandoffDone))).toBe(RESTRICT_VIOLATION);
+    expect(await sqlState(db.execute(sql`truncate apply_handoff_done`))).toBe(RESTRICT_VIOLATION);
   });
 });

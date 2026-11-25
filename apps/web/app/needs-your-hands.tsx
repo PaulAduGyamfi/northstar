@@ -27,6 +27,12 @@ export function NeedsYourHands({ cards }: { cards: HandoffCard[] }) {
         setError("You've been signed out. Sign in again.");
         return;
       }
+      if (res.status === 409) {
+        setError(
+          "That application isn't waiting on you any more, so it wasn't marked submitted. Choose I gave up to clear it.",
+        );
+        return;
+      }
       if (!res.ok) {
         setError("That didn't save. Try again.");
         return;

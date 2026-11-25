@@ -15,7 +15,12 @@ export type Context = {
 // Cookies are part of the result so handlers stay plain functions with no response object.
 export type Result<O> =
   | { ok: true; body: O; cookies?: string[] }
-  | { ok: false; status: 400 | 401 | 403 | 404 | 429 | 503; error: string; cookies?: string[] };
+  | {
+      ok: false;
+      status: 400 | 401 | 403 | 404 | 409 | 429 | 503;
+      error: string;
+      cookies?: string[];
+    };
 
 export type Endpoint<I = unknown, O = unknown> = {
   method: "GET" | "POST";

@@ -28,16 +28,22 @@ describe("safeHref", () => {
 
 describe("handoffCards", () => {
   it("says which form stopped and why, in plain words, with its link", () => {
-    expect(handoffCards([item(), item({ ats: "ashby", reason: "mfa" })])).toEqual([
+    const second = item({
+      handoffId: "7a2c9e41-1d3b-4f6a-8e5c-2b9d0f1a3c55",
+      ats: "ashby",
+      reason: "mfa",
+      applyUrl: "https://jobs.ashbyhq.com/example/456",
+    });
+    expect(handoffCards([item(), second])).toEqual([
       {
         handoffId: "0b6f3f8e-6a55-4c7e-9a52-5d6b2f8a1c01",
         title: "Greenhouse form: a CAPTCHA",
         href: "https://boards.greenhouse.io/example/jobs/123",
       },
       {
-        handoffId: "0b6f3f8e-6a55-4c7e-9a52-5d6b2f8a1c01",
+        handoffId: "7a2c9e41-1d3b-4f6a-8e5c-2b9d0f1a3c55",
         title: "Ashby form: a verification code",
-        href: "https://boards.greenhouse.io/example/jobs/123",
+        href: "https://jobs.ashbyhq.com/example/456",
       },
     ]);
   });

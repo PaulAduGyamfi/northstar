@@ -88,7 +88,8 @@ const sha256 = (bytes: string | Uint8Array): string =>
 const tracer = () => trace.getTracer("@northstar/db");
 
 // Runs fn in a span; an expected refusal marks it with its kind, a throw with "DatabaseError".
-async function inSpan<R extends { ok: true } | { ok: false; error: { kind: string } }>(
+// Also used by handoff-write.ts, so a refused or failed resolve shows in traces the same way.
+export async function inSpan<R extends { ok: true } | { ok: false; error: { kind: string } }>(
   name: string,
   attributes: Record<string, string>,
   fn: (span: Span) => Promise<R>,
@@ -109,7 +110,7 @@ async function inSpan<R extends { ok: true } | { ok: false; error: { kind: strin
   });
 }
 
-async function gateNow(tx: Tx): Promise<Date> {
+export async function gateNow(tx: Tx): Promise<Date> {
   const result = (await tx.execute(sql`select northstar_gate_now() as now`)) as unknown as {
     rows: { now: Date | string }[];
   };

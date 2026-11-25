@@ -1,4 +1,4 @@
-import type { HandoffOutcome, HandoffView, Resolved } from "@northstar/db";
+import type { HandoffOutcome, HandoffView, Resolved, ResolveError } from "@northstar/db";
 import type { Result } from "@northstar/domain";
 import { z } from "zod";
 import { type AnyEndpoint, endpoint } from "./endpoint.js";
@@ -9,10 +9,7 @@ import { type AnyEndpoint, endpoint } from "./endpoint.js";
 
 export type HandoffPorts = {
   listOpen: () => Promise<HandoffView[]>;
-  resolve: (
-    handoffId: string,
-    outcome: HandoffOutcome,
-  ) => Promise<Result<Resolved, { kind: "NotFound" }>>;
+  resolve: (handoffId: string, outcome: HandoffOutcome) => Promise<Result<Resolved, ResolveError>>;
   // needs_human → submitted through transitionApplication under this key; ok on a replay.
   markSubmitted: (applicationId: string, idempotencyKey: string) => Promise<{ ok: boolean }>;
 };
@@ -75,7 +72,11 @@ export function handoffEndpoints(ports: HandoffPorts): AnyEndpoint[] {
     output: z.object({ outcome: z.enum(["submitted", "gave_up"]), replayed: z.boolean() }),
     handler: async ({ handoffId, outcome }) => {
       const r = await ports.resolve(handoffId, outcome);
-      if (!r.ok) return { ok: false, status: 404, error: "not_found" };
+      if (!r.ok && r.error.kind === "NotFound")
+        return { ok: false, status: 404, error: "not_found" };
+      // "I submitted it" for an application no longer waiting on Paul: nothing is stored, and the
+      // handoff stays open so he can say "I gave up" instead.
+      if (!r.ok) return { ok: false, status: 409, error: "not_needs_human" };
       // The stored outcome decides, not this request's: a "gave up" can't be turned into a
       // submission by a second click. A replay retries the move under the same key, so a move
       // that failed the first time (a 500) is finished by sending the click again.

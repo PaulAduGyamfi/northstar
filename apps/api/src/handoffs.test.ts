@@ -33,6 +33,7 @@ let moves: string[];
 let movedKeys: Set<string>;
 let moveFails: boolean;
 let open: HandoffView[];
+let leftNeedsHuman: boolean;
 
 beforeEach(async () => {
   stored = new Map();
@@ -40,10 +41,14 @@ beforeEach(async () => {
   movedKeys = new Set();
   moveFails = false;
   open = [OPEN];
+  leftNeedsHuman = false;
   const ports: HandoffPorts = {
     listOpen: async () => open,
     resolve: async (handoffId, outcome) => {
       if (handoffId !== HANDOFF) return { ok: false, error: { kind: "NotFound" } };
+      if (leftNeedsHuman && outcome === "submitted" && !stored.has(handoffId)) {
+        return { ok: false, error: { kind: "NotNeedsHuman" } };
+      }
       const before = stored.get(handoffId);
       if (before) {
         return {
@@ -158,6 +163,13 @@ describe("POST /handoffs/resolve", () => {
     moveFails = false;
     expect((await resolve({ handoffId: HANDOFF, outcome: "submitted" })).status).toBe(200);
     expect(moves).toEqual([APPLICATION]);
+  });
+
+  it("answers 409 to 'I submitted it' once the application left needs_human, moving nothing", async () => {
+    leftNeedsHuman = true;
+    const res = await resolve({ handoffId: HANDOFF, outcome: "submitted" });
+    expect([res.status, JSON.parse(res.body)]).toEqual([409, { error: "not_needs_human" }]);
+    expect(moves).toEqual([]);
   });
 
   it("answers 404 for an unknown handoff", async () => {

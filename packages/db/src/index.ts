@@ -143,6 +143,7 @@ export {
   type HandoffView,
   listOpenHandoffs,
   type Resolved,
+  type ResolveError,
   resolveHandoff,
 } from "./handoff-write.js";
 export { readSystemHealth } from "./health-read.js";
