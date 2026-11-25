@@ -1,0 +1,50 @@
+{
+  "requestSha256": "4cf3ffabe7fb02cb5c900dd959ebde29388d78a827b1f32ec585f802b68f2831",
+  "response": {
+    "model": "claude-opus-5-5",
+    "id": "msg_011ChP2C8E9uTUwfU9CiBWYN",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"title\":\"Moving invoice reminders off the cron job\",\"situation\":{\"text\":\"At Example Billing, invoice reminders went out from a cron job that sometimes ran twice. So customers got duplicate reminders and support had to apologise.\",\"quotes\":[\"Invoice reminders went out from a cron job that sometimes ran twice, so customers got duplicate reminders and support had to apologise.\"]},\"task\":{\"text\":\"I was asked to make sure every customer got exactly one reminder.\",\"quotes\":[\"I was asked to make sure every customer got exactly one reminder.\"]},\"action\":{\"text\":\"I moved the reminders onto a queue and gave each reminder a key so the same one could never be sent twice. Then I wrote a test that ran the job twice on purpose.\",\"quotes\":[\"I moved the reminders onto a queue and gave each reminder a key so the same one could never be sent twice.\",\"I wrote a test that ran the job twice on purpose.\"]},\"result\":{\"text\":\"Support stopped getting complaints about duplicate reminders.\",\"quotes\":[\"Support stopped getting complaints about duplicate reminders.\"]},\"atomIds\":[\"5a0e8f3c-0000-4000-8000-000000000002\"],\"competencies\":[\"technical-depth\",\"ownership\",\"customer-impact\"],\"followUps\":[]}"
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 398,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 1786,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "iterations": [
+        {
+          "input_tokens": 398,
+          "output_tokens": 423,
+          "cache_read_input_tokens": 1786,
+          "cache_creation_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "output_tokens": 423,
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      },
+      "service_tier": "standard",
+      "inference_geo": "global",
+      "speed": "standard"
+    },
+    "diagnostics": null
+  }
+}
