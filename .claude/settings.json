@@ -165,7 +165,7 @@
         ]
       },
       {
-        "matcher": "mcp__github__.*",
+        "matcher": "mcp__.*",
         "hooks": [
           {
             "type": "command",
