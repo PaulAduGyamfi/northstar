@@ -2,6 +2,7 @@ import { readFile, stat } from "node:fs/promises";
 import { basename, extname } from "node:path";
 import mammoth from "mammoth";
 import { extractText, getDocumentProxy } from "unpdf";
+import { type PositionedText, pageText } from "./pdf-layout.js";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
@@ -33,7 +34,14 @@ export async function fileToText(path: string): Promise<string> {
       const pdf = await getDocumentProxy(new Uint8Array(await readFile(path)));
       // One string per page, pages joined by a blank line.
       const { text: pages } = await extractText(pdf, { mergePages: false });
-      text = pages.join("\n\n");
+      // A two-column page reads one column at a time (NS-134); any other page keeps extractText's
+      // reading byte for byte, so imports of single-column PDFs don't change. That reads each
+      // page twice, which is cheap at resume size.
+      const read: string[] = [];
+      for (const [index, plain] of pages.entries()) {
+        read.push((await columnText(pdf, index + 1)) ?? plain);
+      }
+      text = read.join("\n\n");
     } catch {
       throw new Error(`${name}: could not read the PDF`);
     }
@@ -42,4 +50,19 @@ export async function fileToText(path: string): Promise<string> {
   }
   if (text.trim() === "") throw new Error(`${name}: no text found`);
   return text;
+}
+
+type PdfDocument = Awaited<ReturnType<typeof getDocumentProxy>>;
+
+// The page's text read column by column when it has two columns (pdf-layout.ts), else null.
+async function columnText(pdf: PdfDocument, pageNumber: number): Promise<string | null> {
+  const page = await pdf.getPage(pageNumber);
+  const content = await page.getTextContent();
+  const items: PositionedText[] = [];
+  for (const item of content.items) {
+    // Marked-content markers carry no text; text items carry their position in `transform`.
+    if (!("str" in item)) continue;
+    items.push({ str: item.str, x: item.transform[4], y: item.transform[5], width: item.width });
+  }
+  return pageText(items, page.getViewport({ scale: 1 }).width);
 }
