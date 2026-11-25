@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { StoryDraft } from "./story-schema.js";
 import { unbackedNames, validateStoryDraft } from "./story-validate.js";
-import { quotedIn } from "./validate.js";
 
 // A synthetic atom and interview (invented company and people).
 const atom = {
@@ -242,44 +241,47 @@ describe("names in story text", () => {
 
   it("checks a sentence's first word when it is a name", () => {
     expect([
-      unbackedNames("Globex asked me to fix it.", "they asked me to fix it"),
-      unbackedNames("Then I fixed it. Drivers were happy.", "drivers were late"),
-      unbackedNames("I've fixed it and I'm glad.", "nothing"),
+      unbackedNames("Globex asked me to fix it.", "they asked me to fix it", ""),
+      unbackedNames("Then I fixed it. Drivers were happy.", "x", "drivers were late"),
+      unbackedNames("I've fixed it and I'm glad.", "nothing", ""),
     ]).toEqual([[0], [], []]);
   });
-});
 
-describe("quotedIn", () => {
-  it("refuses a quote that starts or ends inside a decimal, a separated number or a minus sign", () => {
-    expect([
-      quotedIn("Revenue grew 1.5 million dollars", "5 million dollars"),
-      quotedIn("We served 1,200 users daily", "200 users daily"),
-      quotedIn("Latency dropped to 0.8 seconds", "8 seconds"),
-      quotedIn("we were 1.5 teams", "we were 1"),
-      quotedIn("cost fell -5% overall", "5% overall"),
-      quotedIn("we were 12 engineers", "2 engineers"),
-      quotedIn("Late deliveries went from 12.5% to 3%", "went from 12"),
-    ]).toEqual([false, false, false, false, false, false, false]);
+  it("lets an opener through only by the part's own quotes, never by any answer", () => {
+    // Paul once said "hit the target"; "Target" opening a sentence is still a name to check.
+    expect(
+      unbackedNames("I hit it. Target then hired me.", "we hit the target", "I hit it"),
+    ).toEqual([3]);
   });
 
-  it("refuses a quote that stops inside a contraction", () => {
-    expect([
-      quotedIn("I can't fix the planner alone", "I can"),
-      quotedIn("I can't fix the planner alone", "I can't fix"),
-    ]).toEqual([false, true]);
+  it("reads a possessive as its name", () => {
+    expect(unbackedNames("We fixed Example Freight's planner.", "at Example Freight", "")).toEqual(
+      [],
+    );
   });
 
-  it("accepts whole numbers, a sentence's last full stop and a quote that keeps its sign", () => {
-    expect([
-      quotedIn("Revenue grew 1.5 million dollars", "1.5 million dollars"),
-      quotedIn("We served 1,200 users daily.", "1,200 users daily."),
-      quotedIn("cost fell -5% overall", "-5% overall"),
-      quotedIn("we shipped in 2021. Then we grew", "shipped in 2021"),
-      quotedIn("pay is C++ and C# work", "C++ and C#"),
-    ]).toEqual([true, true, true, true, true]);
+  it("refuses a number in words that the part's quotes don't hold", () => {
+    const d = draft({
+      task: {
+        text: "I owned the route planner for a team of twenty and had to fix it before peak season.",
+        quotes: ["I owned the route planner and had to fix it before peak season."],
+      },
+    });
+    expect(validateStoryDraft(d, { atom, answers })).toEqual({
+      ok: false,
+      failures: [
+        { item: "task", problem: "number word at word 9 is not in its quotes or the atom" },
+      ],
+    });
   });
 
-  it("treats regex characters in a quote as plain text", () => {
-    expect([quotedIn("a (b) c", "(b) c"), quotedIn("abc", "a.c")]).toEqual([true, false]);
+  it("passes a number in words that the part's quote holds", () => {
+    const d = draft({
+      action: {
+        text: "I paired with the dispatch lead every morning for two weeks.",
+        quotes: ["I paired with the dispatch lead every morning for two weeks."],
+      },
+    });
+    expect(validateStoryDraft(d, { atom, answers })).toEqual({ ok: true });
   });
 });

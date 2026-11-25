@@ -1,4 +1,4 @@
-import { MIN_QUOTE_WORDS, STARTERS } from "./answer/validate.js";
+import { MIN_QUOTE_WORDS, NUMBER_WORDS, STARTERS } from "./answer/validate.js";
 import { STAR_PARTS, type StarPart, type StoryDraft } from "./story-schema.js";
 import { hasWhole, normalize, numbers, quotedIn } from "./validate.js";
 
@@ -20,7 +20,8 @@ export function validateStoryDraft(draft: StoryDraft, evidence: StoryEvidence): 
   const answers = evidence.answers.map((a) => normalize(a.answer)).filter((a) => a !== "");
   const atomNumbers = numbers(normalize(evidence.atom.sourceQuote));
   // Where a story's names may come from: anything Paul said, or the resume line (NS-200).
-  const sources = [...answers, normalize(evidence.atom.sourceQuote)].join(" \n ");
+  const atomText = normalize(evidence.atom.sourceQuote);
+  const sources = [...answers, atomText].join(" \n ");
 
   for (const part of STAR_PARTS) {
     const { text, quotes } = draft[part];
@@ -47,7 +48,15 @@ export function validateStoryDraft(draft: StoryDraft, evidence: StoryEvidence): 
         failures.push({ item: part, problem: `number ${n} is not in its quotes or the atom` });
       }
     }
-    for (const position of unbackedNames(normalize(text), sources)) {
+    const ownQuotes = quotes.map((q) => normalize(q)).join(" \n ");
+    // Numbers in words ("a team of twenty") follow the same rule as digits.
+    for (const position of unbackedNumberWords(normalize(text), `${ownQuotes} \n ${atomText}`)) {
+      failures.push({
+        item: part,
+        problem: `number word at word ${position} is not in its quotes or the atom`,
+      });
+    }
+    for (const position of unbackedNames(normalize(text), sources, ownQuotes)) {
       failures.push({
         item: part,
         problem: `name at word ${position} is not in the answers or the atom`,
@@ -60,6 +69,12 @@ export function validateStoryDraft(draft: StoryDraft, evidence: StoryEvidence): 
     if (!anyNumbers.has(n)) {
       failures.push({ item: "title", problem: `number ${n} is not in the answers or the atom` });
     }
+  }
+  for (const position of unbackedNumberWords(normalize(draft.title), sources)) {
+    failures.push({
+      item: "title",
+      problem: `number word at word ${position} is not in the answers or the atom`,
+    });
   }
 
   draft.atomIds.forEach((id, i) => {
@@ -74,12 +89,26 @@ export function validateStoryDraft(draft: StoryDraft, evidence: StoryEvidence): 
   return failures.length === 0 ? { ok: true } : { ok: false, failures };
 }
 
+// Positions of number words ("twenty", "double", "half") in `text` that `sources` doesn't hold.
+export function unbackedNumberWords(text: string, sources: string): number[] {
+  const lower = sources.toLowerCase();
+  const out: number[] = [];
+  text.split(" ").forEach((raw, position) => {
+    const word = raw.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "").toLowerCase();
+    if (NUMBER_WORDS.has(word) && !hasWhole(lower, word)) out.push(position);
+  });
+  return out;
+}
+
 // Positions of capitalised words in `text` (normalised) that `sources` doesn't hold as whole
 // words: employers, tools, people or places the story would add. "I" and its contractions are
-// Paul. A sentence's first word is capitalised anyway, so it passes when it is an ordinary opener
-// or the sources hold it in lower case ("Deadlines slipped…"), as in the answer check. Positions,
-// never words: the text is Paul's own material.
-export function unbackedNames(text: string, sources: string): number[] {
+// Paul, and a possessive "'s" is dropped ("Example Freight's"). A sentence's first word is
+// capitalised anyway, so it passes when it is an ordinary opener or the part's own quotes
+// (`openers`) hold it in lower case ("Deadlines slipped…"). Only the quotes, not all answers: an
+// employer that is also a common word ("Target") can't pass as an opener because Paul once said
+// "hit the target". Matching is case-sensitive for the same reason. Positions, never words: the
+// text is Paul's own material.
+export function unbackedNames(text: string, sources: string, openers: string): number[] {
   const out: number[] = [];
   const seen = new Set<string>();
   let sentenceStart = true;
@@ -87,10 +116,11 @@ export function unbackedNames(text: string, sources: string): number[] {
     const first = sentenceStart;
     // The next word starts a sentence when this one ends one.
     sentenceStart = /[.!?]["')\]]*$/.test(raw);
-    // Edge punctuation off ("Go." → "Go"), keeping name characters such as + and #.
-    const word = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}+#]+$/gu, "");
+    // Edge punctuation and a possessive off ("Go." → "Go", "Globex's" → "Globex"), keeping name
+    // characters such as + and #.
+    const word = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}+#]+$/gu, "").replace(/'s$/u, "");
     if (!/^\p{Lu}/u.test(word) || /^I(?:'\p{L}+)?$/u.test(word) || seen.has(word)) return;
-    if (first && (STARTERS.has(word) || hasWhole(sources, word.toLowerCase()))) return;
+    if (first && (STARTERS.has(word) || hasWhole(openers, word.toLowerCase()))) return;
     seen.add(word);
     if (!hasWhole(sources, word)) out.push(position);
   });

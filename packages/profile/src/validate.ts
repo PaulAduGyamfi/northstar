@@ -56,8 +56,8 @@ export function hasWhole(haystack: string, value: string): boolean {
 }
 
 // Whether `quote` sits in `text` (both normalised) as whole words and whole numbers, for quotes
-// that back a claim (stories, answers): it may not start or end inside a word, inside a
-// contraction ("I can" out of "I can't"), inside a number written with a decimal point or a
+// that back a claim (stories, answers): it may not start or end inside a word, inside a negation
+// ("I can" out of "I can't"), inside a number written with a decimal point or a
 // thousands separator ("5 million" out of "1.5 million", "200 users" out of "1,200 users"), or
 // just after a minus sign ("5%" out of "-5%"). Stricter than `hasWhole`, which other checks keep.
 export function quotedIn(text: string, quote: string): boolean {
@@ -66,9 +66,11 @@ export function quotedIn(text: string, quote: string): boolean {
   const word = "[\\p{L}\\p{N}+#]";
   // A leading digit may not continue "1." / "1," or a minus sign; a trailing one may not run on
   // into ".5" / ",200".
-  const before = `(?<!${word})(?<!\\d[.,])${/^\d/.test(quote) ? "(?<!-)" : ""}`;
-  // A trailing letter may not run on into "'t" / "'s".
-  const after = `(?!${word})(?![.,]\\d)${/\p{L}$/u.test(quote) ? "(?!'\\p{L})" : ""}`;
+  // Nor may a quote start just after a letter and apostrophe ("t fix" out of "can't fix").
+  const before = `(?<!${word})(?<!\\d[.,])(?<!\\p{L}')${/^\d/.test(quote) ? "(?<!-)" : ""}`;
+  // A trailing letter may not stop before a negation's "'t" ("I can" out of "I can't"); a
+  // possessive "'s" may follow ("Example Freight" out of "Example Freight's").
+  const after = `(?!${word})(?![.,]\\d)${/\p{L}$/u.test(quote) ? "(?!'t(?!\\p{L}))" : ""}`;
   return new RegExp(`${before}${needle}${after}`, "u").test(text);
 }
 
