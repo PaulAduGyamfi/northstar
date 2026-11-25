@@ -1,7 +1,8 @@
 // Public entry of @northstar/profile: resume import into the profile graph (NS-110, ADR-0004), the
 // guided story interview (NS-111), the employment-facts consistency check (NS-112, DX-011) and the
 // question canon for the answer bank (NS-118, ANS-001/002), answer reuse (GH-59, ANS-003),
-// resume tailoring (NS-117, TLR-001…004) and answer drafting (NS-135, ANS-004).
+// resume tailoring (NS-117, TLR-001…004), answer drafting (NS-135, ANS-004) and the voice profile
+// (NS-136, ANS-007/008).
 
 export { type DraftRequest, type DraftResult, draftAnswer } from "./answer/draft.js";
 export {
@@ -124,3 +125,19 @@ export {
   yearsOfExperience,
 } from "./thesis.js";
 export { normalize, type ProvenanceFailure, validateProvenance } from "./validate.js";
+export {
+  AVOID_AFTER,
+  avoidedPhrases,
+  deletedPhrases,
+  type Edit,
+  findAvoided,
+} from "./voice/edits.js";
+export {
+  MAX_SAMPLES,
+  type MeasureResult,
+  MIN_SAMPLES,
+  measureVoice,
+  PHRASE_SAMPLES,
+  renderVoiceGuide,
+  type VoiceProfile,
+} from "./voice/measure.js";

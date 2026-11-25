@@ -97,6 +97,16 @@ Exists now:
     When on, a failing draft becomes `needs_human`.
 
   It has no caller, CLI or storage yet.
+- The voice profile (NS-136, ANS-007/008) in `packages/profile/src/voice/`, plain code, no model:
+  - `measureVoice` turns 5–10 writing samples into a style guide (sentence length, contractions,
+    "I"/"we", exclamation marks, phrases used in 3+ samples), rendered by `renderVoiceGuide` for
+    the answer-draft route.
+  - `avoidedPhrases` finds phrases Paul deleted from 3 different drafts (`deletedPhrases` over
+    each draft and approved text).
+  - `draftAnswer` takes an `avoid` list: it tells the model, and a draft that still has one of
+    those phrases becomes `needs_human` (`voice`).
+
+  No storage, review flow or CLI yet.
 - `packages/inbox/` (NS-113): read-only Gmail (ADR-0014: `gmail.readonly`, desktop OAuth with
   PKCE, token in memory for one run, never stored), the job-mail pre-filter (headers only; ATS
   senders, job phrases, same-thread follow-ups), confirmation rules, and the `mail-classify` route
