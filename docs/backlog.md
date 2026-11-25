@@ -53,3 +53,12 @@ Agents build every eval set. Synthetic cases cover the edges. Real cases (e.g. P
 emails) are labeled by two independent model passes, and **Paul only sees the cases where the two
 disagree**. Real-mail evals live in `evals/**/private/` (gitignored); only synthetic sets are
 committed.
+
+## Ideas (idea dump)
+Paul's ideas, turned into requirements and issues as they come in. The issue is the source of truth.
+These issues are cut when the idea arrives, an exception to "P2–P4 issues are cut when P1 is half done".
+
+| Ticket | Title | Requirements | Labels |
+|---|---|---|---|
+| NS-130 | Career DNA: evidence-based career report and approved share card | DNA-001…008 | profiles, feature, p2 |
+| NS-131 | Spike: free public Career DNA launch (multi-tenant, privacy, cost) | DNA-009/010, Q-02 | profiles, spike, p2 |
