@@ -5,8 +5,11 @@
 export type EvidenceItem = {
   id: string;
   kind: "story" | "atom";
-  // A story: its title and its four STAR parts. An atom: its resume line.
+  // A story: its title and its four STAR parts. An atom: its resume line. What the route shows.
   text: string;
+  // What quotes and names are checked against, when it differs from `text` (NS-202): a story's
+  // four parts without its title, because titles are never name-checked.
+  checkText?: string;
 };
 
 // The story's text as the route and the validator see it: its title, then each part in order.
@@ -18,10 +21,10 @@ export function storyEvidence(story: {
   action: string;
   result: string;
 }): EvidenceItem {
-  const text = [story.title, story.situation, story.task, story.action, story.result]
-    .map((part) => part.trim().replace(/[.!?]?$/, "."))
-    .join(" ");
-  return { id: story.id, kind: "story", text };
+  const sentence = (part: string) => part.trim().replace(/[.!?]?$/, ".");
+  const parts = [story.situation, story.task, story.action, story.result].map(sentence);
+  const text = [sentence(story.title), ...parts].join(" ");
+  return { id: story.id, kind: "story", text, checkText: parts.join(" ") };
 }
 
 export function atomEvidence(atom: { id: string; sourceQuote: string }): EvidenceItem {

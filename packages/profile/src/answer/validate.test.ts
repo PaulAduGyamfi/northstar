@@ -236,4 +236,65 @@ describe("validateAnswerDraft", () => {
     };
     expect(validateAnswerDraft(draft, EVIDENCE, null)).toEqual({ ok: true });
   });
+
+  it("refuses a mixed-case or joined name that no cited item holds", () => {
+    const draft: AnswerDraft = {
+      sentences: [
+        {
+          text: "We agreed to launch the iOS app one week later for ex-Globex users.",
+          cites: [{ id: "story-1", quote: "We agreed to launch one week later." }],
+        },
+      ],
+      followUps: [],
+    };
+    expect(validateAnswerDraft(draft, EVIDENCE, null)).toEqual({
+      ok: false,
+      failures: [
+        { sentence: 0, problem: "name at word 5 is not in its cited items" },
+        { sentence: 0, problem: "name at word 11 is not in its cited items" },
+      ],
+    });
+  });
+
+  describe("story titles", () => {
+    // The title names a tool ("Kotlin") that none of the story's parts mention.
+    const TITLED: EvidenceItem = {
+      id: "story-2",
+      kind: "story",
+      text: "Rewriting the Kotlin app. We agreed to launch one week later.",
+      checkText: "We agreed to launch one week later.",
+    };
+
+    it("doesn't back a name that only the title holds", () => {
+      const draft: AnswerDraft = {
+        sentences: [
+          {
+            text: "We agreed to launch the Kotlin app one week later.",
+            cites: [{ id: "story-2", quote: "We agreed to launch one week later." }],
+          },
+        ],
+        followUps: [],
+      };
+      expect(validateAnswerDraft(draft, [TITLED], null)).toEqual({
+        ok: false,
+        failures: [{ sentence: 0, problem: "name at word 5 is not in its cited items" }],
+      });
+    });
+
+    it("refuses a quote taken from the title", () => {
+      const draft: AnswerDraft = {
+        sentences: [
+          {
+            text: "I led the rewrite of the app.",
+            cites: [{ id: "story-2", quote: "Rewriting the Kotlin app." }],
+          },
+        ],
+        followUps: [],
+      };
+      expect(validateAnswerDraft(draft, [TITLED], null)).toEqual({
+        ok: false,
+        failures: [{ sentence: 0, problem: "cite 0 quote is not in its item" }],
+      });
+    });
+  });
 });

@@ -254,6 +254,32 @@ describe("names in story text", () => {
     ).toEqual([3]);
   });
 
+  it("checks mixed-case names, joined names and names that start with a digit", () => {
+    // Positions: iOS at 3, ex-Globex at 6, planner/Initech at 8, 3M at 11.
+    expect(
+      unbackedNames(
+        "We shipped the iOS app for ex-Globex and planner/Initech users at 3M.",
+        "we shipped the app",
+        "",
+      ),
+    ).toEqual([3, 6, 8, 11]);
+  });
+
+  it("passes the same names when the answers or the atom hold them", () => {
+    expect(
+      unbackedNames(
+        "We shipped the iOS app for ex-Globex users at 3M.",
+        "the iOS app at Globex, then 3M",
+        "",
+      ),
+    ).toEqual([]);
+  });
+
+  it("lets only a sentence's first piece through as an opener", () => {
+    // "Re" opens the sentence and is exempt as the part's quote holds it; "Globex" isn't.
+    expect(unbackedNames("Re-Globex the planner.", "we planned", "re")).toEqual([0]);
+  });
+
   it("reads a possessive as its name", () => {
     expect(unbackedNames("We fixed Example Freight's planner.", "at Example Freight", "")).toEqual(
       [],
