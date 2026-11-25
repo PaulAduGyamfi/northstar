@@ -53,7 +53,7 @@ describe("tagFromDeliveredTo", () => {
   it.each([
     "candidate+ns-k3q@example.com",
     "candidate+ns-k3q2m71@example.com",
-    "c+ns-000000@x.com",
+    "c+ns-000000@example.com",
   ])("calls %j malformed, never a guess", (address) => {
     expect(tagFromDeliveredTo(address)).toEqual({ kind: "malformed" });
   });

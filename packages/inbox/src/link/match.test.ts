@@ -11,7 +11,7 @@ const DKIM_GREENHOUSE = "mx.google.com; dkim=pass header.d=greenhouse.io";
 const mail = (over: Partial<MessageHeaders> = {}): MessageHeaders => ({
   id: "m1",
   threadId: "t1",
-  from: "Acme Recruiting <jobs@acme.example.com>",
+  from: "Acme Recruiting <jobs@example.com>",
   senderDomain: "acme.example.com",
   subject: "Your application to Acme",
   deliveredTo: "candidate@example.com",
@@ -207,7 +207,7 @@ describe("matchMail and sender verification (INB-011: DMARC or aligned DKIM only
 
   it("doesn't verify a forged From signed only by a shared ATS's DKIM", () => {
     const forged = tagged({
-      from: "Acme <jobs@acme.example.com>",
+      from: "Acme <jobs@example.com>",
       senderDomain: "acme.example.com",
       authenticationResults: DKIM_GREENHOUSE,
     });
@@ -219,7 +219,7 @@ describe("matchMail and sender verification (INB-011: DMARC or aligned DKIM only
 
   it("verifies a DKIM pass aligned with the From domain", () => {
     const signed = tagged({
-      from: "Greenhouse <no-reply@greenhouse.io>",
+      from: "Greenhouse <no-reply@example.com>",
       senderDomain: "greenhouse.io",
       authenticationResults: DKIM_GREENHOUSE,
     });

@@ -54,7 +54,7 @@ const SHARED_DOMAINS: readonly string[] = [
 // signing domain is the From domain or a parent of it (relaxed alignment, one direction only).
 // Any DKIM signature passes for its own domain, so an unaligned one (a shared ATS signing
 // someone else's From) proves nothing. A signer under the From domain doesn't count either:
-// with a bare-suffix From (`x@co.uk`) every signer would be "under" it.
+// with a bare public-suffix From domain such as `co.uk`, every signer would be "under" it.
 function verifiedDomains(mail: MessageHeaders): string[] {
   const from = mail.senderDomain.toLowerCase();
   if (from === "") return [];
