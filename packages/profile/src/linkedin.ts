@@ -48,19 +48,42 @@ export type LinkedinProblem =
   | { kind: "bad_csv"; file: string }
   | { kind: "missing_header"; file: string; header: string }
   | { kind: "quote_not_in_description"; position: number }
+  | { kind: "role_not_its_row"; position: number }
   | { kind: "no_positions" };
 
 type Extract = ProfileImportInput["extract"];
 
-const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const MONTHS = [
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+];
+
+// A month by its full name or its three-letter abbreviation ("Sep", "Sept." too), exactly.
+function monthNumber(word: string): number | null {
+  const w = word.toLowerCase().replace(/\.$/, "");
+  const i = MONTHS.findIndex(
+    (m) => m === w || m.slice(0, 3) === w || (m === "september" && w === "sept"),
+  );
+  return i >= 0 ? i + 1 : null;
+}
 
 // "Mar 2021" → "2021-03", "2021" → "2021"; anything else → null (not stated, never guessed).
 export function linkedinMonth(raw: string): string | null {
   const v = raw.trim();
   if (/^\d{4}$/.test(v)) return v;
-  const m = /^([A-Za-z]{3})[a-z]*\.? (\d{4})$/.exec(v);
-  const index = m ? MONTHS.indexOf((m[1] ?? "").toLowerCase()) : -1;
-  return m && index >= 0 ? `${m[2]}-${String(index + 1).padStart(2, "0")}` : null;
+  const m = /^(\S+) (\d{4})$/.exec(v);
+  const month = m ? monthNumber(m[1] ?? "") : null;
+  return m && month !== null ? `${m[2]}-${String(month).padStart(2, "0")}` : null;
 }
 
 // A table read by header name, so column order doesn't matter.
@@ -83,10 +106,15 @@ function table(
 
 // One Description line per atom: bullet marks and surrounding spaces off, empty lines dropped.
 function descriptionLines(description: string): string[] {
-  return description
-    .split(/\r?\n/)
-    .map((l) => l.replace(/^\s*(?:[-*•‣◦·]\s+)?/u, "").trim())
-    .filter((l) => l !== "");
+  return (
+    description
+      .split(/\r?\n/)
+      // A round bullet may touch its text ("•Built"); a dash or star needs a space after it, so a
+      // line starting with "-5%" keeps its minus sign.
+      .map((l) => l.replace(/^\s*(?:[•‣◦·]\s*|[-*]\s+)?/u, "").trim())
+      // A line of only punctuation ("-", "***") says nothing.
+      .filter((l) => /[\p{L}\p{N}]/u.test(l))
+  );
 }
 
 // The export → the same extract shape the resume import stores, plus the files' combined hash
@@ -173,17 +201,31 @@ export function parseLinkedinExport(
   return ok({ extract, textSha256: hash.digest("hex") });
 }
 
-// The deterministic provenance check (ADR-0004): every atom's quote is in its own position's
-// Description, verbatim. Roles come straight from their row's fields above.
+// The deterministic provenance check (ADR-0004), run on the extract before it is stored: every
+// role's employer and title are its own row's fields, and every atom's quote sits verbatim in its
+// own position's Description. The parser above builds them that way; this check proves it, so a
+// later change to the parser (trimming, joining lines, cleaning text) can't store a line LinkedIn
+// never had without the import refusing.
 export function checkLinkedinProvenance(
   extract: Extract,
   positions: Record<string, string>[],
 ): LinkedinProblem[] {
   const out: LinkedinProblem[] = [];
+  const indexOf = (key: string | null) => {
+    const m = /^li(\d+)$/.exec(key ?? "");
+    return m ? Number(m[1]) : -1;
+  };
+  extract.roles.forEach((role) => {
+    const i = indexOf(role.key);
+    const row = positions[i];
+    if (!row || row["Company Name"] !== role.employer || row.Title !== role.title) {
+      out.push({ kind: "role_not_its_row", position: i });
+    }
+  });
   extract.atoms.forEach((atom) => {
-    const i = Number((atom.roleKey ?? "").slice(2));
+    const i = indexOf(atom.roleKey);
     const description = positions[i]?.Description ?? "";
-    if (!description.includes(atom.sourceQuote)) {
+    if (atom.sourceQuote === "" || !description.includes(atom.sourceQuote)) {
       out.push({ kind: "quote_not_in_description", position: i });
     }
   });
@@ -199,6 +241,8 @@ export function describeLinkedinProblem(p: LinkedinProblem): string {
       return `${p.file} has no "${p.header}" column`;
     case "quote_not_in_description":
       return `position ${p.position + 1}: a line isn't in its Description`;
+    case "role_not_its_row":
+      return `position ${p.position + 1}: its company or title isn't the row's own`;
     case "no_positions":
       return "Positions.csv has no positions";
   }

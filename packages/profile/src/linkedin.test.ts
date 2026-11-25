@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  checkLinkedinProvenance,
   describeLinkedinProblem,
   linkedinMonth,
   parseCsv,
@@ -42,8 +43,17 @@ describe("parseCsv", () => {
 describe("linkedinMonth", () => {
   it("keeps the precision LinkedIn gives and never guesses", () => {
     expect(
-      ["Mar 2021", "September 2019", "2015", "", "Spring 2020", "13/2020"].map(linkedinMonth),
-    ).toEqual(["2021-03", "2019-09", "2015", null, null, null]);
+      [
+        "Mar 2021",
+        "September 2019",
+        "Sept. 2018",
+        "2015",
+        "",
+        "Spring 2020",
+        "Mayhem 2020",
+        "13/2020",
+      ].map(linkedinMonth),
+    ).toEqual(["2021-03", "2019-09", "2018-09", "2015", null, null, null, null]);
   });
 });
 
@@ -93,19 +103,29 @@ describe("parseLinkedinExport", () => {
   });
 
   it("reads columns by name, so their order doesn't matter", () => {
-    const reordered = [
-      "Finished On,Started On,Title,Company Name,Description",
-      ",Jun 2025,Founding Engineer,Sample Labs,Shipped agents.",
+    // The same positions with the columns in reverse order.
+    const rows = parseCsv(POSITIONS);
+    if (!rows.ok) throw new Error("bad fixture");
+    const reversed = rows.value
+      .map((r) => r.slice().reverse())
+      .map((r) => r.map((f) => `"${f.replaceAll('"', '""')}"`).join(","))
+      .join("\n");
+    const a = parseLinkedinExport({ positions: POSITIONS });
+    const b = parseLinkedinExport({ positions: reversed });
+    expect(b.ok && a.ok && b.value.extract).toEqual(a.ok && a.value.extract);
+  });
+
+  it("strips a bullet touching its text, keeps a leading minus, and drops punctuation-only lines", () => {
+    const positions = [
+      "Company Name,Title,Description,Started On,Finished On",
+      '"Sample Labs","Engineer","•Built the planner.\n-\n-5% cost after the move.\n- Wrote the runbook.",Jun 2025,',
     ].join("\n");
-    const parsed = parseLinkedinExport({ positions: reordered });
-    expect(parsed.ok && parsed.value.extract.roles[0]).toEqual({
-      key: "li0",
-      employer: "Sample Labs",
-      title: "Founding Engineer",
-      startMonth: "2025-06",
-      endMonth: null,
-      current: true,
-    });
+    const p = parseLinkedinExport({ positions });
+    expect(p.ok && p.value.extract.atoms.map((a) => a.sourceQuote)).toEqual([
+      "Built the planner.",
+      "-5% cost after the move.",
+      "Wrote the runbook.",
+    ]);
   });
 
   it("gives the same hash for the same files and a new one when a file changes", () => {
@@ -138,6 +158,58 @@ describe("parseLinkedinExport", () => {
     ]).toEqual([
       { ok: false, error: { kind: "bad_csv", file: "Skills.csv" } },
       { ok: false, error: { kind: "no_positions" } },
+    ]);
+  });
+});
+
+describe("checkLinkedinProvenance", () => {
+  const rows = [
+    { "Company Name": "Sample Labs", Title: "Engineer", Description: "Built the planner." },
+  ];
+  const extract = () => ({
+    roles: [
+      {
+        key: "li0",
+        employer: "Sample Labs",
+        title: "Engineer",
+        startMonth: null,
+        endMonth: null,
+        current: true,
+      },
+    ],
+    education: [],
+    atoms: [
+      {
+        roleKey: "li0",
+        what: "Built the planner.",
+        how: [],
+        impact: null,
+        scope: null,
+        startMonth: null,
+        endMonth: null,
+        sourceQuote: "Built the planner.",
+        evidenceLink: null,
+      },
+    ],
+    skills: [],
+    certifications: [],
+    links: [],
+  });
+
+  it("passes an extract built from its rows", () => {
+    expect(checkLinkedinProvenance(extract(), rows)).toEqual([]);
+  });
+
+  it("refuses a quote its Description doesn't hold, and a role that isn't its row", () => {
+    const x = extract();
+    x.atoms[0] = {
+      ...x.atoms[0],
+      sourceQuote: "Built the planner for 40 depots.",
+    } as (typeof x.atoms)[0];
+    x.roles[0] = { ...x.roles[0], title: "Lead Engineer" } as (typeof x.roles)[0];
+    expect(checkLinkedinProvenance(x, rows)).toEqual([
+      { kind: "role_not_its_row", position: 0 },
+      { kind: "quote_not_in_description", position: 0 },
     ]);
   });
 });

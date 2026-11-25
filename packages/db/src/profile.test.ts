@@ -3,6 +3,7 @@ import { eq, isNull, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { soleCandidate } from "./candidate.js";
 import type { Db } from "./db.js";
+import { readScoringProfile } from "./fit-write.js";
 import {
   education,
   experienceAtom,
@@ -21,6 +22,7 @@ import {
   writeProfileImport,
 } from "./profile-write.js";
 import { candidate, domainEvent } from "./schema.js";
+import { nextAtomForInterview } from "./story-write.js";
 import { createTestDb, sqlState } from "./test/pglite.js";
 
 const RESTRICT_VIOLATION = "23001";
@@ -242,10 +244,12 @@ describe("LinkedIn imports (NS-133)", () => {
       "LinkedIn export imported into the profile graph",
       "linkedin",
     ]);
-    expect([await readProfile(db, candidateId), await readThesisProfile(db, candidateId)]).toEqual([
-      null,
-      null,
-    ]);
+    expect([
+      await readProfile(db, candidateId),
+      await readThesisProfile(db, candidateId),
+      await readScoringProfile(db, candidateId),
+      await nextAtomForInterview(db, candidateId),
+    ]).toEqual([null, null, null, null]);
   });
 });
 
