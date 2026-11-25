@@ -55,7 +55,7 @@ const isVaultTest = (rel: string) => rel.startsWith(VAULT_DIR) && rel.endsWith("
 // allowed to use it (security review of NS-122: an exported key or sealed rows plus ten lines of
 // node:crypto would be a decrypt path of its own).
 const DECRYPT = /\bcreateDecipheriv\b/;
-const KEY_BYTES = /\b(keyBytes|bytesOf)\b/;
+const KEY_BYTES = /\bkeyBytes\b/;
 // The sealed-row table, but not the `vault_secret.stored` event or `vault_secret:<id>` aggregate.
 const SEALED_ROWS = /\bvaultSecret\b|\bvault_secret\b(?![.:])/;
 

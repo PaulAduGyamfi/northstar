@@ -4,26 +4,24 @@ import { createHash } from "node:crypto";
 // repo and the database (P1: a local file; hosted: cloud KMS later). Only the Apply Gateway
 // loads it. Errors name the setting, never the path or the key.
 
-// Opaque: the bytes live in a private field, so code holding a MasterKey (an entry point) can
-// pass it on but can't read it. Only keyBytes reads them, and only src/vault/seal.ts and
-// open.ts may import it (the boundary test enforces that).
+// Opaque: the bytes live in a module-private WeakMap, so code holding a MasterKey (an entry
+// point) can pass it on but can't read it. Only keyBytes reads them, and only src/vault/seal.ts
+// and open.ts may import it (the boundary test enforces that).
+const BYTES = new WeakMap<MasterKey, Uint8Array>();
+const KEY_BYTES = 32;
+
 export class MasterKey {
   // A SHA-256 fingerprint stored with each secret, so a wrong key is reported, not misused.
   readonly id: string;
-  readonly #bytes: Uint8Array;
 
   private constructor(bytes: Uint8Array) {
     this.id = createHash("sha256").update(bytes).digest("hex");
-    this.#bytes = Uint8Array.from(bytes);
+    BYTES.set(this, Uint8Array.from(bytes));
   }
 
   static from(bytes: Uint8Array): MasterKey {
     if (bytes.length !== KEY_BYTES) throw new Error("vault master key must be 32 bytes");
     return new MasterKey(bytes);
-  }
-
-  static bytesOf(key: MasterKey): Uint8Array {
-    return key.#bytes;
   }
 
   toString(): string {
@@ -39,13 +37,16 @@ export class MasterKey {
   }
 }
 
-const KEY_BYTES = 32;
-const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
-
 export const masterKeyFrom = (bytes: Uint8Array): MasterKey => MasterKey.from(bytes);
 
 // The key's bytes, for sealing and opening only (src/vault/seal.ts and open.ts).
-export const keyBytes = (key: MasterKey): Uint8Array => MasterKey.bytesOf(key);
+export function keyBytes(key: MasterKey): Uint8Array {
+  const bytes = BYTES.get(key);
+  if (bytes === undefined) throw new Error("not a vault master key");
+  return bytes;
+}
+
+const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 
 // Reads VAULT_MASTER_KEY_FILE from the settings the entry point passes in (the one typed config
 // path; app code never reads process.env), then the file through readFile, injected so tests
