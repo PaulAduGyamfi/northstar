@@ -12,6 +12,23 @@ export {
   type MessageHeaders,
   senderDomain,
 } from "./gmail.js";
+// Linking job mail to applications (NS-158): tags and the deterministic matcher.
+export {
+  type LinkCandidate,
+  type MatchResult,
+  type MatchStep,
+  matchMail,
+  type QueueReason,
+  type TagRow,
+} from "./link/match.js";
+export {
+  type DeliveredTag,
+  generateTag,
+  TAG_LENGTH,
+  TAG_PATTERN,
+  tagFromDeliveredTo,
+  taggedAddress,
+} from "./link/tag.js";
 export {
   BODY_LIMIT,
   MAIL_CLASSIFY_VERSION,
