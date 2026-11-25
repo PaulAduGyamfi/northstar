@@ -2,12 +2,15 @@ import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
+  acquireCall,
   connectDb,
+  isSubsystemOn,
   knownGmailIds,
   latestFactsCheck,
   loadDbConfig,
   readFunnelMessages,
   readManualRows,
+  recordCallOutcome,
   recordFunnelEvent,
   resolveReview,
   saveFunnelMessages,
@@ -21,7 +24,12 @@ import {
   loadGoogleConfig,
   mailClassifyRoute,
 } from "@northstar/inbox";
-import { createAnthropicClient, createLlmGateway, loadLlmConfig } from "@northstar/llm";
+import {
+  type CallGuard,
+  createAnthropicClient,
+  createLlmGateway,
+  loadLlmConfig,
+} from "@northstar/llm";
 import { sql } from "drizzle-orm";
 import { createAsker } from "./ask.js";
 import { runBackfill } from "./backfill.js";
@@ -38,6 +46,15 @@ try {
   // Fail before contacting Google or the model if the database isn't reachable.
   await db.execute(sql`select 1`);
   const candidateId = await soleCandidate(db);
+  // The stored kill switches and breakers (NS-174): agent:mail-classify and the anthropic and
+  // gmail breakers. Every check reads Postgres, so a switch flipped in the app holds the next call.
+  const guard: CallGuard = {
+    isOn: (subsystem) => isSubsystemOn(db, candidateId, subsystem),
+    acquire: (dependency) => acquireCall(db, { candidateId, dependency }),
+    report: async (dependency, outcome, probeToken) => {
+      await recordCallOutcome(db, { candidateId, dependency, outcome, probeToken });
+    },
+  };
   // dist/bin.js → the package root, where the committed baselines live.
   const baselines = Baselines.parse(
     JSON.parse(await readFile(new URL("../funnel-baselines.json", import.meta.url), "utf8")),
@@ -70,12 +87,14 @@ try {
             fetch,
             sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
             random: Math.random,
+            guard,
           }),
           gateway: createLlmGateway({
             client: createAnthropicClient(
               loadLlmConfig({ ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }),
             ),
             now: () => performance.now(),
+            guard,
           }),
           route: mailClassifyRoute(),
           store: {

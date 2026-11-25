@@ -218,8 +218,17 @@ Exists now:
   `recordCallOutcome`, `readBreakers`), and append-only kill switches per subsystem
   (`kill_switch`, `kill-switch-write.ts`: `setKillSwitch`, `isSubsystemOn`, `readKillSwitches`).
   Since NS-147 board polling uses both: each board is read only while `source:<ats>` is switched
-  on and its breaker allows the call (`packages/sources`, `poll-guard.ts`). Other callers
-  (LLM gateway, Gmail, Apply Gateway) don't use them yet.
+  on and its breaker allows the call (`packages/sources`, `poll-guard.ts`).
+  Since NS-174 the LLM gateway and the Gmail client take an optional `CallGuard`
+  (`packages/llm`, `guard.ts`):
+  - A route runs only while `agent:<route>` is on and the `anthropic` breaker allows it.
+  - Each Gmail read goes through the `gmail` breaker.
+  - A held-back call throws a retryable `HeldBack` and never goes out.
+  - Only the dependency's own failures count: a retryable transport error, or no answer, 429,
+    5xx or a rate limit from Gmail. A 400 or 404 means it answered.
+
+  The funnel and sources CLIs wire it to the stored switches and breakers. The profile CLI, the
+  API and the Apply Gateway don't use them yet.
 - Health and feed (NS-125, RES-013, OBS-002): `systemHealth` (`packages/domain`, `health.ts`)
   turns breakers, kill switches and board watches into `healthy / degraded / down` per subsystem
   with a plain reason, and `feedLine` (`feed.ts`) turns an event into one plain sentence from

@@ -63,6 +63,9 @@ try {
           loadLlmConfig({ ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }),
         ),
         now: () => performance.now(),
+        // The route's agent:<route> switch and the anthropic breaker (NS-174), on the same
+        // stored switches and breakers board polling uses.
+        guard: dbPollGuard(db, candidateId),
       });
       return gateway.call(route, input);
     },
