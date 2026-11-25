@@ -35,10 +35,12 @@ const who = (actor: string) => (actor === "user" ? "You" : "Northstar");
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 // "a Greenhouse board", "an Ashby board", or "a board" when the ATS is unknown.
+const article = (word: string) => (/^[aeiou]/i.test(word) ? "an" : "a");
+
 function board(p: Payload): string {
   const ats = name(p, "ats");
   if (!ats) return "a board";
-  return `${/^[aeiou]/.test(ats) ? "an" : "a"} ${capitalize(ats)} board`;
+  return `${article(ats)} ${capitalize(ats)} board`;
 }
 
 type Template = (p: Payload, e: FeedEvent) => string;
@@ -83,7 +85,7 @@ const TEMPLATES: Record<string, Template> = {
 
   "job.ingested": (p) => {
     const ats = name(p, "ats");
-    const from = ats ? `a ${capitalize(ats)} posting` : "a link";
+    const from = ats ? `${article(ats)} ${capitalize(ats)} posting` : "a link";
     const draft = p.draft === true ? " as a draft: some fields are missing" : "";
     return `Added a job from ${from}${draft}`;
   },

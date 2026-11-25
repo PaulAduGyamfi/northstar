@@ -65,6 +65,9 @@ describe("feedLine: sourcing and scoring", () => {
     expect(
       feedLine(ev("job.ingested", { method: "ats_api", ats: "greenhouse", draft: false })),
     ).toBe("Added a job from a Greenhouse posting");
+    expect(feedLine(ev("job.ingested", { method: "ats_api", ats: "ashby" }))).toBe(
+      "Added a job from an Ashby posting",
+    );
     expect(feedLine(ev("job.ingested", { method: "text", draft: true }))).toBe(
       "Added a job from a link as a draft: some fields are missing",
     );
@@ -91,8 +94,8 @@ describe("feedLine: sourcing and scoring", () => {
 
 describe("feedLine: applications and approvals", () => {
   it("describes a status move in words", () => {
-    expect(feedLine(ev("application.submitted", { from: "approved", to: "submitted" }))).toBe(
-      "Application moved from approved to submitted",
+    expect(feedLine(ev("application.submitted", { from: "submitting", to: "submitted" }))).toBe(
+      "Application moved from submitting to submitted",
     );
     expect(feedLine(ev("application.needs_human", { to: "needs_human" }))).toBe(
       "Application is now needs human",
@@ -126,9 +129,9 @@ describe("feedLine: applications and approvals", () => {
 describe("feedLine: profile", () => {
   it("describes resume import, locked-fact edits and the employment-facts check", () => {
     expect(feedLine(ev("profile.imported"))).toBe("Imported your resume into the profile graph");
-    expect(
-      feedLine(ev("profile.locked_fact_edited", { table: "profile_role" }, { actor: "user" })),
-    ).toBe("You edited a locked fact (profile role)");
+    expect(feedLine(ev("profile.locked_fact_edited", { table: "role" }, { actor: "user" }))).toBe(
+      "You edited a locked fact (role)",
+    );
     expect(feedLine(ev("profile.facts_set", {}, { actor: "user" }))).toBe(
       "You set your official employment record",
     );

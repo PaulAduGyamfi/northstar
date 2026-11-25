@@ -35,7 +35,13 @@ function fromBreaker(b: HealthInput["breakers"][number]): SubsystemHealth {
     return { ...base, health: "down", reason: `Paused after repeated failures${error}` };
   }
   if (b.status === "half_open") {
-    return { ...base, health: "degraded", reason: "Recovering: one test call allowed" };
+    // half_open retryAt is when the probe counts as lost, not a retry time: not shown.
+    return {
+      ...base,
+      health: "degraded",
+      reason: "Recovering: one test call allowed",
+      retryAt: null,
+    };
   }
   return { ...base, health: "healthy", reason: "Working", retryAt: null };
 }

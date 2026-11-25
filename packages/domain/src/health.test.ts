@@ -40,8 +40,8 @@ describe("systemHealth: breakers", () => {
       ...NONE,
       breakers: [breaker("gmail", { status: "half_open", retryAt: RETRY })],
     });
-    expect(h.subsystems.map((s) => [s.health, s.reason])).toEqual([
-      ["degraded", "Recovering: one test call allowed"],
+    expect(h.subsystems.map((s) => [s.health, s.reason, s.retryAt])).toEqual([
+      ["degraded", "Recovering: one test call allowed", null],
     ]);
   });
 

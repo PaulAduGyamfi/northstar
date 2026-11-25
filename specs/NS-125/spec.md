@@ -21,9 +21,11 @@ over data that already exists, so they come before the web app that will show th
    `healthy`, `degraded` or `down` and a plain reason, plus an overall status.
    - Breaker `open`: the dependency is `down` ("Paused after repeated failures (RateLimited)"),
      with `retryAt`. `half_open`: `degraded` ("Recovering: one test call allowed"). `closed`:
-     `healthy`.
+     `healthy`. Only an open breaker carries `retryAt`.
    - Kill switch off: the subsystem is `down` ("Switched off by you" or "… by Northstar", plus
-     the reason that was given). On: `healthy`.
+     the reason that was given). On: `healthy`. The reason is shown here, on Paul's health view,
+     never in the feed: `feedLine` shows no payload free text (a comment in `kill-switch-write.ts`
+     still says the feed shows it; that comment is now stale).
    - A board watch `quarantined`: `degraded` ("Quarantined after 5 failed reads; retry it with
      `jobs watch retry`"). `backing_off`: `degraded` ("Backing off after 2 failed reads"). `ok`:
      `healthy`. Boards are named by ATS and watch id only (events and spans never carry a board
@@ -36,7 +38,7 @@ over data that already exists, so they come before the web app that will show th
 3. **Feed lines (OBS-002)**, `packages/domain/src/feed.ts`, pure: `feedLine(event)` turns a
    stored event into one plain sentence, e.g. `breaker.opened` → "Paused anthropic after 5
    failed calls (RateLimited)"; `kill_switch.set` → "You switched off auto_apply";
-   `application.submitted` → "Application moved from approved to submitted". It reads only
+   `application.submitted` → "Application moved from submitting to submitted". It reads only
    named payload fields of known types (ids are never shown, free text only from `reason`), and
    any event without a template falls back to its `reason`, then to its type in words. A value
    of the wrong shape is treated as missing, so a bad payload can't break the feed.
