@@ -11,7 +11,9 @@ you are about to create it outside its ticket, stop and ask Paul. Until it lands
 are CSS variables in `apps/web/app/globals.css`.
 
 - Every page that shows Paul's data checks the session with `readSession` (`src/session.ts`, the
-  API's `GET /me`) and renders nothing else when the API is unreachable (ADR-0018).
+  API's `GET /me`) or `readApi` (`src/system.ts`), and renders nothing else when the API is
+  unreachable (ADR-0018).
+- A status is always shown in words as well as color (`.status-label`), never color alone.
 - Fonts are never downloaded at build time: the build runs offline in CI.
 
 - Use the tokens and components in `docs/design/tokens.md`. No ad hoc colors, fonts or radii.

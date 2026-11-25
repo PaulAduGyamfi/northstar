@@ -35,7 +35,8 @@ Paul can only see or flip them from code. The app now has a signed-in shell (NS-
      `inbox_auto_label`), every source with a watched board (`source:<ats>`), and any other
      subsystem already switched. Each shows on or off with a button to flip it, which asks for a
      reason first. The page refreshes after a flip.
-   - A health dot in the nav: green, amber or coral by overall status, linking to `/health`, with
+   - A health dot in the nav: `--success`, `--iris` or `--coral` (tokens.md has no amber) by
+     overall status, linking to `/health`, with
      a text label for screen readers.
    - The activity feed on Today: the latest 20 lines, then new lines added at the top every 3 s
      (`GET /feed?after=`). Polling, not a pushed stream, for this slice: 3 s meets OBS-002's 5 s,
