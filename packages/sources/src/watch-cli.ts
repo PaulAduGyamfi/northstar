@@ -1,5 +1,6 @@
 import type { Watch } from "@northstar/db";
 import { type BoardTarget, detectBoard } from "./boards/detect.js";
+import { type FitCliDeps, scoreAfter } from "./fit/cli.js";
 import type { PassSummary } from "./poll.js";
 import { TIER_MINUTES } from "./poll.js";
 
@@ -17,7 +18,12 @@ export type BoardCliDeps = {
   wait: (ms: number) => Promise<boolean>;
 };
 
-type Io = { print: (line: string) => void; now: () => Date; boards: BoardCliDeps };
+type Io = {
+  print: (line: string) => void;
+  now: () => Date;
+  boards: BoardCliDeps;
+  fit: FitCliDeps;
+};
 
 export const TICK_MS = 60_000;
 
@@ -89,6 +95,8 @@ async function list(io: Io): Promise<number> {
 
 export async function pollCommand(io: Io): Promise<number> {
   io.print(summary(await io.boards.poll()));
+  // New postings get their fit score in the same command (NS-116).
+  await scoreAfter(io);
   return 0;
 }
 
@@ -100,6 +108,9 @@ export async function runCommand(io: Io): Promise<number> {
     try {
       const s = await io.boards.poll();
       if (s.boards > 0) io.print(`${io.now().toISOString()}  ${summary(s)}`);
+      // Every tick, not only after new postings: a preference change made in another terminal
+      // re-scores here too (SRC-017). With nothing pending it does nothing.
+      await scoreAfter(io);
     } catch (error) {
       // Named, never quoted: a database error's message can carry connection details.
       const name = error instanceof Error ? error.name : "an unknown error";

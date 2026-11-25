@@ -2,12 +2,14 @@ import { basename } from "node:path";
 import type { JobListItem, SetFieldError } from "@northstar/db";
 import type { Result } from "@northstar/domain";
 import { LlmTransportError } from "@northstar/llm";
+import { FIT_USAGE, type FitCliDeps, fitCommand, scoreAfter } from "./fit/cli.js";
 import type { IngestResult } from "./ingest.js";
 import { ageHours, freshness, queueScore } from "./queue.js";
 import { type BoardCliDeps, pollCommand, runCommand, watchCommand } from "./watch-cli.js";
 
 // `jobs add <url> | add --text <file> --url <url> | list | set <id> <field> <value>` (NS-114),
-// plus `jobs watch …`, `jobs poll` and `jobs run` (NS-115, watch-cli.ts).
+// plus `jobs watch …`, `jobs poll` and `jobs run` (NS-115, watch-cli.ts), and `jobs prefs …`,
+// `jobs score` and `jobs why` (NS-116, fit/cli.ts).
 // Everything is injected, so tests run with no database, network or model.
 export type CliDeps = {
   argv: string[];
@@ -23,22 +25,22 @@ export type CliDeps = {
     value: string,
   ) => Promise<Result<{ status: "draft" | "ready"; missingFields: string[] }, SetFieldError>>;
   boards: BoardCliDeps;
+  fit: FitCliDeps;
 };
 
-const USAGE =
-  "usage: jobs add <url> | jobs add --text <file> --url <url> | jobs list | jobs set <job-id> <field> <value>\n       jobs watch add <board-url> --tier 1|2|3 | jobs watch list | jobs watch remove|retry <id> | jobs poll | jobs run";
+const USAGE = `usage: jobs add <url> | jobs add --text <file> --url <url> | jobs list | jobs set <job-id> <field> <value>\n       jobs watch add <board-url> --tier 1|2|3 | jobs watch list | jobs watch remove|retry <id> | jobs poll | jobs run\n${FIT_USAGE}`;
 
 export async function main(deps: CliDeps): Promise<number> {
   const [command, ...rest] = deps.argv;
   if (command === "add" && rest.length === 1 && rest[0])
-    return report(deps, () => deps.addUrl(rest[0] ?? ""));
+    return scored(deps, await report(deps, () => deps.addUrl(rest[0] ?? "")));
   if (command === "add" && rest.length === 4) {
     const file = flag(rest, "--text");
     const url = flag(rest, "--url");
     if (file && url) {
       const text = await deps.readText(file);
       deps.print(`Reading ${basename(file)} as the description for ${url}`);
-      return report(deps, () => deps.addText(url, text));
+      return scored(deps, await report(deps, () => deps.addText(url, text)));
     }
   }
   if (command === "list" && rest.length === 0) return listCommand(deps);
@@ -50,10 +52,18 @@ export async function main(deps: CliDeps): Promise<number> {
   if (command === "run" && rest.length === 0) return runCommand(deps);
   if (command === "set" && rest.length >= 3) {
     const [id, field, ...value] = rest;
-    if (id && field) return setCommand(deps, id, field, value.join(" "));
+    if (id && field) return scored(deps, await setCommand(deps, id, field, value.join(" ")));
   }
+  const fit = await fitCommand(deps, deps.argv);
+  if (fit !== null) return fit;
   deps.print(USAGE);
   return 1;
+}
+
+// A new or edited job is scored straight away (NS-116); a failed command scores nothing.
+async function scored(deps: CliDeps, code: number): Promise<number> {
+  if (code === 0) await scoreAfter(deps);
+  return code;
 }
 
 const flag = (args: string[], name: string) => {
@@ -134,19 +144,30 @@ async function listCommand(deps: CliDeps): Promise<number> {
     return 0;
   }
   const now = deps.now();
-  // Fresh first (SRC-013); fit joins the score with NS-116.
+  // Freshness × fit (SRC-013); a job not scored yet is ordered by freshness alone.
   const score = (j: JobListItem) =>
-    queueScore(freshness(ageHours(j.postedAt, j.firstSeenAt, now)), null);
+    queueScore(
+      freshness(ageHours(j.postedAt, j.firstSeenAt, now)),
+      j.fit ? j.fit.score / 100 : null,
+    );
   const ordered = [...jobs].sort((a, b) => score(b) - score(a));
   for (const j of ordered) {
     const when = j.postedAt ? `posted ${age(j.postedAt, now)}` : `seen ${age(j.firstSeenAt, now)}`;
     const draft = j.status === "draft" ? ` [draft: needs ${j.missingFields.join(", ")}]` : "";
     const sources = j.sources > 1 ? ` · ${j.sources} sources` : "";
     deps.print(
-      `${j.id}  ${j.title ?? "?"} · ${j.company ?? "?"} · ${j.location ?? "location ?"} · ${when}${sources}${draft}`,
+      `${j.id}  ${j.title ?? "?"} · ${j.company ?? "?"} · ${j.location ?? "location ?"} · ${when}${sources}${fitLabel(j.fit)}${draft}`,
     );
   }
   return 0;
+}
+
+// " · fit 82 queue", " · fit 55 skip (below_threshold:title)", " · fit 71 suggest stretch",
+// or nothing for a job not scored yet.
+function fitLabel(fit: JobListItem["fit"]): string {
+  if (!fit) return "";
+  const reason = fit.band === "skip" ? ` (${fit.reason})` : "";
+  return ` · fit ${fit.score} ${fit.band}${fit.stretch ? " stretch" : ""}${reason}`;
 }
 
 async function setCommand(
