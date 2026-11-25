@@ -16,8 +16,10 @@ GitHub) don't exist yet: if you are about to create one outside its ticket, stop
   and the posting id must match the one in the URL, then the Gate check (throws
   `NotApprovedError`), a re-hash of the files, `claimSubmission`, a `FormDriver` with time limits,
   then proof. A live claim is never touched (`InProgress`). A claim older than 15 minutes becomes
-  `needs_human` (`outcome_unknown`) and is never retried. Status moves use the
-  `application:<id>:apply:<submissionId>:<to>` key namespace.
+  `needs_human` (`outcome_unknown`) and is never retried; `closeStaleClaim` (`stale.ts`) does
+  that for both a repeated call and `sweepStaleClaims` (NS-143). Status moves use the
+  `application:<id>:apply:<submissionId>:<to>` key namespace (`applyMoveKey`). Pacing limits
+  are an `ApplyLimits` from `loadApplyLimits`, given to `dbPorts`; never per call.
 
 - Every page fetch goes through `safeFetch` (https only, public addresses on every redirect,
   2 MB, 15 s). Never call `fetch` on a pasted link directly. Whole-board listings (NS-115,

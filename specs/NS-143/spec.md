@@ -1,6 +1,6 @@
 # NS-143: Surface stale apply claims and take pacing limits from config
 
-Status: draft (autonomous lane, ADR-0016)
+Status: accepted (autonomous lane, ADR-0016)
 Requirements: APPLY-007, APPLY-009
 Rules that apply: ADR-0002, ADR-0007, ADR-0016, `.claude/rules/gateways.md`, `.claude/rules/db.md`
 Parent: #19 (NS-120)
@@ -40,15 +40,20 @@ any caller could raise them.
       negative or non-integer values, naming the setting.
 
 ## Failure modes
-- Database down: the sweep throws; the caller (a future worker) retries on its next tick. Nothing
-  is half-written: each close is its own transaction pair, and a repeat finds it closed.
+- Database down: the sweep throws; the caller (a future worker) retries on its next tick. A
+  claim not yet closed is listed again. One claim that fails doesn't stop the others: the pass
+  closes the rest, then throws the first failure.
+- A crash between the ledger write and the application move (two transactions, as in NS-120)
+  leaves the ledger at `needs_human` and the application behind. Neither path repairs it today;
+  the follow-up issue adds that repair.
 - A run that is not actually dead after 15 minutes: impossible by the gateway's step timeouts
   (they add up to far less); if it happens, its `recordSubmitted` is refused and it throws
   `ApplyInvariantError` loudly, as today.
 
 ## Observability
-- `apply.sweep` span with `northstar.apply.stale_count`; the existing `db.apply.needs_human` span
-  and `apply_submission.needs_human` event per closed claim, and the application's status event.
+- `apply.sweep` span with `northstar.apply.stale_count` and `northstar.apply.failed_count`; the
+  existing `db.apply.needs_human` span and `apply_submission.needs_human` event per closed claim,
+  and the application's status event.
 
 ## Out of scope (follow-up issue)
 - Item 3 of #78, the composite foreign key scoping `apply_submission.application_id` to its
