@@ -174,6 +174,11 @@ Exists now:
   checks, the MAT-003 bands, and the evidence behind each number. A score is keyed by the job's
   fields, the preference version and the resume import, so any change re-scores. The queue
   orders by freshness × fit.
+  Since NS-138 also the `job-match` route (`fit/model-match.ts`), off by default (hand-written
+  fixtures): for the requirements the rules left unmatched it proposes an atom and a verbatim
+  quote, `checkJobMatches` keeps only those whose atom and quote check out, and `scorePending`
+  takes them through an optional `assist` step (a score that used one is stored as
+  `method: "rules_model"`; a failed assist keeps the rules score). No caller turns it on yet.
 - The Approval Gate (NS-119, ADR-0002, ADR-0017): the auto-approve rules and their evaluator in
   `packages/domain` (`approval.ts`; only application packages can ever be auto-approved), and
   the append-only `approval_*` tables with the Gate's one write path in `packages/db`

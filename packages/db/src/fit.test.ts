@@ -238,6 +238,23 @@ describe("fit scores", () => {
     expect((await db.select().from(fitScore)).length).toBe(2);
   });
 
+  it("stores a model-assisted score as rules_model, on the row and the event (NS-138)", async () => {
+    const input = scoreInput(jobId, preferenceId, sourceId, { method: "rules_model" });
+    await saveFitScore(db, { ...input, candidateId, now: NOW });
+    const [row] = await db.select({ method: fitScore.method }).from(fitScore);
+    const [event] = await db.select().from(domainEvent).where(eq(domainEvent.type, "job.scored"));
+    expect([row?.method, (event?.payload as { method?: string } | undefined)?.method]).toEqual([
+      "rules_model",
+      "rules_model",
+    ]);
+  });
+
+  it("refuses a method other than rules and rules_model", async () => {
+    await saveFitScore(db, { ...scoreInput(jobId, preferenceId, sourceId), candidateId, now: NOW });
+    const state = await sqlState(db.update(fitScore).set({ method: "model" }));
+    expect(state).toBe("23514");
+  });
+
   it("records job.scored with numbers and codes only", async () => {
     const input = scoreInput(jobId, preferenceId, sourceId, {
       band: "skip",
