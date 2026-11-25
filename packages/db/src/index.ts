@@ -3,6 +3,7 @@
 export * as answerSchema from "./answer-schema.js";
 export { BANK_KINDS, type BankKind } from "./answer-schema.js";
 export {
+  type AlreadySaved,
   type AnswerContent,
   answerContentSha256,
   type BankAnswerView,

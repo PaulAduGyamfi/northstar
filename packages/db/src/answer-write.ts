@@ -16,10 +16,19 @@ type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 export type AnswerContent = { canonicalId: string; shortText: string; longText: string | null };
 
-// What Paul approves: the SHA-256 of the canonical id and both texts, as JSON so no two contents
-// share a hash. The caller hashes the same content when it asks the Gate (kind `answer`).
-export function answerContentSha256(content: AnswerContent): string {
-  const json = JSON.stringify([content.canonicalId, content.shortText, content.longText]);
+// What Paul approves: the SHA-256 of the canonical id, the kind, both texts and the application
+// it is for, as JSON so no two contents share a hash. The caller hashes the same when it asks
+// the Gate (kind `answer`), so an approval can't be stored under another kind or application.
+export function answerContentSha256(
+  content: AnswerContent & { kind: BankKind; applicationId: string },
+): string {
+  const json = JSON.stringify([
+    content.canonicalId,
+    content.kind,
+    content.shortText,
+    content.longText,
+    content.applicationId,
+  ]);
   return createHash("sha256").update(json).digest("hex");
 }
 
@@ -44,7 +53,14 @@ export type SaveAnswerInput = AnswerContent & {
 export type InvalidAnswer = { kind: "InvalidAnswer"; fields: string[] };
 export type DecidedByPolicy = { kind: "DecidedByPolicy" };
 export type StoryNotApproved = { kind: "StoryNotApproved"; storyIds: string[] };
-export type SaveAnswerError = InvalidAnswer | VerifyError | DecidedByPolicy | StoryNotApproved;
+// The answer id is already stored under another approval.
+export type AlreadySaved = { kind: "AlreadySaved" };
+export type SaveAnswerError =
+  | InvalidAnswer
+  | VerifyError
+  | DecidedByPolicy
+  | StoryNotApproved
+  | AlreadySaved;
 
 const Uuid = z.uuid();
 const SaveShape = z.object({
@@ -110,10 +126,14 @@ export async function saveApprovedAnswer(
   const atomIds = [...new Set(input.atomIds)];
   return db.transaction(async (tx) => {
     const [existing] = await tx
-      .select({ version: bankAnswer.version })
+      .select({ version: bankAnswer.version, decisionId: bankAnswer.approvalDecisionId })
       .from(bankAnswer)
       .where(and(eq(bankAnswer.id, input.answerId), eq(bankAnswer.candidateId, input.candidateId)));
-    if (existing) return ok({ answerId: input.answerId, version: existing.version, saved: false });
+    if (existing) {
+      // A repeat is the same approval; another approval of a stored answer id is never dropped.
+      if (existing.decisionId !== verified.value.decisionId) return err({ kind: "AlreadySaved" });
+      return ok({ answerId: input.answerId, version: existing.version, saved: false });
+    }
 
     // Only stories Paul approved may be cited (ADR-0004); drafts can still change.
     if (storyIds.length > 0) {
@@ -252,6 +272,12 @@ export async function readBankAnswer(
 
 // Records that a banked answer went into another application unchanged (ANS-003). Once per answer
 // and application: a repeat records nothing and writes no second event.
+const ReuseShape = z.object({
+  answerId: Uuid,
+  applicationId: Uuid,
+  confidence: z.number().min(0).max(1),
+});
+
 export async function recordAnswerReuse(
   db: Db,
   input: {
@@ -262,6 +288,8 @@ export async function recordAnswerReuse(
     traceId: string | null;
   },
 ): Promise<{ recorded: boolean }> {
+  // Bad ids or a confidence outside 0-1 are a caller bug: nothing is written.
+  ReuseShape.parse(input);
   return db.transaction(async (tx) => {
     const [answer] = await tx
       .select({ canonicalId: bankAnswer.canonicalId, kind: bankAnswer.kind })

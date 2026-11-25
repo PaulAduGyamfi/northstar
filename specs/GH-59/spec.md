@@ -31,7 +31,7 @@ often that answer has been used.
    new version; the newest version is the bank's answer.
 2. **Save on approve** (`saveApprovedAnswer`): the caller picks the answer id, asks the Gate for an
    approval of kind `answer` with subject `answer:<id>` and the SHA-256 of the answer
-   (`answerContentSha256`: canonical id, short and long text). Once Paul approved it (with his
+   (`answerContentSha256`: canonical id, kind, short and long text, application id). Once Paul approved it (with his
    inline edits: the edited text is what is hashed, approved and stored), the save verifies the
    decision with `verifyApproval`, refuses one decided by a policy (answers are never
    auto-approvable), checks every cited story is approved, and writes the answer, its citations,
@@ -69,7 +69,14 @@ often that answer has been used.
   stored; the caller shows the named reason. Fails closed.
 - **The database is down:** the save throws; nothing half-written (one transaction). A retry with
   the same answer id is safe.
-- **Two saves race for the same version number:** the unique constraint fails one; it can retry.
+- **Two saves race for the same version number, or the same answer id:** a unique constraint
+  fails one with a database error; a retry is safe.
+- **A factual canonical id with a narrative kind:** `packages/db` can't import the canon
+  (`packages/profile` depends on it), so it checks only the id's format and the kind list.
+  Callers take the kind from `narrativeKindOf` and bank nothing it returns `null` for.
+- **A hostile company name** (from job data): `adaptAnswer` fills `{company}` only with a plain
+  short name (`unsafe_company` otherwise), because Paul approved the template, not the filled
+  text.
 - **A wrong but confident canonical match** (NS-118's lexical matcher): reuse puts a banked answer
   in front of Paul with its canonical question; narrative answers still go through approval
   (ANS-005) unless an APPLY-004 policy auto-approves the package with an exact reuse.

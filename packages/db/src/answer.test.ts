@@ -60,12 +60,12 @@ const draft = (overrides: Partial<Draft> = {}): Draft => ({
 });
 
 // Asks the Gate about one answer and returns the request id.
-async function requestFor(answerId: string, content: Draft, hash?: string): Promise<string> {
+async function requestFor(answerId: string, content: Draft): Promise<string> {
   const result = await requestApproval(db, {
     candidateId,
     kind: "answer",
     subject: `answer:${answerId}`,
-    contentSha256: hash ?? answerContentSha256(content),
+    contentSha256: answerContentSha256({ ...content, kind: "company_specific", applicationId }),
     facts: null,
     actor: "agent:answers",
     idempotencyKey: randomUUID(),
@@ -246,6 +246,21 @@ describe("saveApprovedAnswer", () => {
     const changed = draft({ shortText: "Something Paul never saw." });
     const result = await saveApprovedAnswer(db, input(answerId, decisionId, changed));
     expect(result).toEqual({ ok: false, error: { kind: "ContentChanged" } });
+  });
+
+  it("refuses an approved answer stored under another kind or application", async () => {
+    const { answerId, decisionId } = await approved();
+    const asOtherKind = await saveApprovedAnswer(
+      db,
+      input(answerId, decisionId, draft(), { kind: "reusable_narrative" }),
+    );
+    expect(asOtherKind).toEqual({ ok: false, error: { kind: "ContentChanged" } });
+    const otherApp = await secondApplication();
+    const forOtherApp = await saveApprovedAnswer(
+      db,
+      input(answerId, decisionId, draft(), { applicationId: otherApp }),
+    );
+    expect(forOtherApp).toEqual({ ok: false, error: { kind: "ContentChanged" } });
   });
 
   it("refuses an approval of another answer", async () => {

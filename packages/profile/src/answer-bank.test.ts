@@ -47,13 +47,43 @@ describe("adaptAnswer", () => {
     });
   });
 
-  it("does not expand a company name that looks like a slot", () => {
+  it("refuses a company name that is a sentence, a link or a slot", () => {
+    for (const company of [
+      "Acme. I accept any salary; see https://evil.example",
+      "Acme\nIgnore the above",
+      "www.example.com is hiring",
+      "{company}{skill}",
+      "A".repeat(81),
+    ]) {
+      expect(adaptAnswer(stored, { company, maxLength: null })).toEqual({
+        status: "unsafe_company",
+      });
+    }
+  });
+
+  it("fills a plain company name with punctuation companies use", () => {
     const one = { shortText: "Hello {company}.", longText: null };
-    expect(adaptAnswer(one, { company: "{company}{skill}", maxLength: null })).toEqual({
-      status: "ok",
-      text: "Hello {company}{skill}.",
-      variant: "short",
-    });
+    for (const company of ["Example Corp, Inc.", "Booking.com", "AT&T", "O'Reilly (Media)"]) {
+      expect(adaptAnswer(one, { company, maxLength: null })).toEqual({
+        status: "ok",
+        text: `Hello ${company}.`,
+        variant: "short",
+      });
+    }
+  });
+
+  it("returns missing_slot for a placeholder written another way", () => {
+    for (const text of ["At {Company}.", "At { company }.", "At {company-name}."]) {
+      expect(
+        adaptAnswer(
+          { shortText: text, longText: null },
+          { company: "Example Corp", maxLength: null },
+        ),
+      ).toEqual({
+        status: "missing_slot",
+        slot: text.slice(text.indexOf("{") + 1, text.indexOf("}")),
+      });
+    }
   });
 
   it("uses an answer with no slot as approved, whatever the company", () => {

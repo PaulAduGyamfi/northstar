@@ -4,9 +4,24 @@ import { CANONICAL_QUESTIONS, type QuestionKind } from "./question-canon.js";
 // form's length limit, and say how often it was used. It never rewrites or cuts Paul's words:
 // anything that doesn't fit as approved goes back to him.
 
-// The only slot a banked answer may hold. The company name comes from the job, so it is
-// inserted as plain text in one pass: a name that looks like a slot is not expanded again.
-const SLOT = /\{([a-z_]+)\}/g;
+// Any braces count as a slot, so `{Company}` or `{ company }` is caught rather than sent as
+// text. `{company}` is the only one the code fills, in one pass: a name that looks like a slot is
+// not expanded again.
+const SLOT = /\{([^{}]*)\}/g;
+
+// The company name comes from job data (an ATS, a page's JSON-LD, a model's reading of a page),
+// and the filled text may go out under Paul's name having been approved only as a template. So
+// only a plain short name is filled in: letters, digits, spaces and & ' - , ( ) and a dot only
+// inside a word (Inc., Booking.com), no sentence, URL, address or line break.
+const MAX_COMPANY_LENGTH = 80;
+const SAFE_COMPANY = /^[\p{L}\p{N}][\p{L}\p{N} &'’,()-]*(?:\.[\p{L}\p{N} &'’,()-]+)*\.?$/u;
+const LOOKS_LIKE_LINK = /\b(?:https?|www)\b|\.(?:com|net|org|io|co)\b.*\s/i;
+
+function isSafeCompany(name: string): boolean {
+  return (
+    name.length <= MAX_COMPANY_LENGTH && SAFE_COMPANY.test(name) && !LOOKS_LIKE_LINK.test(name)
+  );
+}
 
 export type StoredAnswer = { shortText: string; longText: string | null };
 
@@ -15,7 +30,9 @@ export type AdaptedAnswer =
   // Neither approved variant fits the limit: Paul shortens it (a new version), never the code.
   | { status: "too_long"; maxLength: number; shortLength: number }
   // A slot the code can't fill: an unknown one, or {company} with no company name.
-  | { status: "missing_slot"; slot: string };
+  | { status: "missing_slot"; slot: string }
+  // The company name isn't a plain short name; Paul fills it in himself.
+  | { status: "unsafe_company" };
 
 // Picks the long variant when it fits `maxLength` (characters; null for no limit), else the
 // short one, with `{company}` filled in.
@@ -31,6 +48,10 @@ export function adaptAnswer(
           ["long", stored.longText],
           ["short", stored.shortText],
         ];
+  const needsCompany = variants.some(([, t]) => t.includes("{company}"));
+  if (needsCompany && company !== "" && !isSafeCompany(company)) {
+    return { status: "unsafe_company" };
+  }
   let shortLength = 0;
   for (const [variant, template] of variants) {
     for (const [, slot] of template.matchAll(SLOT)) {
