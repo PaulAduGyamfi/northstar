@@ -13,20 +13,37 @@ export type TrackStatus = (typeof TRACK_STATUSES)[number];
 // GRW-002: a next action is sized to one sitting.
 export const MAX_NEXT_ACTION_MINUTES = 90;
 
-export type GrowthTrack = {
-  id: string;
-  name: string;
-  type: TrackType;
-  status: TrackStatus;
+// A real date: an Invalid Date would break the plan order (NaN compares false both ways).
+const ValidDate = z.date().refine((d) => !Number.isNaN(d.getTime()), { message: "invalid date" });
+
+const Track = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  type: z.enum(TRACK_TYPES),
+  status: z.enum(TRACK_STATUSES),
   // 1 (low) to 5 (high).
-  priority: number;
-  targetDate: Date | null;
+  priority: z.number().int().min(1).max(5),
+  targetDate: ValidDate.nullable(),
   // Null when it has never been touched.
-  lastTouchedAt: Date | null;
+  lastTouchedAt: ValidDate.nullable(),
   // GRW-004's per-track N: untouched longer than this is "at risk".
-  untouchedDays: number;
-  nextAction: { title: string; minutes: number } | null;
-};
+  untouchedDays: z.number().int().min(1).max(365).default(7),
+  // GRW-002: a next action of at least a minute; over 90 is flagged, not refused.
+  nextAction: z.object({ title: z.string().min(1), minutes: z.number().int().min(1) }).nullable(),
+});
+export type GrowthTrack = z.infer<typeof Track>;
+
+export type InvalidTrack = { kind: "InvalidTrack"; fields: string[] };
+
+// Checks a track from storage or input; the error names the bad fields, never their values.
+export function parseGrowthTrack(input: unknown): Result<GrowthTrack, InvalidTrack> {
+  const parsed = Track.safeParse(input);
+  if (parsed.success) return ok(parsed.data);
+  return err({
+    kind: "InvalidTrack",
+    fields: [...new Set(parsed.error.issues.map((i) => i.path.join(".")))],
+  });
+}
 
 const Settings = z.object({
   // Q-09's default: 8 hours a week.
@@ -35,8 +52,9 @@ const Settings = z.object({
   wipLimit: z.number().int().min(1).max(10).default(3),
   // One focus session; never longer than a next action may be.
   blockMinutes: z.number().int().min(15).max(MAX_NEXT_ACTION_MINUTES).default(60),
-  // One short block per maintenance track, so it doesn't go stale.
-  maintenanceMinutes: z.number().int().min(0).max(MAX_NEXT_ACTION_MINUTES).default(30),
+  // One short block per maintenance track, so it doesn't go stale. At least 15 minutes, so a
+  // track with no block is always one the hours ran out for (`no_time`).
+  maintenanceMinutes: z.number().int().min(15).max(MAX_NEXT_ACTION_MINUTES).default(30),
   // GRW-004: each focus track gets at least this many sessions a week.
   minFocusSessions: z.number().int().min(1).max(7).default(2),
 });
@@ -100,6 +118,7 @@ export function planWeek(tracks: GrowthTrack[], settings: PlanSettings, now: Dat
   const unplanned = tracks
     .filter((t) => t.status !== "active")
     .sort(byId)
+    // The filter above leaves only non-active statuses; TypeScript's filter doesn't narrow that.
     .map((t) => ({ trackId: t.id, reason: t.status as Exclude<TrackStatus, "active"> }));
   const needsNextAction = active
     .filter((t) => t.nextAction === null || t.nextAction.minutes > MAX_NEXT_ACTION_MINUTES)
@@ -128,7 +147,7 @@ export function planWeek(tracks: GrowthTrack[], settings: PlanSettings, now: Dat
   // track at most: no block at all says more than "moved out of focus".
   const maintenance: PlannedTrack[] = [];
   for (const t of maintenanceTracks) {
-    if (maintenanceMinutes > 0 && left >= maintenanceMinutes) {
+    if (left >= maintenanceMinutes) {
       maintenance.push({ trackId: t.id, blocks: [maintenanceMinutes] });
       left -= maintenanceMinutes;
       if (squeezedIds.has(t.id)) notes.push({ trackId: t.id, note: "over_capacity" });

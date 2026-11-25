@@ -3,6 +3,7 @@ import {
   DEFAULT_PLAN_SETTINGS,
   type GrowthTrack,
   type PlanSettings,
+  parseGrowthTrack,
   parsePlanSettings,
   planWeek,
   type WeekPlan,
@@ -90,6 +91,15 @@ describe("planWeek: balance rules (GRW-004)", () => {
     expect(plan.atRisk).toEqual(["stale"]);
     expect(plan.focus.map((f) => f.trackId)).toEqual(["stale"]);
     expect(plan.maintenance.map((m) => m.trackId)).toEqual(["busy"]);
+  });
+
+  it("isn't at risk when touched exactly its threshold ago, only past it", () => {
+    const plan = planWeek(
+      [track("edge", { lastTouchedAt: daysAgo(7), untouchedDays: 7 })],
+      settings(),
+      NOW,
+    );
+    expect(plan.atRisk).toEqual([]);
   });
 
   it("treats a track never touched as at risk", () => {
@@ -190,19 +200,38 @@ describe("planWeek: deterministic", () => {
     expect(planWeek([...tracks].reverse(), s, NOW)).toEqual(planWeek(tracks, s, NOW));
   });
 
+  it("breaks a full tie by id, so tied tracks plan the same in any order", () => {
+    // Same risk, priority and target date: only the id can order them.
+    const tied = [track("y"), track("x"), track("z")];
+    const s = settings({ wipLimit: 1, weeklyMinutes: 300 });
+    const plan = planWeek(tied, s, NOW);
+    expect(plan.focus.map((f) => f.trackId)).toEqual(["x"]);
+    expect(planWeek([...tied].reverse(), s, NOW)).toEqual(plan);
+  });
+
   it("never exceeds the week's minutes for any mix of tracks and settings", () => {
     for (let weekly = 0; weekly <= 900; weekly += 45) {
       for (let wip = 1; wip <= 4; wip++) {
         for (const block of [15, 30, 60, 90]) {
-          const tracks = Array.from({ length: 6 }, (_, i) =>
-            track(`t${i}`, { priority: (i % 5) + 1 }),
-          );
-          const plan = planWeek(
-            tracks,
-            settings({ weeklyMinutes: weekly, wipLimit: wip, blockMinutes: block }),
-            NOW,
-          );
-          expect(minutes(plan)).toBeLessThanOrEqual(weekly);
+          for (const maintenanceMinutes of [15, 30, 90]) {
+            for (const minFocusSessions of [1, 2, 3]) {
+              const tracks = Array.from({ length: 6 }, (_, i) =>
+                track(`t${i}`, { priority: (i % 5) + 1 }),
+              );
+              const plan = planWeek(
+                tracks,
+                settings({
+                  weeklyMinutes: weekly,
+                  wipLimit: wip,
+                  blockMinutes: block,
+                  maintenanceMinutes,
+                  minFocusSessions,
+                }),
+                NOW,
+              );
+              expect(minutes(plan)).toBeLessThanOrEqual(weekly);
+            }
+          }
         }
       }
     }
@@ -220,5 +249,44 @@ describe("parsePlanSettings", () => {
       ok: false,
       error: { kind: "InvalidSettings", fields: ["weeklyMinutes", "wipLimit", "blockMinutes"] },
     });
+  });
+});
+
+describe("parseGrowthTrack (GRW-001)", () => {
+  const raw = {
+    id: "t1",
+    name: "Synthetic project",
+    type: "project",
+    status: "active",
+    priority: 3,
+    targetDate: null,
+    lastTouchedAt: null,
+    nextAction: { title: "Sketch the API", minutes: 30 },
+  };
+
+  it("defaults the untouched threshold to 7 days", () => {
+    const r = parseGrowthTrack(raw);
+    expect(r.ok && r.value.untouchedDays).toBe(7);
+  });
+
+  it("refuses a priority outside 1–5, a next action under a minute, or a date that isn't one", () => {
+    const bad = [
+      { ...raw, priority: 0 },
+      { ...raw, priority: 6 },
+      { ...raw, nextAction: { title: "Nothing", minutes: 0 } },
+      { ...raw, lastTouchedAt: new Date("not a date") },
+    ];
+    const fields = bad.map((b) => {
+      const r = parseGrowthTrack(b);
+      return r.ok ? "ok" : r.error.fields[0];
+    });
+    expect(fields).toEqual(["priority", "priority", "nextAction.minutes", "lastTouchedAt"]);
+  });
+});
+
+describe("parsePlanSettings: maintenance blocks", () => {
+  it("refuses a maintenance block under 15 minutes, so no_time always means the hours ran out", () => {
+    const r = parsePlanSettings({ maintenanceMinutes: 0 });
+    expect(r.ok || r.error.fields).toEqual(["maintenanceMinutes"]);
   });
 });

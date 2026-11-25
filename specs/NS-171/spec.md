@@ -39,8 +39,10 @@ goes stale. It must be plain code (no model), the same input always giving the s
        track: `no_time` wins).
    - **Next actions** (GRW-002): an active track whose next action is missing or longer than 90
      minutes is flagged `needs_next_action`.
-3. `parsePlanSettings` checks the settings (weekly minutes 0–10080, WIP 1–10, block 15–90 minutes,
-   maintenance 0–90 minutes, minimum sessions 1–7), filling in the Q-09 defaults.
+3. `parseGrowthTrack` checks a track (priority 1–5, real dates, a next action of at least a
+   minute) and defaults its untouched threshold to 7 days.
+4. `parsePlanSettings` checks the settings (weekly minutes 0–10080, WIP 1–10, block 15–90 minutes,
+   maintenance 15–90 minutes, minimum sessions 1–7), filling in the Q-09 defaults.
 
 ## Acceptance criteria
 - [ ] Given 10 h/week and 4 active tracks with WIP 3, three are in focus and one in maintenance,
