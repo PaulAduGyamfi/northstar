@@ -99,6 +99,13 @@
       "when": 1795608142589,
       "tag": "0013_job_ingest",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795611875863,
+      "tag": "0014_company_watch",
+      "breakpoints": true
     }
   ]
 }
