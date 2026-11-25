@@ -71,7 +71,7 @@ the parent stays in the body (`Parent: #N`).
 
 | Ticket | Issue | Title | Notes |
 |---|---|---|---|
-| NS-132 | #39 | Harness: tokenize gh and git push detection like the NS-109 docker guard | `.claude/` work: Paul's |
+| NS-132 | #39 | Harness: tokenize gh and git push detection like the NS-109 docker guard | needs:paul (`.claude/` hooks) |
 | NS-133 | #42 | Profile: import LinkedIn export, GitHub repos and personal site | |
 | NS-134 | #43 | Profile: handle two-column PDF resumes | |
 | NS-135 | #60 | Answer-draft route that cites stories and atoms | |
@@ -91,9 +91,9 @@ the parent stays in the body (`Parent: #N`).
 | NS-149 | #90 | LLM extraction fallback for verification mail | |
 | NS-150 | #91 | Keep verification mail out of the funnel backfill | |
 | NS-151 | #92 | Persist verification windows with the gateway session | blocked by NS-124 |
-| NS-152 | #95 | Guided thesis session, CLI, and gap-to-proof narrative | |
+| NS-152 | #95 | Guided thesis session, CLI, and gap-to-proof narrative | blocked by NS-155 |
 | NS-153 | #99 | System Health page, live activity feed and kill-switch toggles in the app | blocked by NS-156 |
-| NS-154 | #100 | Run inspector (steps, timings, LLM calls, retries) | |
+| NS-154 | #100 | Run inspector (steps, timings, LLM calls, retries) | blocked by NS-157, NS-156 |
 | NS-155 | #103 | Store Paul's approved positioning thesis versions | carries #96's rules line |
 
 Closed without a number: #77 and #88 (their `.claude/rules` lines are in), #96 (its rules line
@@ -106,22 +106,28 @@ P1 items on the roadmap that had no issue.
 |---|---|---|---|
 | NS-156 | Web app and API scaffold with Paul's sign-in | UX-*, APR-001, NFR-SEC-*, ADR-0005, ADR-0009 | ui, platform, p1 |
 | NS-157 | Temporal worker pools | RES-001, ADR-0001, ADR-0007 | platform, p1 |
-| NS-158 | Link job mail to applications: tagged address, deterministic matching, origin | INB-004 (link), INB-007…012, VER-007 | inbox, p1 |
+| NS-158 | Link job mail to applications: tagged address, deterministic matching, origin | INB-004 (link), INB-007, INB-009…012, VER-007 (INB-008 labels in NS-164) | inbox, p1 |
 | NS-159 | Resume audit with line-level suggestions | AUD-001/002 | profiles, p1 |
 | NS-160 | Review leftovers: sender and header hardening, apply feed lines, stale comment | VER-002, OBS-002, RES-008 | inbox, observability, p1 |
+| NS-161 | Application package assembly | APPLY-001 | apply, p1 |
+| NS-162 | Generic adapter for unknown application forms (blocked by NS-142) | APPLY-003 | apply, llm, p1 |
+| NS-163 | Fresh-job alerts (blocked by NS-156) | SRC-015 | sourcing, p1 |
+
+Cut earlier from NS-114 and not listed above: NS-128 (#51, extension capture, SRC-002, blocked by
+NS-156) and NS-129 (#52, embedding-based dedupe, SRC-006, needs a provider choice).
 
 ## P2 — Inbox, pipeline, interviews, growth (cut 2026-11-25)
 From `docs/roadmap.md` P2, cut now that P1 is past half done.
 
 | Ticket | Title | Requirements | Labels |
 |---|---|---|---|
-| NS-161 | Gmail triage: classify job mail, type labels, status from email | INB-003, INB-004 (status), INB-005 | inbox, p2, needs:paul |
-| NS-162 | Unified job inbox view | INB-006 | inbox, ui, p2 |
-| NS-163 | Reply drafts and follow-up nudges | RPL-001…004 | inbox, p2, needs:paul |
-| NS-164 | Recruiter grading of inbound messages | REC-001…003 | inbox, p2 |
-| NS-165 | Pipeline dashboard, Today view and application timeline | DSH-001…004, DSH-006 | ui, p2 |
-| NS-166 | Google Calendar connect and interview detection | CAL-001, CAL-002 | interviews, p2, needs:paul |
-| NS-167 | Interview prep: blocks, reminders, briefs, practice and review | CAL-003…007 | interviews, p2 |
-| NS-168 | Growth tracker: tracks, milestones, weekly capacity, balance rules | GRW-001…004 | growth, p2 |
-| NS-169 | Growth progress capture, dashboard and weekly review | GRW-005…007 | growth, p2 |
-| NS-170 | SmartRecruiters apply adapter and posting liveness checks | APPLY-002, SRC-010 | apply, sourcing, p2 |
+| NS-164 | Gmail triage: classify job mail, type and origin labels, status from email | INB-003, INB-004 (status), INB-005, INB-008 | inbox, p2, needs:paul |
+| NS-165 | Unified job inbox view | INB-006 | inbox, ui, p2 |
+| NS-166 | Reply drafts and follow-up nudges | RPL-001…004 | inbox, p2, needs:paul |
+| NS-167 | Recruiter grading of inbound messages | REC-001…003 | inbox, p2 |
+| NS-168 | Pipeline dashboard, Today view and application timeline | DSH-001…004, DSH-006 | ui, p2 |
+| NS-169 | Google Calendar connect and interview detection | CAL-001, CAL-002 | interviews, p2, needs:paul |
+| NS-170 | Interview prep: blocks, reminders, briefs, practice and review | CAL-003…007 | interviews, p2 |
+| NS-171 | Growth tracker: tracks, milestones, weekly capacity, balance rules | GRW-001…004 | growth, p2 |
+| NS-172 | Growth progress capture, dashboard and weekly review | GRW-005…007 | growth, p2 |
+| NS-173 | SmartRecruiters apply adapter and posting liveness checks | APPLY-002, SRC-010 | apply, sourcing, p2 |

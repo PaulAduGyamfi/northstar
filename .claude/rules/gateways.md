@@ -25,11 +25,12 @@ GitHub) don't exist yet: if you are about to create one outside its ticket, stop
 - Board polling (`poll.ts`) never throws for one board: a failure is that board's result, it
   backs off, and after 5 failures it is quarantined until Paul retries it (RES-002/003).
 
-When they land:
+For every gateway (the Apply Gateway now, the others when they land):
 
 - A gateway calls `verifyApproval` (NS-119) at the moment it acts, never when it enqueues, and
-  passes the SHA-256 of exactly what it is about to send. Its idempotency key comes from the
-  decision id: one approval, one send. A `ContentChanged` or `UndoWindowOpen` refusal becomes a
+  passes the SHA-256 of exactly what it is about to send. One approval, one send: the Apply
+  Gateway keys each submission `application:<id>:submit` and refuses a second one for the same
+  requisition. A `ContentChanged` or `UndoWindowOpen` refusal becomes a
   visible `needs_human` item or a scheduled retry at `effective_at` (ADR-0007), never a silent drop.
 - A gateway call without a verified `approvalId` or `policyDecisionId` throws. Look the approval
   up server-side; never trust an ID the caller merely asserts. Test the refusal.

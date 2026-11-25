@@ -44,7 +44,8 @@ calls, Paul's real data, `.env`).
    0003, 0004, 0010, 0014, 0015 or this one, the product rules or the model choice.
 7. **GitHub writes** are limited to: `git push -u origin <own branch>`; opening a PR from that
    branch into `main`; squash-merging it with the expected head commit pinned; commenting on or
-   subscribing to that PR; opening issues as in item 2. Issues are never edited after they are
+   subscribing to that PR; the `Claimed by agent` and `Released by agent` comments on the issue it
+   works (items 11 and 13); opening issues as in item 2. Issues are never edited after they are
    opened, so the label and the `Parent:` line can't be removed. `.claude/hooks/guard-github.sh`
    enforces this as an allowlist on every GitHub connector call (merge only as a squash with a full
    head SHA; issue writes only as creates labelled `agent-filed` with a `Parent: #N` line). Ideas
@@ -64,9 +65,11 @@ calls, Paul's real data, `.env`).
     into its branch (and regenerates a Drizzle migration rather than hand-merging one), and never
     opens a replacement PR.
 11. **No overlap.** Before any work an agent comments `Claimed by agent <branch> at <UTC time>` on
-    the issue and re-reads its comments; the earliest claim wins. It skips an issue that is
-    claimed, has an open PR or branch, is the parent or a child of a claimed issue, or shares an
-    `area:*` label or package with one. Only one agent at a time changes `packages/db` schema or
+    the issue and re-reads its comments; the earliest claim wins. An issue is claimed while it has
+    a `Claimed by agent` comment with no later `Released by agent` comment, or an open PR. A
+    leftover branch after a release doesn't count: the next agent merges `main` into it and goes
+    on. It skips an issue that is claimed, is the parent or a child of a claimed issue, or shares
+    an `area:*` label or package with one. Only one agent at a time changes `packages/db` schema or
     migrations: an issue that needs a migration waits while another claimed issue adds one.
 12. **Order** (amended 2026-11-25, Paul: "in chronological order, not random ones"). An agent
     takes the eligible issue with the **lowest NS number**, whatever its priority label. Eligible
