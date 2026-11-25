@@ -96,6 +96,9 @@ importers:
       '@opentelemetry/api':
         specifier: 1.9.1
         version: 1.9.1
+      drizzle-orm:
+        specifier: 0.45.4
+        version: 0.45.4(@electric-sql/pglite@0.5.16)(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.1)
       zod:
         specifier: 4.6.7
         version: 4.6.7
