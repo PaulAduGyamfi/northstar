@@ -34,7 +34,7 @@ calls, Paul's real data, `.env`).
 5. **Still a hard stop** for that part of the work (open a `needs:paul` issue, don't merge it):
    changing a test assertion or an eval threshold, needing a secret or network beyond the package
    registry, a destructive command, or the same fix failing twice.
-6. **Unchanged:** ADR-0015 changes no hook, deny or `ask` rule. The "Never" list, branch
+6. **Unchanged:** ADR-0015 loosens no hook, deny or `ask` rule (it only adds the GitHub guard). The "Never" list, branch
    protection, the product rules, the "Tests and evals" and "Secrets" sections and the 14-day
    dependency cooldown still bind. No force-push, `--admin`, `--auto` or rewriting pushed history.
    Agents don't change `.claude/`, `.github/` or `.pre-commit-config.yaml`; a ticket that needs it
@@ -42,9 +42,12 @@ calls, Paul's real data, `.env`).
    0003, 0004, 0010, 0014 or this one, the product rules or the model choice.
 7. **GitHub writes** are limited to: `git push -u origin <own branch>`; opening a PR from that
    branch into `main`; rebase-merging it with the expected head commit pinned; commenting on or
-   subscribing to that PR; opening issues as in item 2 and labelling them. No other GitHub write
-   (file pushes through the API, branch deletes, workflow runs, settings). Deny rules in
-   `.claude/settings.json` block the other GitHub connector write tools.
+   subscribing to that PR; opening issues as in item 2. Issues are never edited after they are
+   opened, so the label and the `Parent:` line can't be removed. `.claude/hooks/guard-github.sh`
+   enforces this as an allowlist on every GitHub connector call (merge only as a rebase with a full
+   head SHA; issue writes only as creates labelled `agent-filed` with a `Parent: #N` line). Ideas
+   Paul dictates in chat are filed as `agent-filed` + `idea` with no parent, so agents don't work
+   them until Paul removes `agent-filed`.
 8. **Work only Paul can do** (anything that needs `.env`, his real data, `--live` or `--record`
    evals, or his browser) is never faked. The agent builds the rest, opens a `needs:paul` issue
    for the missing step, and merges what is safe without it. Hand-written fixtures for a new LLM
