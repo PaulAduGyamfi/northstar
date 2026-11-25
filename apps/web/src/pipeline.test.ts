@@ -26,7 +26,7 @@ describe("STATUS_WORDS", () => {
     expect(APPLICATION_STATUSES.every((s) => STATUS_WORDS[s].length > 0)).toBe(true);
   });
 
-  it("reads every ending that isn't an offer as a neutral 'closed' (UX-045)", () => {
+  it("reads every ending that isn't an offer as a neutral 'closed' (UX-020)", () => {
     expect([STATUS_WORDS.rejected, STATUS_WORDS.withdrawn, STATUS_WORDS.ghosted]).toEqual([
       "closed",
       "closed",

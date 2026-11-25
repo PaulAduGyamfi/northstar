@@ -27,7 +27,7 @@ export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
 // One status vocabulary everywhere (UX-020, tokens.md): found, queued, awaiting you, submitting,
 // submitted, needs your hands, interviewing, offer, closed. Every ending but an offer is a
-// neutral "closed", never "rejected" (UX-045).
+// neutral "closed", never "rejected" (tokens.md; no loss copy, UX-045).
 export const STATUS_WORDS: Record<ApplicationStatus, string> = {
   discovered: "found",
   scored: "found",

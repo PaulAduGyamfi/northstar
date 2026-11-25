@@ -31,4 +31,4 @@ are CSS variables in `apps/web/app/globals.css`.
 - Approvals are decided only through the API's session endpoints (`/approvals/*`, NS-139). An
   undo countdown reads the API's `effectiveAt` (the database clock); the browser only counts down.
 - Application statuses are shown only through `STATUS_WORDS` (`src/pipeline.ts`, UX-020): every
-  ending but an offer reads "closed" (UX-045).
+  ending but an offer reads "closed" (UX-020, tokens.md).

@@ -45,7 +45,7 @@ exist (`application`, `job`, `company`, `domain_event`).
 - [ ] Both endpoints refuse a request without a session; an id that isn't a uuid is 400; an
       unknown one is 404.
 - [ ] Every application status has a word, and rejected, withdrawn and ghosted all read
-      "closed" (UX-045, web test).
+      "closed" (UX-020 and tokens.md, web test).
 - [ ] `pnpm turbo run lint typecheck test build --force` exits 0, and `checks` is green.
 
 ## Failure modes
