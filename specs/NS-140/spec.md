@@ -17,9 +17,9 @@ to close the request, so the subject can never be asked about again.
    clock, `northstar_gate_now()`).
 2. **`withdrawApproval(db, { candidateId, requestId, by, newContentSha256? })`** (the only writer):
    - Paul (`by: "user"`) may withdraw a request that is pending or approved.
-   - A gateway (`by: "gateway"`) may withdraw only an approved request, and only by passing the
-     SHA-256 of the content it now holds, which must differ from the approved one
-     (`content_changed`, proven in code, not asserted).
+   - A gateway (`by: "gateway"`) may withdraw only an approval that has taken effect (past
+     Paul's undo window, which stays his), and only by passing the SHA-256 of the content it now
+     holds, which must differ from the approved one (`content_changed`).
    - A rejected request is already closed: refused (`AlreadyClosed`). A second withdrawal: refused.
    - One `approval.withdrawn` event with ids, who and why (never content).
 3. **A withdrawn request is closed everywhere**, in the SQL guards and in code:
@@ -27,8 +27,9 @@ to close the request, so the subject can never be asked about again.
    - It leaves the pending queue; a decision on it, or an undo of its decision, is refused.
    - Its subject may be requested again. A request after Paul's withdrawal always waits for him
      (like after a rejection or undo); after a gateway's `content_changed` the policies run as usual.
-   - The withdrawal locks the request and its decision rows, as an undo does, so a gateway's
-     `verifyApproval` and a withdrawal never overlap.
+   - The withdrawal locks the request and its decision rows, as an undo does, and
+     `verifyApproval` and the vault lock the decision row, so a gateway's check and a withdrawal
+     never overlap.
 
 ## Acceptance criteria
 - [ ] Paul withdraws a pending request: it leaves the queue, its subject can be requested again.

@@ -15,8 +15,8 @@ CREATE TRIGGER approval_withdrawal_no_truncate
 --   row, then the subject; the same order as the other guards, so they serialize and never
 --   deadlock;
 -- * is refused for a request already closed by a live rejection;
--- * by a gateway, only closes a live approval (the content-changed proof is checked in code,
---   where the new hash is known);
+-- * by a gateway, only closes a live approval past its undo window (the content-changed proof is
+--   checked in code, where the new hash is known);
 -- * is stamped by the database clock.
 CREATE FUNCTION approval_withdrawal_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
@@ -35,8 +35,11 @@ BEGIN
     RAISE EXCEPTION 'this request was rejected; it is already closed'
       USING ERRCODE = 'check_violation';
   END IF;
-  IF NEW.withdrawn_by = 'gateway' AND (live.id IS NULL OR live.decision <> 'approved') THEN
-    RAISE EXCEPTION 'a gateway may only withdraw an approved request'
+  -- A gateway only meets changed content when it acts, which is after the undo window; inside
+  -- the window the approval is still Paul's to undo, so a gateway may not close it first.
+  IF NEW.withdrawn_by = 'gateway' AND (live.id IS NULL OR live.decision <> 'approved'
+      OR live.effective_at > northstar_gate_now()) THEN
+    RAISE EXCEPTION 'a gateway may only withdraw an approval that has taken effect'
       USING ERRCODE = 'check_violation';
   END IF;
   NEW.withdrawn_at := northstar_gate_now();

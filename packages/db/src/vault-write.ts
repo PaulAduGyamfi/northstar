@@ -170,6 +170,13 @@ async function liveApproval(
   decisionId: string,
 ): Promise<boolean> {
   if (!UUID.test(decisionId)) return false;
+  // Lock the decision row first, as verifyApproval does: a withdrawal (NS-140) locks it too, so
+  // an opening and a withdrawal never overlap; whichever commits first, the other sees it.
+  await tx
+    .select({ id: approvalDecision.id })
+    .from(approvalDecision)
+    .where(and(eq(approvalDecision.id, decisionId), eq(approvalDecision.candidateId, candidateId)))
+    .for("update");
   const [row] = await tx
     .select({ id: approvalDecision.id })
     .from(approvalDecision)

@@ -86,7 +86,12 @@ export type VerifyError =
   | SubjectMismatch
   | ContentChanged
   | Withdrawn;
-export type WithdrawError = NotFound | AlreadyClosed | ContentUnchanged | NotApproved;
+export type WithdrawError =
+  | NotFound
+  | AlreadyClosed
+  | ContentUnchanged
+  | NotApproved
+  | UndoWindowOpen;
 
 const Subject = z
   .string()
@@ -890,6 +895,11 @@ async function withdrawOnce(
     if (live?.decision === "rejected") return err({ kind: "AlreadyClosed" } as const);
     if (input.by === "gateway") {
       if (live?.decision !== "approved") return err({ kind: "NotApproved" } as const);
+      // Inside the undo window the approval is still Paul's to undo; a gateway meets changed
+      // content only when it acts, after the window (the trigger checks this too).
+      if ((await gateNow(tx)).getTime() < live.effectiveAt.getTime()) {
+        return err({ kind: "UndoWindowOpen", effectiveAt: live.effectiveAt } as const);
+      }
       if (input.newContentSha256 === request.contentSha256) {
         return err({ kind: "ContentUnchanged" } as const);
       }

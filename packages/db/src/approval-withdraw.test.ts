@@ -193,6 +193,7 @@ describe("withdrawApproval by a gateway", () => {
     const approved = await request(`email:${randomUUID()}`);
     await approve(approved.requestId);
     const pending = await request(`email:${randomUUID()}`);
+    await setClock(PAST_UNDO);
     expect([
       await withdrawApproval(db, {
         candidateId,
@@ -212,10 +213,44 @@ describe("withdrawApproval by a gateway", () => {
     ]);
   });
 
+  it("refuses to close an approval still inside Paul's undo window", async () => {
+    const { requestId } = await request(`email:${randomUUID()}`);
+    const decisionId = await approve(requestId);
+    const result = await withdrawApproval(db, {
+      candidateId,
+      requestId,
+      by: "gateway",
+      newContentSha256: HASH_B,
+    });
+    expect(result).toEqual({
+      ok: false,
+      error: { kind: "UndoWindowOpen", effectiveAt: new Date(NOW.getTime() + UNDO_WINDOW_MS) },
+    });
+    // Paul can still undo it.
+    expect((await undoDecision(db, { candidateId, decisionId })).ok).toBe(true);
+  });
+
+  it("refuses a gateway row inside the undo window even written directly", async () => {
+    const { requestId } = await request(`email:${randomUUID()}`);
+    await approve(requestId);
+    expect(
+      await sqlState(
+        db.insert(approvalWithdrawal).values({
+          candidateId,
+          requestId,
+          withdrawnBy: "gateway",
+          reason: "content_changed",
+          withdrawnAt: NOW,
+        }),
+      ),
+    ).toBe(CHECK_VIOLATION);
+  });
+
   it("closes an approval whose content changed, and a policy may approve the new request", async () => {
     await setApprovalPolicies(db, { candidateId, rules: [rule] });
     const subject = `application:${randomUUID()}`;
     const first = await request(subject, { kind: "application_package" });
+    await setClock(PAST_UNDO);
     const withdrawn = await withdrawApproval(db, {
       candidateId,
       requestId: first.requestId,
