@@ -66,8 +66,8 @@ export function createApi(deps: {
     if (forwarded !== undefined && forwarded !== webHost) {
       return reply(res, 421, { error: "misdirected" });
     }
-    // The query string never selects a route (no endpoint reads one yet).
-    const path = (req.url ?? "/").split("?")[0] as string;
+    // The query string never selects a route; a GET endpoint reads it as its input.
+    const [path = "/", query = ""] = (req.url ?? "/").split("?", 2);
     const forPath = endpoints.filter((e) => e.path === path);
     if (forPath.length === 0) return reply(res, 404, { error: "not_found" });
     const ep = forPath.find((e) => e.method === req.method);
@@ -113,7 +113,8 @@ export function createApi(deps: {
       }
     }
 
-    let raw: unknown = {};
+    // A GET's input is its query string, checked by the endpoint's schema like a body.
+    let raw: unknown = ep.method === "GET" ? Object.fromEntries(new URLSearchParams(query)) : {};
     if (ep.method === "POST") {
       const body = await readBody(req, ep.maxBodyBytes ?? MAX_BODY_BYTES);
       if (body === null) {
