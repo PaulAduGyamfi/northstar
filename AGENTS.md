@@ -139,7 +139,10 @@ Exists now:
   windows (sender allowlist, 10-minute window, single use), deterministic code and link
   extraction, the magic-link host check, and resend-once-then-`needs_human`. Codes and links come
   back in a `VerificationSecret` that prints `[redacted]`. Plain code, windows in memory: no Gmail
-  push, database or model yet.
+  push or database yet. Since NS-149, `offerAssisted(message, pick)` puts an ambiguous mail (several
+  codes, or several links) to a pick before it becomes `needs_human`; `modelPick` backs it with the
+  `verification-extract` route, which only returns the index of a candidate plain code found
+  (never a code or link), and a chosen link still passes `checkLink`. Off by default.
   Since NS-150 also `isVerificationMail` (headers) and `hasVerificationCode` (body), which the
   funnel backfill uses to drop ATS verification mail before it is classified, sent to the model
   or stored (VER-005).
