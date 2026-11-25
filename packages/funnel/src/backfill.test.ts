@@ -183,6 +183,85 @@ describe("the pre-filter's known gap", () => {
   });
 });
 
+describe("verification mail (VER-005)", () => {
+  // Synthetic Workday mail for an invented company. Workday's sending domain is a public fact; it
+  // is set directly, so no address is written here.
+  const workday = (
+    id: string,
+    threadId: string,
+    subject: string,
+    verified = true,
+  ): FakeMessage => ({
+    id,
+    threadId,
+    internalDate: "2026-04-01T10:00:00Z",
+    headers: {
+      From: "Acme Careers via Workday",
+      Subject: subject,
+      ...(verified
+        ? { "Authentication-Results": "mx.example; dkim=pass header.d=myworkday.com" }
+        : {}),
+    },
+    text: "Your verification code is 482913.",
+    senderDomain: "myworkday.com",
+  });
+
+  it("never classifies, fetches or stores verification mail, and counts it", async () => {
+    const { deps, store, gmail, gateway } = setup();
+    deps.gmail = fakeGmailClient([
+      workday("v", "tv", "Acme: verify your email"),
+      workday("c", "tc", "Thank you for applying to Acme"),
+    ]);
+    const counts = await runBackfill(deps, OPTIONS);
+    expect(counts.verificationSkipped).toBe(1);
+    expect(store.rows.map((r) => [r.gmailId, r.status])).toEqual([["c", "classified"]]);
+    expect(gateway.calls).toEqual([]);
+    expect((deps.gmail as typeof gmail).fullFetches).toEqual([]);
+  });
+
+  it("never sends an ATS body that gives a code to the model, whatever its subject says", async () => {
+    const { deps, store, gateway } = setup();
+    deps.gmail = fakeGmailClient([workday("v", "tv", "Your Acme account")]);
+    const counts = await runBackfill(deps, OPTIONS);
+    expect(gateway.calls).toEqual([]);
+    expect(store.rows).toEqual([]);
+    expect(counts.verificationSkipped).toBe(1);
+  });
+
+  it("skips a verification mail found through a job thread", async () => {
+    const { deps, store, gmail, gateway } = setup();
+    deps.gmail = fakeGmailClient([
+      workday("c", "t", "Thank you for applying to Acme"),
+      // Unverified, so the search doesn't list it: only the thread listing finds it.
+      { ...workday("v", "t", "Your one-time code", false), internalDate: "2026-04-02T10:00:00Z" },
+    ]);
+    const counts = await runBackfill(deps, OPTIONS);
+    expect(counts.fromThreads).toBe(1);
+    expect(counts.verificationSkipped).toBe(1);
+    expect(store.rows.map((r) => r.gmailId)).toEqual(["c"]);
+    expect(gateway.calls).toEqual([]);
+    expect((deps.gmail as typeof gmail).fullFetches).toEqual([]);
+  });
+
+  it("doesn't make a verification mail's thread a job thread", async () => {
+    const { deps, store } = setup();
+    deps.gmail = fakeGmailClient([
+      workday("v", "t", "Verification code for Acme"),
+      {
+        id: "other",
+        threadId: "t",
+        internalDate: "2026-04-02T10:00:00Z",
+        headers: { From: "Sam <sam@friend.example>", Subject: "Re: Verification code for Acme" },
+        text: "Did it arrive?",
+      },
+    ]);
+    const counts = await runBackfill(deps, OPTIONS);
+    expect(counts.fromThreads).toBe(0);
+    expect(counts.verificationSkipped).toBe(1);
+    expect(store.rows).toEqual([]);
+  });
+});
+
 describe("hardening", () => {
   const msg = (over: Partial<FakeMessage> & { id: string }): FakeMessage => ({
     threadId: over.id,

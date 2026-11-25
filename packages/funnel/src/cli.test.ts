@@ -27,6 +27,7 @@ const COUNTS: BackfillCounts = {
   modelCalls: 26,
   fetched: 26,
   fromThreads: 12,
+  verificationSkipped: 0,
   costUsd: 0.26,
 };
 const reviewItem: FunnelMessageRow = {
@@ -91,6 +92,13 @@ describe("funnel cli", () => {
     );
     expect(printed[1]).toBe("26 model call(s), $0.26.");
     expect(events).toEqual([{ type: "funnel.backfilled", payload: { ...COUNTS } }]);
+  });
+
+  it("backfill says how many verification emails it skipped, with nothing about them", async () => {
+    const { d, printed } = deps(["backfill"]);
+    d.runBackfill = async () => ({ ...COUNTS, verificationSkipped: 2 });
+    expect(await main(d)).toBe(0);
+    expect(printed[2]).toBe("Verification mail skipped: 2.");
   });
 
   it("backfill passes --since and --max-messages through and refuses bad values", async () => {
