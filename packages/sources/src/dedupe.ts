@@ -66,19 +66,31 @@ export function findDuplicate(
   const byUrl = existing.find((j) => j.sources.some((s) => s.url === source.url));
   if (byUrl) return { jobId: byUrl.jobId, by: "url" };
 
-  // Content: every part must be present and equal, and the descriptions alike. A missing part
-  // never matches, so two thin postings aren't merged on a guess.
+  // Content: company, title and description must be present, company and title equal, and the
+  // descriptions alike, so two thin postings aren't merged on a guess. Location is softer: the
+  // same place is often written longer on one source ("San Francisco, CA" and "San Francisco,
+  // CA, US"), so one place's words containing the other's counts. A missing location on either
+  // side doesn't block a match; the description still has to agree.
   const company = nameKey(fields.company);
   const title = nameKey(fields.title);
-  const location = nameKey(fields.location);
   if (!company || !title || !fields.description) return null;
   const hit = existing.find(
     (j) =>
       nameKey(j.company) === company &&
       nameKey(j.title) === title &&
-      nameKey(j.location) === location &&
+      samePlace(j.location, fields.location) &&
       j.description !== null &&
       similarity(j.description, fields.description ?? "") >= SIMILARITY,
   );
   return hit ? { jobId: hit.jobId, by: "content" } : null;
+}
+
+// Whether two locations name the same place: either is missing, or one's words all appear in the
+// other's ("remote us" in "remote us united states").
+export function samePlace(a: string | null, b: string | null): boolean {
+  const x = nameKey(a).split(" ").filter(Boolean);
+  const y = nameKey(b).split(" ").filter(Boolean);
+  if (x.length === 0 || y.length === 0) return true;
+  const [short, long] = x.length <= y.length ? [x, new Set(y)] : [y, new Set(x)];
+  return short.every((w) => long.has(w));
 }

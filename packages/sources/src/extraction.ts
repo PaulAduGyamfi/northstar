@@ -73,6 +73,25 @@ export function remoteFrom(...hints: (string | null | undefined)[]): JobFields["
   return null;
 }
 
+// An apply link as it can safely be stored: resolved against the page it came from (pages often
+// write "/jobs/123/apply"), http(s) only, any user name or password removed. Anything else
+// (javascript:, data:, garbage) is null, so a page can't break or poison the stored job.
+// Note for the Apply Gateway: this is still the page's own choice of link; apply only on a host
+// that matches the job's source or ATS, never on this value alone.
+export function cleanApplyUrl(raw: string | null, pageUrl: string): string | null {
+  if (raw === null) return null;
+  let u: URL;
+  try {
+    u = new URL(raw.trim(), pageUrl);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  u.username = "";
+  u.password = "";
+  return u.toString();
+}
+
 // A date if the value parses to one, else null.
 export function dateOrNull(v: unknown): Date | null {
   if (typeof v !== "string" && typeof v !== "number") return null;

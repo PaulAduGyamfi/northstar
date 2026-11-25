@@ -91,6 +91,27 @@ describe("safeFetch", () => {
     expect(asked).not.toContain("https://internal.example.com/admin");
   });
 
+  it("refuses a redirect that lands on a prohibited site, without requesting it", async () => {
+    const { deps, asked } = web({
+      "https://jobs.example.com/short": {
+        status: 302,
+        location: "https://www.linkedin.com/jobs/view/1",
+      },
+    });
+    await expect(safeFetch(deps, "https://jobs.example.com/short")).rejects.toThrow(
+      new FetchRefused("www.linkedin.com doesn't allow automated reading"),
+    );
+    expect(asked).toEqual(["https://jobs.example.com/short"]);
+  });
+
+  it("refuses a link with a user name or password in it", async () => {
+    const { deps, asked } = web({});
+    await expect(safeFetch(deps, "https://user:secret@jobs.example.com/1")).rejects.toThrow(
+      new FetchRefused("links with a user name or password are not fetched"),
+    );
+    expect(asked).toEqual([]);
+  });
+
   it("stops after 5 redirects", async () => {
     const pages: Record<string, Page> = {};
     for (let i = 0; i < 7; i++) {
@@ -139,6 +160,20 @@ describe("isPublicAddress", () => {
       "fd00::1",
       "::ffff:127.0.0.1",
       "::ffff:7f00:1",
+    ]) {
+      expect(isPublicAddress(a), a).toBe(false);
+    }
+  });
+
+  it("rejects the IPv6 forms that carry an IPv4 address: NAT64, 6to4, Teredo, IPv4-compatible", () => {
+    for (const a of [
+      "64:ff9b::a9fe:a9fe",
+      "64:ff9b:1::1",
+      "2002:7f00:1::",
+      "2001::1",
+      "::7f00:1",
+      "fec0::1",
+      "100::1",
     ]) {
       expect(isPublicAddress(a), a).toBe(false);
     }

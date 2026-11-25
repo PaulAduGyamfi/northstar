@@ -7,7 +7,12 @@ export type SourceTerms = { source: string; terms: Terms };
 
 // Sites whose terms forbid automated access, matched on the registrable domain so a subdomain or
 // a country site counts too (uk.indeed.com, indeed.co.uk, www.glassdoor.ca).
-const PROHIBITED = [/(^|\.)linkedin\.com$/, /(^|\.)indeed\.[a-z.]+$/, /(^|\.)glassdoor\.[a-z.]+$/];
+const PROHIBITED = [
+  /(^|\.)linkedin\.com$/,
+  /(^|\.)lnkd\.in$/,
+  /(^|\.)indeed\.[a-z.]+$/,
+  /(^|\.)glassdoor\.[a-z.]+$/,
+];
 
 const ATS_HOSTS: [RegExp, string][] = [
   [/^(boards|job-boards)\.greenhouse\.io$/, "greenhouse"],

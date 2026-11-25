@@ -5,6 +5,7 @@ import {
   jobExtractRoute,
   PAGE_LIMIT,
   renderPage,
+  writtenDate,
 } from "./job-extract-route.js";
 import { JobExtract } from "./job-extract-schema.js";
 
@@ -77,7 +78,7 @@ describe("checkJobProvenance", () => {
       salaryPeriod: "year",
       requirements: ["6+ years of backend experience", "Kubernetes in production"],
       niceToHaves: ["Rust"],
-      postedAt: new Date("2026-11-21T00:00:00"),
+      postedAt: new Date("2026-11-21T00:00:00Z"),
     });
   });
 
@@ -133,5 +134,38 @@ describe("checkJobProvenance", () => {
   it("drops a currency the page shows neither as code nor symbol", () => {
     const { fields } = checkJobProvenance({ ...answer, salaryCurrency: "EUR" }, PAGE);
     expect(fields.salaryCurrency).toBeNull();
+  });
+});
+
+describe("writtenDate", () => {
+  it("reads ISO and month-name dates, with or without Posted on", () => {
+    expect(writtenDate("2026-11-21")).toEqual(new Date("2026-11-21T00:00:00Z"));
+    expect(writtenDate("Posted on Nov. 21, 2026")).toEqual(new Date("2026-11-21T00:00:00Z"));
+  });
+
+  it("refuses slash dates, impossible days and anything else", () => {
+    expect(writtenDate("11/12/2026")).toBeNull();
+    expect(writtenDate("2026-02-30")).toBeNull();
+    expect(writtenDate("foo 1")).toBeNull();
+  });
+});
+
+describe("currency as a whole word", () => {
+  it("doesn't take CAD from ACADEMIC", () => {
+    const page = "Research Engineer\nGlobex Academic Labs\nPay 90,000 - 100,000";
+    const out = {
+      ...answer,
+      title: "Research Engineer",
+      company: "Globex Academic Labs",
+      location: null,
+      seniority: null,
+      requirements: [],
+      niceToHaves: [],
+      postedText: null,
+      salaryMin: 90000,
+      salaryMax: 100000,
+      salaryCurrency: "CAD",
+    };
+    expect(checkJobProvenance(out, page).fields.salaryCurrency).toBeNull();
   });
 });
