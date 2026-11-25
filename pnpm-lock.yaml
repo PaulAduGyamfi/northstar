@@ -26,6 +26,9 @@ importers:
 
   evals:
     dependencies:
+      '@northstar/inbox':
+        specifier: workspace:*
+        version: link:../packages/inbox
       '@northstar/llm':
         specifier: workspace:*
         version: link:../packages/llm
