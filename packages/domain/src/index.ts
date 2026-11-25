@@ -2,6 +2,7 @@
 // policies, domain events and ids.
 // Pure code with no I/O; packages/db stores what this package defines.
 export * from "./application-status.js";
+export * from "./apply-package.js";
 export * from "./approval.js";
 export * from "./domain-event.js";
 export * from "./ids.js";

@@ -12,6 +12,7 @@ export default defineConfig({
     "./src/fit-schema.ts",
     "./src/approval-schema.ts",
     "./src/answer-schema.ts",
+    "./src/apply-schema.ts",
   ],
   out: "./migrations",
 });

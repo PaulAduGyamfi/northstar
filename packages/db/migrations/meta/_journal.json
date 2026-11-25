@@ -141,6 +141,20 @@
       "when": 1795620654379,
       "tag": "0019_answer_bank_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795622568775,
+      "tag": "0020_apply_gateway",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795622570311,
+      "tag": "0021_apply_guards",
+      "breakpoints": true
     }
   ]
 }
