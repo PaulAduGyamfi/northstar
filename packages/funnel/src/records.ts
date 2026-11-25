@@ -58,7 +58,7 @@ export type FunnelRecord = {
 };
 
 // A Gmail record while it's being built: its messages, oldest first.
-type Group = { messages: FunnelMessageRow[] };
+export type Group = { messages: FunnelMessageRow[] };
 
 export type Placement =
   | { kind: "existing"; index: number }
@@ -163,6 +163,11 @@ function groupToRecord(g: Group, now: Date): FunnelRecord {
 // joins the newest candidate: the backfill already sent truly ambiguous ones to review, so this
 // only happens for Paul's own placements, which name a company and role.
 export function gmailRecords(messages: readonly FunnelMessageRow[], now: Date): FunnelRecord[] {
+  return buildGroups(messages).map((g) => groupToRecord(g, now));
+}
+
+// The Gmail applications so far: classified messages, oldest first, placed one by one.
+export function buildGroups(messages: readonly FunnelMessageRow[]): Group[] {
   const groups: Group[] = [];
   const classified = messages
     .filter((m) => m.status === "classified" && m.company !== null)
@@ -178,7 +183,7 @@ export function gmailRecords(messages: readonly FunnelMessageRow[], now: Date): 
       candidates.at(-1)?.messages.push(m);
     }
   }
-  return groups.map((g) => groupToRecord(g, now));
+  return groups;
 }
 
 const dayToDate = (day: string) => new Date(`${day}T00:00:00Z`);

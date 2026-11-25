@@ -26,9 +26,13 @@ it never guesses on thin data.
   `2026-02-01`, DX-001) are listed with a Gmail query built from known ATS sender domains and
   job-mail subject phrases. For each, only headers are fetched first (`From`, `Subject`, `Date`,
   `Delivered-To`, `Authentication-Results`). Plain code keeps a message only if its sender domain
-  is a known ATS or already on a funnel record, or its subject matches a job-mail phrase. Only
+  is a known ATS or already on a funnel message, its subject matches a job-mail phrase, or it is in
+  the same Gmail thread as job mail (a reply titled "Intro call" in a confirmation's thread). Only
   kept messages are fetched in full. Non-job mail is never fetched in full and never reaches a
   model (NFR-SEC-005).
+- **Known gap, on purpose:** a recruiter's first email in a new thread whose subject has no job
+  phrase is dropped. Keeping personal mail away from the model matters more; Paul adds such an
+  application with `funnel import`, and a test pins this behavior.
 - **Nothing from a message body is stored.** Only the Gmail message and thread ids, the sender
   domain, the date and the extracted fields below are kept (stricter than NFR-SEC-005's 90 days).
 
@@ -42,7 +46,10 @@ it never guesses on thin data.
 - **Provenance check (plain code).** The extracted company and role must appear verbatim in the
   sender, subject or body. Otherwise the message goes to the review queue, never into a record
   (ADR-0004).
-- **Records.** Messages are grouped into one `funnel_record` per application: ATS thread or
+- **Records.** The database stores processed messages (`funnel_message`: ids and extracted fields)
+  and tracker rows (`funnel_manual_row`). Records are derived from them by plain code on every
+  read, never stored, so reruns and review decisions can't leave them out of sync. Messages are
+  grouped into one record per application: ATS thread or
   requisition id first, then normalized company plus role within 120 days (INB-009 steps 2–3).
   - Each record has the applied date (confirmation, or the earliest message) and the furthest
     stage reached (A applied, B any human response, C screen, D technical, E onsite or final, plus
