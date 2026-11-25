@@ -1,4 +1,5 @@
-"""Regenerates the synthetic resume fixtures (sample.docx, sample.pdf) for packages/profile tests.
+"""Regenerates the synthetic resume fixtures (sample.docx, sample.pdf, two-column.pdf) for
+packages/profile tests.
 
 Run from this folder: python3 make-fixtures.py
 Synthetic content only (invented person and employer): the repo is public.
@@ -32,24 +33,63 @@ with zipfile.ZipFile("sample.docx", "w", zipfile.ZIP_DEFLATED) as z:
     z.writestr("_rels/.rels", RELS)
     z.writestr("word/document.xml", DOCUMENT)
 
-# A minimal one-page PDF with the same lines, built with correct xref offsets.
-text_ops = "BT /F1 12 Tf 72 720 Td 16 TL " + " ".join(f"({line}) Tj T*" for line in LINES) + " ET"
-objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R "
-    "/Resources << /Font << /F1 5 0 R >> >> >>",
-    f"<< /Length {len(text_ops)} >>\nstream\n{text_ops}\nendstream",
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+
+def write_pdf(name: str, text_ops: str, encoding: str = "") -> None:
+    """A minimal one-page PDF (Helvetica) with correct xref offsets. Text is cp1252
+    (WinAnsiEncoding) when `encoding` names it, so the en dash and bullet survive."""
+    stream = text_ops.encode("cp1252")
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R "
+        b"/Resources << /Font << /F1 5 0 R >> >> >>",
+        f"<< /Length {len(stream)} >>\nstream\n".encode() + stream + b"\nendstream",
+        f"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica{encoding} >>".encode(),
+    ]
+    out = b"%PDF-1.4\n"
+    offsets = []
+    for i, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += f"{i} 0 obj\n".encode() + body + b"\nendobj\n"
+    xref = len(out)
+    out += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode()
+    out += "".join(f"{o:010d} 00000 n \n" for o in offsets).encode()
+    out += f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
+    with open(name, "wb") as f:
+        f.write(out)
+
+
+# sample.pdf: the same lines in one column.
+write_pdf(
+    "sample.pdf",
+    "BT /F1 12 Tf 72 720 Td 16 TL " + " ".join(f"({line}) Tj T*" for line in LINES) + " ET",
+)
+
+# two-column.pdf: the content of the `two-column-pdf` eval case (evals/profile-extract), laid
+# out as a real two-column resume: experience on the left, skills and certifications on the
+# right, rows 14 points apart. Each piece is placed with its own text matrix.
+ROWS = [
+    ("Riley Example", "SKILLS"),
+    ("Platform Engineer", "Terraform"),
+    (None, "Kubernetes"),
+    ("EXPERIENCE", "AWS"),
+    ("Platform Engineer, Northgate Systems", None),
+    ("June 2019 \u2013 Present", "CERTIFICATIONS"),
+    ("\u2022 Rebuilt the deploy pipeline with", "Example Cloud Practitioner (Example Cloud)"),
+    ("GitHub Actions, cutting deploys from", None),
+    ("40 minutes to 9.", None),
+    ("\u2022 Ran the Kubernetes upgrade to 1.29.", None),
 ]
-out = b"%PDF-1.4\n"
-offsets = []
-for i, body in enumerate(objects, start=1):
-    offsets.append(len(out))
-    out += f"{i} 0 obj\n{body}\nendobj\n".encode()
-xref = len(out)
-out += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode()
-out += "".join(f"{o:010d} 00000 n \n" for o in offsets).encode()
-out += f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
-with open("sample.pdf", "wb") as f:
-    f.write(out)
+
+
+def pdf_string(s: str) -> str:
+    return "(" + s.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)") + ")"
+
+
+pieces = []
+for row, (left, right) in enumerate(ROWS):
+    y = 720 - row * 14
+    for x, text in ((72, left), (330, right)):
+        if text:
+            pieces.append(f"BT /F1 10 Tf 1 0 0 1 {x} {y} Tm {pdf_string(text)} Tj ET")
+write_pdf("two-column.pdf", "\n".join(pieces), " /Encoding /WinAnsiEncoding")

@@ -17,13 +17,20 @@ the resume can't be imported). The `two-column-pdf` eval case pins this and fail
 1. **Column-aware PDF reading** (`packages/profile/src/pdf-layout.ts`, plain code). For each page,
    `fileToText` reads pdf.js's text items with their positions (x, y, width) and passes them to
    `pageText(items, pageWidth)`:
-   - It looks for a **gutter**: a vertical line between 25% and 75% of the page width that no
-     text item crosses, with at least 3 lines of text on each side.
-   - Items that do cross the gutter are **full-width rows** (a name or a section rule across the
-     page). They split the page into bands from top to bottom.
-   - Within each band it emits the left column's lines (top to bottom), then the right column's.
-     A line is the items at the same height, left to right, joined by single spaces.
-   - **No gutter: unchanged.** It returns null, and the page's text comes from unpdf's
+   - **Lines.** Items whose baselines are within 2 points are one line, read left to right. A
+     space goes between two pieces only where there is a visible gap and neither has one already.
+   - **Gutter.** Each item's left edge between 25% and 75% of the page width is a candidate x.
+     A candidate qualifies when:
+     - at least 3 lines have text wholly left of it, and at least 3 wholly right of it;
+     - at most 25% of the page's lines cross it (an item starts left of it and ends right of it);
+     - at least 3 lines' right-hand text starts at x (within 2 points), and at least one of those
+       lines has nothing on its left. This is what separates a real sidebar from right-aligned
+       dates or a centred heading: a dated entry always has text on its left.
+     The candidate with the fewest crossing lines wins; ties go to the leftmost.
+   - **Bands.** Lines that cross the gutter (a name or a rule across the page) stay where they
+     are and split the page into bands. Each band emits its left column's lines, then its right
+     column's. Blocks (a crossing line, a band's column) are separated by a blank line.
+   - **No gutter: unchanged.** `pageText` returns null and the page's text comes from unpdf's
      `extractText` exactly as before. Single-column PDFs read byte for byte as they do today, so
      no other import or recorded fixture changes.
 2. **Pages** are still joined by a blank line.
@@ -38,12 +45,15 @@ the resume can't be imported). The `two-column-pdf` eval case pins this and fail
    exact replacement text, which the new test produces from a synthetic PDF with the same content.
 
 ## Acceptance criteria
-- [ ] A synthetic two-column PDF (a full-width name row, then experience on the left and skills
-      and certifications on the right) reads as the name, then the whole left column, then the
-      whole right column, with each bullet's wrapped lines next to each other (profile tests).
-- [ ] The existing single-column `sample.pdf` reads exactly as before (the existing test).
-- [ ] `pageText` returns null for one column, for a gutter outside 25–75% of the width, and for a
-      side with fewer than 3 lines (unit tests on synthetic items).
+- [ ] A synthetic two-column PDF with the eval case's content (experience on the left, skills and
+      certifications on the right) reads as the whole left column, then the whole right column,
+      with each bullet's wrapped lines next to each other, and a wrapped bullet is quotable
+      verbatim after `normalize` (profile tests).
+- [ ] A line crossing the gutter stays in place and splits the page into bands (unit test).
+- [ ] The single-column `sample.pdf` reads exactly as `extractText` read it (an exact-string test).
+- [ ] `pageText` returns null for one column, a gutter outside 25–75% of the width, a side with
+      fewer than 3 lines, an indented single column, right-hand text that always shares its line
+      with left-hand text, and right-aligned dates on an A4 page (unit tests on synthetic items).
 - [ ] The `two-column-pdf` eval is unchanged and still replays at 7/8 (`eval --all`).
 - [ ] A `needs:paul` issue asks Paul to replace the case's input, re-record and set the baseline
       to 8/8.
@@ -53,9 +63,12 @@ the resume can't be imported). The `two-column-pdf` eval case pins this and fail
 - **Three or more columns, or a sidebar that changes width:** no single gutter qualifies, so the
   page reads as today and the provenance check refuses quotes it can't find. Nothing wrong is
   written.
-- **A false gutter in a single-column page** (two short lists side by side): reading the left
-  list before the right one reorders lines only within that band. Quotes are lines, so verbatim
-  matching still works.
+- **A false gutter in a single-column page** would separate text that belongs on one line, for
+  example a role from its dates (locked facts, CPG-004). The gutter rules require a right column
+  with its own aligned lines, at least one standing alone, which right-aligned dates and centred
+  headings don't have. When in doubt the page reads as today.
+- **A real sidebar laid out exactly in step with the left column** (every right line shares a
+  baseline with left text) isn't recognised and reads as today: the safe direction.
 - **pdf.js returns no positions** (an unusual PDF): `pageText` gets no items and returns null,
   so the old path runs.
 

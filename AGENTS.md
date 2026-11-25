@@ -56,6 +56,8 @@ Exists now:
   `profile-extract` route, with a deterministic provenance check (every atom quotes the resume
   verbatim; no invented numbers, employers, titles or dates). `packages/db` holds the profile
   tables; roles' and education's facts are locked by a trigger (CPG-004).
+  Since NS-134 a two-column PDF page reads one column at a time (`pdf-layout.ts`, plain code
+  over pdf.js positions); any other page reads exactly as before.
   Since NS-111 also the guided story interview: a fixed STAR script per atom, the `story-draft`
   route, and a provenance check that every story part quotes Paul's answers verbatim. Stories
   are stored only when Paul approves them, then locked by a trigger (`packages/db`,
