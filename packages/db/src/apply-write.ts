@@ -10,6 +10,7 @@ import {
 } from "@northstar/domain";
 import { isSpanContextValid, type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 import { and, desc, eq, sql } from "drizzle-orm";
+import { type ApplyLimits, checkApplyLimits, DEFAULT_APPLY_LIMITS } from "./apply-config.js";
 import { applySubmission, type SubmissionStatus, submissionProof } from "./apply-schema.js";
 import type { Db } from "./db.js";
 import { candidate, domainEvent } from "./schema.js";
@@ -21,9 +22,7 @@ import { candidate, domainEvent } from "./schema.js";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
-// APPLY-007 defaults: at most 25 started in any 24 hours, 90 s between two on the same ATS.
-export const DEFAULT_DAILY_CAP = 25;
-export const DEFAULT_MIN_GAP_MS = 90_000;
+export { DEFAULT_DAILY_CAP, DEFAULT_MIN_GAP_MS } from "./apply-config.js";
 // A claim still in progress this long after it started belongs to a run that died: no browser
 // session lives this long (the gateway's driver timeouts add up to far less). Before that, the
 // claim belongs to a run that may still be in the browser and must be left alone.
@@ -59,8 +58,6 @@ export type ClaimInput = {
   decisionId: string;
   ats: ApplyAts;
   postingId: string;
-  dailyCap?: number;
-  minGapMs?: number;
 };
 
 export type Claimed = { claimed: true; submission: SubmissionView };
@@ -184,13 +181,14 @@ async function proofOf(tx: Tx | Db, submissionId: string): Promise<ProofView | n
 // used idempotency key returns that submission (never a second one); the same requisition is
 // refused (APPLY-009); then pacing (APPLY-007): one in progress per ATS, a minimum gap per ATS
 // and a cap over the last 24 hours. Claims are serialized per candidate by a row lock, so two
-// workers can't both pass the cap.
+// workers can't both pass the cap. The limits come from the config module only (NS-143): an
+// ApplyLimits value can't exceed APPLY-007's defaults, whoever passes it.
 export async function claimSubmission(
   db: Db,
   input: ClaimInput,
+  limits: ApplyLimits = DEFAULT_APPLY_LIMITS,
 ): Promise<Result<Claimed | Existing, ClaimError>> {
-  const dailyCap = input.dailyCap ?? DEFAULT_DAILY_CAP;
-  const minGapMs = input.minGapMs ?? DEFAULT_MIN_GAP_MS;
+  const { dailyCap, minGapMs } = checkApplyLimits(limits);
   return inSpan("db.apply.claim", { "northstar.apply.ats": input.ats }, (span) =>
     db.transaction(async (tx): Promise<Result<Claimed | Existing, ClaimError>> => {
       await tx
@@ -388,4 +386,27 @@ export async function recordNeedsHuman(
       return ok(toView(row));
     }),
   );
+}
+
+// Every claim of this candidate still in progress at least CLAIM_STALE_AFTER_MS after it started,
+// by the database clock, oldest first (NS-143). Such a claim belongs to a run that died: it holds
+// its ATS lane (AtsBusy) until something closes it. Reads only; the sweep in packages/gateways
+// closes each one through recordNeedsHuman.
+export async function listStaleClaims(db: Db, candidateId: CandidateId): Promise<SubmissionView[]> {
+  return db.transaction(async (tx) => {
+    const now = await gateNow(tx);
+    const cutoff = new Date(now.getTime() - CLAIM_STALE_AFTER_MS);
+    const rows = await tx
+      .select()
+      .from(applySubmission)
+      .where(
+        and(
+          eq(applySubmission.candidateId, candidateId),
+          eq(applySubmission.status, "in_progress"),
+          sql`${applySubmission.startedAt} <= ${cutoff.toISOString()}`,
+        ),
+      )
+      .orderBy(applySubmission.startedAt);
+    return rows.map(toView);
+  });
 }

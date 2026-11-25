@@ -16,6 +16,12 @@ export {
   type StoryNotApproved,
   saveApprovedAnswer,
 } from "./answer-write.js";
+export {
+  type ApplyLimits,
+  checkApplyLimits,
+  DEFAULT_APPLY_LIMITS,
+  loadApplyLimits,
+} from "./apply-config.js";
 export * as applySchema from "./apply-schema.js";
 export {
   type AtsBusy,
@@ -27,6 +33,7 @@ export {
   DEFAULT_DAILY_CAP,
   DEFAULT_MIN_GAP_MS,
   type Existing,
+  listStaleClaims,
   type NotInProgress,
   type ProofInput,
   type ProofView,

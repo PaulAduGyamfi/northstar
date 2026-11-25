@@ -18,6 +18,7 @@ import { type AtsAdapter, adapterFor, hostAllowed } from "./adapters/index.js";
 import type { FormDriver, PageState, Upload } from "./driver.js";
 import { mapPackage } from "./map.js";
 import type { ApplyPorts } from "./ports.js";
+import { ApplyInvariantError, applyMoveKey, closeStaleClaim } from "./stale.js";
 
 // The Apply Gateway (NS-120, ADR-0002): the only code that submits an application. It checks
 // the approval with the Gate at the moment it acts, claims the submission once (idempotency,
@@ -67,14 +68,8 @@ export const OPEN_TIMEOUT_MS = 60_000;
 export const SUBMIT_TIMEOUT_MS = 5 * 60_000;
 export const CLOSE_TIMEOUT_MS = 30_000;
 
-// A status move or ledger write that should always succeed didn't: the ledger and the
-// application disagree, so stop loudly instead of reporting an outcome (ADR-0007).
-export class ApplyInvariantError extends Error {
-  constructor(what: string) {
-    super(`apply gateway invariant broken: ${what}`);
-    this.name = "ApplyInvariantError";
-  }
-}
+// Thrown when a status move or ledger write that should always succeed didn't (stale.ts).
+export { ApplyInvariantError } from "./stale.js";
 
 const sha256 = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex");
 const tracer = () => trace.getTracer("@northstar/gateways");
@@ -161,8 +156,7 @@ async function submit(
   const { submission } = claim.value;
   const id = submission.submissionId;
 
-  // Moves the application. The key has its own namespace (the ledger's events use
-  // `apply_submission:<id>:<what>`), one per submission and target, so a repeat writes one event.
+  // Moves the application, one key per submission and target, so a repeat writes one event.
   const move = (from: ApplicationStatus, to: ApplicationStatus) =>
     ports.transitionApplication({
       candidateId: input.candidateId,
@@ -173,7 +167,7 @@ async function submit(
       reason: "",
       inputsSummary: "",
       links: [],
-      idempotencyKey: `application:${applicationId}:apply:${id}:${to}`,
+      idempotencyKey: applyMoveKey(applicationId, id, to),
     });
   const mustMove = async (from: ApplicationStatus, to: ApplicationStatus) => {
     const moved = await move(from, to);
@@ -206,17 +200,9 @@ async function submit(
     }
     // Another run holds the claim and may still be in the browser: leave it alone.
     if (!claim.value.stale) return err({ kind: "InProgress" });
-    // A run that died after its claim: it may have gone out, so never retry. It may have died
-    // before its move to submitting; the state machine reaches needs_human only through it.
-    const recorded = await ports.recordNeedsHuman(input.candidateId, id, "outcome_unknown");
-    if (!recorded.ok) return err({ kind: "InProgress" });
-    const moved = await move("submitting", "needs_human");
-    if (!moved.ok) {
-      if (moved.error.kind !== "StaleStatus" || moved.error.actual !== "awaiting_approval") {
-        throw new ApplyInvariantError(`move submitting to needs_human: ${moved.error.kind}`);
-      }
-      await mustMove("awaiting_approval", "submitting");
-      await mustMove("submitting", "needs_human");
+    // A run that died after its claim: it may have gone out, so never retry (stale.ts).
+    if (!(await closeStaleClaim(ports, input.candidateId, submission))) {
+      return err({ kind: "InProgress" });
     }
     return ok({
       outcome: "needs_human",

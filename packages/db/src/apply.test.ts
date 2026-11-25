@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { CandidateId } from "@northstar/domain";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { loadApplyLimits } from "./apply-config.js";
 import { applySubmission, submissionProof } from "./apply-schema.js";
 import {
   CLAIM_STALE_AFTER_MS,
@@ -9,6 +10,7 @@ import {
   claimSubmission,
   DEFAULT_DAILY_CAP,
   DEFAULT_MIN_GAP_MS,
+  listStaleClaims,
   recordNeedsHuman,
   recordSubmitted,
 } from "./apply-write.js";
@@ -152,13 +154,15 @@ describe("claimSubmission", () => {
   });
 
   it("stops at the daily cap and says when it frees up", async () => {
+    const limits = loadApplyLimits({ APPLY_DAILY_CAP: "2" });
     for (let i = 0; i < 2; i++) {
       await setClock(after(i * 60 * 60_000));
-      const id = await claimOk(await claimInput({ dailyCap: 2 }));
-      await recordSubmitted(db, candidateId, id, proof);
+      const claimed = await claimSubmission(db, await claimInput(), limits);
+      if (!claimed.ok || !claimed.value.claimed) throw new Error("not claimed");
+      await recordSubmitted(db, candidateId, claimed.value.submission.submissionId, proof);
     }
     await setClock(after(3 * 60 * 60_000));
-    const third = await claimSubmission(db, await claimInput({ dailyCap: 2 }));
+    const third = await claimSubmission(db, await claimInput(), limits);
     expect(third).toEqual({
       ok: false,
       error: { kind: "DailyCapReached", retryAt: after(24 * 60 * 60_000) },
@@ -290,5 +294,34 @@ describe("database guards", () => {
       }),
     );
     expect(state).toBe(UNIQUE_VIOLATION);
+  });
+});
+
+describe("listStaleClaims", () => {
+  it("lists a claim in progress for 15 minutes", async () => {
+    const id = await claimOk(await claimInput());
+    await setClock(after(CLAIM_STALE_AFTER_MS));
+    const stale = await listStaleClaims(db, candidateId);
+    expect(stale.map((s) => [s.submissionId, s.status])).toEqual([[id, "in_progress"]]);
+  });
+
+  it("leaves out a claim in progress for less than 15 minutes", async () => {
+    await claimOk(await claimInput());
+    await setClock(after(CLAIM_STALE_AFTER_MS - 1_000));
+    expect(await listStaleClaims(db, candidateId)).toEqual([]);
+  });
+
+  it("never lists a finished claim, however old", async () => {
+    const id = await claimOk(await claimInput());
+    await recordNeedsHuman(db, candidateId, id, "captcha");
+    await setClock(after(2 * CLAIM_STALE_AFTER_MS));
+    expect(await listStaleClaims(db, candidateId)).toEqual([]);
+  });
+
+  it("lists only the given candidate's claims", async () => {
+    await claimOk(await claimInput());
+    await setClock(after(CLAIM_STALE_AFTER_MS));
+    const other = CandidateId.parse(randomUUID());
+    expect(await listStaleClaims(db, other)).toEqual([]);
   });
 });
