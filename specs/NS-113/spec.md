@@ -1,9 +1,9 @@
 # NS-113: Gmail connect + 9-month funnel backfill + funnel report
 
-Status: draft
+Status: approved by Paul (2026-11-25, including the two new packages)
 Requirements: INB-001 (read only), INB-002, INB-009 steps 2–3, DX-001, DX-002, DX-003, DX-004,
 DX-005, NFR-SEC-001/002/004/005
-Rules that apply: ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0012, ADR-0013,
+Rules that apply: ADR-0014 (Gmail read-only, in-memory token; new), ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0012, ADR-0013,
 `.claude/rules/db.md`, `llm.md`, `tests.md`. A new ADR records the Gmail access decision below.
 
 ## Why
