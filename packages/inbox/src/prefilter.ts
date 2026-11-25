@@ -45,7 +45,7 @@ const lower = (s: string) => s.toLowerCase();
 
 // True for the domain itself or a subdomain of it: hire.lever.co is lever.co, but
 // lever.co.evil.example.com and notlever.co are not.
-function underDomain(domain: string, root: string): boolean {
+export function underDomain(domain: string, root: string): boolean {
   return domain === root || domain.endsWith(`.${root}`);
 }
 
