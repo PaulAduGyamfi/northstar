@@ -1,5 +1,5 @@
 {
-  "id": "8879e0c8-4bd7-4fdc-8f69-507b714ea3d5",
+  "id": "b6591120-28bb-4f5c-ac10-8ec111dfac61",
   "prevId": "4af3328c-ad27-4183-93ab-564585a14d44",
   "version": "7",
   "dialect": "postgresql",
@@ -2546,6 +2546,356 @@
       },
       "isRLSEnabled": false
     },
+    "public.fit_score": {
+      "name": "fit_score",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "job_id": {
+          "name": "job_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "preference_id": {
+          "name": "preference_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "profile_source_id": {
+          "name": "profile_source_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "job_fingerprint": {
+          "name": "job_fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "score": {
+          "name": "score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "band": {
+          "name": "band",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stretch": {
+          "name": "stretch",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "components": {
+          "name": "components",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence": {
+          "name": "evidence",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "method": {
+          "name": "method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scored_at": {
+          "name": "scored_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "fit_score_candidate_id_candidate_id_fk": {
+          "name": "fit_score_candidate_id_candidate_id_fk",
+          "tableFrom": "fit_score",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fit_score_job_same_candidate_fk": {
+          "name": "fit_score_job_same_candidate_fk",
+          "tableFrom": "fit_score",
+          "tableTo": "job",
+          "columnsFrom": [
+            "job_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fit_score_preference_same_candidate_fk": {
+          "name": "fit_score_preference_same_candidate_fk",
+          "tableFrom": "fit_score",
+          "tableTo": "search_preference",
+          "columnsFrom": [
+            "preference_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fit_score_profile_source_same_candidate_fk": {
+          "name": "fit_score_profile_source_same_candidate_fk",
+          "tableFrom": "fit_score",
+          "tableTo": "profile_source",
+          "columnsFrom": [
+            "profile_source_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "fit_score_key_unique": {
+          "name": "fit_score_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "candidate_id",
+            "job_id",
+            "preference_id",
+            "profile_source_id",
+            "job_fingerprint"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "fit_score_range": {
+          "name": "fit_score_range",
+          "value": "\"fit_score\".\"score\" between 0 and 100"
+        },
+        "fit_score_band_valid": {
+          "name": "fit_score_band_valid",
+          "value": "\"fit_score\".\"band\" in ('queue', 'suggest', 'skip')"
+        },
+        "fit_score_method_valid": {
+          "name": "fit_score_method_valid",
+          "value": "\"fit_score\".\"method\" in ('rules')"
+        },
+        "fit_score_fingerprint_format": {
+          "name": "fit_score_fingerprint_format",
+          "value": "\"fit_score\".\"job_fingerprint\" ~ '^[0-9a-f]{64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.search_preference": {
+      "name": "search_preference",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "titles": {
+          "name": "titles",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "seniority": {
+          "name": "seniority",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "locations": {
+          "name": "locations",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "remote": {
+          "name": "remote",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "dealbreakers": {
+          "name": "dealbreakers",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "comp_floor": {
+          "name": "comp_floor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "comp_target": {
+          "name": "comp_target",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'USD'"
+        },
+        "queue_at": {
+          "name": "queue_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 80
+        },
+        "suggest_at": {
+          "name": "suggest_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 60
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "search_preference_candidate_id_candidate_id_fk": {
+          "name": "search_preference_candidate_id_candidate_id_fk",
+          "tableFrom": "search_preference",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "search_preference_version_unique": {
+          "name": "search_preference_version_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "candidate_id",
+            "version"
+          ]
+        },
+        "search_preference_id_candidate_unique": {
+          "name": "search_preference_id_candidate_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "candidate_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "search_preference_version_positive": {
+          "name": "search_preference_version_positive",
+          "value": "\"search_preference\".\"version\" >= 1"
+        },
+        "search_preference_remote_valid": {
+          "name": "search_preference_remote_valid",
+          "value": "\"search_preference\".\"remote\" <@ array['onsite', 'hybrid', 'remote']::text[]"
+        },
+        "search_preference_thresholds": {
+          "name": "search_preference_thresholds",
+          "value": "\"search_preference\".\"suggest_at\" between 0 and 100 and \"search_preference\".\"queue_at\" between 0 and 100 and \"search_preference\".\"suggest_at\" <= \"search_preference\".\"queue_at\""
+        },
+        "search_preference_comp_order": {
+          "name": "search_preference_comp_order",
+          "value": "\"search_preference\".\"comp_floor\" is null or \"search_preference\".\"comp_target\" is null or \"search_preference\".\"comp_floor\" <= \"search_preference\".\"comp_target\""
+        },
+        "search_preference_comp_nonnegative": {
+          "name": "search_preference_comp_nonnegative",
+          "value": "coalesce(\"search_preference\".\"comp_floor\", 0) >= 0 and coalesce(\"search_preference\".\"comp_target\", 0) >= 0"
+        },
+        "search_preference_currency_format": {
+          "name": "search_preference_currency_format",
+          "value": "\"search_preference\".\"currency\" ~ '^[A-Z]{3}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.approval_decision": {
       "name": "approval_decision",
       "schema": "",
@@ -2962,313 +3312,6 @@
       },
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.apply_submission": {
-      "name": "apply_submission",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "candidate_id": {
-          "name": "candidate_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "application_id": {
-          "name": "application_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "decision_id": {
-          "name": "decision_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ats": {
-          "name": "ats",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "requisition_key": {
-          "name": "requisition_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "idempotency_key": {
-          "name": "idempotency_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "finished_at": {
-          "name": "finished_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "apply_submission_one_in_progress_per_ats": {
-          "name": "apply_submission_one_in_progress_per_ats",
-          "columns": [
-            {
-              "expression": "candidate_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "ats",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"apply_submission\".\"status\" = 'in_progress'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "apply_submission_candidate_id_candidate_id_fk": {
-          "name": "apply_submission_candidate_id_candidate_id_fk",
-          "tableFrom": "apply_submission",
-          "tableTo": "candidate",
-          "columnsFrom": [
-            "candidate_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "apply_submission_application_id_application_id_fk": {
-          "name": "apply_submission_application_id_application_id_fk",
-          "tableFrom": "apply_submission",
-          "tableTo": "application",
-          "columnsFrom": [
-            "application_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "apply_submission_decision_id_approval_decision_id_fk": {
-          "name": "apply_submission_decision_id_approval_decision_id_fk",
-          "tableFrom": "apply_submission",
-          "tableTo": "approval_decision",
-          "columnsFrom": [
-            "decision_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "apply_submission_idempotency_unique": {
-          "name": "apply_submission_idempotency_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "candidate_id",
-            "idempotency_key"
-          ]
-        },
-        "apply_submission_requisition_unique": {
-          "name": "apply_submission_requisition_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "candidate_id",
-            "requisition_key"
-          ]
-        },
-        "apply_submission_application_unique": {
-          "name": "apply_submission_application_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "candidate_id",
-            "application_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "apply_submission_ats_valid": {
-          "name": "apply_submission_ats_valid",
-          "value": "\"apply_submission\".\"ats\" in ('greenhouse', 'lever', 'ashby')"
-        },
-        "apply_submission_status_valid": {
-          "name": "apply_submission_status_valid",
-          "value": "\"apply_submission\".\"status\" in ('in_progress', 'submitted', 'needs_human')"
-        },
-        "apply_submission_reason_valid": {
-          "name": "apply_submission_reason_valid",
-          "value": "(\"apply_submission\".\"status\" = 'needs_human' and \"apply_submission\".\"reason\" in ('captcha', 'login', 'mfa', 'account', 'unmapped_required', 'form_changed', 'no_confirmation', 'driver_error', 'outcome_unknown', 'status_conflict'))\n        or (\"apply_submission\".\"status\" <> 'needs_human' and \"apply_submission\".\"reason\" is null)"
-        },
-        "apply_submission_finished": {
-          "name": "apply_submission_finished",
-          "value": "(\"apply_submission\".\"status\" = 'in_progress') = (\"apply_submission\".\"finished_at\" is null)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.submission_proof": {
-      "name": "submission_proof",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "candidate_id": {
-          "name": "candidate_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "submission_id": {
-          "name": "submission_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "confirmation_html": {
-          "name": "confirmation_html",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "html_sha256": {
-          "name": "html_sha256",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "screenshot_png": {
-          "name": "screenshot_png",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "screenshot_sha256": {
-          "name": "screenshot_sha256",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "field_values": {
-          "name": "field_values",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "resume_sha256": {
-          "name": "resume_sha256",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "captured_at": {
-          "name": "captured_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "submission_proof_candidate_id_candidate_id_fk": {
-          "name": "submission_proof_candidate_id_candidate_id_fk",
-          "tableFrom": "submission_proof",
-          "tableTo": "candidate",
-          "columnsFrom": [
-            "candidate_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "submission_proof_submission_id_apply_submission_id_fk": {
-          "name": "submission_proof_submission_id_apply_submission_id_fk",
-          "tableFrom": "submission_proof",
-          "tableTo": "apply_submission",
-          "columnsFrom": [
-            "submission_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "submission_proof_one_per_submission": {
-          "name": "submission_proof_one_per_submission",
-          "nullsNotDistinct": false,
-          "columns": [
-            "submission_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "submission_proof_html_sha256_format": {
-          "name": "submission_proof_html_sha256_format",
-          "value": "\"submission_proof\".\"html_sha256\" ~ '^[0-9a-f]{64}$'"
-        },
-        "submission_proof_screenshot_sha256_format": {
-          "name": "submission_proof_screenshot_sha256_format",
-          "value": "\"submission_proof\".\"screenshot_sha256\" ~ '^[0-9a-f]{64}$'"
-        },
-        "submission_proof_resume_sha256_format": {
-          "name": "submission_proof_resume_sha256_format",
-          "value": "\"submission_proof\".\"resume_sha256\" ~ '^[0-9a-f]{64}$'"
-        }
-      },
       "isRLSEnabled": false
     }
   },

@@ -1,6 +1,7 @@
 import type { JobListItem, Watch } from "@northstar/db";
 import { describe, expect, it } from "vitest";
 import { type CliDeps, main } from "./cli.js";
+import { noFit } from "./fit/test/fake-fit.js";
 import { freshness, queueScore } from "./queue.js";
 import type { BoardCliDeps } from "./watch-cli.js";
 
@@ -48,6 +49,7 @@ function deps(argv: string[], over: Partial<BoardCliDeps> = {}, jobs: JobListIte
     list: async () => jobs,
     set: async () => ({ ok: true, value: { status: "ready", missingFields: [] } }),
     boards,
+    fit: noFit(),
   };
   return { d, printed, calls };
 }
@@ -177,6 +179,7 @@ describe("fresh-first order (SRC-013)", () => {
       firstSeenAt: ago(1),
       sources: 1,
       missingFields: [],
+      fit: null,
     });
     const { d, printed } = deps(["list"], {}, [job("old", 5 * 24 * 60), job("new", 20)]);
     await main(d);

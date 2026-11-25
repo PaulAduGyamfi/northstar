@@ -124,15 +124,22 @@
     {
       "idx": 17,
       "version": "7",
-      "when": 1795619881292,
-      "tag": "0017_apply_gateway",
+      "when": 1795619646075,
+      "tag": "0017_fit_scoring",
       "breakpoints": true
     },
     {
       "idx": 18,
       "version": "7",
-      "when": 1795619885121,
-      "tag": "0018_apply_guards",
+      "when": 1795621813131,
+      "tag": "0018_apply_gateway",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795621814403,
+      "tag": "0019_apply_guards",
       "breakpoints": true
     }
   ]

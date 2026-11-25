@@ -61,6 +61,30 @@ export {
   type SetFactsResult,
   setEmploymentFacts,
 } from "./facts-write.js";
+export * as fitSchema from "./fit-schema.js";
+export {
+  type FitBand,
+  type FitScoreInput,
+  type FitScoreView,
+  PREFERENCE_DEFAULTS,
+  type Preferences,
+  type PreferenceValues,
+  type RemoteKind,
+  type RescoreCounts,
+  readAtomTexts,
+  readFitScore,
+  readPreferences,
+  readScorableJobs,
+  readScoreKeys,
+  readScoringProfile,
+  recordRescore,
+  type SavePreferencesResult,
+  type ScorableJob,
+  type ScoringAtom,
+  type ScoringProfile,
+  saveFitScore,
+  savePreferences,
+} from "./fit-write.js";
 export * as funnelSchema from "./funnel-schema.js";
 export {
   type Channel,
