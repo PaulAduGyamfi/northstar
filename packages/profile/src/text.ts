@@ -31,17 +31,7 @@ export async function fileToText(path: string): Promise<string> {
     }
   } else if (ext === ".pdf") {
     try {
-      const pdf = await getDocumentProxy(new Uint8Array(await readFile(path)));
-      // One string per page, pages joined by a blank line.
-      const { text: pages } = await extractText(pdf, { mergePages: false });
-      // A two-column page reads one column at a time (NS-134); any other page keeps extractText's
-      // reading byte for byte, so imports of single-column PDFs don't change. That reads each
-      // page twice, which is cheap at resume size.
-      const read: string[] = [];
-      for (const [index, plain] of pages.entries()) {
-        read.push((await columnText(pdf, index + 1)) ?? plain);
-      }
-      text = read.join("\n\n");
+      text = await pdfToText(new Uint8Array(await readFile(path)));
     } catch {
       throw new Error(`${name}: could not read the PDF`);
     }
@@ -50,6 +40,26 @@ export async function fileToText(path: string): Promise<string> {
   }
   if (text.trim() === "") throw new Error(`${name}: no text found`);
   return text;
+}
+
+// A PDF's text, the way the resume import reads it: one string per page, pages joined by a blank
+// line. The pre-send check (TLR-004) reads rendered resumes back through this same function, so
+// it sees what an import would.
+export async function pdfToText(bytes: Uint8Array): Promise<string> {
+  // The same cap fileToText puts on files, so bytes from anywhere can't exhaust pdf.js.
+  if (bytes.byteLength > MAX_BYTES) throw new Error("PDF larger than 10 MB");
+  // A copy: pdf.js detaches the buffer it is given, which would leave the caller's bytes empty
+  // (the rendered resume NS-146 stores after scoring it).
+  const pdf = await getDocumentProxy(bytes.slice());
+  const { text: pages } = await extractText(pdf, { mergePages: false });
+  // A two-column page reads one column at a time (NS-134); any other page keeps extractText's
+  // reading byte for byte, so imports of single-column PDFs don't change. That reads each page
+  // twice, which is cheap at resume size.
+  const read: string[] = [];
+  for (const [index, plain] of pages.entries()) {
+    read.push((await columnText(pdf, index + 1)) ?? plain);
+  }
+  return read.join("\n\n");
 }
 
 type PdfDocument = Awaited<ReturnType<typeof getDocumentProxy>>;
