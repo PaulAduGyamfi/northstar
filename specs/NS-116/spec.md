@@ -65,6 +65,10 @@ current resume import:
 - A job that names a dealbreaker (whole phrase, in its title, description, requirements or
   nice-to-haves) is **skip**, reason `dealbreaker`.
 - A job whose pay is known and below the comp floor is **skip**, reason `below_comp_floor`.
+- A job with no known component at all (no target titles, no requirements, no pay or place to
+  check) is **suggest**, reason `no_evidence`, stored with score 50 (the column needs a number),
+  so Paul looks at it instead of it being skipped on nothing. `jobs list` shows it as
+  `fit ? suggest (no_evidence)` and orders it by freshness alone, like an unscored job.
 - Otherwise score ≥ `queueAt` → **queue**; ≥ `suggestAt` → **suggest**; below → **skip**, reason
   `below_threshold:<weakest component>`.
 - The band and reason are stored with the score and logged as a `job.scored` event. Skipped jobs
@@ -104,10 +108,12 @@ current resume import:
 - [ ] `pnpm turbo run lint typecheck test build` and `eval --all` pass.
 
 ## Failure modes
-- **No resume imported or no preferences yet:** nothing is scored; `jobs list` shows `fit ?` and
-  `jobs score` names the missing step. Ingest and polling are unaffected.
-- **One job fails to score** (a database error on its insert): counted as failed in the pass and
-  retried next pass (it's still pending); other jobs score.
+- **No resume imported or no preferences yet:** nothing is scored; `jobs list` prints the job as
+  before NS-116 (no fit suffix) and `jobs score` names the missing step. Ingest and polling are unaffected.
+- **One job fails to score** (a database error on its insert): counted as failed in the pass (its
+  error name on the span) and retried next pass (it's still pending); other jobs score.
+- **Scoring throws during `jobs prefs set`:** the new version is already stored; the command says
+  scoring didn't run and to run `jobs score`.
 - **Database down:** the command fails before anything; nothing is half-written (each job's
   score and event are one transaction; a preference version and its event are one transaction).
 - **A preference change while `jobs run` is scoring:** both passes compute the same key; the

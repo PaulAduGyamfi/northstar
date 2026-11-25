@@ -225,6 +225,19 @@ describe("fit scores", () => {
     expect(keys).toEqual(new Set([`${jobId}:${FP_A}`, `${jobId}:${FP_B}`]));
   });
 
+  it("stores a new score for the same job under a new preference version", async () => {
+    await saveFitScore(db, { ...scoreInput(jobId, preferenceId, sourceId), candidateId, now: NOW });
+    const r = await savePreferences(db, {
+      candidateId,
+      values: { ...PREFERENCE_DEFAULTS, compFloor: 200_000 },
+      now: NOW,
+    });
+    if (r.status !== "saved") throw new Error("no new version");
+    const second = scoreInput(jobId, r.current.id, sourceId, { preferenceVersion: 2 });
+    expect(await saveFitScore(db, { ...second, candidateId, now: NOW })).toBe("saved");
+    expect((await db.select().from(fitScore)).length).toBe(2);
+  });
+
   it("records job.scored with numbers and codes only", async () => {
     const input = scoreInput(jobId, preferenceId, sourceId, {
       band: "skip",

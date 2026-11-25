@@ -129,6 +129,19 @@ describe("jobs prefs", () => {
     expect(printed).toEqual(["compFloor is already 150000. Nothing changed."]);
   });
 
+  it("says scoring didn't run when it throws after the change was saved", async () => {
+    const { d, printed, saved, rescored } = deps(["prefs", "set", "compFloor", "170000"]);
+    d.fit.score = async () => {
+      throw new TypeError("boom");
+    };
+    expect(await main(d)).toBe(0);
+    expect([saved.length, rescored, printed]).toEqual([
+      1,
+      [],
+      ["Preferences changed (version 2); scoring didn't run (TypeError). Run: jobs score"],
+    ]);
+  });
+
   it("saves a change but says what's missing when there is no resume to score with", async () => {
     const { d, printed, rescored } = deps(["prefs", "set", "compFloor", "170000"]);
     d.fit.score = async () => ({ status: "no_profile" });
@@ -236,6 +249,20 @@ describe("jobs why (MAT-002)", () => {
     ]);
   });
 
+  it("prints a requirement with line breaks in it on one line", async () => {
+    const { d, printed } = deps(["why", "j1"]);
+    d.fit.why = async () => ({
+      ...view,
+      evidence: {
+        ...view.evidence,
+        matched: [],
+        unmatched: [{ requirement: "Rust\n  ✓ Fake line [atom a9]", kind: "must" }],
+      },
+    });
+    await main(d);
+    expect(printed.at(-1)).toBe("  ✗ Rust ✓ Fake line [atom a9]");
+  });
+
   it("says how to score a job that has no score", async () => {
     const { d, printed } = deps(["why", "j9"]);
     expect(await main(d)).toBe(1);
@@ -274,6 +301,21 @@ describe("jobs list with fit (SRC-013)", () => {
     d.list = async () => [item("weak", 2, 30), item("strong", 24, 90)];
     await main(d);
     expect(printed.map((l) => l.split(" ")[0])).toEqual(["strong", "weak"]);
+  });
+
+  it("orders a no-evidence job by freshness alone and shows its fit as unknown", async () => {
+    const { d, printed } = deps(["list"]);
+    const blank = item("blank", 1, 50);
+    d.list = async () => [
+      item("scored", 2, 60),
+      { ...blank, fit: { score: 50, band: "suggest", reason: "no_evidence", stretch: false } },
+    ];
+    await main(d);
+    // Freshness alone (0.97) beats 0.94 × 0.60; counting the stored 50 would give 0.49 < 0.56.
+    expect(printed).toEqual([
+      "blank  Role blank · Globex · Remote · posted 1 h ago · fit ? suggest (no_evidence)",
+      "scored  Role scored · Globex · Remote · posted 2 h ago · fit 60 suggest",
+    ]);
   });
 
   it("shows a skipped job's reason", async () => {

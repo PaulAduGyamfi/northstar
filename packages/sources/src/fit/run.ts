@@ -40,6 +40,7 @@ export function scorePending(store: ScoreStore): Promise<ScoreRun> {
         }
         const keys = await store.keys(preferences.id, profile.sourceId);
         const counts: ScoreCounts = { jobs: 0, queue: 0, suggest: 0, skip: 0, failed: 0 };
+        let lastError: string | null = null;
         for (const job of await store.jobs()) {
           const fingerprint = jobFingerprint(job);
           if (keys.has(`${job.id}:${fingerprint}`)) continue;
@@ -59,9 +60,11 @@ export function scorePending(store: ScoreStore): Promise<ScoreRun> {
             if (saved === "exists") continue;
             counts.jobs++;
             counts[fit.band]++;
-          } catch {
+          } catch (error) {
             // One job that won't save fails alone; it is still pending, so the next pass retries.
+            // Its error is kept by name only (a database error's detail can quote a row).
             counts.failed++;
+            lastError = error instanceof Error ? error.name : "Error";
           }
         }
         span.setAttributes({
@@ -72,6 +75,7 @@ export function scorePending(store: ScoreStore): Promise<ScoreRun> {
           "fit.suggest": counts.suggest,
           "fit.skip": counts.skip,
           "fit.failed": counts.failed,
+          ...(lastError ? { "fit.last_error": lastError } : {}),
         });
         return { status: "done", preferences, counts };
       } catch (error) {
@@ -85,22 +89,4 @@ export function scorePending(store: ScoreStore): Promise<ScoreRun> {
         span.end();
       }
     });
-}
-
-// Runs `action`, then a scoring pass, so new or edited jobs get their score straight away
-// (used after `jobs add`, `jobs set` and every poll pass). Scoring problems never undo or fail
-// the action: they are reported in the pass result, or as `error` when the pass threw.
-export async function thenScore<T>(
-  action: () => Promise<T>,
-  score: () => Promise<ScoreRun>,
-): Promise<{ result: T; scoring: ScoreRun | { status: "error"; errorName: string } }> {
-  const result = await action();
-  try {
-    return { result, scoring: await score() };
-  } catch (error) {
-    return {
-      result,
-      scoring: { status: "error", errorName: error instanceof Error ? error.name : "Error" },
-    };
-  }
 }

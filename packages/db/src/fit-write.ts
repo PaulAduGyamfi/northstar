@@ -275,6 +275,8 @@ export async function saveFitScore(
 export type RescoreCounts = { jobs: number; queue: number; suggest: number; skip: number };
 
 // After a preference change: how many jobs the new version re-scored (SRC-017's feed line).
+// A report, not a side effect, so its key is unique per call. It can undercount when a
+// `jobs run` tick scored some of the same jobs first (those count there, not here).
 export async function recordRescore(
   db: Db,
   input: { candidateId: CandidateId; preference: Preferences; counts: RescoreCounts; now: Date },

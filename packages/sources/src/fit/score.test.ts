@@ -103,6 +103,36 @@ describe("scoreJob (MAT-001, MAT-003)", () => {
     expect(scoreJob(job, PREFS, PROFILE).evidence.pay).toEqual({ status: "ok", yearly: 166_400 });
   });
 
+  it("converts monthly pay to a year", () => {
+    const job = { ...JOB, salaryMin: null, salaryMax: 12_500, salaryPeriod: "month" as const };
+    expect(scoreJob(job, PREFS, PROFILE).evidence.pay).toEqual({ status: "ok", yearly: 150_000 });
+  });
+
+  it("matches the place through one of Paul's locations", () => {
+    const job = { ...JOB, remote: "onsite" as const, location: "Austin, TX" };
+    const prefs = { ...PREFS, locations: ["Austin"] };
+    expect(scoreJob(job, prefs, PROFILE).evidence.place).toEqual({ status: "ok" });
+  });
+
+  it("finds a place mismatch when neither the remote policy nor the location fits", () => {
+    const job = { ...JOB, remote: "onsite" as const, location: "Denver, CO" };
+    const prefs = { ...PREFS, locations: ["Austin"] };
+    expect(scoreJob(job, prefs, PROFILE).evidence.place).toEqual({ status: "mismatch" });
+  });
+
+  it("leaves the title fit unknown when Paul has no target titles", () => {
+    const r = scoreJob(JOB, { ...PREFS, titles: [] }, PROFILE);
+    expect([r.components.title, r.evidence.title]).toEqual([
+      null,
+      { status: "unknown", levelMismatch: false },
+    ]);
+  });
+
+  it("doesn't halve the title fit when Paul's seniority list is empty", () => {
+    const r = scoreJob(JOB, { ...PREFS, seniority: [] }, PROFILE);
+    expect([r.components.title, r.evidence.title.levelMismatch]).toEqual([1, false]);
+  });
+
   it("treats pay in another currency as unknown", () => {
     const job = { ...JOB, salaryCurrency: "EUR" };
     expect(scoreJob(job, PREFS, PROFILE).evidence.pay.status).toBe("unknown");

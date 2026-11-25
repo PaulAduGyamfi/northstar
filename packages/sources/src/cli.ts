@@ -146,10 +146,7 @@ async function listCommand(deps: CliDeps): Promise<number> {
   const now = deps.now();
   // Freshness × fit (SRC-013); a job not scored yet is ordered by freshness alone.
   const score = (j: JobListItem) =>
-    queueScore(
-      freshness(ageHours(j.postedAt, j.firstSeenAt, now)),
-      j.fit ? j.fit.score / 100 : null,
-    );
+    queueScore(freshness(ageHours(j.postedAt, j.firstSeenAt, now)), fitOf(j.fit));
   const ordered = [...jobs].sort((a, b) => score(b) - score(a));
   for (const j of ordered) {
     const when = j.postedAt ? `posted ${age(j.postedAt, now)}` : `seen ${age(j.firstSeenAt, now)}`;
@@ -162,10 +159,17 @@ async function listCommand(deps: CliDeps): Promise<number> {
   return 0;
 }
 
+// The fit the queue multiplies by. A "no_evidence" score (nothing in the posting or the
+// preferences to judge by) isn't a measurement, so that job is ordered by freshness alone.
+function fitOf(fit: JobListItem["fit"]): number | null {
+  return fit && fit.reason !== "no_evidence" ? fit.score / 100 : null;
+}
+
 // " · fit 82 queue", " · fit 55 skip (below_threshold:title)", " · fit 71 suggest stretch",
 // or nothing for a job not scored yet.
 function fitLabel(fit: JobListItem["fit"]): string {
   if (!fit) return "";
+  if (fit.reason === "no_evidence") return " · fit ? suggest (no_evidence)";
   const reason = fit.band === "skip" ? ` (${fit.reason})` : "";
   return ` · fit ${fit.score} ${fit.band}${fit.stretch ? " stretch" : ""}${reason}`;
 }

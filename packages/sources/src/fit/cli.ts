@@ -68,7 +68,17 @@ async function setPref(io: FitIo, field: string, raw: string): Promise<number> {
     return 0;
   }
   // SRC-017: the change takes effect now, on every open job, without a restart.
-  const run = await io.fit.score();
+  let run: ScoreRun;
+  try {
+    run = await io.fit.score();
+  } catch (error) {
+    // The new version is stored either way; the next pass (jobs score, jobs run) re-scores.
+    const name = error instanceof Error ? error.name : "an unknown error";
+    io.print(
+      `Preferences changed (version ${saved.current.version}); scoring didn't run (${name}). Run: jobs score`,
+    );
+    return 0;
+  }
   const before = saved.previous ?? PREFERENCE_DEFAULTS;
   const changes = saved.changed
     .filter(isPreferenceField)
@@ -121,6 +131,10 @@ export async function scoreAfter(io: FitIo): Promise<void> {
   }
 }
 
+// Posting text on one line: a requirement with line breaks in it can't print as extra lines
+// that look like evidence.
+const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
+
 const pct = (x: number | null | undefined) =>
   x === null || x === undefined ? "unknown" : `${Math.round(x * 100)}%`;
 
@@ -147,10 +161,11 @@ async function whyCommand(io: FitIo, jobId: string): Promise<number> {
   if (e.dealbreaker !== null) io.print(`  Dealbreaker named: ${e.dealbreaker}`);
   const atoms = await io.fit.atomTexts([...new Set(e.matched.map((m) => m.atomId))]);
   for (const m of e.matched) {
-    io.print(`  ✓ ${m.requirement}  ← ${m.term}: ${atoms.get(m.atomId) ?? "?"} [atom ${m.atomId}]`);
+    const atom = oneLine(atoms.get(m.atomId) ?? "?");
+    io.print(`  ✓ ${oneLine(m.requirement)}  ← ${m.term}: ${atom} [atom ${m.atomId}]`);
   }
   for (const u of e.unmatched) {
-    io.print(`  ✗ ${u.requirement}${u.kind === "nice" ? " (nice to have)" : ""}`);
+    io.print(`  ✗ ${oneLine(u.requirement)}${u.kind === "nice" ? " (nice to have)" : ""}`);
   }
   return 0;
 }

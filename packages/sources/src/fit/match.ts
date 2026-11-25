@@ -11,8 +11,23 @@ const NAME_CHAR = "A-Za-z0-9+#";
 export function namesTerm(text: string, term: string): boolean {
   const t = term.trim();
   if (t === "") return false;
-  const escaped = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(?<![${NAME_CHAR}])${escaped}(?![${NAME_CHAR}])`, "i").test(text);
+  return patternFor(t).test(text);
+}
+
+// Each term's pattern is compiled once: a pass tests every requirement against every term.
+// Terms come from Paul's resume and preferences (bounded), never from postings, so this stays
+// small; it is cleared past 5,000 entries all the same.
+const PATTERNS = new Map<string, RegExp>();
+function patternFor(term: string): RegExp {
+  let p = PATTERNS.get(term);
+  if (!p) {
+    if (PATTERNS.size >= 5_000) PATTERNS.clear();
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // No `g` flag: test() then keeps no state between calls.
+    p = new RegExp(`(?<![${NAME_CHAR}])${escaped}(?![${NAME_CHAR}])`, "i");
+    PATTERNS.set(term, p);
+  }
+  return p;
 }
 
 export type Match = { requirement: string; kind: "must" | "nice"; atomId: string; term: string };

@@ -6,7 +6,7 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { type ScoreStore, scorePending, thenScore } from "./run.js";
+import { type ScoreStore, scorePending } from "./run.js";
 import { JOB, PREFS, PROFILE } from "./test/sample.js";
 
 const exporter = new InMemorySpanExporter();
@@ -116,6 +116,18 @@ describe("scorePending", () => {
     expect(r.status === "done" && [r.counts.jobs, r.counts.failed]).toEqual([1, 1]);
   });
 
+  it("puts the failed job's error name, never its message, on the span", async () => {
+    const { s } = store({
+      save: async () => {
+        throw new RangeError("row (secret-title) refused");
+      },
+    });
+    await scorePending(s);
+    const [span] = exporter.getFinishedSpans();
+    expect(span?.attributes["fit.last_error"]).toBe("RangeError");
+    expect(JSON.stringify(span?.attributes)).not.toContain("secret-title");
+  });
+
   it("records a fit.score span with counts only", async () => {
     await scorePending(store().s);
     const [span] = exporter.getFinishedSpans();
@@ -131,25 +143,5 @@ describe("scorePending", () => {
         "fit.failed": 0,
       },
     ]);
-  });
-});
-
-describe("thenScore", () => {
-  it("returns the action's result and the scoring pass", async () => {
-    const r = await thenScore(
-      async () => "added",
-      async () => ({ status: "no_profile" }),
-    );
-    expect(r).toEqual({ result: "added", scoring: { status: "no_profile" } });
-  });
-
-  it("keeps the action's result when scoring throws", async () => {
-    const r = await thenScore(
-      async () => "added",
-      async () => {
-        throw new TypeError("boom");
-      },
-    );
-    expect(r).toEqual({ result: "added", scoring: { status: "error", errorName: "TypeError" } });
   });
 });
