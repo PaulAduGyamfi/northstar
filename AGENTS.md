@@ -305,8 +305,9 @@ Exists now:
   "extension"`, which never opens a session endpoint). The API reads the link only for a known
   ATS (`detectAts`), through the same path as `jobs add <url>`; every other page is saved from its
   text (untrusted, the `job-extract` route only), so the server never fetches a host the page's
-  owner controls. Since NS-186 a capture that saves a job runs the same scoring pass as `jobs add`
-  before it answers; a scoring failure never fails the capture.
+  owner controls. Since NS-186 a capture that saves a job runs a Fit Score pass (`scorePending`) before
+  it answers; a scoring failure never fails the capture. Fresh-job alerts for it come on the next
+  `jobs score` or poll pass.
 - `apps/web/` (NS-156): the Next.js shell (PillNav, B · Momentum colors as CSS variables) with
   Today, since NS-153 `/health`, since NS-139 the Queue (`/approvals`), and since NS-168 the
   Pipeline (`/pipeline`: a board by status in UX-020's words, and `/pipeline/<id>`, an

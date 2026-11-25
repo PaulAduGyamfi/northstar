@@ -75,8 +75,8 @@ browser does the same in one click, from the page he is already reading.
   `ANTHROPIC_API_KEY` the capture answers 500, and the popup says Northstar hit an error.
 - **Postgres down:** the capture answers 500. The candidate lookup isn't cached when it fails, so
   the next capture after Postgres is back works.
-- **Scored on capture since NS-186:** a capture that saves a job runs the same scoring pass as
-  `jobs add` before it answers.
+- **Scored on capture since NS-186:** a capture that saves a job runs a Fit Score pass before it
+  answers. Its fresh-job alert waits for the next `jobs score` or poll pass.
 
 ## Observability
 `api.request` spans as today, plus `northstar.auth.outcome` for extension auth. `job.ingest`
