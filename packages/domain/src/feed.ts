@@ -65,6 +65,28 @@ const TEMPLATES: Record<string, Template> = {
     const purpose = name(p, "purpose");
     return `Used the saved password for ${tenant}${purpose ? ` to ${words(purpose)}` : ""}`;
   },
+  // Mail links (NS-158): the step or reason only, never an address, subject or sender.
+  "mail.linked": (p) => {
+    const by: Record<string, string> = {
+      tag: "its tagged address",
+      thread: "its thread",
+      sender: "its verified sender",
+    };
+    const step = name(p, "step");
+    const how = step && by[step] ? ` by ${by[step]}` : "";
+    // A tag or thread link from an unauthenticated sender says so (INB-011).
+    const unverified =
+      p.senderVerified === false && step !== "sender" ? " (sender not verified)" : "";
+    return `Linked an email to its application${how}${unverified}`;
+  },
+  "mail.link_queued": (p) => {
+    const reason = name(p, "reason");
+    if (reason === "unknown_tag")
+      return "An email to an unknown tagged address needs you to link it";
+    if (reason === "ambiguous")
+      return "An email could belong to more than one application: link it";
+    return "An email couldn't be linked to an application: link it";
+  },
   "breaker.probing": (p) =>
     `Trying ${name(p, "dependency") ?? "a dependency"} again with one test call`,
   "breaker.closed": (p) => `${name(p, "dependency") ?? "A dependency"} is working again`,
