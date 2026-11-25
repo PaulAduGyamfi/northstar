@@ -41,8 +41,14 @@ describe("detectAts", () => {
       tenant: "acme",
       site: "External",
       path: "job/Remote-US/Backend-Engineer_JR-1042",
-      postingId: "JR-1042",
+      postingId: "acme/JR-1042",
     });
+  });
+
+  it("scopes a Workday requisition id by tenant, so two companies' R-00123 differ", () => {
+    const a = detectAts("https://acme.wd5.myworkdayjobs.com/External/job/NYC/Engineer_R-00123");
+    const b = detectAts("https://globex.wd1.myworkdayjobs.com/Careers/job/NYC/Engineer_R-00123");
+    expect([a?.postingId, b?.postingId]).toEqual(["acme/R-00123", "globex/R-00123"]);
   });
 
   it("returns null for any other page, including look-alike hosts", () => {
@@ -210,10 +216,10 @@ describe("workday", () => {
         tenant: "acme",
         site: "External",
         path: "job/Remote-US/Backend-Engineer_JR-1042",
-        postingId: "JR-1042",
+        postingId: "acme/JR-1042",
       },
     );
-    expect(x).toMatchObject({ atsPostingId: "JR-1042" });
+    expect(x).toMatchObject({ atsPostingId: "acme/JR-1042" });
     expect(x?.fields).toMatchObject({
       title: "Backend Engineer",
       company: "Acme Robotics",

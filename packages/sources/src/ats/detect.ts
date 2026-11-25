@@ -51,14 +51,16 @@ export function detectAts(raw: string): AtsTarget | null {
     const site = parts[start];
     const jobAt = parts.indexOf("job", start + 1);
     const last = parts.at(-1) ?? "";
-    if (site && jobAt === start + 1 && parts.length > jobAt + 1) {
+    if (site && SLUG.test(site) && jobAt === start + 1 && parts.length > jobAt + 1) {
       return {
         ats: "workday",
         host,
         tenant: wd[1],
         site,
         path: parts.slice(jobAt).join("/"),
-        postingId: last.split("_").at(-1) ?? last,
+        // Requisition ids are only unique within one company: scope them by tenant, or two
+        // companies' R-00123 would be taken for the same posting (SRC-006).
+        postingId: `${wd[1]}/${last.split("_").at(-1) ?? last}`,
       };
     }
   }

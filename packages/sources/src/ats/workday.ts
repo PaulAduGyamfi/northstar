@@ -25,7 +25,7 @@ export async function workday(
 ): Promise<Extraction | null> {
   const url = `https://${t.host}/wday/cxs/${encodeURIComponent(t.tenant)}/${encodeURIComponent(t.site)}/${t.path
     .split("/")
-    .map(encodeURIComponent)
+    .map((part) => encodeURIComponent(safeDecode(part)))
     .join("/")}`;
   const res = await safeFetch(deps, url);
   if (res.status !== 200) return null;
@@ -36,7 +36,8 @@ export async function workday(
   return {
     method: "ats_api",
     ats: "workday",
-    atsPostingId: p.jobReqId ?? t.postingId,
+    // Scoped by tenant, like the id detectAts reads from the URL.
+    atsPostingId: p.jobReqId ? `${t.tenant}/${p.jobReqId}` : t.postingId,
     fields: {
       ...emptyFields(),
       title: p.title,
@@ -59,4 +60,13 @@ export function postedOn(text: string | undefined, now: Date): Date | null {
   if (/^posted yesterday$/i.test(text)) return new Date(now.getTime() - day);
   const n = /^posted (\d+) days? ago$/i.exec(text)?.[1];
   return n ? new Date(now.getTime() - Number(n) * day) : null;
+}
+
+// URL path parts arrive percent-encoded; decode before encoding again so %2C stays %2C.
+function safeDecode(part: string): string {
+  try {
+    return decodeURIComponent(part);
+  } catch {
+    return part;
+  }
 }

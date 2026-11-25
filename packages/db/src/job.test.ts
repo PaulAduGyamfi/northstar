@@ -70,7 +70,12 @@ describe("saveIngestedJob", () => {
     expect(await db.select().from(jobSource)).toHaveLength(1);
     const [event] = await events();
     expect(event?.type).toBe("job.ingested");
-    expect(event?.payload).toEqual({ method: "ats_api", fieldsFound: 13, draft: false });
+    expect(event?.payload).toEqual({
+      method: "ats_api",
+      ats: "greenhouse",
+      fieldsFound: 13,
+      draft: false,
+    });
   });
 
   it("the same source URL twice changes nothing", async () => {
@@ -161,6 +166,34 @@ describe("setJobField", () => {
       value: { status: "ready", missingFields: [] },
     });
     expect((await events()).at(-1)?.type).toBe("job.draft_completed");
+  });
+
+  it("refuses a minimum salary above the maximum as a bad value", async () => {
+    const { jobId } = await saveIngestedJob(db, { candidateId, fields, source, mergeInto: null });
+    expect(
+      await setJobField(db, { candidateId, jobId, field: "salaryMin", value: "200000" }),
+    ).toEqual({
+      ok: false,
+      error: { kind: "BadValue", field: "salaryMin" },
+    });
+  });
+
+  it("puts the model call's record in the ingested event", async () => {
+    const call = {
+      route: "job-extract",
+      promptVersion: 1,
+      modelServed: "claude-opus-5-5",
+      costUsd: 0.004,
+    };
+    await saveIngestedJob(db, {
+      candidateId,
+      fields,
+      source: { ...source, method: "model" },
+      mergeInto: null,
+      call,
+    });
+    const [event] = await events();
+    expect(event?.payload).toMatchObject({ method: "model", ats: "greenhouse", call });
   });
 
   it("refuses a field that isn't editable and a malformed value", async () => {

@@ -1,4 +1,6 @@
-import { isIP } from "node:net";
+import { BlockList, isIP } from "node:net";
+import { SpanStatusCode, trace } from "@opentelemetry/api";
+import { termsFor } from "./terms.js";
 
 // Fetching a page Paul pasted (NS-114). The link is untrusted: it must not make Northstar read
 // something on Paul's own network or the cloud metadata service (SSRF), and a huge or endless
@@ -32,7 +34,36 @@ export class FetchRefused extends Error {
   override name = "FetchRefused";
 }
 
+// One `source.fetch` span per fetch (OBV-001): the host, final status, bytes and redirect count.
+// Never the path or query (they can carry ids from Paul's search) or any page content.
 export async function safeFetch(deps: FetchDeps, start: string): Promise<Fetched> {
+  const tracer = trace.getTracer("@northstar/sources");
+  return tracer.startActiveSpan("source.fetch", async (span) => {
+    try {
+      span.setAttribute("server.address", hostOf(start));
+      const r = await fetchHops(deps, start);
+      span.setAttribute("http.response.status_code", r.status);
+      span.setAttribute("source.bytes", Buffer.byteLength(r.body));
+      span.setAttribute("source.redirects", r.redirects);
+      return r;
+    } catch (error) {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error).name });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
+}
+
+const hostOf = (raw: string) => {
+  try {
+    return new URL(raw).hostname;
+  } catch {
+    return "invalid";
+  }
+};
+
+async function fetchHops(deps: FetchDeps, start: string): Promise<Fetched> {
   const signal = AbortSignal.timeout(TIMEOUT_MS);
   let url = start;
   for (let redirects = 0; ; redirects++) {
@@ -72,6 +103,12 @@ async function checkTarget(deps: FetchDeps, raw: string): Promise<void> {
     throw new FetchRefused("not a valid link");
   }
   if (u.protocol !== "https:") throw new FetchRefused("only https links are fetched");
+  // Checked on every hop, so a short link or a redirect can't land on a prohibited site (ADR-0003).
+  if (termsFor(raw).terms === "prohibited") {
+    throw new FetchRefused(`${u.hostname} doesn't allow automated reading`);
+  }
+  if (u.username || u.password)
+    throw new FetchRefused("links with a user name or password are not fetched");
   // URL keeps IPv6 literals in brackets.
   const host = u.hostname.replace(/^\[|\]$/g, "");
   if (isIP(host) !== 0) throw new FetchRefused("links to an IP address are not fetched");
@@ -106,45 +143,52 @@ async function readCapped(res: Response): Promise<string> {
   return new TextDecoder().decode(Buffer.concat(chunks));
 }
 
-// Whether an address is on the public internet: not loopback, private, link-local (including the
-// 169.254.169.254 metadata service), carrier-grade NAT, multicast, unspecified, unique-local, or
-// an IPv4 address wrapped in IPv6.
-export function isPublicAddress(address: string): boolean {
-  const kind = isIP(address);
-  if (kind === 4) return isPublicV4(address);
-  if (kind !== 6) return false;
-  const a = address.toLowerCase();
-  // ::ffff:a.b.c.d and ::ffff:hhhh:hhhh carry an IPv4 address: judge that one.
-  const mapped = /^::ffff:(.+)$/.exec(a)?.[1];
-  if (mapped) {
-    if (isIP(mapped) === 4) return isPublicV4(mapped);
-    const parts = mapped.split(":");
-    if (parts.length === 2) {
-      const hi = Number.parseInt(parts[0] ?? "", 16);
-      const lo = Number.parseInt(parts[1] ?? "", 16);
-      return isPublicV4(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
-    }
-    return false;
-  }
-  if (a === "::" || a === "::1") return false;
-  const first = Number.parseInt(a.split(":")[0] || "0", 16);
-  // fe80::/10 link-local, fc00::/7 unique-local, ff00::/8 multicast.
-  if ((first & 0xffc0) === 0xfe80 || (first & 0xfe00) === 0xfc00 || (first & 0xff00) === 0xff00) {
-    return false;
-  }
-  return true;
+// Every address range that isn't the public internet, as Node's own BlockList: loopback,
+// private, link-local (including the 169.254.169.254 metadata service), carrier-grade NAT,
+// multicast and reserved space, plus the IPv6 forms that carry an IPv4 address (mapped, NAT64,
+// 6to4, Teredo, IPv4-compatible), which are refused outright rather than unwrapped.
+// Two lists: Node's BlockList also tests an IPv4 address against IPv6 rules (as ::ffff:a.b.c.d),
+// so a single list holding ::ffff:0:0/96 would block every IPv4 address.
+const NOT_PUBLIC_V4 = new BlockList();
+const NOT_PUBLIC_V6 = new BlockList();
+for (const [net, bits] of [
+  ["0.0.0.0", 8],
+  ["10.0.0.0", 8],
+  ["100.64.0.0", 10],
+  ["127.0.0.0", 8],
+  ["169.254.0.0", 16],
+  ["172.16.0.0", 12],
+  ["192.0.0.0", 24],
+  ["192.0.2.0", 24],
+  ["192.168.0.0", 16],
+  ["198.18.0.0", 15],
+  ["198.51.100.0", 24],
+  ["203.0.113.0", 24],
+  ["224.0.0.0", 3],
+] as const) {
+  NOT_PUBLIC_V4.addSubnet(net, bits, "ipv4");
+}
+for (const [net, bits] of [
+  ["::", 96],
+  ["::ffff:0:0", 96],
+  ["64:ff9b::", 96],
+  ["64:ff9b:1::", 48],
+  ["100::", 64],
+  ["2001::", 32],
+  ["2001:db8::", 32],
+  ["2002::", 16],
+  ["fc00::", 7],
+  ["fe80::", 10],
+  ["fec0::", 10],
+  ["ff00::", 8],
+] as const) {
+  NOT_PUBLIC_V6.addSubnet(net, bits, "ipv6");
 }
 
-function isPublicV4(address: string): boolean {
-  const [a = 0, b = 0] = address.split(".").map(Number);
-  if (a === 0 || a === 10 || a === 127) return false;
-  if (a === 169 && b === 254) return false;
-  if (a === 172 && b >= 16 && b <= 31) return false;
-  if (a === 192 && b === 168) return false;
-  if (a === 100 && b >= 64 && b <= 127) return false;
-  // 224.0.0.0 and up: multicast and reserved.
-  if (a >= 224) return false;
-  return true;
+export function isPublicAddress(address: string): boolean {
+  const kind = isIP(address);
+  if (kind === 0) return false;
+  return kind === 4 ? !NOT_PUBLIC_V4.check(address, "ipv4") : !NOT_PUBLIC_V6.check(address, "ipv6");
 }
 
 // Parameters that only track where a click came from; dropping them makes two links to the same
@@ -155,6 +199,9 @@ const TRACKING =
 export function canonicalUrl(raw: string): string {
   const u = new URL(raw);
   u.hash = "";
+  // A user name or password in a link is never part of a posting's identity.
+  u.username = "";
+  u.password = "";
   u.hostname = u.hostname.toLowerCase();
   for (const key of [...u.searchParams.keys()]) {
     if (TRACKING.test(key)) u.searchParams.delete(key);

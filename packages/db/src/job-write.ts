@@ -75,6 +75,9 @@ export async function saveIngestedJob(
     fields: JobFields;
     source: JobSourceInput;
     mergeInto: string | null;
+    // The model call that read the posting (ids, versions and numbers only, OBV-003), or null
+    // when plain code read it.
+    call?: Record<string, string | number | boolean | null> | null;
   },
 ): Promise<SaveResult> {
   const { candidateId, fields, source } = input;
@@ -122,8 +125,10 @@ export async function saveIngestedJob(
     await tx.insert(jobSource).values({ candidateId, jobId: row.id, ...source });
     await insertEvent(tx, candidateId, row.id, "job.ingested", "Job added from a link", {
       method: source.method,
+      ats: source.ats,
       fieldsFound: found(fields),
       draft: missing.length > 0,
+      ...(input.call ? { call: input.call } : {}),
     });
     return { status: "created", jobId: row.id } as const;
   });
@@ -191,10 +196,20 @@ export async function setJobField(
 
   return db.transaction(async (tx) => {
     const [current] = await tx
-      .select({ status: job.status, title: job.title, companyId: job.companyId })
+      .select({
+        status: job.status,
+        title: job.title,
+        companyId: job.companyId,
+        salaryMin: job.salaryMin,
+        salaryMax: job.salaryMax,
+      })
       .from(job)
       .where(and(eq(job.id, input.jobId), eq(job.candidateId, input.candidateId)));
     if (!current) return err({ kind: "NotFound" } as const);
+    // The database refuses min > max; say so plainly instead of failing on its check.
+    const min = field === "salaryMin" ? (parsed as number) : current.salaryMin;
+    const max = field === "salaryMax" ? (parsed as number) : current.salaryMax;
+    if (min !== null && max !== null && min > max) return bad();
     const set: Partial<typeof job.$inferInsert> =
       field === "company"
         ? { companyId: await companyIdFor(tx, input.candidateId, value) }
@@ -310,8 +325,8 @@ async function insertEvent(
   jobId: string,
   type: "job.ingested" | "job.merged" | "job.draft_completed",
   reason: string,
-  // Counts, methods and field names only: never a title, company, URL or text.
-  payload: Record<string, string | number | boolean>,
+  // Counts, methods, field names and the call record only: never a title, company, URL or text.
+  payload: Record<string, unknown>,
 ): Promise<void> {
   await tx.insert(domainEvent).values({
     id: randomUUID(),

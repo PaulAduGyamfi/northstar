@@ -2,7 +2,7 @@ import type { JobFields } from "@northstar/db";
 import type { Route } from "@northstar/llm";
 import { untrustedBlock } from "@northstar/llm";
 import { loadPrompt } from "@northstar/prompts";
-import { dateOrNull, emptyFields } from "./extraction.js";
+import { emptyFields } from "./extraction.js";
 import { JobExtract } from "./job-extract-schema.js";
 
 export const JOB_EXTRACT_VERSION = 1;
@@ -83,7 +83,7 @@ export function checkJobProvenance(
   let postedAt: Date | null = null;
   if (out.postedText !== null) {
     if (page.includes(squash(out.postedText))) {
-      postedAt = dateOrNull(out.postedText.replace(/^posted( on)?:?\s*/i, ""));
+      postedAt = writtenDate(out.postedText);
     } else dropped.push("postedText");
   }
   const salaryMin = num("salaryMin");
@@ -125,9 +125,49 @@ function currency(code: string | null, pageText: string, dropped: DroppedField[]
   const c = code.trim().toUpperCase();
   const shown =
     /^[A-Z]{3}$/.test(c) &&
-    (pageText.toUpperCase().includes(c) ||
+    // A whole word: CAD inside "ACADEMIC" or EUR inside "EUROPE" doesn't count.
+    (new RegExp(`\\b${c}\\b`).test(pageText.toUpperCase()) ||
       Object.entries(SYMBOLS).some(([sym, iso]) => iso === c && pageText.includes(sym)));
   if (shown) return c;
   dropped.push("salaryCurrency");
   return null;
+}
+
+const MONTHS = [
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+];
+
+// A posting date only in forms that can't be misread: ISO (2026-11-21) or "November 21, 2026"
+// (with or without "Posted on"). Slash dates (11/12/2026: November or December?) and anything
+// else give null; a wrong date would mislead the freshness ranking more than a missing one.
+export function writtenDate(text: string): Date | null {
+  const t = text.replace(/^\s*posted( on)?:?\s*/i, "").trim();
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+  const words = /^([a-z]+)\.? (\d{1,2}),? (\d{4})$/i.exec(t);
+  let y: number;
+  let m: number;
+  let d: number;
+  if (iso) {
+    [y, m, d] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
+  } else if (words) {
+    const month = MONTHS.findIndex(
+      (name) => name.startsWith((words[1] ?? "").toLowerCase()) && (words[1] ?? "").length >= 3,
+    );
+    if (month < 0) return null;
+    [y, m, d] = [Number(words[3]), month + 1, Number(words[2])];
+  } else return null;
+  const date = new Date(Date.UTC(y, m - 1, d));
+  // Refuse impossible days (2026-02-30 rolls over in Date.UTC).
+  return date.getUTCMonth() === m - 1 && date.getUTCDate() === d ? date : null;
 }

@@ -1,12 +1,13 @@
 import type { DedupeCandidate, JobFields, JobSourceInput, SaveResult } from "@northstar/db";
 import type { CallRecord, LlmGateway, Route } from "@northstar/llm";
+import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { ashby } from "./ats/ashby.js";
 import { type AtsTarget, detectAts } from "./ats/detect.js";
 import { greenhouse } from "./ats/greenhouse.js";
 import { lever } from "./ats/lever.js";
 import { workday } from "./ats/workday.js";
 import { findDuplicate } from "./dedupe.js";
-import { type Extraction, emptyFields, htmlToText } from "./extraction.js";
+import { cleanApplyUrl, type Extraction, emptyFields, htmlToText } from "./extraction.js";
 import { canonicalUrl, type FetchDeps, FetchRefused, safeFetch } from "./fetch.js";
 import {
   checkJobProvenance,
@@ -30,6 +31,7 @@ export type IngestDeps = FetchDeps & {
       fields: JobFields;
       source: JobSourceInput;
       mergeInto: string | null;
+      call: Record<string, string | number | boolean | null> | null;
     }) => Promise<SaveResult>;
   };
 };
@@ -38,7 +40,10 @@ export type IngestResult =
   | {
       status: "created" | "merged" | "unchanged";
       jobId: string;
-      method: JobSourceInput["method"];
+      // How the posting was read; null when nothing was read (already stored).
+      method: JobSourceInput["method"] | null;
+      // The fields that were found, by name (SRC-001: "which fields it found").
+      found: string[];
       missing: string[];
       dropped: DroppedField[];
       record: CallRecord | null;
@@ -47,7 +52,29 @@ export type IngestResult =
   | { status: "not_a_job"; record: CallRecord | null }
   | { status: "failed"; reason: string };
 
-export async function ingestUrl(deps: IngestDeps, rawUrl: string): Promise<IngestResult> {
+// One `job.ingest` span per add (OBV-001): how it was read and what happened, never the URL.
+function traced(kind: "url" | "text", run: () => Promise<IngestResult>): Promise<IngestResult> {
+  return trace.getTracer("@northstar/sources").startActiveSpan("job.ingest", async (span) => {
+    span.setAttribute("job.input", kind);
+    try {
+      const r = await run();
+      span.setAttribute("job.outcome", r.status);
+      if ("method" in r && r.method) span.setAttribute("job.method", r.method);
+      return r;
+    } catch (error) {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error).name });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
+}
+
+export function ingestUrl(deps: IngestDeps, rawUrl: string): Promise<IngestResult> {
+  return traced("url", () => ingestUrlInner(deps, rawUrl));
+}
+
+async function ingestUrlInner(deps: IngestDeps, rawUrl: string): Promise<IngestResult> {
   let url: string;
   try {
     url = canonicalUrl(rawUrl.trim());
@@ -65,11 +92,13 @@ export async function ingestUrl(deps: IngestDeps, rawUrl: string): Promise<Inges
   // Seen before: nothing to fetch, nothing to change.
   const existing = await deps.store.candidates();
   const known = existing.find((j) => j.sources.some((s) => s.url === url));
-  if (known) return done({ status: "unchanged", jobId: known.jobId }, "ats_api", [], [], null);
+  if (known) return done({ status: "unchanged", jobId: known.jobId }, null, [], [], [], null);
 
   try {
     const target = detectAts(url);
-    const viaApi = target ? await fromAts(deps, target) : null;
+    // A failing API (refused, too big, timed out) falls through to the page (spec failure modes):
+    // Ashby returns a company's whole board, which can pass the size cap.
+    const viaApi = target ? await fromAts(deps, target).catch(fallThrough) : null;
     if (viaApi) return store(deps, existing, url, viaApi, [], null);
 
     const page = await safeFetch(deps, url);
@@ -82,12 +111,7 @@ export async function ingestUrl(deps: IngestDeps, rawUrl: string): Promise<Inges
   } catch (error) {
     if (error instanceof FetchRefused) return { status: "refused", reason: error.message };
     // A timeout or dropped connection: say so without the page's details.
-    // fetch's own network failure is a TypeError "fetch failed"; any other TypeError is a bug and
-    // must surface.
-    const network =
-      error instanceof Error &&
-      (error.name === "TimeoutError" ||
-        (error.name === "TypeError" && error.message === "fetch failed"));
+    const network = isNetworkError(error);
     if (network) {
       return { status: "failed", reason: "the site didn't answer in time" };
     }
@@ -97,7 +121,11 @@ export async function ingestUrl(deps: IngestDeps, rawUrl: string): Promise<Inges
 
 // A description Paul saved himself (LinkedIn and other sign-in pages, ADR-0003). `url` records
 // where it came from; nothing is fetched.
-export async function ingestText(
+export function ingestText(deps: IngestDeps, rawUrl: string, text: string): Promise<IngestResult> {
+  return traced("text", () => ingestTextInner(deps, rawUrl, text));
+}
+
+async function ingestTextInner(
   deps: IngestDeps,
   rawUrl: string,
   text: string,
@@ -112,8 +140,24 @@ export async function ingestText(
     return { status: "refused", reason: "--url must be an http(s) link" };
   const existing = await deps.store.candidates();
   const known = existing.find((j) => j.sources.some((s) => s.url === url));
-  if (known) return done({ status: "unchanged", jobId: known.jobId }, "text", [], [], null);
+  if (known) return done({ status: "unchanged", jobId: known.jobId }, null, [], [], [], null);
   return viaModel(deps, existing, url, text, "text", detectAts(url));
+}
+
+// Fetch trouble on the API means "try the page"; anything else is a bug and must surface.
+function fallThrough(error: unknown): null {
+  if (error instanceof FetchRefused || isNetworkError(error)) return null;
+  throw error;
+}
+
+// A timeout, or fetch's own network failure (a TypeError "fetch failed"); any other TypeError is
+// a bug.
+function isNetworkError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === "TimeoutError" ||
+      (error.name === "TypeError" && error.message === "fetch failed"))
+  );
 }
 
 async function fromAts(deps: IngestDeps, t: AtsTarget): Promise<Extraction | null> {
@@ -190,24 +234,34 @@ async function store(
     ats: x.ats,
     atsPostingId: x.atsPostingId,
   };
-  const match = findDuplicate(existing, x.fields, source);
+  // Every extractor's apply link passes through the same cleanup before it's stored.
+  const fields = { ...x.fields, applyUrl: cleanApplyUrl(x.fields.applyUrl, url) };
+  const match = findDuplicate(existing, fields, source);
   const saved = await deps.store.save({
-    fields: x.fields,
+    fields,
     source,
     mergeInto: match?.jobId ?? null,
+    // The call record holds ids, versions and numbers only (OBV-003), safe for the event.
+    call: record ? { ...record } : null,
   });
   const missing = [x.fields.title ? null : "title", x.fields.company ? null : "company"].filter(
     (m): m is string => m !== null,
   );
-  return done(saved, x.method, saved.status === "created" ? missing : [], dropped, record);
+  const found = (Object.keys(fields) as (keyof JobFields)[]).filter((k) => {
+    const v = fields[k];
+    return Array.isArray(v) ? v.length > 0 : v !== null;
+  });
+  const created = saved.status === "created";
+  return done(saved, x.method, created ? found : [], created ? missing : [], dropped, record);
 }
 
 function done(
   saved: SaveResult,
-  method: JobSourceInput["method"],
+  method: JobSourceInput["method"] | null,
+  found: string[],
   missing: string[],
   dropped: DroppedField[],
   record: CallRecord | null,
 ): IngestResult {
-  return { status: saved.status, jobId: saved.jobId, method, missing, dropped, record };
+  return { status: saved.status, jobId: saved.jobId, method, found, missing, dropped, record };
 }

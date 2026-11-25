@@ -92,7 +92,8 @@ async function report(deps: CliDeps, run: () => Promise<IngestResult>): Promise<
       deps.print(`Same role as job ${r.jobId}; added this link as another source.`);
       return 0;
     case "created": {
-      deps.print(`Added job ${r.jobId} from ${METHOD[r.method] ?? r.method}.`);
+      deps.print(`Added job ${r.jobId} from ${r.method ? (METHOD[r.method] ?? r.method) : "?"}.`);
+      if (r.found.length > 0) deps.print(`  Found: ${r.found.join(", ")}.`);
       if (r.dropped.length > 0) {
         deps.print(`  Left out (not on the page): ${r.dropped.join(", ")}.`);
       }

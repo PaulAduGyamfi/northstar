@@ -1,7 +1,7 @@
 import type { DedupeCandidate, JobFields, JobSourceInput, SaveResult } from "@northstar/db";
 import type { CallRecord, LlmGateway, LlmOutcome } from "@northstar/llm";
 import { describe, expect, it } from "vitest";
-import { findDuplicate, similarity } from "./dedupe.js";
+import { findDuplicate, samePlace, similarity } from "./dedupe.js";
 import { emptyFields } from "./extraction.js";
 import { type IngestDeps, ingestText, ingestUrl } from "./ingest.js";
 import { jobExtractRoute } from "./job-extract-route.js";
@@ -27,7 +27,7 @@ const careersPage = (title = "Backend Engineer") =>
     "@type": "JobPosting",
     title,
     hiringOrganization: { name: "Globex" },
-    jobLocation: { address: { addressLocality: "Remote - US" } },
+    jobLocation: { address: { addressLocality: "Remote - US", addressCountry: "United States" } },
     description: `<p>${DESCRIPTION}</p>`,
   })}</script></head></html>`;
 
@@ -212,11 +212,27 @@ describe("ingestUrl", () => {
     expect(store.saves).toEqual([]);
   });
 
+  it("falls through to the page when the ATS API is too big to read", async () => {
+    const id = "7d2e9f30-aaaa-4bbb-8ccc-ddddeeeeffff";
+    const url = `https://jobs.ashbyhq.com/globex/${id}`;
+    const { deps, store } = setup({
+      "https://api.ashbyhq.com/posting-api/job-board/globex?includeCompensation=true": {
+        contentLength: String(3 * 1024 * 1024),
+        body: "{}",
+      },
+      [url]: { body: careersPage() },
+    });
+    expect(await ingestUrl(deps, url)).toMatchObject({ status: "created", method: "jsonld" });
+    expect(store.saves[0]?.source).toMatchObject({ ats: "ashby", atsPostingId: id });
+  });
+
   it("refuses LinkedIn, Indeed and Glassdoor links without any network call", async () => {
     const { deps, asked } = setup({});
     for (const url of [
       "https://www.linkedin.com/jobs/view/1",
       "https://www.indeed.com/viewjob?jk=1",
+      "https://www.glassdoor.co.uk/job-listing/x",
+      "https://lnkd.in/abc123",
     ]) {
       expect((await ingestUrl(deps, url)).status).toBe("refused");
     }
@@ -265,6 +281,30 @@ describe("ingestUrl", () => {
     await ingestUrl(deps, GH_URL);
     expect((await ingestUrl(deps, careers)).status).toBe("created");
     expect(store.jobs).toHaveLength(2);
+  });
+});
+
+describe("apply links", () => {
+  const ld = (url: string) =>
+    `<script type="application/ld+json">${JSON.stringify({
+      "@type": "JobPosting",
+      title: "Backend Engineer",
+      hiringOrganization: { name: "Globex" },
+      url,
+    })}</script>`;
+
+  it("resolves a relative apply link against the page", async () => {
+    const page = "https://globex.example/careers/backend";
+    const { deps, store } = setup({ [page]: { body: ld("/careers/backend/apply") } });
+    await ingestUrl(deps, page);
+    expect(store.saves[0]?.fields.applyUrl).toBe("https://globex.example/careers/backend/apply");
+  });
+
+  it("drops a javascript: apply link instead of failing the whole job", async () => {
+    const page = "https://globex.example/careers/evil";
+    const { deps, store } = setup({ [page]: { body: ld("javascript:alert(1)") } });
+    expect((await ingestUrl(deps, page)).status).toBe("created");
+    expect(store.saves[0]?.fields.applyUrl).toBeNull();
   });
 });
 
@@ -337,6 +377,17 @@ describe("findDuplicate", () => {
       jobId: "j1",
       by: "ats_posting",
     });
+  });
+});
+
+describe("samePlace", () => {
+  it("treats a longer spelling of the same place, or a missing one, as the same", () => {
+    expect(samePlace("San Francisco, CA", "San Francisco, CA, US")).toBe(true);
+    expect(samePlace(null, "Austin, TX")).toBe(true);
+  });
+
+  it("keeps different places apart", () => {
+    expect(samePlace("Austin, TX", "Dallas, TX")).toBe(false);
   });
 });
 

@@ -43,10 +43,12 @@ duplicates when the same role shows up twice.
 ### One job per role (SRC-006, deterministic)
 A posting seen again joins its existing `Job` as another `job_source` instead of creating a new
 job. The match is plain code, in this order:
-1. the same ATS posting id;
-2. the same canonical URL (tracking parameters removed);
-3. the same normalized company, title and location, with descriptions at least 85% alike (word
-   shingles).
+1. the same ATS posting id (Workday requisition ids are scoped by tenant, since two companies can
+   both have `R-00123`);
+2. the same canonical URL (tracking parameters and any user name or password removed);
+3. the same normalized company and title, the same place (one location's words contained in the
+   other's, so "San Francisco, CA" and "San Francisco, CA, US" agree; a missing location doesn't
+   block a match), and descriptions at least 85% alike (word shingles).
 
 Merges are recorded; `jobs list` shows a job once with each place it was seen.
 
@@ -75,17 +77,30 @@ Each job stores the source's `posted_at` (when the page gives one) and its own `
 ## Failure modes
 - **Site slow or down:** timeout after 15 s, no retry; the command says so and nothing is stored.
   Paul reruns it.
-- **ATS API changed shape:** that source fails validation, and extraction falls through to
-  JSON-LD, then the model, so a working page still produces a job.
-- **Model down, refused, truncated or invalid output:** the job is stored as a `draft` with what
-  plain code found.
+- **ATS API changed shape, refused, too big or timed out:** that source is skipped, and
+  extraction falls through to JSON-LD, then the model, so a working page still produces a job.
+  (Ashby's API returns a whole board and can pass the 2 MB cap.)
+- **Model refused, truncated or invalid output:** the job is stored as a `draft` with what plain
+  code found.
+- **Model down (Claude API unreachable):** changed while building: `jobs add` stops with "Not
+  added, try again later" and stores nothing. `.claude/rules/llm.md` says to let the transport
+  error surface, and an empty draft of a page Paul can simply re-add is worth little.
+- **A redirect or short link (`lnkd.in`) to a prohibited site:** refused on that hop, nothing
+  requested from it. Terms are checked on every hop, not only the pasted link.
+- **A page's apply link** is resolved against the page, kept only if http(s), with any user name
+  or password removed; anything else is dropped. For the Apply Gateway (NS-120): apply only on a
+  host that matches the job's source or ATS, never on the stored apply link alone.
 - **Database down:** fails before any fetch.
 
 ## Observability
-- Events: `job.ingested` (job id, source kind, extraction method, fields found),
-  `job.merged` (job id, source count), `job.draft_completed`.
-- Spans: `source.fetch` (host, status, bytes, redirect count), `job.extract` (method), plus
-  `llm.call` from the gateway.
+- Events: `job.ingested` (job id, extraction method, ATS, fields found, draft, and the model
+  call's record when the model read it), `job.merged` (job id, source count),
+  `job.draft_completed`.
+- Spans: `source.fetch` (host, status, bytes, redirect count; never the path or content),
+  `job.ingest` (input kind, method, outcome), plus `llm.call` from the gateway.
+- Still untrusted later: titles, requirements and descriptions are copied from pages. The
+  provenance check stops invented values, not text that is really on a hostile page, so every
+  later route that reads `job.*` wraps it in `untrustedBlock`, and the UI renders it escaped.
 
 ## Out of scope
 - **SRC-002, the browser extension: moved to a follow-up.** The extension rules require it to

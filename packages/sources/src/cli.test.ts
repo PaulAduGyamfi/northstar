@@ -37,12 +37,16 @@ describe("jobs add", () => {
       status: "created",
       jobId: "j1",
       method: "ats_api",
+      found: ["title", "company", "location"],
       missing: [],
       dropped: [],
       record: null,
     });
     expect(await main(d)).toBe(0);
-    expect(printed).toEqual(["Added job j1 from the job board's API."]);
+    expect(printed).toEqual([
+      "Added job j1 from the job board's API.",
+      "  Found: title, company, location.",
+    ]);
   });
 
   it("says what a draft is missing and how to fill it", async () => {
@@ -50,6 +54,7 @@ describe("jobs add", () => {
       status: "created",
       jobId: "j2",
       method: "model",
+      found: [],
       missing: ["company"],
       dropped: ["seniority"],
       record: null,
@@ -79,6 +84,7 @@ describe("jobs add", () => {
       status: "unchanged",
       jobId: "j1",
       method: "ats_api",
+      found: [],
       missing: [],
       dropped: [],
       record: null,
@@ -87,6 +93,7 @@ describe("jobs add", () => {
       status: "merged",
       jobId: "j1",
       method: "jsonld",
+      found: [],
       missing: [],
       dropped: [],
       record: null,
@@ -124,6 +131,7 @@ describe("jobs add", () => {
         status: "created",
         jobId: "j3",
         method: "text",
+        found: [],
         missing: [],
         dropped: [],
         record: null,
