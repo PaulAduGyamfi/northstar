@@ -170,6 +170,10 @@ async function fromAts(deps: IngestDeps, t: AtsTarget): Promise<Extraction | nul
       return ashby(deps, t);
     case "workday":
       return workday(deps, t);
+    // No single-posting API client: the page is read, and withAts keeps the ATS id.
+    case "smartrecruiters":
+    case "workable":
+      return null;
   }
 }
 

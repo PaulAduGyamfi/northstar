@@ -95,7 +95,7 @@ describe("pollDue", () => {
     expect(w.jobs.map((j) => j.title)).toEqual(["Engineer 1", "Engineer 2"]);
     expect(w.recorded[0]).toEqual({
       watchId: "w-globex",
-      result: { outcome: "ok", seen: 2, added: 2, errorName: null },
+      result: { outcome: "ok", seen: 2, added: 2, failed: 0, errorName: null },
       next: { nextPollAt: at(10), status: "ok", consecutiveFailures: 0 },
     });
   });
@@ -106,20 +106,27 @@ describe("pollDue", () => {
     const second = await pollDue(w.deps, at(10));
     expect(second.added).toBe(0);
     expect(w.jobs).toHaveLength(2);
-    expect(w.recorded[1]?.result).toEqual({ outcome: "ok", seen: 2, added: 0, errorName: null });
+    expect(w.recorded[1]?.result).toEqual({
+      outcome: "ok",
+      seen: 2,
+      added: 0,
+      failed: 0,
+      errorName: null,
+    });
   });
 
   it("a posting first added from a pasted link is not added again from its board", async () => {
     const w = world({ [GH]: { body: { jobs: [ghJob(7)] } } }, [watch({})]);
     w.jobs.push({
       jobId: "pasted",
-      company: "Globex",
-      title: "Engineer 7",
-      location: "Office 7",
+      // Different words and link, same ATS posting id: only the id can match them.
+      company: "Globex Inc",
+      title: "Senior Engineer",
+      location: "Elsewhere",
       description: null,
       sources: [
         {
-          url: "https://boards.greenhouse.io/globex/jobs/7",
+          url: "https://globex.example.com/careers?gh_jid=7",
           ats: "greenhouse",
           atsPostingId: "7",
         },
@@ -127,6 +134,63 @@ describe("pollDue", () => {
     });
     expect((await pollDue(w.deps, T0)).added).toBe(0);
     expect(w.jobs).toHaveLength(1);
+  });
+
+  it("a SmartRecruiters posting pasted with its title in the link is matched by id, not added twice", async () => {
+    const SR = "https://api.smartrecruiters.com/v1/companies/Acme/postings?limit=100";
+    const w = world({ [SR]: { body: { content: [{ id: "744000012345678", name: "SRE" }] } } }, [
+      watch({ id: "w-acme", ats: "smartrecruiters", board: "Acme" }),
+    ]);
+    w.jobs.push({
+      jobId: "pasted",
+      company: null,
+      title: "Site Reliability Engineer",
+      location: null,
+      description: null,
+      sources: [
+        {
+          url: "https://jobs.smartrecruiters.com/Acme/744000012345678-site-reliability-engineer",
+          ats: "smartrecruiters",
+          atsPostingId: "744000012345678",
+        },
+      ],
+    });
+    expect((await pollDue(w.deps, T0)).added).toBe(0);
+  });
+
+  it("one posting that can't be saved is counted, and the board's other postings still save", async () => {
+    const w = world({ [GH]: { body: { jobs: [ghJob(1), ghJob(2), ghJob(3)] } } }, [watch({})]);
+    const save = w.deps.store.save;
+    w.deps.store.save = async (input) => {
+      if (input.fields.title === "Engineer 2")
+        throw Object.assign(new Error("x"), { name: "CheckViolation" });
+      return save(input);
+    };
+    const summary = await pollDue(w.deps, T0);
+    expect(summary).toEqual({ boards: 1, added: 2, failed: 0, quarantined: 0 });
+    expect(w.recorded[0]?.result).toEqual({
+      outcome: "ok",
+      seen: 3,
+      added: 2,
+      failed: 1,
+      errorName: "CheckViolation",
+    });
+    expect(w.recorded[0]?.next.status).toBe("ok");
+  });
+
+  it("when every new posting fails to save (the database is down), the board fails", async () => {
+    const w = world({ [GH]: { body: { jobs: [ghJob(1), ghJob(2)] } } }, [watch({})]);
+    w.deps.store.save = async () => {
+      throw Object.assign(new Error("x"), { name: "DbDown" });
+    };
+    expect((await pollDue(w.deps, T0)).failed).toBe(1);
+    expect(w.recorded[0]?.result).toEqual({
+      outcome: "failed",
+      seen: 2,
+      added: 0,
+      failed: 2,
+      errorName: "DbDown",
+    });
   });
 
   it("polls only boards that are due", async () => {
@@ -197,9 +261,12 @@ describe("freshness SLO (SRC-012, simulated clock)", () => {
   });
 });
 
+// What a real watch id looks like: random, unrelated to the board.
+const WATCH_UUID = "5b1e7c2a-0d3f-4a9b-8c6e-2f4a1b9d7e30";
+
 describe("source.poll span", () => {
-  it("records the ATS, a hash of the board, outcome and counts, never the board's name", async () => {
-    const w = world({ [GH]: { body: { jobs: [ghJob(1)] } } }, [watch({})]);
+  it("records the ATS, the watch's random id, outcome and counts, never the board's name", async () => {
+    const w = world({ [GH]: { body: { jobs: [ghJob(1)] } } }, [watch({ id: WATCH_UUID })]);
     await pollDue(w.deps, T0);
     const span = exporter.getFinishedSpans().find((s) => s.name === "source.poll");
     expect(span?.attributes).toMatchObject({
@@ -208,7 +275,8 @@ describe("source.poll span", () => {
       "source.seen": 1,
       "source.added": 1,
     });
-    expect(span?.attributes["source.board_hash"]).toMatch(/^[0-9a-f]{12}$/);
+    // The watch id, not a hash: board names are short and public, so a hash could be reversed.
+    expect(span?.attributes["source.watch_id"]).toBe(WATCH_UUID);
     expect(JSON.stringify(span?.attributes)).not.toContain("globex");
   });
 });

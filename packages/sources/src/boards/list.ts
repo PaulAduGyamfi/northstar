@@ -9,6 +9,14 @@ import type { BoardTarget } from "./detect.js";
 // One request per board (SRC-003, ADR-0015): each ATS's public listing returns every open posting
 // with its content, so a poll never needs a request per posting and never calls the model.
 
+// A board with more open postings than this is read up to here (tens of thousands would stall the
+// pass); the rest wait for a later ticket.
+export const MAX_POSTINGS = 2_000;
+
+// Posting ids go into links and dedupe keys: only each ATS's own id shape is accepted.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DIGITS = /^\d{1,20}$/;
+
 export type BoardPosting = {
   // The posting's canonical link, the same one `jobs add` would store for it.
   url: string;
@@ -43,10 +51,14 @@ export async function listBoard(deps: FetchDeps, t: Board): Promise<BoardPosting
         `https://api.lever.co/v0/postings/${enc}?mode=json`,
         z.array(z.unknown()),
       );
-      return each(body, LeverPosting, (p) => ({
-        url: `https://jobs.lever.co/${t.board}/${p.id.toLowerCase()}`,
-        extraction: fromLever(p, t.board),
-      }));
+      return each(
+        body,
+        LeverPosting.refine((p) => UUID.test(p.id)),
+        (p) => ({
+          url: `https://jobs.lever.co/${t.board}/${p.id.toLowerCase()}`,
+          extraction: fromLever(p, t.board),
+        }),
+      );
     }
     case "ashby": {
       const body = await read(
@@ -54,10 +66,14 @@ export async function listBoard(deps: FetchDeps, t: Board): Promise<BoardPosting
         `https://api.ashbyhq.com/posting-api/job-board/${enc}?includeCompensation=true`,
         z.object({ jobs: z.array(z.unknown()) }),
       );
-      return each(body.jobs, AshbyJob, (p) => ({
-        url: `https://jobs.ashbyhq.com/${t.board}/${p.id.toLowerCase()}`,
-        extraction: fromAshby(p, t.board),
-      }));
+      return each(
+        body.jobs,
+        AshbyJob.refine((p) => UUID.test(p.id)),
+        (p) => ({
+          url: `https://jobs.ashbyhq.com/${t.board}/${p.id.toLowerCase()}`,
+          extraction: fromAshby(p, t.board),
+        }),
+      );
     }
     case "smartrecruiters": {
       // Up to 100 postings per page; a company with more lists its newest first.
@@ -95,21 +111,27 @@ async function read<T>(deps: FetchDeps, url: string, shape: z.ZodType<T>): Promi
   return parsed.data;
 }
 
-// Maps each posting that matches its schema; one malformed posting doesn't sink the board.
+// Maps each posting that matches its schema, up to MAX_POSTINGS. A posting that doesn't match, or
+// whose mapping throws, is skipped: one malformed posting doesn't sink the board.
 function each<S extends z.ZodTypeAny>(
   items: unknown[],
   schema: S,
   map: (p: z.infer<S>) => BoardPosting,
 ): BoardPosting[] {
-  return items.flatMap((item) => {
+  return items.slice(0, MAX_POSTINGS).flatMap((item) => {
     const parsed = schema.safeParse(item);
-    return parsed.success ? [map(parsed.data)] : [];
+    if (!parsed.success) return [];
+    try {
+      return [map(parsed.data)];
+    } catch {
+      return [];
+    }
   });
 }
 
 // SmartRecruiters' public postings list (api.smartrecruiters.com). No description in the list.
 const SrPosting = z.object({
-  id: z.string(),
+  id: z.string().regex(DIGITS),
   name: z.string(),
   releasedDate: z.string().optional(),
   company: z.object({ name: z.string().optional() }).optional(),
@@ -167,8 +189,9 @@ function fromWorkable(
   return {
     method: "ats_api",
     ats: "workable",
-    // Shortcodes are per account: scope them like Workday's requisition ids (SRC-006).
-    atsPostingId: `${account}/${p.shortcode}`,
+    // Shortcodes are per account: scope them like Workday's requisition ids (SRC-006). Workable
+    // accounts are lower-case subdomains, so the typed case doesn't split one board in two.
+    atsPostingId: `${account.toLowerCase()}/${p.shortcode}`,
     fields: {
       ...emptyFields(),
       title: p.title,

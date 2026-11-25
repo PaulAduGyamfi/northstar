@@ -63,6 +63,7 @@ export async function addWatch(
       tx,
       input.candidateId,
       row.id,
+      input.now,
       "source.watched",
       "Board added to the watchlist",
       {
@@ -104,6 +105,8 @@ export type PollResult = {
   outcome: "ok" | "failed";
   seen: number;
   added: number;
+  // New postings that couldn't be saved (one bad posting never sinks the board).
+  failed: number;
   // The error's name only (TimeoutError, FetchRefused...), never its message.
   errorName: string | null;
 };
@@ -144,18 +147,28 @@ export async function savePollResult(
         jobsFound: sql`${companyWatch.jobsFound} + ${result.added}`,
       })
       .where(eq(companyWatch.id, input.watchId));
-    await insertEvent(tx, input.candidateId, input.watchId, "source.polled", "Board polled", {
-      ats: before.ats,
-      outcome: result.outcome,
-      seen: result.seen,
-      added: result.added,
-      tier: before.tier,
-    });
+    await insertEvent(
+      tx,
+      input.candidateId,
+      input.watchId,
+      input.now,
+      "source.polled",
+      "Board polled",
+      {
+        ats: before.ats,
+        outcome: result.outcome,
+        seen: result.seen,
+        added: result.added,
+        failed: result.failed,
+        tier: before.tier,
+      },
+    );
     if (next.status === "quarantined" && before.status !== "quarantined") {
       await insertEvent(
         tx,
         input.candidateId,
         input.watchId,
+        input.now,
         "source.quarantined",
         "Board quarantined after repeated failures",
         {
@@ -173,30 +186,67 @@ export async function retryWatch(
   db: Db,
   input: { candidateId: CandidateId; watchId: string; now: Date },
 ): Promise<boolean> {
-  const rows = await db
-    .update(companyWatch)
-    .set({ status: "ok", consecutiveFailures: 0, nextPollAt: input.now })
-    .where(and(eq(companyWatch.id, input.watchId), eq(companyWatch.candidateId, input.candidateId)))
-    .returning({ id: companyWatch.id });
-  return rows.length > 0;
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .update(companyWatch)
+      .set({ status: "ok", consecutiveFailures: 0, nextPollAt: input.now })
+      .where(
+        and(eq(companyWatch.id, input.watchId), eq(companyWatch.candidateId, input.candidateId)),
+      )
+      .returning({ ats: companyWatch.ats });
+    const [row] = rows;
+    if (!row) return false;
+    await insertEvent(
+      tx,
+      input.candidateId,
+      input.watchId,
+      input.now,
+      "source.retried",
+      "Paul put the board back",
+      { ats: row.ats },
+    );
+    return true;
+  });
 }
 
 export async function removeWatch(
   db: Db,
-  input: { candidateId: CandidateId; watchId: string },
+  input: { candidateId: CandidateId; watchId: string; now: Date },
 ): Promise<boolean> {
-  const rows = await db
-    .delete(companyWatch)
-    .where(and(eq(companyWatch.id, input.watchId), eq(companyWatch.candidateId, input.candidateId)))
-    .returning({ id: companyWatch.id });
-  return rows.length > 0;
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .delete(companyWatch)
+      .where(
+        and(eq(companyWatch.id, input.watchId), eq(companyWatch.candidateId, input.candidateId)),
+      )
+      .returning({ ats: companyWatch.ats });
+    const [row] = rows;
+    if (!row) return false;
+    await insertEvent(
+      tx,
+      input.candidateId,
+      input.watchId,
+      input.now,
+      "source.unwatched",
+      "Paul stopped watching the board",
+      { ats: row.ats },
+    );
+    return true;
+  });
 }
 
 async function insertEvent(
   tx: Pick<Db, "insert">,
   candidateId: CandidateId,
   watchId: string,
-  type: "source.watched" | "source.polled" | "source.quarantined",
+  // The caller's clock, so events line up with the poll that caused them (and with test clocks).
+  occurredAt: Date,
+  type:
+    | "source.watched"
+    | "source.polled"
+    | "source.quarantined"
+    | "source.retried"
+    | "source.unwatched",
   reason: string,
   // Counts, ATS kinds, tiers and error names only: never a board name, company or URL.
   payload: Record<string, string | number>,
@@ -206,13 +256,13 @@ async function insertEvent(
     candidateId,
     aggregate: `company_watch:${watchId}`,
     type,
-    actor: type === "source.watched" ? "user" : "system",
+    actor: type === "source.polled" || type === "source.quarantined" ? "system" : "user",
     reason,
     inputsSummary: "",
     payload,
     links: [],
     traceId: null,
     idempotencyKey: `${type}:${watchId}:${randomUUID()}`,
-    occurredAt: new Date(),
+    occurredAt,
   });
 }

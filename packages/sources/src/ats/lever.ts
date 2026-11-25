@@ -67,7 +67,8 @@ export function fromLever(p: z.infer<typeof LeverPosting>, company: string): Ext
   return {
     method: "ats_api",
     ats: "lever",
-    atsPostingId: p.id,
+    // Lower case, as detectAts reads a pasted link, so the two always match.
+    atsPostingId: p.id.toLowerCase(),
     fields: {
       ...emptyFields(),
       title: p.text,

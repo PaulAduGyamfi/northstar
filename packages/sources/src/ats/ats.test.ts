@@ -51,6 +51,19 @@ describe("detectAts", () => {
     expect([a?.postingId, b?.postingId]).toEqual(["acme/R-00123", "globex/R-00123"]);
   });
 
+  it("reads SmartRecruiters and Workable posting links with the same ids their boards give", () => {
+    expect(
+      detectAts("https://jobs.smartrecruiters.com/Acme/744000012345678-site-reliability-engineer"),
+    ).toEqual({ ats: "smartrecruiters", company: "Acme", postingId: "744000012345678" });
+    expect(detectAts("https://apply.workable.com/Umbrella/j/A1B2C3D4E5/")).toEqual({
+      ats: "workable",
+      account: "Umbrella",
+      postingId: "umbrella/A1B2C3D4E5",
+    });
+    expect(detectAts("https://jobs.smartrecruiters.com/Acme")).toBeNull();
+    expect(detectAts("https://apply.workable.com/umbrella/")).toBeNull();
+  });
+
   it("returns null for any other page, including look-alike hosts", () => {
     expect(detectAts("https://globex.example.com/careers/backend")).toBeNull();
     expect(detectAts("https://boards.greenhouse.io.evil.example/globex/jobs/1")).toBeNull();

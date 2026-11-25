@@ -98,6 +98,19 @@ minutes, newest first, so he hears about a role before most applicants do.
   P2).**
 - The fit half of the queue (NS-116); package, approval and submit timestamps (NS-119, NS-120).
 
+## Known limits (found in review)
+- **SmartRecruiters** is read up to its first page of 100 postings. Whether it lists newest first
+  is unverified; a company with more than 100 open postings may have new ones past page 1.
+- **Any board** is read up to 2,000 postings per poll (`MAX_POSTINGS`), so a huge board can't
+  stall `jobs run`.
+- **SmartRecruiters and Workable shapes** come from their public APIs as documented, tested only
+  on synthetic fixtures (no network in tests). Paul's first `jobs poll` is the live check; a wrong
+  shape fails that board into backoff, and nothing malformed is stored.
+- **Workable** is labelled `public-feed`, not `official-api`: its endpoint backs the embeddable
+  jobs widget and isn't a documented API (ADR-0003).
+- **One posting that won't save** is counted in `source.polled` (`failed`) and skipped; the board
+  fails only when every new posting failed.
+
 ## Open questions
 1. **ADR-0015: a plain scheduler instead of Temporal for polling, for now.** My recommendation;
    your call. The alternative is to add the Temporal SDK in this ticket.
