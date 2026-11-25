@@ -10,7 +10,7 @@ import { checkMailProvenance } from "./provenance.js";
 
 // Synthetic email only (the repo is public).
 const email = {
-  from: "Globex Talent <talent@globex.example.com>",
+  from: "Globex Talent <talent.globex@example.com>",
   subject: "Next steps for Backend Engineer (R-1042)",
   date: "2026-03-10",
   body: "Hi, the Globex team would like to schedule a technical interview.",

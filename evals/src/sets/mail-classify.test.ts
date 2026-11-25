@@ -3,7 +3,7 @@ import { gradeMailClassify } from "./mail-classify.js";
 
 // Synthetic email only (the repo is public).
 const input = {
-  from: "Globex Careers <no-reply@ats.example.com>",
+  from: "Globex Careers <no-reply.ats@example.com>",
   subject: "Update on your application",
   date: "2026-03-10",
   body: "We have decided to move forward with other candidates for the Backend Engineer role at Globex.",

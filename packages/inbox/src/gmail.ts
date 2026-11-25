@@ -171,7 +171,7 @@ function headersOf(m: GmailMessage): MessageHeaders {
   };
 }
 
-// "Name <a@b.example.com>" or "a@b.example.com" → "b.example.com".
+// "Name <a@example.com>" or "a@example.com" → "example.com".
 export function senderDomain(from: string): string {
   const address = /<([^>]+)>/.exec(from)?.[1] ?? from;
   const at = address.lastIndexOf("@");
