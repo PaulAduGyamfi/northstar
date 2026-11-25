@@ -26,6 +26,15 @@ importers:
 
   apps/api:
     dependencies:
+      '@northstar/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@northstar/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
+      '@northstar/sources':
+        specifier: workspace:*
+        version: link:../../packages/sources
       '@opentelemetry/api':
         specifier: 1.9.1
         version: 1.9.1
@@ -36,6 +45,8 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: 2.12.1
         version: 2.12.1(@opentelemetry/api@1.9.1)
+
+  apps/extension: {}
 
   apps/web:
     dependencies:

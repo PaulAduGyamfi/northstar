@@ -2,7 +2,7 @@
 
 Status: autonomous (ADR-0016; agent-planned, not reviewed by Paul before the build)
 Requirements: SRC-002 (capture a posting from any page Paul is viewing). GitHub issue #51.
-Rules that apply: ADR-0003 (no background crawling; LinkedIn, Indeed and Glassdoor are never
+Rules that apply: ADR-0019 (this ticket's extension token), ADR-0003 (no background crawling; LinkedIn, Indeed and Glassdoor are never
 fetched), ADR-0018 (the API's request checks), `.claude/rules/extension.md` (minimal permissions,
 user-initiated capture, only the Northstar API with its own scoped token, page content is
 untrusted), `.claude/rules/gateways.md` (`safeFetch` for every page fetch), NFR-SEC-004 (untrusted
@@ -19,7 +19,7 @@ browser does the same in one click, from the page he is already reading.
      API (`http://127.0.0.1:8787/*`), so the popup can call it. No content scripts, no background
      page, nothing runs until Paul clicks.
    - The popup's "Save to Northstar" button reads the active tab's URL, title and visible text
-     (`document.body.innerText`, capped at 60,000 characters) through `scripting.executeScript`,
+     (`document.body.innerText`, capped at 20,000 characters: the model reads the first 12,000, `PAGE_LIMIT`) through `scripting.executeScript`,
      then sends `{ url, title, text }` to the API.
    - An options page stores the extension token and the API origin in `chrome.storage.local`.
      Nothing else is stored.
@@ -33,7 +33,7 @@ browser does the same in one click, from the page he is already reading.
      an extension endpoint.
    - Extension POSTs must carry a `chrome-extension://<id>` Origin (403 otherwise). The token is
      the real check, because an id can't be known before Paul loads the extension.
-   - The body limit is per endpoint: capture allows 256 KB, everything else keeps 16 KB.
+   - The body limit is per endpoint: capture allows 96 KB, everything else keeps 16 KB.
    - The handler first tries `ingestUrl(url)`, the same path as `jobs add <url>`: the ATS API,
      then the page's JSON-LD, with LinkedIn, Indeed and Glassdoor refused by their terms. When
      that is refused or fails, it calls `ingestText(url, text)`, the same path as
@@ -48,7 +48,7 @@ browser does the same in one click, from the page he is already reading.
 - [ ] A capture without a token, or with a wrong one, gets 401. A session cookie doesn't open it.
       The extension token doesn't open `GET /me`.
 - [ ] A capture with a non-extension Origin gets 403.
-- [ ] A capture body up to 256 KB is read, and other endpoints still stop at 16 KB.
+- [ ] A capture body up to 96 KB is read, and other endpoints still stop at 16 KB.
 - [ ] A capture tries the link first and stores what it read. When the link is refused (a
       LinkedIn URL), it stores from the page text. The answer lists field names only.
 - [ ] Bad input (no URL, empty text) is 400.

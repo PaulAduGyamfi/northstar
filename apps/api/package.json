@@ -17,6 +17,9 @@
     "start": "turbo run build --filter=@northstar/api && node --env-file-if-exists=../../.env dist/bin.js"
   },
   "dependencies": {
+    "@northstar/db": "workspace:*",
+    "@northstar/llm": "workspace:*",
+    "@northstar/sources": "workspace:*",
     "@opentelemetry/api": "1.9.1",
     "zod": "4.6.7"
   },

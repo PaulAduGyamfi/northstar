@@ -3,7 +3,7 @@ import { type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 import { authEndpoints, SESSION_COOKIE } from "./auth.js";
 import type { ApiConfig } from "./config.js";
 import type { AnyEndpoint } from "./endpoint.js";
-import type { Sessions } from "./sessions.js";
+import { keyMatches, type Sessions } from "./sessions.js";
 
 // The API's request handling (NS-156): host, origin and content-type checks, routing, the
 // session, input and output schemas, and one `api.request` span per request. Plain node:http,
@@ -16,7 +16,19 @@ export const MAX_BODY_BYTES = 16 * 1024;
 // treated as no session without hashing or looking it up.
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 
-export function createApi(deps: { config: ApiConfig; sessions: Sessions; extra?: AnyEndpoint[] }) {
+// An extension's Origin: Chrome extension ids are 32 letters a to p. Any installed extension can
+// send one, so it is a filter, not the check: the extension token is (NS-128).
+const EXTENSION_ORIGIN = /^chrome-extension:\/\/[a-p]{32}$/;
+// The longest Bearer value worth hashing; anything longer is refused unread.
+const MAX_BEARER = 512;
+
+export function createApi(deps: {
+  config: ApiConfig;
+  sessions: Sessions;
+  // The extension token's SHA-256 (config.ts loadExtensionTokenHash); null refuses the extension.
+  extensionTokenSha256?: string | null;
+  extra?: AnyEndpoint[];
+}) {
   const endpoints = [...authEndpoints(deps.config, deps.sessions), ...(deps.extra ?? [])];
   const tracer = trace.getTracer("@northstar/api");
   // Loopback names only, on the API's own port: a page that rebinds its own DNS name to
@@ -67,23 +79,33 @@ export function createApi(deps: { config: ApiConfig; sessions: Sessions; extra?:
       // (through its /api proxy) carry the web origin. A POST without one isn't from Paul's
       // browser page, so it is refused too. A JSON content type can't be sent cross-site without
       // a preflight, which this API never answers.
-      if (req.headers.origin !== deps.config.webOrigin) {
-        return reply(res, 403, { error: "forbidden_origin" });
-      }
+      // The extension calls the API directly, from its own chrome-extension:// origin.
+      const originOk =
+        ep.auth === "extension"
+          ? EXTENSION_ORIGIN.test(req.headers.origin ?? "")
+          : req.headers.origin === deps.config.webOrigin;
+      if (!originOk) return reply(res, 403, { error: "forbidden_origin" });
       const type = req.headers["content-type"] ?? "";
       if (!/^application\/json(;|$)/.test(type)) {
         return reply(res, 415, { error: "unsupported_media_type" });
       }
     }
 
-    const session = liveSession(req.headers.cookie);
+    // Each kind of credential opens only its own endpoints: the cookie isn't even read for an
+    // extension endpoint, and the extension token is never checked for a session one.
+    const session = ep.auth === "extension" ? null : liveSession(req.headers.cookie);
     if (ep.auth === "session" && session === null) {
       return reply(res, 401, { error: "unauthenticated" });
+    }
+    if (ep.auth === "extension") {
+      const ok = extensionTokenOk(req.headers.authorization);
+      span.setAttribute("northstar.auth.outcome", ok ? "extension_ok" : "extension_refused");
+      if (!ok) return reply(res, 401, { error: "unauthenticated" });
     }
 
     let raw: unknown = {};
     if (ep.method === "POST") {
-      const body = await readBody(req);
+      const body = await readBody(req, ep.maxBodyBytes ?? MAX_BODY_BYTES);
       if (body === null) {
         // Not read to the end: answer now and close the connection.
         res.setHeader("connection", "close");
@@ -113,6 +135,14 @@ export function createApi(deps: { config: ApiConfig; sessions: Sessions; extra?:
     return reply(res, 200, output.data, cookies);
   }
 
+  // Does the Bearer token hash to the configured extension token? Constant time.
+  function extensionTokenOk(header: string | undefined): boolean {
+    const hash = deps.extensionTokenSha256 ?? null;
+    if (hash === null || header === undefined || !header.startsWith("Bearer ")) return false;
+    const token = header.slice("Bearer ".length);
+    return token.length > 0 && token.length <= MAX_BEARER && keyMatches(token, hash);
+  }
+
   // The session token from the cookie, if it is a live session.
   function liveSession(header: string | undefined): string | null {
     for (const part of (header ?? "").split(";")) {
@@ -125,14 +155,14 @@ export function createApi(deps: { config: ApiConfig; sessions: Sessions; extra?:
   }
 }
 
-// The body as text, or null when it passes MAX_BODY_BYTES.
-function readBody(req: IncomingMessage): Promise<string | null> {
+// The body as text, or null when it passes the endpoint's limit.
+function readBody(req: IncomingMessage, limit: number): Promise<string | null> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
     const onData = (chunk: Buffer) => {
       size += chunk.length;
-      if (size <= MAX_BODY_BYTES) {
+      if (size <= limit) {
         chunks.push(chunk);
         return;
       }
