@@ -11,6 +11,7 @@
   --coral-text: #e0362b;
   --lime: #b6f24a;
   --iris: #5b5bf7;
+  --success: #3d8a00;
   --closed: #8c86a0;
   --radius-card: 22px;
   --radius-tile: 14px;
@@ -35,6 +36,7 @@
     --coral-text: #ff8a80;
     --lime: #b6f24a;
     --iris: #8b8bff;
+    --success: #8fd14f;
     --closed: #7d7690;
   }
 }
@@ -161,6 +163,75 @@ input {
 
 .error {
   color: var(--coral-text);
+}
+
+.card + .card {
+  margin-top: 16px;
+}
+
+/* HealthDot (tokens.md, RES-013): working, needs a look, down. Colors only, never red. */
+.pill-nav .health-dot {
+  padding: 8px 12px;
+  color: var(--success);
+}
+.pill-nav .health-dot[data-status="degraded"] {
+  color: var(--iris);
+}
+/* The dot is a glyph drawn as text, so it takes the text-safe coral (tokens.md: --coral is for
+   fills only). */
+.pill-nav .health-dot[data-status="down"] {
+  color: var(--coral-text);
+}
+
+.status-list,
+.switch-list,
+.feed {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+
+.status-list li,
+.switch-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.switch-list li {
+  justify-content: space-between;
+}
+
+.switch-list form {
+  flex-basis: 100%;
+}
+
+/* A label in words next to every status, so color is never the only signal (WCAG 1.4.1). */
+.status-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+}
+[data-health="down"] .status-label,
+.status-label[data-on="false"] {
+  color: var(--coral-text);
+}
+[data-health="degraded"] .status-label {
+  color: var(--iris);
+}
+[data-health="healthy"] .status-label,
+.status-label[data-on="true"] {
+  color: var(--success);
+}
+
+.feed li {
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
 }
 
 @media (prefers-reduced-motion: reduce) {
