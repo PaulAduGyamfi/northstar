@@ -74,5 +74,8 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   give a new event type a template in `feed.ts`.
 - The submission ledger (NS-120) is `apply_submission` and `submission_proof`, written only
   through `apply-write.ts`. A trigger lets a submission row finish only once, and proof is
-  append-only. Its events carry ids, the ATS and reason codes, never field values, URLs or HTML.
+  append-only. `listStaleClaims` reads the claims in progress past `CLAIM_STALE_AFTER_MS` by the
+  database clock; `claimSubmission` takes its cap and gap only as `ApplyLimits`
+  (`apply-config.ts`). Its events carry ids, the ATS and reason codes, never field values, URLs
+  or HTML.
   `@northstar/db/testing` exports the PGlite test helpers to other packages' tests.

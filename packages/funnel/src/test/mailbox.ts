@@ -26,6 +26,10 @@ export type FakeMessage = {
   internalDate: string;
   headers: Record<string, string>;
   text: string;
+  // The sender's domain as Gmail would parse it from From. Set it only to test a vendor's own
+  // domain (an ATS) without writing an address there: the repo's fixtures hold no real-looking
+  // addresses. Otherwise it is read from the From header.
+  senderDomain?: string;
 };
 
 type Step = {
@@ -452,7 +456,7 @@ export function fakeGmailClient(messages: FakeMessage[]): GmailClient & { fullFe
     id: msg.id,
     threadId: msg.threadId,
     from: msg.headers.From ?? "",
-    senderDomain: senderDomain(msg.headers.From ?? ""),
+    senderDomain: msg.senderDomain ?? senderDomain(msg.headers.From ?? ""),
     subject: msg.headers.Subject ?? "",
     deliveredTo: null,
     authenticationResults: msg.headers["Authentication-Results"] ?? null,

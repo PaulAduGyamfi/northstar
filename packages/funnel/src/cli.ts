@@ -107,6 +107,8 @@ async function backfillCommand(
   deps.print(
     `${c.modelCalls} model call(s), ${c.costUsd === null ? "cost unknown" : `$${Math.round(c.costUsd * 1e4) / 1e4}`}.${c.deferred > 0 ? ` ${c.deferred} left for the next run.` : ""}`,
   );
+  // VER-005: only the count, never a subject or sender.
+  if (c.verificationSkipped > 0) deps.print(`Verification mail skipped: ${c.verificationSkipped}.`);
   if (c.review > 0) deps.print("Run `funnel review` to place the messages that need you.");
   await deps.recordEvent("funnel.backfilled", "Gmail backfill finished", countsPayload(c));
   return 0;

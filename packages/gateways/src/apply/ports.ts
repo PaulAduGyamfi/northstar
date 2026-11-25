@@ -1,6 +1,9 @@
 import {
+  type ApplyLimits,
   claimSubmission,
   type Db,
+  DEFAULT_APPLY_LIMITS,
+  listStaleClaims,
   recordNeedsHuman,
   recordSubmitted,
   transitionApplication,
@@ -8,6 +11,7 @@ import {
 } from "@northstar/db";
 import type { CandidateId } from "@northstar/domain";
 import type { FormDriver } from "./driver.js";
+import type { SweepPorts } from "./stale.js";
 
 // Everything the Apply Gateway touches, so tests can pass fakes and production passes the
 // database (dbPorts). The database functions are the real write paths: the Gate's
@@ -38,13 +42,28 @@ export type ApplyPorts = {
   openDriver: () => FormDriver;
 };
 
-export function dbPorts(db: Db, deps: Pick<ApplyPorts, "readFile" | "openDriver">): ApplyPorts {
+// `limits` come from loadApplyLimits at the entry point (NS-143), never from a caller per call.
+export function dbPorts(
+  db: Db,
+  deps: Pick<ApplyPorts, "readFile" | "openDriver">,
+  limits: ApplyLimits = DEFAULT_APPLY_LIMITS,
+): ApplyPorts {
   return {
     verifyApproval: (input) => verifyApproval(db, input),
-    claimSubmission: (input) => claimSubmission(db, input),
+    claimSubmission: (input) => claimSubmission(db, input, limits),
     recordSubmitted: (c, s, p) => recordSubmitted(db, c, s, p),
     recordNeedsHuman: (c, s, r) => recordNeedsHuman(db, c, s, r),
     transitionApplication: (input) => transitionApplication(db, input),
     ...deps,
+  };
+}
+
+// The sweep's ports on the real write paths: the ledger's stale-claim read, its needs_human
+// write and transitionApplication.
+export function dbSweepPorts(db: Db): SweepPorts {
+  return {
+    listStaleClaims: (candidateId) => listStaleClaims(db, candidateId),
+    recordNeedsHuman: (c, s, r) => recordNeedsHuman(db, c, s, r),
+    transitionApplication: (input) => transitionApplication(db, input),
   };
 }
