@@ -63,6 +63,10 @@ Exists now:
   Since NS-112 also the employment-facts check (DX-011): Paul's official HR record
   (`employment_fact`, set from a file in `data/`) and `checkEmploymentFacts`, plain code that
   compares the resume (later LinkedIn, the site and application forms) against it.
+  Since NS-118 also the question canon (ANS-001/002): a fixed catalog of canonical application
+  questions (`question-canon.ts`) and `matchQuestion`/`classifyQuestion`, plain code that maps a
+  form question to one of them with a confidence score (factual, reusable narrative or
+  company-specific), or to "new". No model, no database yet; the answer bank builds on it.
 - `packages/inbox/` (NS-113): read-only Gmail (ADR-0014: `gmail.readonly`, desktop OAuth with
   PKCE, token in memory for one run, never stored), the job-mail pre-filter (headers only; ATS
   senders, job phrases, same-thread follow-ups), confirmation rules, and the `mail-classify` route
