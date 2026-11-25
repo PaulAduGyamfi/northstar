@@ -141,6 +141,20 @@
       "when": 1795620654379,
       "tag": "0019_answer_bank_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795622970280,
+      "tag": "0020_resilience",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795622971314,
+      "tag": "0021_kill_switch_append_only",
+      "breakpoints": true
     }
   ]
 }
