@@ -19,3 +19,4 @@
 | Q-15 | Can you share the current resume (PDF/DOCX) and LinkedIn URL? Put the file in `data/` (gitignored), never in the repo. | Baseline for resume audit, recruiter-eye simulation, profile grade. | — |
 | Q-16 | Which password manager gets the mirrored tenant passwords: **Bitwarden** or **1Password**? | CRD-004 integration (CLI or service account). | Bitwarden CLI |
 | ~~Q-17~~ | **Resolved 2026-11-24:** license Apache-2.0; CI, branch protection and commit checks added (NS-101); tickets are GitHub Issues; Paul works in auto mode and oversees; toolchain per ADR-0011; Gmail weekly reconnect is acceptable for now; agents build and label eval sets. | | |
+| Q-18 | Is it OK that employers see a tagged address like `you+ns-7k3q2m@example.com` on applications Northstar submits (VER-007)? | It makes reply tracking exact, but a recruiter may notice the tag. | Yes, with a per-company switch to use the plain address. |

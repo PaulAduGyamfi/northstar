@@ -18,10 +18,11 @@ Each phase ends with something you use daily. Estimates assume one engineer + co
 - Answer bank + voice profile v1 (ANS-001..008)
 - Apply Gateway: Greenhouse, Lever, Ashby adapters + human handoff (APPLY-001..010)
 - Approval queue + activity feed + run inspector (APR-*, OBS-*)
-- **Exit:** 20 real applications submitted with ≤ 1 click each; every one traceable end-to-end.
+- Gmail read + pipeline linking with origin attribution: tagged applicant address, deterministic matching, `Northstar/*` labels (INB-001 read, INB-002, INB-004, INB-005, INB-007…010, VER-007)
+- **Exit:** 20 real applications submitted with ≤ 1 click each; every one traceable end-to-end, and every reply lands on the right application marked "Started by Northstar".
 
 ## P2 — Inbox, pipeline, interviews, growth (~3–4 weeks)
-- Gmail triage, labels, pipeline linking, recruiter grading, reply drafts (INB-*, RPL-*, REC-*)
+- Gmail triage, recruiter grading, reply drafts, unified inbox view (INB-003, INB-006, RPL-*, REC-*)
 - Pipeline dashboard + Today view (DSH-*)
 - Calendar + interview workflow + prep briefs (CAL-*)
 - Growth tracker with weekly planner and balance rules (GRW-001..007)
