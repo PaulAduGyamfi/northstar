@@ -7,7 +7,12 @@ paths:
 
 # Action gateways, ATS adapters and job sources (ADR-0002, ADR-0003, ADR-0007)
 
-None of these exist yet. If you are about to create one outside its ticket, stop and ask Paul.
+`packages/sources` exists since NS-114 (link ingest: `fetch.ts`, `ats/`, `jsonld.ts`,
+`terms.ts`). Gateways and ATS adapters don't exist yet: if you are about to create one outside
+its ticket, stop and ask Paul.
+
+- Every page fetch goes through `safeFetch` (https only, public addresses on every redirect,
+  2 MB, 15 s). Never call `fetch` on a pasted link directly.
 
 When they land:
 

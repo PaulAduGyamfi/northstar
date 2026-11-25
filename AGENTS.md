@@ -71,6 +71,12 @@ Exists now:
   `funnel_message` and `funnel_manual_row` (`packages/db`, `funnel-schema.ts`), the tracker CSV
   import, the funnel report (Wilson intervals, rejection latency) and the hypothesis board.
   `funnel-baselines.json` holds the assumed conversion rates; every one is labelled an assumption.
+- `packages/sources/` (NS-114): adding a job from a link (SRC-001). A safe fetcher (https only,
+  public addresses only on every redirect, 2 MB, 15 s), the Greenhouse, Lever, Ashby and Workday
+  public job APIs, schema.org JSON-LD, and only then the `job-extract` route with a provenance
+  check. Each source declares its terms status; LinkedIn, Indeed and Glassdoor are never fetched
+  (ADR-0003). Deterministic dedupe (SRC-006). Jobs and their sources live in `packages/db`
+  (`job`, `job_source`, `job-write.ts`).
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write
@@ -86,7 +92,7 @@ with the ticket that needs it.
 
 ```
 apps/web  apps/api  apps/worker  apps/extension
-packages/agents  gateways  ats-adapters  sources  ui
+packages/agents  gateways  ats-adapters  ui
 ops/  docs/runbooks/
 ```
 
@@ -118,6 +124,9 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/funnel funnel import data/<file>.csv` | import a tracker export (`company, role, applied_on, stage_reached, outcome` plus optional `outcome_on, channel, notes`); a file with any bad row stores nothing. Paul only |
 | repo root | `pnpm --filter @northstar/funnel funnel review` | place or discard the messages the backfill couldn't decide, with a link to each in Gmail. Paul only |
 | repo root | `pnpm --filter @northstar/funnel funnel report` / `funnel hypotheses` | the funnel report and the hypothesis board. Paul only: they print his real applications; agents never run them |
+| repo root | `pnpm --filter @northstar/sources jobs add <url>` | add a job from a link: ATS API, then the page's JSON-LD, then the `job-extract` model (needs `ANTHROPIC_API_KEY` only then). A job without a title or company is stored as a draft. LinkedIn, Indeed and Glassdoor links are refused. Paul only: needs `DATABASE_URL` |
+| repo root | `pnpm --filter @northstar/sources jobs add --text data/<file> --url <url>` | add a job from a description Paul saved himself (sign-in sites such as LinkedIn); nothing is fetched |
+| repo root | `pnpm --filter @northstar/sources jobs list` / `jobs set <job-id> <field> <value>` | list jobs newest first; fill in or correct a field (a draft becomes ready once it has a title and company). Paul only |
 | repo root | `cp .env.example .env` | once per clone (Paul): then replace every `change-me` in `.env` |
 | repo root | `docker compose -f docker-compose.yml up -d --wait` | local stack: Postgres+pgvector :5432, Temporal :7233 (UI :8233), SeaweedFS S3 :8333, Grafana :3000 + OTLP :4317/:4318, all on 127.0.0.1. Agents must use this exact form (runs outside the sandbox) |
 | repo root | `docker compose -f docker-compose.yml ps` | each service's health and ports |
