@@ -113,6 +113,37 @@ const TEMPLATES: Record<string, Template> = {
     if (outcome === "gave_up") return `${who(e.actor)} set an application aside after a challenge`;
     return `${who(e.actor)} closed a handoff`;
   },
+  // Employer accounts and consent (NS-124): the tenant key, statuses, reason code and notice
+  // kind only, never the account email, a URL or a notice's text.
+  "tenant.registered": (p) =>
+    `Added ${name(p, "tenantKey") ?? "an employer"} to your employer accounts`,
+  "tenant.account_changed": (p) => {
+    const tenant = name(p, "tenantKey") ?? "an employer";
+    const from = name(p, "from");
+    const to = name(p, "to");
+    const reason = name(p, "reason");
+    if (!from || !to) return `Account on ${tenant} changed`;
+    return `Account on ${tenant}: ${words(from)} to ${words(to)}${reason ? ` (${words(reason)})` : ""}`;
+  },
+  "consent.recorded": (p) => {
+    const notice: Record<string, string> = {
+      terms: "the candidate terms",
+      privacy: "the privacy notice",
+    };
+    const kind = name(p, "kind");
+    const what = (kind && notice[kind]) ?? "a notice";
+    return `Accepted ${what} on ${name(p, "tenantKey") ?? "an employer"}`;
+  },
+  "consent.policy_set": (p, e) => {
+    const policy = name(p, "policy");
+    if (policy === "auto") {
+      return `${who(e.actor)} set notices to be accepted automatically (marketing always declined)`;
+    }
+    if (policy === "ask_per_tenant") {
+      return `${who(e.actor)} set notices to be asked about per employer`;
+    }
+    return `${who(e.actor)} changed the consent policy`;
+  },
   "breaker.probing": (p) =>
     `Trying ${name(p, "dependency") ?? "a dependency"} again with one test call`,
   "breaker.closed": (p) => `${name(p, "dependency") ?? "A dependency"} is working again`,

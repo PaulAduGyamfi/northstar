@@ -240,6 +240,18 @@ Exists now:
   `GET /handoffs` and `POST /handoffs/resolve`, and Today shows a "Needs your hands" card. Paul's
   "I submitted it" moves the application `needs_human` → `submitted` once
   (`application:<id>:handoff:<handoffId>:submitted`). No pre-fill through the extension yet.
+- The tenant registry and consent policy (NS-124, ACC-001/006/008) in `packages/db`
+  (`tenant-schema.ts`, `tenant-write.ts`, `consent-schema.ts`, `consent-write.ts`; append-only):
+  - `employer_tenant`: one row per employer tenant (the vault's `<ats>:<tenant>` key, https URL,
+    account email).
+  - `tenant_account_status`: each account status change (`none`, `creating`, `verifying`,
+    `active`, `locked`, `needs_human`; `nextAccountStatus` in `packages/domain`).
+  - `beginAccountCreation` lets exactly one caller start an account per tenant (ACC-006).
+  - The consent policy (`auto` by default, or `ask_per_tenant`; `decideConsent` always declines
+    marketing) and `consent_record`, every accepted notice with its text and SHA-256.
+  - The API's `GET /accounts` lists tenants and statuses, never the email or URL.
+
+  No account creation, sign-in or Workday adapter yet: they need the browser driver (NS-142).
 - The credential vault (NS-122, ADR-0010, CRD-001/002/003/005): append-only `vault_secret`
   (envelope-encrypted tenant passwords, one row per version) and `vault_access` (every opening,
   under a Gate decision id) in `packages/db` (`vault-schema.ts`, `vault-write.ts`:

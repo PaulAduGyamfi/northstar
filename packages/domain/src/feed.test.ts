@@ -28,6 +28,55 @@ describe("feedLine: human handoffs (NS-121)", () => {
   });
 });
 
+describe("feedLine: employer accounts and consent (NS-124)", () => {
+  it("names the tenant and its ATS when one is registered", () => {
+    expect(feedLine(ev("tenant.registered", { tenantKey: "workday:globex", ats: "workday" }))).toBe(
+      "Added workday:globex to your employer accounts",
+    );
+  });
+
+  it("says how an account's status changed, in words", () => {
+    expect(
+      feedLine(
+        ev("tenant.account_changed", {
+          tenantKey: "workday:globex",
+          from: "none",
+          to: "creating",
+          reason: "started",
+        }),
+      ),
+    ).toBe("Account on workday:globex: none to creating (started)");
+    expect(
+      feedLine(
+        ev("tenant.account_changed", {
+          tenantKey: "workday:globex",
+          from: "creating",
+          to: "needs_human",
+          reason: "challenge",
+        }),
+      ),
+    ).toBe("Account on workday:globex: creating to needs human (challenge)");
+  });
+
+  it("says which notice was accepted and where, never its text", () => {
+    expect(feedLine(ev("consent.recorded", { tenantKey: "workday:globex", kind: "privacy" }))).toBe(
+      "Accepted the privacy notice on workday:globex",
+    );
+    expect(feedLine(ev("consent.recorded", { tenantKey: "workday:globex", kind: "terms" }))).toBe(
+      "Accepted the candidate terms on workday:globex",
+    );
+  });
+
+  it("says which consent policy Paul chose", () => {
+    expect(feedLine(ev("consent.policy_set", { policy: "auto" }, { actor: "user" }))).toBe(
+      "You set notices to be accepted automatically (marketing always declined)",
+    );
+    expect(
+      feedLine(ev("consent.policy_set", { policy: "ask_per_tenant" }, { actor: "user" })),
+    ).toBe("You set notices to be asked about per employer");
+  });
+});
+
 describe("feedLine: resilience", () => {
   it("says which dependency paused, after how many failures and why", () => {
     expect(
@@ -214,6 +263,8 @@ describe("feedLine: fallbacks and bad payloads", () => {
       "breaker.closed",
       "breaker.opened",
       "breaker.probing",
+      "consent.policy_set",
+      "consent.recorded",
       "handoff.opened",
       "handoff.resolved",
       "job.draft_completed",
@@ -234,6 +285,8 @@ describe("feedLine: fallbacks and bad payloads", () => {
       "source.retried",
       "source.unwatched",
       "source.watched",
+      "tenant.account_changed",
+      "tenant.registered",
       "vault.opened",
       "vault_secret.stored",
     ]);

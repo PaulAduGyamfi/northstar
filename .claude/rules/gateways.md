@@ -28,6 +28,11 @@ GitHub) don't exist yet: if you are about to create one outside its ticket, stop
   the action it serves, keep the result a `VaultSecret`, and `reveal()` it only where the browser
   types it.
 
+- Employer accounts (NS-124): before creating an account on a tenant, register it
+  (`registerTenant`) and call `beginAccountCreation`. Only the caller it returns `creating` to may
+  create one; `AlreadyStarted` means sign in or wait (ACC-006). Decide every notice with
+  `decideConsent` and keep each accepted one with `recordConsent` (ACC-008).
+
 - Every page fetch goes through `safeFetch` (https only, public addresses on every redirect,
   2 MB, 15 s). Never call `fetch` on a pasted link directly. Whole-board listings (NS-115,
   `boards/list.ts`) pass `BOARD_MAX_BYTES` (10 MB); nothing else does.

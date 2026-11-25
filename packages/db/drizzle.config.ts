@@ -18,6 +18,8 @@ export default defineConfig({
     "./src/thesis-schema.ts",
     "./src/mail-link-schema.ts",
     "./src/handoff-schema.ts",
+    "./src/tenant-schema.ts",
+    "./src/consent-schema.ts",
   ],
   out: "./migrations",
 });
