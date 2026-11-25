@@ -12,11 +12,12 @@ Covers user ask **#3** (fix up resume, tune it per position) and the scoring tha
 | CPG-004 | S | P1 | Facts the system must never change: employers, titles, dates, degrees. Locked fields. |
 
 ### Resume quality ("fix up")
+IDs renamed RES → AUD on 2026-11-25: RES-001…013 are the resilience requirements (14).
 | ID | Pri | Phase | Requirement |
 |---|---|---|---|
-| RES-001 | M | P1 | **Resume audit.** Score master resume on: impact density (metrics per bullet), verb strength, ATS parseability, length, keyword coverage vs. target-role corpus, consistency (tense, dates). Output line-level suggestions. |
-| RES-002 | M | P1 | User accepts/rejects each suggestion; accepted changes update the master and the atoms. |
-| RES-003 | S | P2 | Prompt the user for missing metrics ("You migrated payments to X — how many TPS / what latency change?") rather than inventing them. |
+| AUD-001 | M | P1 | **Resume audit.** Score master resume on: impact density (metrics per bullet), verb strength, ATS parseability, length, keyword coverage vs. target-role corpus, consistency (tense, dates). Output line-level suggestions. |
+| AUD-002 | M | P1 | User accepts/rejects each suggestion; accepted changes update the master and the atoms. |
+| AUD-003 | S | P2 | Prompt the user for missing metrics ("You migrated payments to X — how many TPS / what latency change?") rather than inventing them. |
 
 ### Job scoring
 | ID | Pri | Phase | Requirement |

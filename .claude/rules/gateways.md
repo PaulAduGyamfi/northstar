@@ -8,8 +8,16 @@ paths:
 # Action gateways, ATS adapters and job sources (ADR-0002, ADR-0003, ADR-0007)
 
 `packages/sources` exists since NS-114 (link ingest: `fetch.ts`, `ats/`, `jsonld.ts`,
-`terms.ts`). Gateways and ATS adapters don't exist yet: if you are about to create one outside
-its ticket, stop and ask Paul.
+`terms.ts`). The Apply Gateway is `packages/gateways` (NS-120); its ATS adapters live in
+`src/apply/adapters/`, not a separate `packages/ats-adapters`. Other gateways (mail, calendar,
+GitHub) don't exist yet: if you are about to create one outside its ticket, stop and ask Paul.
+
+- Every submission goes through `submitApplication`: the apply URL's host must be the ATS's own
+  and the posting id must match the one in the URL, then the Gate check (throws
+  `NotApprovedError`), a re-hash of the files, `claimSubmission`, a `FormDriver` with time limits,
+  then proof. A live claim is never touched (`InProgress`). A claim older than 15 minutes becomes
+  `needs_human` (`outcome_unknown`) and is never retried. Status moves use the
+  `application:<id>:apply:<submissionId>:<to>` key namespace.
 
 - Every page fetch goes through `safeFetch` (https only, public addresses on every redirect,
   2 MB, 15 s). Never call `fetch` on a pasted link directly. Whole-board listings (NS-115,
@@ -17,11 +25,12 @@ its ticket, stop and ask Paul.
 - Board polling (`poll.ts`) never throws for one board: a failure is that board's result, it
   backs off, and after 5 failures it is quarantined until Paul retries it (RES-002/003).
 
-When they land:
+For every gateway (the Apply Gateway now, the others when they land):
 
 - A gateway calls `verifyApproval` (NS-119) at the moment it acts, never when it enqueues, and
-  passes the SHA-256 of exactly what it is about to send. Its idempotency key comes from the
-  decision id: one approval, one send. A `ContentChanged` or `UndoWindowOpen` refusal becomes a
+  passes the SHA-256 of exactly what it is about to send. One approval, one send: the Apply
+  Gateway keys each submission `application:<id>:submit` and refuses a second one for the same
+  requisition. A `ContentChanged` or `UndoWindowOpen` refusal becomes a
   visible `needs_human` item or a scheduled retry at `effective_at` (ADR-0007), never a silent drop.
 - A gateway call without a verified `approvalId` or `policyDecisionId` throws. Look the approval
   up server-side; never trust an ID the caller merely asserts. Test the refusal.
