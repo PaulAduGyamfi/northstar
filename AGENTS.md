@@ -94,6 +94,9 @@ Exists now:
   extraction, the magic-link host check, and resend-once-then-`needs_human`. Codes and links come
   back in a `VerificationSecret` that prints `[redacted]`. Plain code, windows in memory: no Gmail
   push, database or model yet.
+  Since NS-150 also `isVerificationMail` (headers) and `hasVerificationCode` (body), which the
+  funnel backfill uses to drop ATS verification mail before it is classified, sent to the model
+  or stored (VER-005).
 - `packages/funnel/` (NS-113): the 9-month backfill, funnel records derived by plain code from
   `funnel_message` and `funnel_manual_row` (`packages/db`, `funnel-schema.ts`), the tracker CSV
   import, the funnel report (Wilson intervals, rejection latency) and the hypothesis board.

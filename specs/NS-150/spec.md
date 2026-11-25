@@ -16,21 +16,27 @@ codes and links are never stored and never shown, and a model call record or fix
 ## Behavior
 1. **`isVerificationMail(headers)`** (`packages/inbox`, `src/verify/detect.ts`, plain code,
    headers only). True when the sender domain is at a known ATS (`ATS_DOMAINS`, verified by Gmail
-   or not) and the subject holds a verification phrase: "verify your email", "verify your
-   account", "verification code", "one-time code", "one-time passcode", "confirm your account",
-   "confirm your email", "reset your password", "password reset". Case-insensitive.
+   or not) and the subject holds a verification phrase (`VERIFICATION_PHRASES`: "verify your
+   email", "verification code", "security code", "one-time code", "passcode", "login code",
+   "sign-in link", "confirm your account", "reset your password" and a few spellings of these).
+   Case-insensitive; any run of whitespace, a non-breaking space included, reads as one space.
    - An unverified sender counts too: skipping a forged message only keeps it out of the funnel,
      which costs nothing, while letting it through could send a code to the model.
-   - No body is read. `extractVerification` is not used, since the backfill reads a body only for
-     the model, and by then it's too late.
-2. **The backfill skips them** (`packages/funnel`, `runBackfill`) before anything else happens
-   to the message: it is not classified by rules or the model, not fetched in full, not stored,
-   and it doesn't make its thread a job thread. This applies to messages from the search and to
-   messages found through a job thread.
-3. **Counted, not described.** `BackfillCounts.verificationSkipped` counts them; the CLI summary
-   line says "Verification mail skipped: N." and the count goes into the `funnel.backfilled`
-   event payload like the other counts. No subject, sender, code or link appears anywhere.
-4. Because nothing is stored, a rerun lists them again and skips them again (counted again).
+2. **`hasVerificationCode(senderDomain, body)`**, the second check, for a caller that already
+   holds a body: an ATS sender whose body gives a code by `extractVerification`'s rules (VER-003
+   patterns, INB-012). Codes only, since ATS job mail often carries portal links.
+3. **The backfill skips them** (`packages/funnel`, `runBackfill`):
+   - By subject, before anything else happens to the message: it is not classified by rules or
+     the model, not fetched in full, not stored, and it doesn't make its thread a job thread.
+     This applies to messages from the search and to messages found through a job thread.
+   - By body, for a message whose subject the list missed: the backfill already fetches the body
+     for the model, so it checks `hasVerificationCode` first and drops the message unsent and
+     unstored. The body is only held in memory, as before.
+4. **Counted, not described.** `BackfillCounts.verificationSkipped` counts both. The CLI prints
+   "Verification mail skipped: N." on its own line when N > 0, and the count goes into the
+   `funnel.backfilled` event payload like the other counts. No subject, sender, code or link
+   appears anywhere.
+5. Because nothing is stored, a rerun lists them again and skips them again (counted again).
 
 ## Acceptance criteria
 - [ ] `isVerificationMail` is true for each phrase from an ATS sender, false for a confirmation
@@ -40,13 +46,16 @@ codes and links are never stored and never shown, and a model call record or fix
       the model nor stored, and is counted; a confirmation in the same run still is classified
       and stored (funnel tests).
 - [ ] A verification mail alone in a thread doesn't pull the thread's other messages in.
+- [ ] An ATS mail with a neutral subject whose body gives a code never reaches the model and isn't
+      stored (funnel tests); an ATS body with only a portal link isn't treated as verification
+      (inbox tests).
 - [ ] The CLI prints the skip count (funnel cli test).
 - [ ] `pnpm turbo run lint typecheck test build --force` exits 0, and `checks` is green.
 
 ## Failure modes
-- **A verification mail with an unusual subject** ("Your Acme sign-in") isn't caught. It then
-  goes through the backfill as before (the current behavior), so the gap is no worse than today.
-  The phrase list is the place to extend.
+- **A verification mail with an unusual subject** ("Your Acme sign-in") is caught by the body
+  check if it gives a code. A magic link with no code and an unusual subject still reaches the
+  model, as it does today; the phrase list is the place to extend.
 - **A real job mail with a verification phrase** (unlikely: "confirm your account to see your
   interview slot") is skipped. Paul can add it with `funnel import`.
 - No new I/O, so no new dependency can be slow or down.

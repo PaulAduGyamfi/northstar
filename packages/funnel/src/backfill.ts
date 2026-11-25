@@ -5,8 +5,10 @@ import {
   checkMailProvenance,
   classifyByRules,
   type GmailClient,
+  hasVerificationCode,
   isAuthenticatedSender,
   isJobMail,
+  isVerificationMail,
   type MailClassification,
   type MailClassifyInput,
   type MessageHeaders,
@@ -50,6 +52,10 @@ export type BackfillCounts = {
   // Messages fetched in full (job mail only) and found through a job thread's listing.
   fetched: number;
   fromThreads: number;
+  // Verification mail dropped unstored and never sent to the model (VER-005): by its subject
+  // before any fetch, or by a code in its body just before the model. Nothing is stored, so a
+  // rerun counts the same messages again.
+  verificationSkipped: number;
   // null when a call's model had no known price.
   costUsd: number | null;
 };
@@ -66,6 +72,7 @@ export function emptyCounts(): BackfillCounts {
     modelCalls: 0,
     fetched: 0,
     fromThreads: 0,
+    verificationSkipped: 0,
     costUsd: 0,
   };
 }
@@ -98,7 +105,9 @@ export async function runBackfill(
   }
   const jobThreads = new Set(stored.map((m) => m.threadId));
   for (const h of fresh) {
-    if (readable(h) && isJobMail(h, knownDomains)) jobThreads.add(h.threadId);
+    // A verification mail never makes its thread a job thread: it is dropped below.
+    if (readable(h) && !isVerificationMail(h) && isJobMail(h, knownDomains))
+      jobThreads.add(h.threadId);
   }
   const threadIds = [...jobThreads];
   for (const threadId of threadIds) {
@@ -114,6 +123,12 @@ export async function runBackfill(
   for (const h of fresh) {
     // Stored by an earlier run (found again through its thread): nothing to do.
     if (knownAfterThreads.has(h.id)) continue;
+    // VER-005: codes and links are never stored or sent to a model. Dropped from headers alone,
+    // before any body is fetched; not stored either, so a rerun finds and drops it again.
+    if (isVerificationMail(h)) {
+      counts.verificationSkipped += 1;
+      continue;
+    }
     const job = jobThreads.has(h.threadId);
     if (!readable(h)) {
       // Gmail returned something unreadable (no sender, no date): Paul looks if it may be job
@@ -162,7 +177,10 @@ export async function runBackfill(
       // Left unstored, so the next run picks it up.
       if (modelBudget === 0) continue;
       modelBudget -= 1;
-      input = await classifyWithModel(deps, headers, counts);
+      const classified = await classifyWithModel(deps, headers, counts);
+      // A verification code in the body: dropped unstored, like a verification subject.
+      if (classified === null) continue;
+      input = classified;
     }
     if (input.status === "classified") {
       // A message that fits two applications goes to Paul instead of a guess (DX-001).
@@ -183,13 +201,19 @@ export async function runBackfill(
   return counts;
 }
 
+// null: the body turned out to be verification mail, so it goes no further (VER-005, INB-012).
 async function classifyWithModel(
   deps: BackfillDeps,
   headers: MessageHeaders,
   counts: BackfillCounts,
-): Promise<FunnelMessageInput> {
+): Promise<FunnelMessageInput | null> {
   const full = await deps.gmail.getFull(headers.id);
   counts.fetched += 1;
+  // The subject check missed it, but the body gives a code: never send it to the model.
+  if (hasVerificationCode(headers.senderDomain, full.body)) {
+    counts.verificationSkipped += 1;
+    return null;
+  }
   const outcome = await deps.gateway.call(deps.route, {
     from: full.from,
     subject: full.subject,
