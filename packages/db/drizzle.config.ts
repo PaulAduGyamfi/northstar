@@ -11,6 +11,7 @@ export default defineConfig({
     "./src/funnel-schema.ts",
     "./src/fit-schema.ts",
     "./src/approval-schema.ts",
+    "./src/answer-schema.ts",
   ],
   out: "./migrations",
 });

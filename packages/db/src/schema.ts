@@ -172,6 +172,8 @@ export const application = pgTable(
     check("application_status_valid", sql`${t.status} in (${statusList})`),
     // One application per job (the base of APPLY-009: never apply to the same job twice).
     unique("application_one_per_job").on(t.candidateId, t.jobId),
+    // Target of same-candidate foreign keys (the answer bank's uses, GH-59).
+    unique("application_id_candidate_unique").on(t.id, t.candidateId),
     foreignKey({
       name: "application_job_same_candidate_fk",
       columns: [t.jobId, t.candidateId],
