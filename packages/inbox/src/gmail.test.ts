@@ -36,6 +36,9 @@ const message: FakeMessage = {
 };
 
 const sleeps: number[] = [];
+// Google's error body for a rate limit, with the given reason code.
+const limited = (reason: string) =>
+  JSON.stringify({ error: { code: 403, errors: [{ reason }], status: "PERMISSION_DENIED" } });
 const client = (gmail: ReturnType<typeof fakeGmail>) =>
   createGmailClient({
     access,
@@ -128,6 +131,105 @@ describe("gmail client", () => {
     const gmail = fakeGmail([message], { failures: [{ status: 404 }] });
     await expect(client(gmail).getHeaders("m1")).rejects.toThrow("Gmail answered 404");
     expect(sleeps).toEqual([]);
+  });
+
+  it("names Google's reason code for a 403, so a disabled API can be told from a missing scope", async () => {
+    // Google's error shape: a fixed reason code plus free text that may echo request details.
+    const body = JSON.stringify({
+      error: {
+        code: 403,
+        message: "Gmail API has not been used in project 123 before or it is disabled.",
+        status: "PERMISSION_DENIED",
+        errors: [{ reason: "accessNotConfigured", message: "free text", domain: "usageLimits" }],
+      },
+    });
+    const gmail = fakeGmail([message], { failures: [{ status: 403, body }] });
+    const error = await client(gmail)
+      .getHeaders("m1")
+      .catch((e: unknown) => e);
+    expect(error).toEqual(new GmailError("Gmail answered 403 (accessNotConfigured)", 403));
+    expect(String((error as Error).message)).not.toContain("project 123");
+  });
+
+  it("prefers the ErrorInfo reason over the legacy reason", async () => {
+    const info = JSON.stringify({
+      error: {
+        status: "PERMISSION_DENIED",
+        errors: [{ reason: "accessNotConfigured" }],
+        details: [
+          { "@type": "type.googleapis.com/google.rpc.ErrorInfo", reason: "SERVICE_DISABLED" },
+        ],
+      },
+    });
+    const gmail = fakeGmail([message], { failures: [{ status: 403, body: info }] });
+    await expect(client(gmail).getHeaders("m1")).rejects.toThrow(
+      new GmailError("Gmail answered 403 (SERVICE_DISABLED)", 403),
+    );
+  });
+
+  it("falls back to the status word when there is no reason", async () => {
+    const body = JSON.stringify({ error: { status: "PERMISSION_DENIED" } });
+    const gmail = fakeGmail([message], { failures: [{ status: 403, body }] });
+    await expect(client(gmail).getHeaders("m1")).rejects.toThrow(
+      new GmailError("Gmail answered 403 (PERMISSION_DENIED)", 403),
+    );
+  });
+
+  it("retries a rate-limit 403 with a longer backoff, then succeeds", async () => {
+    const gmail = fakeGmail([message], {
+      failures: [
+        { status: 403, body: limited("RATE_LIMIT_EXCEEDED") },
+        { status: 403, body: limited("userRateLimitExceeded") },
+      ],
+    });
+    await client(gmail).getHeaders("m1");
+    expect(sleeps).toEqual([2000, 4000]);
+  });
+
+  it("gives up on a rate-limit 403 after 5 retries, naming the reason", async () => {
+    const body = JSON.stringify({ error: { errors: [{ reason: "rateLimitExceeded" }] } });
+    const gmail = fakeGmail([message], {
+      failures: Array.from({ length: 6 }, () => ({ status: 403, body })),
+    });
+    await expect(client(gmail).getHeaders("m1")).rejects.toThrow(
+      new GmailError("Gmail answered 403 (rateLimitExceeded) after 5 retries", 403),
+    );
+    expect(sleeps).toEqual([2000, 4000, 8000, 16000, 32000]);
+  });
+
+  it("lets a Retry-After header win over the rate-limit backoff", async () => {
+    const gmail = fakeGmail([message], {
+      failures: [{ status: 403, retryAfter: "3", body: limited("rateLimitExceeded") }],
+    });
+    await client(gmail).getHeaders("m1");
+    expect(sleeps).toEqual([3000]);
+  });
+
+  it("gives a rate-limit 429 the same longer backoff as a rate-limit 403", async () => {
+    const gmail = fakeGmail([message], {
+      failures: [{ status: 429, body: limited("rateLimitExceeded") }],
+    });
+    await client(gmail).getHeaders("m1");
+    expect(sleeps).toEqual([2000]);
+  });
+
+  it("drops a reason that isn't a plain code word", async () => {
+    const odd = JSON.stringify({
+      error: { errors: [{ reason: "see <script> or a@example.com" }] },
+    });
+    const gmail = fakeGmail([message], { failures: [{ status: 403, body: odd }] });
+    await expect(client(gmail).getHeaders("m1")).rejects.toThrow(
+      new GmailError("Gmail answered 403", 403),
+    );
+  });
+
+  it("names no reason when the error body isn't JSON", async () => {
+    const gmail = fakeGmail([message], {
+      failures: [{ status: 403, body: "<html>Forbidden</html>" }],
+    });
+    await expect(client(gmail).getHeaders("m1")).rejects.toThrow(
+      new GmailError("Gmail answered 403", 403),
+    );
   });
 
   it("spans carry the status and retry count, never the subject, address or token", async () => {

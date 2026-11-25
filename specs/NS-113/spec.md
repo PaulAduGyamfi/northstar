@@ -146,6 +146,11 @@ it never guesses on thin data.
   says how to retry. Nothing is written.
 - **Gmail 429 or 5xx:** retry with jittered backoff and `Retry-After`, up to 5 times per call; then
   the run stops. Messages already processed are kept (idempotent), and a rerun resumes.
+- **Gmail rate limit (a 403 or 429 with a rate-limit reason, found on Paul's first real run):**
+  retried with a longer backoff (2 s doubling, about a minute over 5 retries), since Google counts
+  quotas per minute; `Retry-After` still wins, capped at 60 s.
+- **Any other Gmail 4xx:** the run stops at once, and the message names Google's reason code
+  (e.g. `accessNotConfigured`), never Google's message text.
 - **Gmail returns garbage** (missing headers, an unparseable date): that message goes to review
   with the reason. The run continues.
 - **Claude API down:** `LlmTransportError` stops the run. Processed messages are kept; a rerun
