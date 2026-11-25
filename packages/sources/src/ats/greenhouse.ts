@@ -4,7 +4,7 @@ import { type FetchDeps, safeFetch } from "../fetch.js";
 
 // Greenhouse's public job-board API (boards-api.greenhouse.io): the same JSON its hosted boards
 // use. Content is HTML with its entities escaped once more.
-const Posting = z.object({
+export const GreenhousePosting = z.object({
   id: z.number(),
   title: z.string(),
   company_name: z.string().optional(),
@@ -25,9 +25,13 @@ export async function greenhouse(
   const url = `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(t.board)}/jobs/${encodeURIComponent(t.postingId)}?pay_transparency=true`;
   const res = await safeFetch(deps, url);
   if (res.status !== 200) return null;
-  const parsed = Posting.safeParse(safeJson(res.body));
+  const parsed = GreenhousePosting.safeParse(safeJson(res.body));
   if (!parsed.success) return null;
-  const p = parsed.data;
+  return fromGreenhouse(parsed.data);
+}
+
+// One Greenhouse posting as a job, from the single-posting API or a board listing.
+export function fromGreenhouse(p: z.infer<typeof GreenhousePosting>): Extraction {
   const pay = p.pay_input_ranges?.[0];
   const location = p.location?.name ?? null;
   return {

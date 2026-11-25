@@ -170,6 +170,10 @@ async function fromAts(deps: IngestDeps, t: AtsTarget): Promise<Extraction | nul
       return ashby(deps, t);
     case "workday":
       return workday(deps, t);
+    // No single-posting API client: the page is read, and withAts keeps the ATS id.
+    case "smartrecruiters":
+    case "workable":
+      return null;
   }
 }
 
@@ -220,8 +224,19 @@ async function viaModel(
   return store(deps, existing, url, draft, [], outcome.record);
 }
 
+// A posting read some other way (a board poll, NS-115), stored exactly as `jobs add` stores one:
+// the same dedupe (SRC-006), apply-link cleanup and event.
+export function storeExtraction(
+  deps: { store: Pick<IngestDeps["store"], "save"> },
+  existing: DedupeCandidate[],
+  url: string,
+  x: Extraction,
+): Promise<IngestResult> {
+  return store(deps, existing, url, x, [], null);
+}
+
 async function store(
-  deps: IngestDeps,
+  deps: { store: Pick<IngestDeps["store"], "save"> },
   existing: DedupeCandidate[],
   url: string,
   x: Extraction,

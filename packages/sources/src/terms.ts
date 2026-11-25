@@ -19,7 +19,13 @@ const ATS_HOSTS: [RegExp, string][] = [
   [/^jobs\.(eu\.)?lever\.co$/, "lever"],
   [/^jobs\.ashbyhq\.com$/, "ashby"],
   [/\.myworkdayjobs\.com$/, "workday"],
+  [/^(api|jobs|careers)\.smartrecruiters\.com$/, "smartrecruiters"],
+  // The board APIs NS-115 polls, on their own hosts.
+  [/^(boards-api\.greenhouse\.io|api\.lever\.co|api\.ashbyhq\.com)$/, "ats-api"],
 ];
+
+// Public, but not a documented API: the endpoint behind Workable's embeddable jobs widget.
+const PUBLIC_FEEDS: [RegExp, string][] = [[/^apply\.workable\.com$/, "workable"]];
 
 export function termsFor(url: string): SourceTerms {
   let host: string;
@@ -32,6 +38,9 @@ export function termsFor(url: string): SourceTerms {
   for (const [re, source] of ATS_HOSTS) {
     // The ATSs publish these job-board endpoints for anyone to read.
     if (re.test(host)) return { source, terms: "official-api" };
+  }
+  for (const [re, source] of PUBLIC_FEEDS) {
+    if (re.test(host)) return { source, terms: "public-feed" };
   }
   // A company's own careers page: public, read once at Paul's request.
   return { source: "careers-page", terms: "public-feed" };

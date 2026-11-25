@@ -1,12 +1,19 @@
 import { lookup } from "node:dns/promises";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import {
+  addWatch,
   connectDb,
+  dueWatches,
   listJobs,
+  listWatches,
   loadDbConfig,
   readDedupeCandidates,
+  removeWatch,
+  retryWatch,
   saveIngestedJob,
+  savePollResult,
   setJobField,
   soleCandidate,
 } from "@northstar/db";
@@ -20,10 +27,14 @@ import { sql } from "drizzle-orm";
 import { main } from "./cli.js";
 import { type IngestDeps, ingestText, ingestUrl } from "./ingest.js";
 import { jobExtractRoute } from "./job-extract-route.js";
+import { pollDue } from "./poll.js";
 
 // Entry point for `pnpm --filter @northstar/sources jobs …`. The only place in this package that
 // reads process.env (DATABASE_URL, and ANTHROPIC_API_KEY only when a page needs the model).
 const { db, close } = connectDb(loadDbConfig(process.env));
+// Set on `jobs run`'s first wait (waitOrStop below). Declared before main runs: a `let` declared
+// later in the module isn't initialized yet while the top-level await is still running.
+let stop: AbortController | undefined;
 try {
   // Fail before fetching anything if the database isn't reachable.
   await db.execute(sql`select 1`);
@@ -62,6 +73,33 @@ try {
     readText: (path) => readFile(resolve(process.env.INIT_CWD ?? process.cwd(), path), "utf8"),
     list: () => listJobs(db, candidateId),
     set: (jobId, field, value) => setJobField(db, { candidateId, jobId, field, value }),
+    boards: {
+      add: (target, tier) =>
+        addWatch(db, {
+          candidateId,
+          now: new Date(),
+          watch: { ats: target.ats, board: target.board, url: target.url, tier },
+        }),
+      list: () => listWatches(db, candidateId),
+      remove: (watchId) => removeWatch(db, { candidateId, watchId, now: new Date() }),
+      retry: (watchId) => retryWatch(db, { candidateId, watchId, now: new Date() }),
+      poll: () =>
+        pollDue(
+          {
+            resolve: deps.resolve,
+            fetch,
+            store: {
+              due: (now) => dueWatches(db, candidateId, now),
+              candidates: deps.store.candidates,
+              save: deps.store.save,
+              record: (w, now, result, next) =>
+                savePollResult(db, { candidateId, watchId: w.id, now, result, next }),
+            },
+          },
+          new Date(),
+        ),
+      wait: (ms) => waitOrStop(ms),
+    },
   });
 } catch (error) {
   // Never let Node print the raw error: a database error's detail can quote a row.
@@ -69,6 +107,23 @@ try {
   process.exitCode = 1;
 } finally {
   await close();
+}
+
+// `jobs run`'s pause between passes. Ctrl-C ends the pause and the loop; the handler is only
+// installed once `jobs run` first waits, so Ctrl-C exits every other command as usual.
+async function waitOrStop(ms: number): Promise<boolean> {
+  if (!stop) {
+    const controller = new AbortController();
+    process.once("SIGINT", () => controller.abort());
+    stop = controller;
+  }
+  if (stop.signal.aborted) return false;
+  try {
+    await sleep(ms, undefined, { signal: stop.signal });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // Titles and companies come from web pages (untrusted): drop control, direction and zero-width

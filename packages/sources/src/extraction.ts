@@ -42,8 +42,15 @@ const ENTITIES: Record<string, string> = {
 export function decodeEntities(s: string): string {
   return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+|#39);/gi, (m, name: string) => {
     const lower = name.toLowerCase();
-    if (lower.startsWith("#x")) return String.fromCodePoint(Number.parseInt(lower.slice(2), 16));
-    if (lower.startsWith("#")) return String.fromCodePoint(Number(lower.slice(1)));
+    if (lower.startsWith("#")) {
+      const code = lower.startsWith("#x")
+        ? Number.parseInt(lower.slice(2), 16)
+        : Number(lower.slice(1));
+      // NUL, surrogates and codes past Unicode stay as written: decoding them would throw or
+      // store a byte Postgres refuses, and one odd posting must not sink its board.
+      const valid = code > 0 && code <= 0x10ffff && (code < 0xd800 || code > 0xdfff);
+      return valid ? String.fromCodePoint(code) : m;
+    }
     return ENTITIES[lower] ?? m;
   });
 }
