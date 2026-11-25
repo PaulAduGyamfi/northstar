@@ -47,6 +47,12 @@ export {
   type VerifyError,
   verifyApproval,
 } from "./approval-write.js";
+export {
+  acquireCall,
+  type BreakerView,
+  readBreakers,
+  recordCallOutcome,
+} from "./breaker-write.js";
 export { soleCandidate } from "./candidate.js";
 export { type DbConfig, loadDbConfig } from "./config.js";
 export { connectDb } from "./connect.js";
@@ -119,6 +125,13 @@ export {
   saveIngestedJob,
   setJobField,
 } from "./job-write.js";
+export {
+  isSubsystemOn,
+  type KillSwitchView,
+  readKillSwitches,
+  type SetKillSwitchResult,
+  setKillSwitch,
+} from "./kill-switch-write.js";
 export * as profileSchema from "./profile-schema.js";
 export {
   currentResumeHash,
@@ -133,6 +146,7 @@ export {
   writeProfileImport,
 } from "./profile-write.js";
 export { readEventsAfter } from "./read-events.js";
+export * as resilienceSchema from "./resilience-schema.js";
 export * as schema from "./schema.js";
 export * as storySchema from "./story-schema.js";
 export { COMPETENCIES, type Competency } from "./story-schema.js";
