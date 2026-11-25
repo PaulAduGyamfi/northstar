@@ -49,7 +49,7 @@ function monthInResume(month: string, text: string): boolean {
 // Whole-word match in already-normalised text: the value may not start or end inside a longer
 // word, so an invented "Go" isn't found in "Google" and "C" isn't found in "C#" or "C++".
 // Quotes and URLs, being longer, use the same rule harmlessly.
-function hasWhole(haystack: string, value: string): boolean {
+export function hasWhole(haystack: string, value: string): boolean {
   const needle = normalize(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const word = "[\\p{L}\\p{N}+#]";
   return needle !== "" && new RegExp(`(?<!${word})${needle}(?!${word})`, "u").test(haystack);

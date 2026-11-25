@@ -92,4 +92,12 @@ export {
   validateTailoredResume,
 } from "./tailor/validate.js";
 export { fileToText } from "./text.js";
+export {
+  checkThesis,
+  THESIS_MAX_LENGTH,
+  type ThesisEvidence,
+  type ThesisFailure,
+  type ThesisRole,
+  yearsOfExperience,
+} from "./thesis.js";
 export { normalize, type ProvenanceFailure, validateProvenance } from "./validate.js";
