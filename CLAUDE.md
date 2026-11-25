@@ -11,7 +11,7 @@
   each step. The hooks, deny rules and `ask` prompts (pushes, PR creation, merges, dependencies,
   harness edits) are the checkpoints, so never route around them. Work ticket by ticket from the
   GitHub issues.
-- **Autonomous lane (ADR-0015).** On an open issue Paul created, or an `agent-filed` issue whose
+- **Autonomous lane (ADR-0016).** On an open issue Paul created, or an `agent-filed` issue whose
   `Parent: #N` chain leads back to one (never `needs:paul`), don't wait for him: keep going
   through PR, green `checks`, the reviewers and the pinned merge. Only the five cases in
   AGENTS.md's "Autonomous lane" become decisions you record in the PR; everything else that says
