@@ -195,6 +195,8 @@ describe("feedLine: fallbacks and bad payloads", () => {
       "job.merged",
       "job.scored",
       "kill_switch.set",
+      "mail.link_queued",
+      "mail.linked",
       "preferences.changed",
       "preferences.rescored",
       "profile.facts_checked",
@@ -226,5 +228,31 @@ describe("feedLine: credential vault", () => {
     expect(
       feedLine(ev("vault.opened", { tenant: "workday:acme", version: 1, purpose: "sign_in" })),
     ).toBe("Used the saved password for workday:acme to sign in");
+  });
+});
+
+describe("feedLine: mail links", () => {
+  it("says an email was linked and by which step", () => {
+    expect([
+      feedLine(ev("mail.linked", { step: "tag", senderVerified: true })),
+      feedLine(ev("mail.linked", { step: "thread", senderVerified: false })),
+      feedLine(ev("mail.linked", { step: "sender", senderVerified: true })),
+    ]).toEqual([
+      "Linked an email to its application by its tagged address",
+      "Linked an email to its application by its thread (sender not verified)",
+      "Linked an email to its application by its verified sender",
+    ]);
+  });
+
+  it("says an email waits for Paul to link it, and why", () => {
+    expect([
+      feedLine(ev("mail.link_queued", { reason: "unknown_tag" })),
+      feedLine(ev("mail.link_queued", { reason: "ambiguous" })),
+      feedLine(ev("mail.link_queued", { reason: "no_match" })),
+    ]).toEqual([
+      "An email to an unknown tagged address needs you to link it",
+      "An email could belong to more than one application: link it",
+      "An email couldn't be linked to an application: link it",
+    ]);
   });
 });

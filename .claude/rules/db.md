@@ -91,3 +91,8 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   from the current resume import (in code, not in the database). The text
   is Paul's words: its `thesis.approved` event carries the version and atom count only, never the
   text. Callers run `checkThesis` (`packages/profile`) before saving.
+- Mail tags and links (NS-158) are `mail_tag` (one tag per application or tenant, never reused)
+  and `mail_link` (one decision per Gmail message: linked by a step, or queued with a reason),
+  append-only, written only through `mail-link-write.ts`. They hold Gmail ids, tags, steps and
+  reasons: never an address, subject, sender or body. A link never changes an application's
+  status; `sender_verified` is what a later automatic change must require (INB-011).
