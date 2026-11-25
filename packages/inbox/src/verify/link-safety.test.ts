@@ -10,8 +10,12 @@ describe("checkLink", () => {
   it("accepts an https link on an allowlisted host or a subdomain of one", () => {
     expect(checkLink("https://acme.wd5.myworkdayjobs.com/verify?t=abc", HOSTS)).toEqual({
       ok: true,
+      href: "https://acme.wd5.myworkdayjobs.com/verify?t=abc",
     });
-    expect(checkLink("https://login.myworkday.com/activate/abc", HOSTS)).toEqual({ ok: true });
+    expect(checkLink("https://Login.MyWorkday.com:443/activate/abc", HOSTS)).toEqual({
+      ok: true,
+      href: "https://login.myworkday.com/activate/abc",
+    });
   });
 
   it("refuses a host that only looks like an allowlisted one", () => {
@@ -57,8 +61,19 @@ describe("checkLink", () => {
     });
   });
 
+  it("refuses a backslash, whitespace or control character that parsers read differently", () => {
+    for (const url of [
+      "https://acme.wd5.myworkdayjobs.com\\@evil.example/verify",
+      "https://myworkday.com/ver ify",
+      "https://myworkday.com/\tverify",
+      "https://myworkday.com/verify\u0000",
+    ]) {
+      expect(checkLink(url, HOSTS)).toEqual({ ok: false, reason: "unsafe_characters" });
+    }
+  });
+
   it("refuses text that isn't a URL", () => {
-    expect(checkLink("not a url", HOSTS)).toEqual({ ok: false, reason: "not_a_url" });
+    expect(checkLink("not-a-url", HOSTS)).toEqual({ ok: false, reason: "not_a_url" });
   });
 
   it("refuses everything when the window allows no link host", () => {
@@ -76,7 +91,7 @@ describe("checkRedirectChain", () => {
         ["https://myworkday.com/v/abc", "https://acme.wd5.myworkdayjobs.com/done"],
         HOSTS,
       ),
-    ).toEqual({ ok: true });
+    ).toEqual({ ok: true, href: "https://acme.wd5.myworkdayjobs.com/done" });
   });
 
   it("refuses a chain with one hop off the allowlist, even if it ends on an allowed host", () => {

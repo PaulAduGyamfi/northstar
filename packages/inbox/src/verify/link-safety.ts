@@ -11,11 +11,25 @@ export type LinkRefusal =
   | "has_credentials"
   | "ip_host"
   | "non_default_port"
-  | "host_not_allowed";
+  | "host_not_allowed"
+  | "unsafe_characters";
 
-export type LinkCheck = { ok: true } | { ok: false; reason: LinkRefusal };
+// On success, href is the URL as parsed and checked. Callers use it, never the raw text.
+export type LinkCheck = { ok: true; href: string } | { ok: false; reason: LinkRefusal };
+
+// A backslash, a space, or a control character (code points up to U+0020, and U+007F).
+function hasUnsafeCharacter(url: string): boolean {
+  for (const ch of url) {
+    const c = ch.codePointAt(0) as number;
+    if (ch === "\\" || c <= 0x20 || c === 0x7f) return true;
+  }
+  return false;
+}
 
 export function checkLink(url: string, allowedHosts: readonly string[]): LinkCheck {
+  // WHATWG URL reads "\\" as "/" and drops tabs and newlines; other parsers don't. Text that
+  // two parsers could read as two different hosts is refused outright.
+  if (hasUnsafeCharacter(url)) return { ok: false, reason: "unsafe_characters" };
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -33,7 +47,7 @@ export function checkLink(url: string, allowedHosts: readonly string[]): LinkChe
   // URL drops the default port (443), so any port left is a non-default one.
   if (parsed.port !== "") return { ok: false, reason: "non_default_port" };
   const allowed = allowedHosts.some((h) => underDomain(host, h.toLowerCase()));
-  return allowed ? { ok: true } : { ok: false, reason: "host_not_allowed" };
+  return allowed ? { ok: true, href: parsed.href } : { ok: false, reason: "host_not_allowed" };
 }
 
 // Every hop must pass, not just the last: a tracker in the middle still receives the token.
@@ -42,9 +56,11 @@ export function checkRedirectChain(
   allowedHosts: readonly string[],
 ): LinkCheck {
   if (urls.length === 0) return { ok: false, reason: "not_a_url" };
+  let last: LinkCheck = { ok: false, reason: "not_a_url" };
   for (const url of urls) {
-    const check = checkLink(url, allowedHosts);
-    if (!check.ok) return check;
+    last = checkLink(url, allowedHosts);
+    if (!last.ok) return last;
   }
-  return { ok: true };
+  // The final hop is where the gateway ends up.
+  return last;
 }
