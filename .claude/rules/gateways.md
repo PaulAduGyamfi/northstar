@@ -21,6 +21,13 @@ GitHub) don't exist yet: if you are about to create one outside its ticket, stop
   `application:<id>:apply:<submissionId>:<to>` key namespace (`applyMoveKey`). Pacing limits
   are an `ApplyLimits` from `loadApplyLimits`, given to `dbPorts`; never per call.
 
+- The credential vault (NS-122, ADR-0010) is sealed and opened only in `src/vault/`. Never export
+  `src/vault/open.ts` from the package or import it from outside `packages/gateways/src` (a
+  boundary test enforces this, CRD-002, as it does for `createDecipheriv`, the master key's bytes
+  (`keyBytes`) and `vault_secret`). Call `useTenantPassword` only after `verifyApproval` for
+  the action it serves, keep the result a `VaultSecret`, and `reveal()` it only where the browser
+  types it.
+
 - Every page fetch goes through `safeFetch` (https only, public addresses on every redirect,
   2 MB, 15 s). Never call `fetch` on a pasted link directly. Whole-board listings (NS-115,
   `boards/list.ts`) pass `BOARD_MAX_BYTES` (10 MB); nothing else does.

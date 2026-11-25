@@ -79,3 +79,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   (`apply-config.ts`). Its events carry ids, the ATS and reason codes, never field values, URLs
   or HTML.
   `@northstar/db/testing` exports the PGlite test helpers to other packages' tests.
+- The credential vault (NS-122, ADR-0010) is `vault_secret` and `vault_access`, append-only
+  (triggers), written only through `vault-write.ts`. It holds sealed bytes only: never put a
+  plaintext, key or sealed byte in an event, span, log or error. `openSealedSecret` checks the
+  `vault` kill switch and that the decision is a live approval, and records the access, in the
+  same transaction before handing a row out. Only `vaultAccess` is exported; sealed rows never
+  leave `vault-write.ts`.

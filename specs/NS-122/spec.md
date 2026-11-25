@@ -17,22 +17,31 @@ at the moment of use, with every opening audited. The tenant registry and Workda
    AES-256-GCM under the master key. The master key is 32 random bytes in a key file outside the
    repo and the database, named by `VAULT_MASTER_KEY_FILE` and read by one typed config loader.
    Each row stores the master key's id (a SHA-256 fingerprint), so a wrong key is reported as
-   `VaultKeyMismatch`, not garbage. The candidate, tenant and version are bound in as associated
-   data, so a ciphertext copied onto another row won't open. A database dump alone holds only
+   `VaultKeyMismatch`, not garbage. The candidate and tenant are bound in as associated data, so
+   a ciphertext copied onto another tenant or candidate won't open. (Not the version: sealing
+   happens before the database numbers the version, and rows are append-only.) A database dump alone holds only
    wrapped keys and ciphertext.
 2. **Storage.** `vault_secret` (packages/db) holds one row per tenant and version, append-only (a
    trigger refuses UPDATE, DELETE and TRUNCATE). Rotating a password stores a new version; the
    newest version is the current one. It is written only through `vault-write.ts`.
 3. **Only the Apply Gateway decrypts (CRD-002).** Decryption lives in
    `packages/gateways/src/vault/`, is not exported from `@northstar/gateways`, and returns a
-   `VaultSecret` that prints `[redacted]` in strings, JSON and `inspect`. A test fails if any file
-   outside `packages/gateways/src/` imports the vault's decrypt module, or if the package's
-   public entry exports it.
+   `VaultSecret` that prints `[redacted]` in strings, JSON and `inspect`. The master key is opaque
+   (a private field; only the vault's seal and open modules read its bytes), and sealed rows are
+   not exported from `@northstar/db` (only the audit table is). A boundary test fails if any other
+   file imports the decrypt module, calls `createDecipheriv`, reads the key's bytes or touches
+   `vault_secret`, or if the package's public entry exports a decrypt function. Database errors
+   come back as a plain "db.vault.store failed" / "db.vault.open failed" with no cause, since the
+   driver's message lists the query's parameters (sealed bytes).
 4. **Audit (CRD-003).** Opening a secret needs a Gate decision id (an `approvalId` or
-   `policyDecisionId`, a foreign key to `approval_decision`), an actor and a purpose. In one
-   transaction the database checks the vault isn't locked, appends a `vault_access` row (who,
-   tenant, purpose, decision, when; append-only) and returns the sealed row. Every open is
-   audited, including one whose decryption then fails.
+   `policyDecisionId`), an actor and a purpose. In one transaction the database checks the vault
+   isn't locked, checks the decision is a live approval of this candidate (approved, past its undo
+   window by the Gate's clock, not undone; otherwise `NotApproved`), appends a `vault_access` row
+   (who, tenant, purpose, decision, when; append-only) and returns the sealed row. Every open is
+   audited, including one whose decryption then fails. The caller still runs `verifyApproval`
+   for the action it serves, which also checks the decision covers that exact content.
+   The open takes a shared lock against `setKillSwitch(vault)`, so a lock that commits first
+   always wins.
 5. **Lock vault (CRD-005).** A new kill-switch subsystem, `vault`. While it is off, every open is
    refused (`VaultLocked`) before anything is read or decrypted. Storing still works, so an
    account created just before the lock isn't lost.
@@ -42,8 +51,8 @@ at the moment of use, with every opening audited. The tenant registry and Workda
 
 ## Acceptance criteria
 - [ ] Sealing then opening with the same master key returns the password; with another key it
-      is `VaultKeyMismatch`; a tampered ciphertext, a wrapped key, or a row moved to another
-      tenant or version fails to open.
+      is `VaultKeyMismatch`; a tampered ciphertext or wrapped key, or a row moved to another
+      tenant or candidate, fails to open.
 - [ ] Two seals of the same password differ (fresh data key and IVs).
 - [ ] `loadVaultKey` reads a 32-byte key file (base64) and refuses a missing setting, an
       unreadable file or a wrong length, naming the setting, never the path or key bytes.
@@ -51,12 +60,16 @@ at the moment of use, with every opening audited. The tenant registry and Workda
 - [ ] `vault_secret` and `vault_access` refuse UPDATE, DELETE and TRUNCATE.
 - [ ] Opening writes one `vault_access` row with actor, purpose and decision id, and a
       `vault.opened` event with ids and the tenant key only.
-- [ ] Opening with an unknown decision id is refused by the foreign key and writes nothing.
+- [ ] Opening under an unknown, rejected, undone or not-yet-effective decision is `NotApproved`
+      and writes nothing.
+- [ ] A failed store throws a message with no sealed bytes and no cause.
 - [ ] With the `vault` kill switch off, opening is `VaultLocked`, writes no access row and
       decrypts nothing.
 - [ ] No event, span attribute or error message contains the password, a key or the ciphertext.
 - [ ] Boundary test: no file outside `packages/gateways/src/` imports `vault/open`, and
       `@northstar/gateways` doesn't export it.
+- [ ] The feed says "Saved / Changed the password for workday:acme" and "Used the saved
+      password for workday:acme to sign in".
 - [ ] The generated password is 24 characters and has every character class.
 
 ## Failure modes
