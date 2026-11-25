@@ -2,7 +2,7 @@ import { PDFDocument, type PDFFont, StandardFonts } from "pdf-lib";
 import { HEADERS, renderResumeText } from "./render.js";
 import type { MasterResume, TailoredResume } from "./types.js";
 
-// The ATS-safe PDF resume (TLR-005, NS-144 → NS-145, ADR-0020). It lays out the lines of
+// The ATS-safe PDF resume (TLR-005, NS-145, ADR-0020). It lays out the lines of
 // renderResumeText, so the PDF has the plain text's headers, order and locked facts. One column,
 // Helvetica (a standard font, nothing embedded, text extractable), no tables, images or columns.
 
@@ -33,12 +33,27 @@ function encodable(font: PDFFont, text: string): string {
   return out;
 }
 
-// Words greedily packed into lines no wider than `width` points. A word wider than the line on
-// its own goes on a line of its own (it can't be split without changing it).
+// A word wider than a whole line, cut into pieces that each fit, so nothing runs past the margin
+// (a parser would lose the part off the page).
+function pieces(word: string, font: PDFFont, size: number, width: number): string[] {
+  if (font.widthOfTextAtSize(word, size) <= width) return [word];
+  const out: string[] = [];
+  let current = "";
+  for (const ch of word) {
+    if (current !== "" && font.widthOfTextAtSize(current + ch, size) > width) {
+      out.push(current);
+      current = ch;
+    } else current += ch;
+  }
+  if (current !== "") out.push(current);
+  return out;
+}
+
+// Words greedily packed into lines no wider than `width` points.
 function wrap(text: string, font: PDFFont, size: number, width: number): string[] {
   const lines: string[] = [];
   let current = "";
-  for (const word of text.split(" ")) {
+  for (const word of text.split(" ").flatMap((w) => pieces(w, font, size, width))) {
     const next = current === "" ? word : `${current} ${word}`;
     if (current !== "" && font.widthOfTextAtSize(next, size) > width) {
       lines.push(current);

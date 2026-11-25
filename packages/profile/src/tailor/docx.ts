@@ -8,6 +8,11 @@ import type { MasterResume, TailoredResume } from "./types.js";
 
 const HEADER_SET = new Set<string>(HEADERS);
 
+// Characters XML 1.0 forbids (control characters other than tab) become "?", as the PDF does
+// for what Helvetica can't encode: a broken file would be worse than a visible "?".
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching control characters is the point.
+const FORBIDDEN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g;
+
 export async function renderResumeDocx(
   resume: TailoredResume,
   master: MasterResume,
@@ -19,7 +24,12 @@ export async function renderResumeDocx(
       (line) =>
         new Paragraph({
           children: [
-            new TextRun({ text: line, bold: HEADER_SET.has(line), font: "Arial", size: 20 }),
+            new TextRun({
+              text: line.replace(FORBIDDEN, "?"),
+              bold: HEADER_SET.has(line),
+              font: "Arial",
+              size: 20,
+            }),
           ],
         }),
     );

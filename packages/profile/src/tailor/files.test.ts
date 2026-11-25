@@ -55,9 +55,35 @@ describe("renderResumePdf", () => {
     const text = await pdfToText((await renderResumePdf(resume, longMaster())).bytes);
     expect(text).toContain("on-call runbook.");
   });
+
+  it("breaks a word wider than the page so all of it is still read back", async () => {
+    const resume = tailorResume(master, job);
+    const line = resume.sections[0]?.lines[0];
+    const token = "x".repeat(300);
+    if (line) line.text = `Made payment retries idempotent ${token} in Go.`;
+    const text = await pdfToText((await renderResumePdf(resume, master)).bytes);
+    expect(text.replace(/\s/g, "")).toContain(token);
+  });
+
+  it("leaves the caller's PDF bytes intact after scoring them", async () => {
+    const resume = tailorResume(master, job);
+    const pdf = await renderResumePdf(resume, master);
+    const before = pdf.bytes.byteLength;
+    await preSendScoreFromPdf({ master, job, resume, pdf: pdf.bytes });
+    expect([before > 0, pdf.bytes.byteLength]).toEqual([true, before]);
+  });
 });
 
 describe("renderResumeDocx", () => {
+  it("replaces a control character XML forbids instead of writing a broken file", async () => {
+    const resume = tailorResume(master, job);
+    const line = resume.sections[0]?.lines[0];
+    if (line) line.text = "Made payment retries\u0001 idempotent in Go and Postgres.";
+    const buffer = await renderResumeDocx(resume, master);
+    const text = (await mammoth.extractRawText({ buffer })).value;
+    expect(text).toContain("- Made payment retries? idempotent in Go and Postgres.");
+  });
+
   it("writes every header and bullet line as plain paragraphs", async () => {
     const resume = tailorResume(master, job);
     const buffer = await renderResumeDocx(resume, master);

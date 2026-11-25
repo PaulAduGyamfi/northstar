@@ -38,5 +38,7 @@ release at least 14 days old, and ADR-0016 item 4 says an agent records the choi
   - Helvetica covers Latin text only (WinAnsi). A character it can't encode is replaced, and the
     re-parse check then reports it. A name in another script needs an embedded Unicode font, a
     follow-up with its own dependency choice.
-  - Two more packages and their small transitive set (pako, tslib, fflate, nanoid, the pdf-lib
-    font metrics) to keep current through Dependabot.
+  - Two more packages and their small transitive set to keep current through Dependabot:
+    pako, tslib, the pdf-lib font metrics and upng; fflate and nanoid; and `@types/node` and
+    `undici-types`, which docx lists as runtime dependencies (type files only). None of them has
+    an install script.

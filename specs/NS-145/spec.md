@@ -27,12 +27,19 @@ All in `packages/profile/src/tailor/`.
 3. **`renderResumeDocx(resume, master)`** (`docx.ts`, docx): the same lines as plain paragraphs
    (headers bold, bullets as "- " text, no tables, columns or numbering) in a single section.
 4. **Page budget (TLR-001):** `tailorToPages(master, job, { maxPages = 1 })` measures the
-   rendered page instead of trusting `maxLines`. It tailors with every atom, then lowers
-   `maxLines` one line at a time until the PDF fits `maxPages`, never below one line. It returns
-   the resume and its PDF.
+   rendered page instead of trusting `maxLines`.
+   - It returns the largest line budget whose PDF fits `maxPages`, never below one line, with the
+     resume and its PDF.
+   - Fewer lines never take more pages, because the tailor drops its least relevant line first
+     and the paginator only moves forward. So a binary search over `maxLines` finds that budget
+     in about log2(atoms) + 2 renders, instead of one render per line.
+   - Long words are cut to the line width rather than running past the margin.
 5. **Re-parse (TLR-004):**
    - `pdfToText(bytes)` (`text.ts`) is the same unpdf reading `fileToText` uses for a PDF file,
      column-aware pages included (NS-134). `fileToText` now calls it.
+     - It copies the bytes first, because pdf.js detaches the buffer it reads and would leave
+       the caller's PDF empty.
+     - It refuses more than 10 MB, the same cap as `fileToText`.
    - `preSendScoreFromPdf({ master, job, resume, pdf })` passes the text read back from the PDF
      to `atsParseCheck`.
 6. **Dependencies:** `pdf-lib@1.17.1` and `docx@9.15.3`, exact versions, both released more than
