@@ -284,7 +284,8 @@ run protect-files.sh ask   "$(file evals/scorer/golden.jsonl)"
 run protect-files.sh ask   "$(file docs/adr/0003-sourcing-and-automation-boundaries.md)"   # Accepted
 run protect-files.sh pass  "$(file docs/adr/0008-observability-stack.md)"                 # Proposed
 run protect-files.sh pass  "$(file docs/requirements/01-job-sourcing.md)"
-run protect-files.sh ask   "$(file apps/web/page.tsx)"
+# A new top-level area asks. apps/ exists since NS-156, so use a name that never will.
+run protect-files.sh ask   "$(file newarea/page.tsx)"
 
 # readonly-bash (reviewers)
 run readonly-bash.sh pass  "$(bash_cmd 'git diff main...HEAD')"
