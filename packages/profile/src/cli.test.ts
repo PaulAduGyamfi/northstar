@@ -1,4 +1,4 @@
-import type { OfficialPosition, ProfileView, StoryView } from "@northstar/db";
+import type { OfficialPosition, ProfileView, StoryView, ThesisProfile } from "@northstar/db";
 import { LlmTransportError } from "@northstar/llm";
 import { describe, expect, it } from "vitest";
 import { type CliDeps, main } from "./cli.js";
@@ -51,6 +51,11 @@ function deps(
     setFacts: async (positions) => ({ status: "set", positions: positions.length }),
     readFacts: async () => [],
     recordCheck: async () => {},
+    readThesisProfile: async () => null,
+    draftTheses: async () => ({ kind: "skipped", reason: "off" }),
+    saveThesis: async () => ({ ok: true, version: 1, saved: true }),
+    readThesis: async () => null,
+    month: () => "2026-11",
   };
   return { d, printed, interviewedAtoms };
 }
@@ -209,7 +214,7 @@ describe("profile cli", () => {
     const { d, printed } = deps([], { kind: "unchanged" });
     expect(await main(d)).toBe(1);
     expect(printed).toEqual([
-      "usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check",
+      'usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check | profile thesis draft | profile thesis set "<text>" --atoms <id,id> | profile thesis show',
     ]);
   });
 
@@ -381,5 +386,162 @@ describe("profile facts", () => {
     d.readFacts = async () => official;
     expect(await main(d)).toBe(1);
     expect(printed).toEqual(["No resume imported yet. Run: import-resume <path>"]);
+  });
+});
+
+// Synthetic profile for the thesis commands (invented employer).
+const thesisProfile: ThesisProfile = {
+  roles: [
+    {
+      employer: "Example Payments",
+      title: "Software Engineer",
+      startMonth: "2021-02",
+      endMonth: null,
+      current: true,
+    },
+  ],
+  atoms: [
+    {
+      id: "atom-1",
+      roleId: "role-1",
+      quote: "Built card-authorization services handling 3,000 requests per second in Java.",
+    },
+  ],
+  skills: ["Java"],
+};
+const goodThesis =
+  "Software engineer who built card-authorization services handling 3,000 requests per second in Java.";
+
+describe("profile thesis cli", () => {
+  it("thesis set saves a thesis its atoms back and prints the version", async () => {
+    const { d, printed } = deps(
+      ["thesis", "set", goodThesis, "--atoms", "atom-1"],
+      new Error("unused"),
+    );
+    d.readThesisProfile = async () => thesisProfile;
+    const saved: unknown[] = [];
+    d.saveThesis = async (text, atomIds) => {
+      saved.push({ text, atomIds });
+      return { ok: true, version: 2, saved: true };
+    };
+    expect(await main(d)).toBe(0);
+    expect([printed, saved]).toEqual([
+      ["Thesis saved as version 2."],
+      [{ text: goodThesis, atomIds: ["atom-1"] }],
+    ]);
+  });
+
+  it("thesis set refuses an unbacked number and saves nothing", async () => {
+    const { d, printed } = deps(
+      ["thesis", "set", "Engineer handling 10,000 requests per second.", "--atoms", "atom-1"],
+      new Error("unused"),
+    );
+    d.readThesisProfile = async () => thesisProfile;
+    let saves = 0;
+    d.saveThesis = async () => {
+      saves += 1;
+      return { ok: true, version: 1, saved: true };
+    };
+    expect(await main(d)).toBe(1);
+    expect([printed, saves]).toEqual([
+      [
+        "Not saved: the thesis says something its atoms don't back. Nothing was changed.",
+        '  "10,000" isn\'t in a cited atom (or more years than your roles span)',
+      ],
+      0,
+    ]);
+  });
+
+  it("thesis set reports an unknown atom id", async () => {
+    const { d, printed } = deps(
+      ["thesis", "set", goodThesis, "--atoms", "atom-1,atom-9"],
+      new Error("unused"),
+    );
+    d.readThesisProfile = async () => thesisProfile;
+    expect(await main(d)).toBe(1);
+    expect(printed).toEqual([
+      "Not saved: the thesis says something its atoms don't back. Nothing was changed.",
+      "  atom atom-9 isn't in your profile",
+    ]);
+  });
+
+  it("thesis set says when the thesis is unchanged", async () => {
+    const { d, printed } = deps(
+      ["thesis", "set", goodThesis, "--atoms", "atom-1"],
+      new Error("unused"),
+    );
+    d.readThesisProfile = async () => thesisProfile;
+    d.saveThesis = async () => ({ ok: true, version: 3, saved: false });
+    expect(await main(d)).toBe(0);
+    expect(printed).toEqual(["Thesis unchanged (version 3)."]);
+  });
+
+  it("thesis set without --atoms prints the usage", async () => {
+    const { d, printed } = deps(["thesis", "set", goodThesis], new Error("unused"));
+    expect(await main(d)).toBe(1);
+    expect(printed[0]?.startsWith("usage: ")).toBe(true);
+  });
+
+  it("thesis show prints the current thesis, its version and atoms", async () => {
+    const { d, printed } = deps(["thesis", "show"], new Error("unused"));
+    d.readThesis = async () => ({
+      version: 2,
+      text: goodThesis,
+      atomIds: ["atom-1"],
+      approvedAt: new Date("2026-11-01T00:00:00Z"),
+    });
+    expect(await main(d)).toBe(0);
+    expect(printed).toEqual([goodThesis, "Version 2, atoms: atom-1"]);
+  });
+
+  it("thesis show with none yet says how to draft one", async () => {
+    const { d, printed } = deps(["thesis", "show"], new Error("unused"));
+    expect(await main(d)).toBe(0);
+    expect(printed).toEqual(["No thesis yet. Run: profile thesis draft"]);
+  });
+
+  it("thesis draft says drafting is off and how to set one by hand", async () => {
+    const { d, printed } = deps(["thesis", "draft"], new Error("unused"));
+    d.readThesisProfile = async () => thesisProfile;
+    expect(await main(d)).toBe(0);
+    expect(printed).toEqual([
+      'Thesis drafting is off until its eval fixtures are recorded. Write your own and run: profile thesis set "<text>" --atoms <id,id>',
+    ]);
+  });
+
+  it("thesis draft prints each passing draft with its atoms and the dropped count", async () => {
+    const { d, printed } = deps(["thesis", "draft"], new Error("unused"));
+    d.readThesisProfile = async () => thesisProfile;
+    d.draftTheses = async (_profile, asOf) => ({
+      kind: "drafted",
+      theses: [{ text: `${goodThesis} (${asOf})`, atomIds: ["atom-1"] }],
+      dropped: 1,
+      record: { ...record, route: "positioning-thesis", promptId: "positioning-thesis" },
+    });
+    expect(await main(d)).toBe(0);
+    expect(printed).toEqual([
+      `1. ${goodThesis} (2026-11)`,
+      "   atoms: atom-1",
+      "1 draft dropped: it said something your resume doesn't.",
+      'Pick one (edit it if you like) and run: profile thesis set "<text>" --atoms <id,id>',
+    ]);
+  });
+
+  it("thesis draft with no resume imported says how to import one", async () => {
+    const { d, printed } = deps(["thesis", "draft"], new Error("unused"));
+    expect(await main(d)).toBe(1);
+    expect(printed).toEqual(["No resume imported yet. Run: import-resume <path>"]);
+  });
+
+  it("thesis draft reports an API outage without a stack", async () => {
+    const { d, printed } = deps(["thesis", "draft"], new Error("unused"));
+    d.readThesisProfile = async () => thesisProfile;
+    d.draftTheses = async () => {
+      throw new LlmTransportError({ status: 529, retryable: true });
+    };
+    expect(await main(d)).toBe(1);
+    expect(printed).toEqual([
+      "The Claude API didn't answer (status 529). Nothing was saved; try again later.",
+    ]);
   });
 });

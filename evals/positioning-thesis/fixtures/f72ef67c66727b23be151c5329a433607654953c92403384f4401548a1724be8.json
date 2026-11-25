@@ -1,0 +1,27 @@
+{
+  "requestSha256": "f72ef67c66727b23be151c5329a433607654953c92403384f4401548a1724be8",
+  "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval positioning-thesis --record.",
+  "response": {
+    "id": "msg_handwritten_3",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-5-5",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"candidates\":[{\"text\":\"Mobile engineer with 7 years at Example Retail who rebuilt the checkout flow of its iOS app in Swift.\",\"atomIds\":[\"atom-1\"]}]}",
+        "citations": null
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  }
+}

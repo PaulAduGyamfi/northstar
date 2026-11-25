@@ -2,6 +2,7 @@ import { answerDraftEval } from "./sets/answer-draft.js";
 import { jobExtractEval } from "./sets/job-extract.js";
 import { jobMatchEval } from "./sets/job-match.js";
 import { mailClassifyEval } from "./sets/mail-classify.js";
+import { positioningThesisEval } from "./sets/positioning-thesis.js";
 import { profileExtractEval } from "./sets/profile-extract.js";
 import { resumeTailorEval } from "./sets/resume-tailor.js";
 import { storyDraftEval } from "./sets/story-draft.js";
@@ -13,6 +14,7 @@ export const registry: Readonly<Record<string, RegisteredEval>> = {
   "job-extract": jobExtractEval,
   "job-match": jobMatchEval,
   "mail-classify": mailClassifyEval,
+  "positioning-thesis": positioningThesisEval,
   "profile-extract": profileExtractEval,
   "resume-tailor": resumeTailorEval,
   "story-draft": storyDraftEval,

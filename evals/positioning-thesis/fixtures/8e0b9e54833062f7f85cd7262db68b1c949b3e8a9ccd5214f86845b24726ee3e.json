@@ -1,0 +1,27 @@
+{
+  "requestSha256": "8e0b9e54833062f7f85cd7262db68b1c949b3e8a9ccd5214f86845b24726ee3e",
+  "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval positioning-thesis --record.",
+  "response": {
+    "id": "msg_handwritten_1",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-5-5",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"candidates\":[{\"text\":\"Backend engineer who built the route-planning service in Go for 40 depots.\",\"atomIds\":[\"atom-1\"]}]}",
+        "citations": null
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  }
+}

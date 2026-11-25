@@ -33,6 +33,10 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
   only through `assistUnmatched`, which sends only what the rules left unmatched and keeps a
   proposal only when `checkJobMatches` finds its quote verbatim in a real atom. It is off by
   default (`enabled: true` turns it on), because its fixtures are hand-written.
+- The `positioning-thesis` route (NS-152) lives in `packages/profile/src/thesis-draft.ts`. Call
+  it only through `draftTheses`, which keeps a candidate only when `thesisProblems` finds
+  nothing. It is off by default (`enabled: true` turns it on), because its fixtures are
+  hand-written. Never run `profile thesis draft|set|show` yourself: they read Paul's profile.
 - A new route with no real recordings gets hand-written fixtures (ADR-0016 item 8). Write the
   expected outputs to `evals/<route>/handwritten.jsonl` and run
   `node evals/dist/handwrite-bin.js <route>` (after building `evals`). Each fixture is marked

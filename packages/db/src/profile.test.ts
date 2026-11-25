@@ -16,6 +16,7 @@ import {
   editLockedFact,
   type ProfileImportInput,
   readProfile,
+  readThesisProfile,
   writeProfileImport,
 } from "./profile-write.js";
 import { candidate, domainEvent } from "./schema.js";
@@ -489,5 +490,34 @@ describe("readProfile", () => {
       unassignedAtoms: [],
       skills: ["Go", "Postgres"],
     });
+  });
+});
+
+describe("readThesisProfile (NS-152)", () => {
+  it("is null before any resume import", async () => {
+    expect(await readThesisProfile(db, candidateId)).toBeNull();
+  });
+
+  it("gives the roles' locked dates, each atom's id and verbatim quote, and the skills", async () => {
+    await writeProfileImport(db, importInput());
+    const p = await readThesisProfile(db, candidateId);
+    expect([p?.roles, p?.atoms.map((a) => [typeof a.id, a.quote]), p?.skills]).toEqual([
+      [
+        {
+          employer: "Example Payments",
+          title: "Senior Engineer",
+          startMonth: "2021-03",
+          endMonth: null,
+          current: true,
+        },
+      ],
+      [
+        [
+          "string",
+          "Made payment retries idempotent in Go and Postgres, cutting duplicate charges to zero.",
+        ],
+      ],
+      ["Go", "Postgres"],
+    ]);
   });
 });
