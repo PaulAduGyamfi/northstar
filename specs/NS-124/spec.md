@@ -25,6 +25,7 @@ registry, the one-account guard and the consent policy, in plain code and storag
    - `active` → `locked`, `needs_human`;
    - `locked` → `active` (after a reset), `needs_human`;
    - `needs_human` → `active` (Paul finished it), `none` (Paul says there is no account after all).
+     Only Paul (actor `user`) may move an account out of `needs_human`.
 2. **The registry** (`packages/db`, one migration plus an append-only trigger migration):
    - `employer_tenant`: one row per candidate and tenant key (`<ats>:<tenant>`, the vault's
      pattern), with the ATS, the tenant's https URL, and the account email. Created once,
@@ -86,8 +87,8 @@ registry, the one-account guard and the consent policy, in plain code and storag
   These need the Playwright driver (NS-142, #76).
 - Password reset by email with the Verification Catcher (ACC-005).
 - The Settings → Accounts page in the web app, and a CLI to set the consent policy.
-- Linking applications to tenants (`linked applications` in ACC-001), which comes with the
-  Workday adapter.
+- Linking applications to tenants (`linked applications` in ACC-001) and last-login dates, which
+  come with the Workday adapter and sign-in.
 
 ## Open questions
 - Is `needs_human` → `none` right for "there is no account after all"? It is the only way back to

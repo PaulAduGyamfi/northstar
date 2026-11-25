@@ -141,7 +141,10 @@ export type MoveError =
   | { kind: "NotFound" }
   | { kind: "InvalidReason" }
   | { kind: "StaleStatus"; expected: AccountStatus; actual: AccountStatus }
-  | IllegalAccountMove;
+  | IllegalAccountMove
+  // Only Paul takes an account out of needs_human: the way back to `none` would otherwise let an
+  // agent start a second account on the tenant (ACC-006).
+  | { kind: "NotPaulsMove" };
 
 // Moves a tenant's account from `from` to `to`, only if `from` is still current and the state
 // machine allows it (packages/domain, tenant-account.ts).
@@ -157,6 +160,7 @@ export async function moveAccount(
   },
 ): Promise<Result<{ status: AccountStatus }, MoveError>> {
   if (!REASON.test(input.reason)) return err({ kind: "InvalidReason" });
+  if (input.from === "needs_human" && input.actor !== "user") return err({ kind: "NotPaulsMove" });
   const allowed = nextAccountStatus(input.from, input.to);
   if (!allowed.ok) return allowed;
   return inSpan(

@@ -16,7 +16,7 @@ const CHECK_VIOLATION = "23514";
 const NOW = new Date("2026-11-25T12:00:00Z");
 const TENANT = {
   tenantKey: "workday:globex",
-  tenantUrl: "https://globex.wd1.myworkdayjobs.com/careers",
+  tenantUrl: "https://globex.wd1.example.com/careers",
   accountEmail: "applicant+ns-abc123@example.com",
 };
 const NOTICE = {
@@ -91,14 +91,14 @@ describe("registerTenant", () => {
     await register();
     const [e] = await events("tenant.registered");
     expect(e?.payload).toEqual({ tenantKey: "workday:globex", ats: "workday" });
-    expect(JSON.stringify([e?.payload, e?.reason, e?.inputsSummary])).not.toMatch(
-      /example\.com|myworkdayjobs/,
-    );
+    expect(JSON.stringify([e?.payload, e?.reason, e?.inputsSummary])).not.toMatch(/example\.com/);
   });
 });
 
 describe("beginAccountCreation (ACC-006)", () => {
-  it("starts exactly one creation, even when called twice at once", async () => {
+  // PGlite has one connection, so this runs the two callers one after the other. It proves the
+  // `none`-is-still-current check; the row lock that makes them wait needs a real Postgres.
+  it("a second beginAccountCreation gets AlreadyStarted and stores nothing", async () => {
     await register();
     const [a, b] = await Promise.all([
       beginAccountCreation(db, { candidateId, tenantKey: TENANT.tenantKey, actor: "agent:apply" }),
@@ -191,6 +191,38 @@ describe("moveAccount", () => {
       actor: "user",
     });
     expect(r.ok || r.error.kind).toBe("IllegalAccountMove");
+  });
+
+  it("lets only Paul take an account out of needs_human, so an agent can't restart creation", async () => {
+    await register();
+    await beginAccountCreation(db, {
+      candidateId,
+      tenantKey: TENANT.tenantKey,
+      actor: "agent:apply",
+    });
+    const move = (to: "none" | "active", actor: "agent:apply" | "user") =>
+      moveAccount(db, {
+        candidateId,
+        tenantKey: TENANT.tenantKey,
+        from: "needs_human",
+        to,
+        reason: "paul_finished",
+        actor,
+      });
+    await moveAccount(db, {
+      candidateId,
+      tenantKey: TENANT.tenantKey,
+      from: "creating",
+      to: "needs_human",
+      reason: "challenge",
+      actor: "agent:apply",
+    });
+    expect([await move("none", "agent:apply"), await move("active", "agent:apply")]).toEqual([
+      { ok: false, error: { kind: "NotPaulsMove" } },
+      { ok: false, error: { kind: "NotPaulsMove" } },
+    ]);
+    expect(await db.select().from(tenantAccountStatus)).toHaveLength(2);
+    expect(await move("none", "user")).toEqual({ ok: true, value: { status: "none" } });
   });
 
   it("refuses a reason that isn't a lowercase code", async () => {
@@ -313,7 +345,11 @@ describe("the registry and consent tables", () => {
       await sqlState(db.delete(consentRecord)),
       await sqlState(db.execute(sql`truncate consent_record`)),
       await sqlState(db.execute(sql`truncate tenant_account_status`)),
+      await sqlState(db.execute(sql`truncate employer_tenant cascade`)),
+      await sqlState(db.delete(consentPolicy)),
+      await sqlState(db.execute(sql`truncate consent_policy`)),
+      await sqlState(db.update(consentRecord).set({ kind: "terms" })),
     ];
-    expect(states).toEqual(Array(8).fill(RESTRICT_VIOLATION));
+    expect(states).toEqual(Array(12).fill(RESTRICT_VIOLATION));
   });
 });
