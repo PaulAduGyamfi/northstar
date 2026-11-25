@@ -82,6 +82,12 @@ Exists now:
   SmartRecruiters and Workable, read one request per board (`boards/`), with `pollDue`
   (`poll.ts`) saving new postings through the same path as `jobs add`, per-board backoff and
   quarantine, and fresh-first order (`queue.ts`).
+- The Approval Gate (NS-119, ADR-0002, ADR-0017): the auto-approve rules and their evaluator in
+  `packages/domain` (`approval.ts`; only application packages can ever be auto-approved), and
+  the append-only `approval_*` tables with the Gate's one write path in `packages/db`
+  (`approval-write.ts`: `requestApproval`, `setApprovalPolicies`, `listPendingApprovals`,
+  `decideApprovals` for one or a batch, `undoDecision` inside the 2-minute undo window, and
+  `verifyApproval`, which every gateway calls before it acts). No CLI or UI yet.
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write

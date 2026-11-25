@@ -1,5 +1,32 @@
 // Public entry of @northstar/db: the schema, the status-change write path and the event reader.
 
+export * as approvalSchema from "./approval-schema.js";
+export {
+  type AlreadyDecided,
+  type AlreadyUndone,
+  type BatchOutcome,
+  type DecideError,
+  type DecisionView,
+  decideApprovals,
+  type InvalidRequest,
+  listPendingApprovals,
+  type PendingApproval,
+  type ReasonRequired,
+  type Rejected,
+  type RequestResult,
+  readApprovalPolicies,
+  requestApproval,
+  type SubjectMismatch,
+  setApprovalPolicies,
+  type UndoError,
+  type Undone,
+  type UndoWindowClosed,
+  type UndoWindowOpen,
+  undoDecision,
+  type VerifiedApproval,
+  type VerifyError,
+  verifyApproval,
+} from "./approval-write.js";
 export { soleCandidate } from "./candidate.js";
 export { type DbConfig, loadDbConfig } from "./config.js";
 export { connectDb } from "./connect.js";
