@@ -106,7 +106,8 @@ describe("safeFetch", () => {
 
   it("refuses a link with a user name or password in it", async () => {
     const { deps, asked } = web({});
-    await expect(safeFetch(deps, "https://user:secret@jobs.example.com/1")).rejects.toThrow(
+    // The host is plain example.com: the personal-data check reads user@host as an address.
+    await expect(safeFetch(deps, "https://user:secret@example.com/1")).rejects.toThrow(
       new FetchRefused("links with a user name or password are not fetched"),
     );
     expect(asked).toEqual([]);
