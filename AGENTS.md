@@ -60,7 +60,9 @@ Exists now:
   Since NS-134 a two-column PDF page reads one column at a time (`pdf-layout.ts`, plain code
   over pdf.js positions); any other page reads exactly as before.
   Since NS-111 also the guided story interview: a fixed STAR script per atom, the `story-draft`
-  route, and a provenance check that every story part quotes Paul's answers verbatim. Stories
+  route, and a provenance check that every story part quotes Paul's answers verbatim (whole words
+  and whole numbers, `quotedIn`, NS-184/NS-200), with its numbers, number words and capitalised
+  names backed by its quotes, the answers or the resume line. Stories
   are stored only when Paul approves them, then locked by a trigger (`packages/db`,
   `story-schema.ts`).
   Since NS-112 also the employment-facts check (DX-011): Paul's official HR record

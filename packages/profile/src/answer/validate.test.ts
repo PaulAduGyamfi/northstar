@@ -157,6 +157,35 @@ describe("validateAnswerDraft", () => {
     });
   });
 
+  it("fails a quote cut from inside a decimal, so it can't back an invented figure", () => {
+    const decimal: EvidenceItem = {
+      id: "atom-2",
+      kind: "atom",
+      text: "Grew card revenue by 1.5 million dollars in one year.",
+    };
+    const draft = good();
+    draft.sentences[2] = {
+      text: "I grew card revenue by 5 million dollars.",
+      cites: [{ id: "atom-2", quote: "5 million dollars in one year" }],
+    };
+    expect(validateAnswerDraft(draft, [...EVIDENCE, decimal], null)).toEqual({
+      ok: false,
+      failures: [{ sentence: 2, problem: "cite 0 quote is not in its item" }],
+    });
+  });
+
+  it("fails a quote that stops inside a contraction", () => {
+    const draft = good();
+    draft.sentences[0] = {
+      text: "Product wanted to launch card payments on a fixed date, but the fraud checks were finished.",
+      cites: [{ id: "story-1", quote: "but the fraud checks weren" }],
+    };
+    expect(validateAnswerDraft(draft, EVIDENCE, null)).toEqual({
+      ok: false,
+      failures: [{ sentence: 0, problem: "cite 0 quote is not in its item" }],
+    });
+  });
+
   it("fails a quote of a single word", () => {
     const draft = good();
     draft.sentences[1] = { text: "We agreed.", cites: [{ id: "story-1", quote: "agreed" }] };

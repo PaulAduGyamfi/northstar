@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SAMPLE_RESUME, sampleExtract } from "./test/sample.js";
-import { validateProvenance } from "./validate.js";
+import { quotedIn, validateProvenance } from "./validate.js";
 
 describe("validateProvenance", () => {
   it("passes a faithful extraction", () => {
@@ -319,5 +319,45 @@ describe("validateProvenance", () => {
     const atom = x.atoms[0];
     if (atom) atom.sourceQuote = "A sentence that is not there.";
     expect(JSON.stringify(validateProvenance(x, SAMPLE_RESUME))).not.toContain("sentence");
+  });
+});
+
+describe("quotedIn", () => {
+  it("refuses a quote that starts or ends inside a decimal, a separated number or a minus sign", () => {
+    expect([
+      quotedIn("Revenue grew 1.5 million dollars", "5 million dollars"),
+      quotedIn("We served 1,200 users daily", "200 users daily"),
+      quotedIn("Latency dropped to 0.8 seconds", "8 seconds"),
+      quotedIn("we were 1.5 teams", "we were 1"),
+      quotedIn("cost fell -5% overall", "5% overall"),
+      quotedIn("we were 12 engineers", "2 engineers"),
+      quotedIn("Late deliveries went from 12.5% to 3%", "went from 12"),
+    ]).toEqual([false, false, false, false, false, false, false]);
+  });
+
+  it("refuses a quote that stops or starts inside a negation", () => {
+    expect([
+      quotedIn("I can't fix the planner alone", "I can"),
+      quotedIn("I can't fix the planner alone", "t fix the planner"),
+      quotedIn("I can't fix the planner alone", "I can't fix"),
+    ]).toEqual([false, false, true]);
+  });
+
+  it("accepts a name quoted without its possessive", () => {
+    expect(quotedIn("I rebuilt Example Freight's planner", "I rebuilt Example Freight")).toBe(true);
+  });
+
+  it("accepts whole numbers, a sentence's last full stop and a quote that keeps its sign", () => {
+    expect([
+      quotedIn("Revenue grew 1.5 million dollars", "1.5 million dollars"),
+      quotedIn("We served 1,200 users daily.", "1,200 users daily."),
+      quotedIn("cost fell -5% overall", "-5% overall"),
+      quotedIn("we shipped in 2021. Then we grew", "shipped in 2021"),
+      quotedIn("pay is C++ and C# work", "C++ and C#"),
+    ]).toEqual([true, true, true, true, true]);
+  });
+
+  it("treats regex characters in a quote as plain text", () => {
+    expect([quotedIn("a (b) c", "(b) c"), quotedIn("abc", "a.c")]).toEqual([true, false]);
   });
 });
