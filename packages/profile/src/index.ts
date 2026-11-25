@@ -1,6 +1,13 @@
 // Public entry of @northstar/profile: resume import into the profile graph (NS-110, ADR-0004), the
 // guided story interview (NS-111), the employment-facts consistency check (NS-112, DX-011) and the
-// question canon for the answer bank (NS-118, ANS-001/002).
+// question canon for the answer bank (NS-118, ANS-001/002) and answer reuse (GH-59, ANS-003).
+export {
+  type AdaptedAnswer,
+  adaptAnswer,
+  narrativeKindOf,
+  reuseNote,
+  type StoredAnswer,
+} from "./answer-bank.js";
 export {
   blocksAutoSubmit,
   type Claim,
