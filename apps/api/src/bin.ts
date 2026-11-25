@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import {
   connectDb,
   listOpenHandoffs,
+  listTenants,
   loadDbConfig,
   readDedupeCandidates,
   readFeed,
@@ -22,6 +23,7 @@ import {
   loadLlmConfig,
 } from "@northstar/llm";
 import { type IngestDeps, ingestText, ingestUrl, jobExtractRoute } from "@northstar/sources";
+import { accountsEndpoints } from "./accounts.js";
 import { captureEndpoint } from "./capture.js";
 import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
 import { handoffEndpoints } from "./handoffs.js";
@@ -105,11 +107,15 @@ try {
       return { ok: moved.ok };
     },
   });
+  // Employer accounts (NS-124), read-only from the tenant registry.
+  const accounts = accountsEndpoints({
+    listTenants: async () => listTenants(db, await candidateId()),
+  });
   const handler = createApi({
     config,
     sessions: createSessions(Date.now),
     extensionTokenSha256,
-    extra: [capture, ...system, ...handoffs],
+    extra: [capture, ...system, ...handoffs, ...accounts],
   });
   const server = createServer(handler);
   server.listen(config.port, "127.0.0.1", () => {
