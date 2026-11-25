@@ -10,7 +10,7 @@ Paul should hear about it at once ("Posted 12 min ago · Fit 88 · ready to appr
 3 a.m., unless the company is one of his tier-1 targets.
 
 ## Behavior
-1. **The decision** (`packages/sources`, `alerts/fresh.ts`, plain code, no model): a job gets an
+1. **The decision** (`packages/sources`, `alerts.ts`, plain code, no model): a job gets an
    alert when its latest fit score is in the `queue` band (the "high-fit" band Paul already
    sets with `queueAt`) and it is under 60 minutes old (posting time, else first seen).
    - Inside quiet hours the alert is **held**, unless the job comes from a tier-1 watched board
