@@ -91,6 +91,19 @@ describe("parseTracker", () => {
     });
   });
 
+  it("counts blank lines when it names a bad row's line", () => {
+    const text = `${HEADER}\n\nGlobex,Engineer,soon,screen,rejected,,,\n`;
+    expect(parseTracker(text)).toEqual({
+      ok: false,
+      error: [{ line: 3, problem: "applied_on must be a real date YYYY-MM-DD" }],
+    });
+  });
+
+  it("reads an Excel export that starts with a byte-order mark", () => {
+    const parsed = parseTracker(`\uFEFF${HEADER}\nGlobex,Engineer,2026-03-02,applied,open,,,\n`);
+    expect(parsed.ok).toBe(true);
+  });
+
   it("refuses a file with no rows", () => {
     expect(parseTracker(`${HEADER}\n`)).toEqual({
       ok: false,

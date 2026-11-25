@@ -16,7 +16,6 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@northstar/domain": "workspace:*",
     "@northstar/llm": "workspace:*",
     "@northstar/prompts": "workspace:*",
     "@opentelemetry/api": "1.9.1",

@@ -11,7 +11,7 @@ import type {
 import type { Result } from "@northstar/domain";
 import { GmailError, MAIL_KINDS, OAuthError, STAGE_SIGNALS } from "@northstar/inbox";
 import { LlmTransportError } from "@northstar/llm";
-import type { BackfillCounts } from "./backfill.js";
+import { type BackfillCounts, emptyCounts } from "./backfill.js";
 import { parseTracker } from "./csv.js";
 import { judgeHypotheses, summarize } from "./hypotheses.js";
 import { gmailRecords, mergeRecords } from "./records.js";
@@ -26,7 +26,11 @@ export type CliDeps = {
   ask: (question: string) => Promise<string | null>;
   now: () => Date;
   baselines: Baselines;
-  runBackfill: (options: { since: string; maxMessages: number }) => Promise<BackfillCounts>;
+  // Fills `counts` as it goes, so a stopped run still reports its progress.
+  runBackfill: (
+    options: { since: string; maxMessages: number },
+    counts: BackfillCounts,
+  ) => Promise<BackfillCounts>;
   readText: (path: string) => Promise<string>;
   setManualRows: (input: {
     fileSha256: string;
@@ -84,12 +88,17 @@ async function backfillCommand(
   deps: CliDeps,
   options: { since: string; maxMessages: number },
 ): Promise<number> {
-  let c: BackfillCounts;
+  let c = emptyCounts();
   try {
-    c = await deps.runBackfill(options);
+    c = await deps.runBackfill(options, c);
   } catch (error) {
     deps.print(`Backfill stopped: ${describeError(error)}`);
     deps.print("Messages already processed are saved; run it again to continue.");
+    // If it isn't in the feed, it didn't happen: a stopped run may already have cost money.
+    await deps.recordEvent("funnel.backfilled", "Gmail backfill stopped", {
+      ...countsPayload(c),
+      stopped: error instanceof Error ? error.name : "unknown",
+    });
     return 1;
   }
   deps.print(
@@ -99,19 +108,11 @@ async function backfillCommand(
     `${c.modelCalls} model call(s), ${c.costUsd === null ? "cost unknown" : `$${Math.round(c.costUsd * 1e4) / 1e4}`}.${c.deferred > 0 ? ` ${c.deferred} left for the next run.` : ""}`,
   );
   if (c.review > 0) deps.print("Run `funnel review` to place the messages that need you.");
-  await deps.recordEvent("funnel.backfilled", "Gmail backfill finished", {
-    listed: c.listed,
-    alreadyKnown: c.alreadyKnown,
-    notJob: c.notJob,
-    ruleClassified: c.ruleClassified,
-    modelClassified: c.modelClassified,
-    review: c.review,
-    deferred: c.deferred,
-    modelCalls: c.modelCalls,
-    costUsd: c.costUsd,
-  });
+  await deps.recordEvent("funnel.backfilled", "Gmail backfill finished", countsPayload(c));
   return 0;
 }
+
+const countsPayload = (c: BackfillCounts): Record<string, number | null> => ({ ...c });
 
 // Errors this package raises carry no mail content by construction (status codes, fixed words);
 // anything else is named only, since its message might quote a row or a request.
@@ -239,13 +240,20 @@ async function askPlacement(
 ): Promise<ReviewDecision | "closed" | "skip"> {
   const kind = await askFrom(deps, "kind", MAIL_KINDS);
   if (kind === null) return "closed";
-  const company = (await deps.ask(`company${m.company ? ` [${m.company}]` : ""}: `))?.trim();
+  // No default from a name that failed the provenance check: one Enter mustn't place a name the
+  // email doesn't contain.
+  const trusted = m.reviewReason !== "provenance";
+  const company = (
+    await deps.ask(`company${trusted && m.company ? ` [${m.company}]` : ""}: `)
+  )?.trim();
   if (company === undefined) return "closed";
-  const role = (await deps.ask(`role (optional)${m.role ? ` [${m.role}]` : ""}: `))?.trim();
+  const role = (
+    await deps.ask(`role (optional)${trusted && m.role ? ` [${m.role}]` : ""}: `)
+  )?.trim();
   if (role === undefined) return "closed";
   const stage = await askFrom(deps, "stage", STAGE_SIGNALS);
   if (stage === null) return "closed";
-  const finalCompany = company || m.company;
+  const finalCompany = company || (trusted ? m.company : null);
   if (!finalCompany) {
     deps.print("  a company is needed to place it; skipped.");
     return "skip";
@@ -254,7 +262,7 @@ async function askPlacement(
     action: "classify",
     kind: kind as MailKind,
     company: finalCompany,
-    role: role || m.role,
+    role: role || (trusted ? m.role : null),
     stageSignal: stage as StageSignal,
   };
 }

@@ -26,10 +26,15 @@ it never guesses on thin data.
   `2026-02-01`, DX-001) are listed with a Gmail query built from known ATS sender domains and
   job-mail subject phrases. For each, only headers are fetched first (`From`, `Subject`, `Date`,
   `Delivered-To`, `Authentication-Results`). Plain code keeps a message only if its sender domain
-  is a known ATS or already on a funnel message, its subject matches a job-mail phrase, or it is in
-  the same Gmail thread as job mail (a reply titled "Intro call" in a confirmation's thread). Only
-  kept messages are fetched in full. Non-job mail is never fetched in full and never reaches a
-  model (NFR-SEC-005).
+  is a known ATS **and Gmail verified it** (DMARC pass, or DKIM pass for that domain), the domain
+  is already on a funnel message from a verified sender, its subject has a job-specific phrase
+  ("thank you for applying", "your candidacy", "interview invitation", "offer letter" and a few
+  more), or it is in a thread that holds job mail. Generic phrases ("your application", "next
+  steps", "interview") never count alone: mortgage, visa and press mail use them too. Gmail's
+  search lists matching messages, not whole threads, so each job thread is listed separately
+  (`threads.get`, format minimal) to find replies like "Intro call". Only kept messages are fetched
+  in full. Non-job mail is never fetched in full and never reaches a model (NFR-SEC-005); it is
+  stored as its ids and date only, so a rerun skips it.
 - **Known gap, on purpose:** a recruiter's first email in a new thread whose subject has no job
   phrase is dropped. Keeping personal mail away from the model matters more; Paul adds such an
   application with `funnel import`, and a test pins this behavior.
@@ -37,8 +42,11 @@ it never guesses on thin data.
   domain, the date and the extracted fields below are kept (stricter than NFR-SEC-005's 90 days).
 
 ### Classifying and rebuilding the funnel (DX-001)
-- **Rules first.** Known ATS confirmation subjects ("Thank you for applying", "We received your
-  application", and similar) are classified `confirmation` by plain code.
+- **Rules first.** Known ATS confirmation subjects ("Thank you for applying to X", "Your
+  application to X has been received") are classified `confirmation` by plain code, but only for a
+  sender Gmail verified. A forged one goes to the model like any other message.
+- **Unreadable mail.** A message Gmail returns without a sender or a date goes to review
+  (`unparseable`) if it's in a job thread, else it's dropped. It never reaches the model.
 - **Then the `mail-classify` route** (new, `claude-opus-5-5`, effort `low`) for the rest. Input:
   sender, subject, date and the body truncated to 6,000 characters, inside `untrustedBlock`. The
   route has no tools. Output (Zod): type (the INB-003 list), company, role, requisition id, and a
@@ -155,6 +163,25 @@ it never guesses on thin data.
   - `funnel.reported`: the leakiest stage and sample sizes.
 - Spans: `gmail.list`, `gmail.get` (attributes: count, http status, retry count; never subject or
   address), plus the `llm.call` span the gateway already emits.
+
+## Changes made while building (recorded for Paul)
+- Records are derived from stored messages and tracker rows, not stored (see Behavior).
+- Tracker/Gmail outcome conflicts are listed by `funnel report` (the tracker wins) rather than
+  stored as review items.
+- `funnel review` "place" stores the type, company, role and stage Paul gives; which application
+  the message then joins is decided by the same grouping rules. If his placement is still
+  ambiguous, it joins the newest matching application. Choosing a record by hand would need a
+  stored group key; not built.
+- Events: `funnel.backfilled` has every run count (including fetched and found-through-threads)
+  and a `stopped` error name when a run stops partway; `funnel.imported` has the row count;
+  `funnel.reported` has applications, the too-new count, the leakiest step and conflicts. Records
+  created per run aren't counted, since records are derived.
+- Open applications from the last 14 days are left out of the conversion rates (too new to
+  judge); the report says how many.
+- `funnel-baselines.json` ships placeholder rates, each labelled an unsourced assumption. Paul
+  replaces them with numbers he trusts.
+- The end-to-end mailbox test uses a scripted gateway, not recorded fixtures; the model's real
+  accuracy is the eval set's job once Paul records it.
 
 ## Out of scope
 - Gmail push, labels, drafts, send and the Mail Gateway (INB-005, RPL-*, P2), and any stored

@@ -5,6 +5,9 @@ import type { GmailAccess } from "./oauth.js";
 // fetch, no SDK. Retries 429 and 5xx with backoff (ADR-0007); spans carry counts and statuses only.
 
 const BASE = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
+const THREADS = "https://gmail.googleapis.com/gmail/v1/users/me/threads";
+// A Retry-After longer than this is capped: the in-memory token expires after about an hour.
+const MAX_RETRY_AFTER_S = 60;
 // Headers the pre-filter and INB-011 need; nothing else is fetched before the pre-filter decides.
 const METADATA_HEADERS = ["From", "Subject", "Date", "Delivered-To", "Authentication-Results"];
 const MAX_RETRIES = 5;
@@ -47,6 +50,9 @@ export type GmailClient = {
   listIds: (query: string) => Promise<{ id: string; threadId: string }[]>;
   getHeaders: (id: string) => Promise<MessageHeaders>;
   getFull: (id: string) => Promise<FullMessage>;
+  // Every message id in a thread. A search lists matching messages, not whole threads, so this is
+  // how a reply titled "Intro call" in a confirmation's thread is found at all.
+  threadMessageIds: (threadId: string) => Promise<{ id: string; threadId: string }[]>;
 };
 
 type GmailPayload = {
@@ -90,7 +96,9 @@ export function createGmailClient(deps: GmailDeps): GmailClient {
       }
       const retryAfter = Number(res.headers.get("retry-after"));
       await deps.sleep(
-        Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : backoff(attempt),
+        Number.isFinite(retryAfter) && retryAfter > 0
+          ? Math.min(retryAfter, MAX_RETRY_AFTER_S) * 1000
+          : backoff(attempt),
       );
     }
   }
@@ -148,6 +156,15 @@ export function createGmailClient(deps: GmailDeps): GmailClient {
         return ids;
       }),
     getHeaders: async (id) => headersOf(await message(id, "metadata")),
+    threadMessageIds: (threadId) =>
+      inSpan("gmail.thread", {}, async (span) => {
+        // format=minimal: ids and labels only, no headers or body.
+        const url = `${THREADS}/${encodeURIComponent(threadId)}?format=minimal`;
+        const thread = (await get(url, span)) as { messages?: { id: string; threadId: string }[] };
+        const ids = (thread.messages ?? []).map((m) => ({ id: m.id, threadId: m.threadId }));
+        span.setAttribute("gmail.count", ids.length);
+        return ids;
+      }),
     getFull: async (id) => {
       const m = await message(id, "full");
       return { ...headersOf(m), body: bodyOf(m.payload) };

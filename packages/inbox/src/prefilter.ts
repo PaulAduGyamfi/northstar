@@ -25,22 +25,20 @@ export const ATS_DOMAINS = [
   "taleo.net",
 ] as const;
 
-// Subject phrases that mean job mail. No bare "offer", "role" or "opportunity": promotions use them.
+// Subject phrases specific enough to mean job mail on their own. Generic ones ("your
+// application", "next steps", "interview") also appear in mortgage, visa and press mail, so they
+// count only inside a thread that's already job mail (the backfill's thread rule), never alone.
 export const JOB_PHRASES = [
   "thank you for applying",
   "thanks for applying",
-  "your application",
-  "application received",
-  "application status",
-  "application update",
   "your candidacy",
-  "interview",
   "phone screen",
+  "interview invitation",
+  "invitation to interview",
   "coding challenge",
   "technical assessment",
   "offer letter",
   "job offer",
-  "next steps",
 ] as const;
 
 const lower = (s: string) => s.toLowerCase();
@@ -51,15 +49,52 @@ function underDomain(domain: string, root: string): boolean {
   return domain === root || domain.endsWith(`.${root}`);
 }
 
-// Whether a message is job mail, from its sender domain and subject only. `knownDomains` holds the
-// sender domains of messages already in the funnel (a company's own recruiter domain).
+// The domains Gmail verified for this message, from its Authentication-Results header: the
+// header.from of a DMARC pass, or the signing domain of a DKIM pass. The From header alone can be
+// forged by anyone; these can't.
+export function authenticatedDomains(authenticationResults: string | null): string[] {
+  if (!authenticationResults) return [];
+  const out: string[] = [];
+  for (const part of authenticationResults.split(";")) {
+    const p = lower(part);
+    if (/\bdmarc=pass\b/.test(p)) {
+      const d = /header\.from=([a-z0-9.-]+)/.exec(p)?.[1];
+      if (d) out.push(d);
+    }
+    if (/\bdkim=pass\b/.test(p)) {
+      const d =
+        /header\.d=([a-z0-9.-]+)/.exec(p)?.[1] ?? /header\.i=[^@\s]*@([a-z0-9.-]+)/.exec(p)?.[1];
+      if (d) out.push(d);
+    }
+  }
+  return out;
+}
+
+// Whether the sender's domain is one Gmail verified (the verified domain, or one under it).
+export function isAuthenticatedSender(headers: {
+  senderDomain: string;
+  authenticationResults: string | null;
+}): boolean {
+  const domain = lower(headers.senderDomain);
+  return (
+    domain !== "" &&
+    authenticatedDomains(headers.authenticationResults).some((d) => underDomain(domain, d))
+  );
+}
+
+// Whether a message is job mail, from its headers only (INB-002): an authenticated sender at a
+// known ATS, a sender domain already in the funnel, or a job-specific subject phrase. The
+// backfill also keeps messages in a job thread.
 export function isJobMail(
-  headers: { senderDomain: string; subject: string },
+  headers: { senderDomain: string; subject: string; authenticationResults: string | null },
   knownDomains: ReadonlySet<string>,
 ): boolean {
   const domain = lower(headers.senderDomain);
   if (domain === "") return false;
-  if (ATS_DOMAINS.some((root) => underDomain(domain, root))) return true;
+  // A forged From: an ATS domain counts only when Gmail verified it.
+  if (ATS_DOMAINS.some((root) => underDomain(domain, root)) && isAuthenticatedSender(headers)) {
+    return true;
+  }
   if (knownDomains.has(domain)) return true;
   const subject = lower(headers.subject);
   return JOB_PHRASES.some((phrase) => subject.includes(phrase));

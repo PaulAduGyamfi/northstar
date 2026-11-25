@@ -86,6 +86,24 @@ describe("placeMessage", () => {
     });
   });
 
+  it("a message naming a role joins the company's recent application that has no role yet", () => {
+    const roleless = [
+      { messages: [msg({ at: "2026-03-01T10:00:00Z", threadId: "t-conf", role: null })] },
+    ];
+    const interview = msg({
+      at: "2026-03-08T10:00:00Z",
+      threadId: "t-new",
+      role: "Backend Engineer",
+    });
+    expect(placeMessage(roleless, interview)).toEqual({ kind: "existing", index: 0 });
+    const both = gmailRecords([...(roleless[0]?.messages ?? []), interview], NOW);
+    expect(both).toHaveLength(1);
+    expect(both[0]).toMatchObject({
+      role: "Backend Engineer",
+      appliedAt: new Date("2026-03-01T10:00:00Z"),
+    });
+  });
+
   it("a message with no role is ambiguous when the company has two recent applications", () => {
     const two = [
       { messages: [msg({ at: "2026-03-01T10:00:00Z", role: "Backend Engineer" })] },
