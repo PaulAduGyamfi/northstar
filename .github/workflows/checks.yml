@@ -69,6 +69,12 @@ jobs:
       - name: Lint, typecheck, test, build
         run: pnpm turbo run lint typecheck test build --force
 
+      # Replays every registered eval from its recorded fixtures and fails below baseline.json
+      # (NFR-AIQ-001, ADR-0013). Offline, no API key, no cost. dist/ is already built above.
+      - name: Evals (replay)
+        working-directory: evals
+        run: node dist/bin.js --all
+
       # Validates docker-compose.yml (syntax, required variables) with the placeholder values.
       # CI doesn't run the stack.
       - name: Compose file is valid

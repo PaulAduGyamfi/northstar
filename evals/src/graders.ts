@@ -2,7 +2,8 @@ import { isDeepStrictEqual } from "node:util";
 
 // A grader decides whether one output is right for one case. Plain code, no model (an
 // LLM-as-judge grader is out of scope for NS-106).
-export type Grader = (output: unknown, expected: unknown) => boolean;
+// The case input is passed too, for graders that check output against it (provenance).
+export type Grader = (output: unknown, expected: unknown, input?: unknown) => boolean;
 
 const asRecord = (value: unknown): Record<string, unknown> =>
   value !== null && typeof value === "object" ? (value as Record<string, unknown>) : {};

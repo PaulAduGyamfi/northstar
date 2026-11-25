@@ -1,0 +1,1172 @@
+{
+  "id": "5ef18043-7b61-4944-b454-ce0088c9283c",
+  "prevId": "9e93e394-78a0-48d5-9bc0-94f2b0902888",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.application": {
+      "name": "application",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "job_id": {
+          "name": "job_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "application_candidate_id_candidate_id_fk": {
+          "name": "application_candidate_id_candidate_id_fk",
+          "tableFrom": "application",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "application_job_same_candidate_fk": {
+          "name": "application_job_same_candidate_fk",
+          "tableFrom": "application",
+          "tableTo": "job",
+          "columnsFrom": [
+            "job_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "application_one_per_job": {
+          "name": "application_one_per_job",
+          "nullsNotDistinct": false,
+          "columns": [
+            "candidate_id",
+            "job_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "application_status_valid": {
+          "name": "application_status_valid",
+          "value": "\"application\".\"status\" in ('discovered', 'scored', 'queued', 'package_ready', 'awaiting_approval', 'submitting', 'needs_human', 'submitted', 'confirmed', 'in_process', 'offer', 'rejected', 'withdrawn', 'ghosted')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.candidate": {
+      "name": "candidate",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.company": {
+      "name": "company",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "company_candidate_id_candidate_id_fk": {
+          "name": "company_candidate_id_candidate_id_fk",
+          "tableFrom": "company",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "company_id_candidate_unique": {
+          "name": "company_id_candidate_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "candidate_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.domain_event": {
+      "name": "domain_event",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "domain_event_position_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "aggregate": {
+          "name": "aggregate",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor": {
+          "name": "actor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "inputs_summary": {
+          "name": "inputs_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "links": {
+          "name": "links",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trace_id": {
+          "name": "trace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "domain_event_candidate_id_candidate_id_fk": {
+          "name": "domain_event_candidate_id_candidate_id_fk",
+          "tableFrom": "domain_event",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "domain_event_idempotency_unique": {
+          "name": "domain_event_idempotency_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "candidate_id",
+            "idempotency_key"
+          ]
+        },
+        "domain_event_position_unique": {
+          "name": "domain_event_position_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "position"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "domain_event_trace_id_format": {
+          "name": "domain_event_trace_id_format",
+          "value": "\"domain_event\".\"trace_id\" is null or \"domain_event\".\"trace_id\" ~ '^[0-9a-f]{32}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.job": {
+      "name": "job",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "job_candidate_id_candidate_id_fk": {
+          "name": "job_candidate_id_candidate_id_fk",
+          "tableFrom": "job",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "job_company_same_candidate_fk": {
+          "name": "job_company_same_candidate_fk",
+          "tableFrom": "job",
+          "tableTo": "company",
+          "columnsFrom": [
+            "company_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "job_id_candidate_unique": {
+          "name": "job_id_candidate_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "candidate_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.certification": {
+      "name": "certification",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issuer": {
+          "name": "issuer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "issued_month": {
+          "name": "issued_month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "certification_candidate_id_candidate_id_fk": {
+          "name": "certification_candidate_id_candidate_id_fk",
+          "tableFrom": "certification",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "certification_source_same_candidate_fk": {
+          "name": "certification_source_same_candidate_fk",
+          "tableFrom": "certification",
+          "tableTo": "profile_source",
+          "columnsFrom": [
+            "source_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "certification_issued_month_format": {
+          "name": "certification_issued_month_format",
+          "value": "\"certification\".\"issued_month\" is null or \"certification\".\"issued_month\" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.education": {
+      "name": "education",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "school": {
+          "name": "school",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "degree": {
+          "name": "degree",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "field": {
+          "name": "field",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "start_month": {
+          "name": "start_month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "end_month": {
+          "name": "end_month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "locked": {
+          "name": "locked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "education_candidate_id_candidate_id_fk": {
+          "name": "education_candidate_id_candidate_id_fk",
+          "tableFrom": "education",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "education_source_same_candidate_fk": {
+          "name": "education_source_same_candidate_fk",
+          "tableFrom": "education",
+          "tableTo": "profile_source",
+          "columnsFrom": [
+            "source_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "education_start_month_format": {
+          "name": "education_start_month_format",
+          "value": "\"education\".\"start_month\" is null or \"education\".\"start_month\" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'"
+        },
+        "education_end_month_format": {
+          "name": "education_end_month_format",
+          "value": "\"education\".\"end_month\" is null or \"education\".\"end_month\" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.experience_atom": {
+      "name": "experience_atom",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role_id": {
+          "name": "role_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "what": {
+          "name": "what",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "how": {
+          "name": "how",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "impact": {
+          "name": "impact",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "start_month": {
+          "name": "start_month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "end_month": {
+          "name": "end_month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_quote": {
+          "name": "source_quote",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence_link": {
+          "name": "evidence_link",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "experience_atom_candidate_id_candidate_id_fk": {
+          "name": "experience_atom_candidate_id_candidate_id_fk",
+          "tableFrom": "experience_atom",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "experience_atom_source_same_candidate_fk": {
+          "name": "experience_atom_source_same_candidate_fk",
+          "tableFrom": "experience_atom",
+          "tableTo": "profile_source",
+          "columnsFrom": [
+            "source_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "experience_atom_role_same_candidate_fk": {
+          "name": "experience_atom_role_same_candidate_fk",
+          "tableFrom": "experience_atom",
+          "tableTo": "role",
+          "columnsFrom": [
+            "role_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "experience_atom_quote_not_empty": {
+          "name": "experience_atom_quote_not_empty",
+          "value": "length(trim(\"experience_atom\".\"source_quote\")) > 0"
+        },
+        "experience_atom_evidence_link_http": {
+          "name": "experience_atom_evidence_link_http",
+          "value": "\"experience_atom\".\"evidence_link\" is null or \"experience_atom\".\"evidence_link\" ~ '^https?://'"
+        },
+        "experience_atom_start_month_format": {
+          "name": "experience_atom_start_month_format",
+          "value": "\"experience_atom\".\"start_month\" is null or \"experience_atom\".\"start_month\" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'"
+        },
+        "experience_atom_end_month_format": {
+          "name": "experience_atom_end_month_format",
+          "value": "\"experience_atom\".\"end_month\" is null or \"experience_atom\".\"end_month\" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.profile_link": {
+      "name": "profile_link",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "profile_link_candidate_id_candidate_id_fk": {
+          "name": "profile_link_candidate_id_candidate_id_fk",
+          "tableFrom": "profile_link",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "profile_link_source_same_candidate_fk": {
+          "name": "profile_link_source_same_candidate_fk",
+          "tableFrom": "profile_link",
+          "tableTo": "profile_source",
+          "columnsFrom": [
+            "source_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "profile_link_url_http": {
+          "name": "profile_link_url_http",
+          "value": "\"profile_link\".\"url\" ~ '^https?://'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.profile_source": {
+      "name": "profile_source",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "text_sha256": {
+          "name": "text_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "imported_at": {
+          "name": "imported_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "superseded_at": {
+          "name": "superseded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "profile_source_one_current": {
+          "name": "profile_source_one_current",
+          "columns": [
+            {
+              "expression": "candidate_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"profile_source\".\"superseded_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "profile_source_candidate_id_candidate_id_fk": {
+          "name": "profile_source_candidate_id_candidate_id_fk",
+          "tableFrom": "profile_source",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "profile_source_id_candidate_unique": {
+          "name": "profile_source_id_candidate_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "candidate_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "profile_source_kind_valid": {
+          "name": "profile_source_kind_valid",
+          "value": "\"profile_source\".\"kind\" in ('resume')"
+        },
+        "profile_source_sha_format": {
+          "name": "profile_source_sha_format",
+          "value": "\"profile_source\".\"text_sha256\" ~ '^[0-9a-f]{64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.role": {
+      "name": "role",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employer": {
+          "name": "employer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_month": {
+          "name": "start_month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "end_month": {
+          "name": "end_month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "locked": {
+          "name": "locked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "role_candidate_id_candidate_id_fk": {
+          "name": "role_candidate_id_candidate_id_fk",
+          "tableFrom": "role",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "role_source_same_candidate_fk": {
+          "name": "role_source_same_candidate_fk",
+          "tableFrom": "role",
+          "tableTo": "profile_source",
+          "columnsFrom": [
+            "source_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "role_id_candidate_unique": {
+          "name": "role_id_candidate_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "candidate_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "role_start_month_format": {
+          "name": "role_start_month_format",
+          "value": "\"role\".\"start_month\" is null or \"role\".\"start_month\" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'"
+        },
+        "role_end_month_format": {
+          "name": "role_end_month_format",
+          "value": "\"role\".\"end_month\" is null or \"role\".\"end_month\" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.skill": {
+      "name": "skill",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "skill_candidate_id_candidate_id_fk": {
+          "name": "skill_candidate_id_candidate_id_fk",
+          "tableFrom": "skill",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "skill_source_same_candidate_fk": {
+          "name": "skill_source_same_candidate_fk",
+          "tableFrom": "skill",
+          "tableTo": "profile_source",
+          "columnsFrom": [
+            "source_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "skill_unique_per_source": {
+          "name": "skill_unique_per_source",
+          "nullsNotDistinct": false,
+          "columns": [
+            "candidate_id",
+            "source_id",
+            "name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

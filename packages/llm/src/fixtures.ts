@@ -33,9 +33,10 @@ export class MissingFixture extends Error {
   }
 }
 
-// A fixture file holds the response only. The request is represented by its key, so no
-// prompt or input text is written to disk by the recorder.
-type FixtureFile = { key: string; response: BetaMessage };
+// A fixture file holds the response only. The request is represented by its SHA-256, so no
+// prompt or input text is written to disk by the recorder. The field isn't called "key": secret
+// scanners (gitleaks) read a long random value under a key-like name as an API key.
+type FixtureFile = { requestSha256: string; response: BetaMessage };
 
 const fixturePath = (dir: string, key: string) => join(dir, `${key}.json`);
 
@@ -73,7 +74,7 @@ export function createRecordingClient(real: MessagesClient, dir: string): Messag
       const response = await real.create(params, options);
       const key = requestKey(params);
       mkdirSync(dir, { recursive: true });
-      const file: FixtureFile = { key, response: forFixture(response) };
+      const file: FixtureFile = { requestSha256: key, response: forFixture(response) };
       // Trailing newline: the repo's end-of-file check requires it.
       writeFileSync(fixturePath(dir, key), `${JSON.stringify(file, null, 2)}\n`);
       return response;

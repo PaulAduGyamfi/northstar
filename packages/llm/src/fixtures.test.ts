@@ -50,6 +50,10 @@ describe("recorded fixtures", () => {
     const stored = readFileSync(join(dir, `${requestKey(params)}.json`), "utf8");
     expect(stored).not.toContain("Example Corp");
     expect(stored.endsWith("}\n")).toBe(true);
+    // The hash is stored as requestSha256, not "key": secret scanners read a long random value
+    // under a field called key as an API key.
+    expect(JSON.parse(stored).requestSha256).toBe(requestKey(params));
+    expect(stored).not.toContain('"key"');
   });
 
   it("treats a changed prompt as a missing fixture instead of replaying a stale answer", async () => {

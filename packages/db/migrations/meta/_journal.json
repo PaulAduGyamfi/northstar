@@ -22,6 +22,48 @@
       "when": 1795555773511,
       "tag": "0002_domain_event_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795564074659,
+      "tag": "0003_profile_graph",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795564075478,
+      "tag": "0004_locked_facts",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795565276776,
+      "tag": "0005_profile_positions",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795566293254,
+      "tag": "0006_year_dates_and_current",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795566293995,
+      "tag": "0007_lock_is_current",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795567890020,
+      "tag": "0008_current_has_no_end",
+      "breakpoints": true
     }
   ]
 }

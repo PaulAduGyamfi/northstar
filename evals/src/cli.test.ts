@@ -138,6 +138,24 @@ describe("eval cli", () => {
     expect(printed[1]).toMatch(/^ {2}FAIL remote-1 \(MissingFixture [0-9a-f]{64}\)$/);
   });
 
+  it("--all replays every registered eval and fails if any does", async () => {
+    writeEvalFolder(2);
+    await main(deps(["test-classify", "--record"]));
+    printed = [];
+    expect(await main(deps(["--all"]))).toBe(0);
+    expect(printed.at(-1)).toBe("all 1 eval(s) at or above baseline");
+
+    writeEvalFolder(3);
+    printed = [];
+    expect(await main(deps(["--all"]))).toBe(1);
+    expect(printed.at(-1)).toBe("1 of 1 eval(s) below baseline: test-classify");
+  });
+
+  it("--all refuses --live and --record: CI only ever replays", async () => {
+    expect(await main(deps(["--all", "--live"]))).toBe(1);
+    expect(printed).toEqual(["--all only replays; run --live or --record one route at a time"]);
+  });
+
   it("says where the cases file should be when it is missing", async () => {
     expect(await main(deps(["test-classify"]))).toBe(1);
     expect(printed).toEqual(["no cases: evals/test-classify/cases.jsonl"]);
