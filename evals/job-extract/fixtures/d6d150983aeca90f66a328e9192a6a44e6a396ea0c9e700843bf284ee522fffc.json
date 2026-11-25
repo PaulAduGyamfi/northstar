@@ -1,0 +1,50 @@
+{
+  "requestSha256": "d6d150983aeca90f66a328e9192a6a44e6a396ea0c9e700843bf284ee522fffc",
+  "response": {
+    "model": "claude-opus-5-5",
+    "id": "msg_011ChPe6ZUxjehyUuNx6DGJ2",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"isJobPosting\":true,\"title\":\"Backend Engineer\",\"company\":\"Acme Robotics\",\"location\":\"Denver, CO; Remote (US)\",\"remote\":null,\"salaryMin\":null,\"salaryMax\":null,\"salaryCurrency\":null,\"salaryPeriod\":null,\"seniority\":null,\"requirements\":[\"Node.js\"],\"niceToHaves\":[],\"postedText\":null}"
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 111,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 1500,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "iterations": [
+        {
+          "input_tokens": 111,
+          "output_tokens": 134,
+          "cache_read_input_tokens": 1500,
+          "cache_creation_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "output_tokens": 134,
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      },
+      "service_tier": "standard",
+      "inference_geo": "global",
+      "speed": "standard"
+    },
+    "diagnostics": null
+  }
+}

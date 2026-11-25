@@ -52,6 +52,10 @@ describe("gradeJobExtract", () => {
     expect(gradeJobExtract({ ...output, isJobPosting: false }, expected, input)).toBe(false);
   });
 
+  it("doesn't count a field name as the output containing an absent string", () => {
+    expect(gradeJobExtract(output, { ...expected, absent: ["Senior"] }, input)).toBe(true);
+  });
+
   it("fails output that contains an absent string", () => {
     const text = `${input.text}\nChief Technology Officer`;
     expect(
