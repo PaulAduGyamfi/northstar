@@ -33,9 +33,11 @@ Each phase ends with something you use daily. Estimates assume one engineer + co
 - Outreach: people + contact discovery, warm-path, drafts, sequencing (OUT-*)
 - Profile scanner, grade, fix drafts, footprint checklist (PRF-*, GRD-*, VIS-*)
 - Skill-gap loop + proof-of-work flywheel (GRW-008/009)
+- Career DNA report and approved share card (DNA-001…008)
 - **Exit:** profile grade baseline → +20; first inbound recruiter attributable to changes.
 
 ## P4 — Compounding
 - Outcome analytics and variant recommendations; score calibration
 - Speed mode for dream companies; hidden-job signals
 - Broader ATS coverage; mobile polish; optional multi-tenant
+- Free public Career DNA launch and introductions (DNA-009/010, needs Q-02)

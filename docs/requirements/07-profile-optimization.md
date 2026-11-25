@@ -33,6 +33,29 @@ Make the user easy to find and compelling once found, so recruiters come to them
 | VIS-004 | S | P3 | Personal site gets `sameAs` JSON-LD linking all profiles (identity consolidation for search engines). |
 | VIS-005 | C | P4 | "Search yourself" check: what Google / LinkedIn search shows for the user's name + target keywords. |
 
+### Career DNA (idea dump, 2026-11-25)
+A shareable career report: "Spotify Wrapped meets GitHub meets career discovery." It shows
+demonstrated strengths, transferable skills, possible directions, overlooked strengths and evidence
+gaps. **It is not a personality quiz.** Every line is grounded in the profile graph and says how sure
+it is, and the shared moment leads somewhere useful (matching jobs, a fix, an introduction), not just
+impressions. Why people share: self-discovery, identity, aspiration, utility (introductions) and
+recognition.
+
+| ID | Pri | Phase | Requirement |
+|---|---|---|---|
+| DNA-001 | M | P3 | **Career DNA report** built from the profile graph: experience atoms, approved stories, employment facts, imported sources (GitHub, LinkedIn export) and growth tracks. Every strength, label and direction cites atom or story IDs, and a deterministic check refuses any line without a citation (ADR-0004). |
+| DNA-002 | M | P3 | **Strength dimensions scored by code.** A fixed, versioned rubric (e.g. engineering, architecture, infrastructure, leadership, communication, problem-solving; the set is chosen per target role family) scores each dimension from cited evidence. Each score shows its evidence count and a confidence band (low / medium / high). Too little evidence reads "not enough evidence yet", never a low score. The model may draft wording but never sets a score. |
+| DNA-003 | M | P3 | **Archetype label** ("The Systems Builder") comes from the top dimensions through a fixed mapping. A "why this label" view lists the evidence. No personality-type or trait language that work evidence can't back. |
+| DNA-004 | M | P3 | **Career directions lead to action.** Candidate roles are ranked by how well the evidence covers real requirements of jobs in the feed (MAT-*, SRC-*). Each one shows matched evidence, the main gaps, and how many fresh open jobs fit, with a link straight to them in the queue. |
+| DNA-005 | S | P3 | **Overlooked strengths and transferable skills.** Well-evidenced atoms that the resume, LinkedIn headline or site don't mention become Profile Grade fixes (GRD-002). |
+| DNA-006 | M | P3 | **Evidence gaps.** Dimensions or directions held back by weak proof suggest a proof-of-work track (GRW-008/009). |
+| DNA-007 | M | P3 | **Share card.** An image plus a public page with confidence shown on the card itself and a footer saying the report is evidence-based and what it is built from. Private by default. Employer names, dates and metrics are hidden unless the user turns them on. Publishing needs an `approvalId` (Approval Gate, ADR-0002). Links can be revoked. The only analytics are a view count. |
+| DNA-008 | S | P3 | **Refresh and history.** Rebuilt when the profile changes. Versions are kept, and a "what changed since last time" diff gives the user a reason to come back. |
+| DNA-009 | C | P4 | **Introductions from a shared card.** A viewer can ask for an introduction. The request lands in the user's inbox as data (NFR-SEC-004), and any reply is a draft the user approves. Nothing is sent automatically. |
+| DNA-010 | C | P4 | **Free public Career DNA** as a growth launch: anyone uploads a resume or LinkedIn export and gets their own report, which leads into Northstar. Depends on Q-02 (multi-tenant). Needs an ADR covering data retention and deletion, abuse, cost per report and consent before it is built. |
+
 ## Acceptance criteria (selected)
 - **GRD-002:** Applying all suggested fixes and re-scanning increases the grade by roughly the sum of the stated impacts (± 5).
 - **PRF-002:** No LinkedIn page is loaded without the user's browser and the user's action/schedule consent.
+- **DNA-001/002:** A dimension with no cited atoms shows "not enough evidence yet". Removing one cited atom changes that score by the amount the rubric gives, with no model call.
+- **DNA-007:** Publishing a share card without an `approvalId` is refused, and a revoked link returns 404.
