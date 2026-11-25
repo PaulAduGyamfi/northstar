@@ -1,5 +1,15 @@
-// Public entry of @northstar/profile: resume import into the profile graph (NS-110, ADR-0004) and
-// the guided story interview (NS-111).
+// Public entry of @northstar/profile: resume import into the profile graph (NS-110, ADR-0004), the
+// guided story interview (NS-111) and the employment-facts consistency check (NS-112, DX-011).
+export {
+  blocksAutoSubmit,
+  type Claim,
+  type ClaimSource,
+  checkEmploymentFacts,
+  type Mismatch,
+  type MismatchField,
+  parseOfficialRecord,
+  type RecordLineError,
+} from "./facts.js";
 export { type ImportDeps, type ImportResult, importResume } from "./import.js";
 export {
   type Choice,
