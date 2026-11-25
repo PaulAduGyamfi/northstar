@@ -3,7 +3,7 @@
 | ID | Question | Why it matters | Default if unanswered |
 |---|---|---|---|
 | Q-01 | Product name? | Repo, extension, labels in Gmail. | "Northstar" |
-| Q-02 | Personal tool only, or a product for other job seekers later? | Multi-tenancy, auth, billing, data isolation, and how hard we lean on ToS-sensitive features. | Single-tenant, but no single-user shortcuts in the data model (every row has `candidate_id`). |
+| Q-02 | Personal tool only, or a product for other job seekers later? | Multi-tenancy, auth, billing, data isolation, and how hard we lean on ToS-sensitive features. A free public Career DNA launch (DNA-010, NS-131) depends on it. | Single-tenant, but no single-user shortcuts in the data model (every row has `candidate_id`). |
 | ~~Q-03~~ | **Resolved 2026-11-24:** "AI detection" = answers that don't read as AI-written. ADR-0003 accepted. | | |
 | Q-04 | Stack OK? TypeScript monorepo (Next.js, Temporal, Playwright, Postgres/pgvector). | Everything downstream. | ADR-0005 as written. |
 | ~~Q-05~~ | **Resolved 2026-11-24:** target roles, comp, locations etc. are live settings, editable any time in the app (SRC-017). Initial values are entered during onboarding. | | |
