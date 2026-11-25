@@ -67,6 +67,14 @@ Exists now:
   questions (`question-canon.ts`) and `matchQuestion`/`classifyQuestion`, plain code that maps a
   form question to one of them with a confidence score (factual, reusable narrative or
   company-specific), or to "new". No model, no database yet; the answer bank builds on it.
+  Since GH-59 also answer reuse (ANS-003): `adaptAnswer` fills a banked answer's `{company}`
+  slot and picks the variant that fits the form's limit (never cuts it), `reuseNote` and
+  `narrativeKindOf`.
+- The answer bank (GH-59, ANS-005/006) in `packages/db` (`answer-schema.ts`, `answer-write.ts`):
+  append-only `bank_answer` (versioned per canonical question), `bank_answer_citation` and
+  `bank_answer_use`. `saveApprovedAnswer` stores an answer only with a live Gate approval by Paul
+  of kind `answer`, subject `answer:<id>` and `answerContentSha256`; `readBankAnswer` and
+  `recordAnswerReuse` serve reuse. No CLI or UI yet.
 - `packages/inbox/` (NS-113): read-only Gmail (ADR-0014: `gmail.readonly`, desktop OAuth with
   PKCE, token in memory for one run, never stored), the job-mail pre-filter (headers only; ATS
   senders, job phrases, same-thread follow-ups), confirmation rules, and the `mail-classify` route

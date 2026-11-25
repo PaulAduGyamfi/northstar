@@ -1,5 +1,5 @@
 {
-  "id": "3807c329-6411-4307-bfc3-db0d339d1946",
+  "id": "b2aecefa-a58c-4e96-9b21-26549c0e2877",
   "prevId": "b6591120-28bb-4f5c-ac10-8ec111dfac61",
   "version": "7",
   "dialect": "postgresql",
@@ -87,6 +87,14 @@
           "columns": [
             "candidate_id",
             "job_id"
+          ]
+        },
+        "application_id_candidate_unique": {
+          "name": "application_id_candidate_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "candidate_id"
           ]
         }
       },
@@ -3314,8 +3322,151 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.apply_submission": {
-      "name": "apply_submission",
+    "public.bank_answer": {
+      "name": "bank_answer",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "canonical_id": {
+          "name": "canonical_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "short_text": {
+          "name": "short_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "long_text": {
+          "name": "long_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approval_decision_id": {
+          "name": "approval_decision_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "bank_answer_candidate_id_candidate_id_fk": {
+          "name": "bank_answer_candidate_id_candidate_id_fk",
+          "tableFrom": "bank_answer",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "bank_answer_decision_same_candidate_fk": {
+          "name": "bank_answer_decision_same_candidate_fk",
+          "tableFrom": "bank_answer",
+          "tableTo": "approval_decision",
+          "columnsFrom": [
+            "approval_decision_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "bank_answer_id_candidate_unique": {
+          "name": "bank_answer_id_candidate_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "candidate_id"
+          ]
+        },
+        "bank_answer_version_unique": {
+          "name": "bank_answer_version_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "candidate_id",
+            "canonical_id",
+            "version"
+          ]
+        },
+        "bank_answer_one_per_approval": {
+          "name": "bank_answer_one_per_approval",
+          "nullsNotDistinct": false,
+          "columns": [
+            "approval_decision_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "bank_answer_kind_valid": {
+          "name": "bank_answer_kind_valid",
+          "value": "\"bank_answer\".\"kind\" in ('reusable_narrative', 'company_specific')"
+        },
+        "bank_answer_canonical_id_format": {
+          "name": "bank_answer_canonical_id_format",
+          "value": "\"bank_answer\".\"canonical_id\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'"
+        },
+        "bank_answer_version_positive": {
+          "name": "bank_answer_version_positive",
+          "value": "\"bank_answer\".\"version\" >= 1"
+        },
+        "bank_answer_short_not_empty": {
+          "name": "bank_answer_short_not_empty",
+          "value": "length(trim(\"bank_answer\".\"short_text\")) > 0"
+        },
+        "bank_answer_long_not_empty": {
+          "name": "bank_answer_long_not_empty",
+          "value": "\"bank_answer\".\"long_text\" is null or length(trim(\"bank_answer\".\"long_text\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.bank_answer_citation": {
+      "name": "bank_answer_citation",
       "schema": "",
       "columns": {
         "id": {
@@ -3327,6 +3478,137 @@
         },
         "candidate_id": {
           "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "answer_id": {
+          "name": "answer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "story_id": {
+          "name": "story_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "atom_id": {
+          "name": "atom_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "bank_answer_citation_candidate_id_candidate_id_fk": {
+          "name": "bank_answer_citation_candidate_id_candidate_id_fk",
+          "tableFrom": "bank_answer_citation",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "bank_answer_citation_answer_same_candidate_fk": {
+          "name": "bank_answer_citation_answer_same_candidate_fk",
+          "tableFrom": "bank_answer_citation",
+          "tableTo": "bank_answer",
+          "columnsFrom": [
+            "answer_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "bank_answer_citation_story_same_candidate_fk": {
+          "name": "bank_answer_citation_story_same_candidate_fk",
+          "tableFrom": "bank_answer_citation",
+          "tableTo": "story",
+          "columnsFrom": [
+            "story_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "bank_answer_citation_atom_same_candidate_fk": {
+          "name": "bank_answer_citation_atom_same_candidate_fk",
+          "tableFrom": "bank_answer_citation",
+          "tableTo": "experience_atom",
+          "columnsFrom": [
+            "atom_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "bank_answer_citation_story_once": {
+          "name": "bank_answer_citation_story_once",
+          "nullsNotDistinct": false,
+          "columns": [
+            "answer_id",
+            "story_id"
+          ]
+        },
+        "bank_answer_citation_atom_once": {
+          "name": "bank_answer_citation_atom_once",
+          "nullsNotDistinct": false,
+          "columns": [
+            "answer_id",
+            "atom_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "bank_answer_citation_one_target": {
+          "name": "bank_answer_citation_one_target",
+          "value": "num_nonnulls(\"bank_answer_citation\".\"story_id\", \"bank_answer_citation\".\"atom_id\") = 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.bank_answer_use": {
+      "name": "bank_answer_use",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "answer_id": {
+          "name": "answer_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -3337,239 +3619,31 @@
           "primaryKey": false,
           "notNull": true
         },
-        "decision_id": {
-          "name": "decision_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ats": {
-          "name": "ats",
+        "how": {
+          "name": "how",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "requisition_key": {
-          "name": "requisition_key",
-          "type": "text",
+        "edited": {
+          "name": "edited",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true
         },
-        "idempotency_key": {
-          "name": "idempotency_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "started_at": {
-          "name": "started_at",
+        "created_at": {
+          "name": "created_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true
-        },
-        "finished_at": {
-          "name": "finished_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "apply_submission_one_in_progress_per_ats": {
-          "name": "apply_submission_one_in_progress_per_ats",
-          "columns": [
-            {
-              "expression": "candidate_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "ats",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"apply_submission\".\"status\" = 'in_progress'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "apply_submission_candidate_id_candidate_id_fk": {
-          "name": "apply_submission_candidate_id_candidate_id_fk",
-          "tableFrom": "apply_submission",
-          "tableTo": "candidate",
-          "columnsFrom": [
-            "candidate_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "apply_submission_application_id_application_id_fk": {
-          "name": "apply_submission_application_id_application_id_fk",
-          "tableFrom": "apply_submission",
-          "tableTo": "application",
-          "columnsFrom": [
-            "application_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "apply_submission_decision_id_approval_decision_id_fk": {
-          "name": "apply_submission_decision_id_approval_decision_id_fk",
-          "tableFrom": "apply_submission",
-          "tableTo": "approval_decision",
-          "columnsFrom": [
-            "decision_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "apply_submission_idempotency_unique": {
-          "name": "apply_submission_idempotency_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "candidate_id",
-            "idempotency_key"
-          ]
-        },
-        "apply_submission_requisition_unique": {
-          "name": "apply_submission_requisition_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "candidate_id",
-            "requisition_key"
-          ]
-        },
-        "apply_submission_application_unique": {
-          "name": "apply_submission_application_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "candidate_id",
-            "application_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "apply_submission_ats_valid": {
-          "name": "apply_submission_ats_valid",
-          "value": "\"apply_submission\".\"ats\" in ('greenhouse', 'lever', 'ashby')"
-        },
-        "apply_submission_status_valid": {
-          "name": "apply_submission_status_valid",
-          "value": "\"apply_submission\".\"status\" in ('in_progress', 'submitted', 'needs_human')"
-        },
-        "apply_submission_reason_valid": {
-          "name": "apply_submission_reason_valid",
-          "value": "(\"apply_submission\".\"status\" = 'needs_human' and \"apply_submission\".\"reason\" in ('captcha', 'login', 'mfa', 'account', 'unmapped_required', 'form_changed', 'no_confirmation', 'driver_error', 'outcome_unknown', 'status_conflict'))\n        or (\"apply_submission\".\"status\" <> 'needs_human' and \"apply_submission\".\"reason\" is null)"
-        },
-        "apply_submission_finished": {
-          "name": "apply_submission_finished",
-          "value": "(\"apply_submission\".\"status\" = 'in_progress') = (\"apply_submission\".\"finished_at\" is null)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.submission_proof": {
-      "name": "submission_proof",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
           "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "candidate_id": {
-          "name": "candidate_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "submission_id": {
-          "name": "submission_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "confirmation_html": {
-          "name": "confirmation_html",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "html_sha256": {
-          "name": "html_sha256",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "screenshot_png": {
-          "name": "screenshot_png",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "screenshot_sha256": {
-          "name": "screenshot_sha256",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "field_values": {
-          "name": "field_values",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "resume_sha256": {
-          "name": "resume_sha256",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "captured_at": {
-          "name": "captured_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
+          "default": "now()"
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "submission_proof_candidate_id_candidate_id_fk": {
-          "name": "submission_proof_candidate_id_candidate_id_fk",
-          "tableFrom": "submission_proof",
+        "bank_answer_use_candidate_id_candidate_id_fk": {
+          "name": "bank_answer_use_candidate_id_candidate_id_fk",
+          "tableFrom": "bank_answer_use",
           "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
@@ -3580,15 +3654,32 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "submission_proof_submission_id_apply_submission_id_fk": {
-          "name": "submission_proof_submission_id_apply_submission_id_fk",
-          "tableFrom": "submission_proof",
-          "tableTo": "apply_submission",
+        "bank_answer_use_answer_same_candidate_fk": {
+          "name": "bank_answer_use_answer_same_candidate_fk",
+          "tableFrom": "bank_answer_use",
+          "tableTo": "bank_answer",
           "columnsFrom": [
-            "submission_id"
+            "answer_id",
+            "candidate_id"
           ],
           "columnsTo": [
-            "id"
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "bank_answer_use_application_same_candidate_fk": {
+          "name": "bank_answer_use_application_same_candidate_fk",
+          "tableFrom": "bank_answer_use",
+          "tableTo": "application",
+          "columnsFrom": [
+            "application_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -3596,27 +3687,24 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "submission_proof_one_per_submission": {
-          "name": "submission_proof_one_per_submission",
+        "bank_answer_use_once": {
+          "name": "bank_answer_use_once",
           "nullsNotDistinct": false,
           "columns": [
-            "submission_id"
+            "answer_id",
+            "application_id"
           ]
         }
       },
       "policies": {},
       "checkConstraints": {
-        "submission_proof_html_sha256_format": {
-          "name": "submission_proof_html_sha256_format",
-          "value": "\"submission_proof\".\"html_sha256\" ~ '^[0-9a-f]{64}$'"
+        "bank_answer_use_how_valid": {
+          "name": "bank_answer_use_how_valid",
+          "value": "\"bank_answer_use\".\"how\" in ('approved', 'reused')"
         },
-        "submission_proof_screenshot_sha256_format": {
-          "name": "submission_proof_screenshot_sha256_format",
-          "value": "\"submission_proof\".\"screenshot_sha256\" ~ '^[0-9a-f]{64}$'"
-        },
-        "submission_proof_resume_sha256_format": {
-          "name": "submission_proof_resume_sha256_format",
-          "value": "\"submission_proof\".\"resume_sha256\" ~ '^[0-9a-f]{64}$'"
+        "bank_answer_use_reuse_unedited": {
+          "name": "bank_answer_use_reuse_unedited",
+          "value": "\"bank_answer_use\".\"how\" = 'approved' or not \"bank_answer_use\".\"edited\""
         }
       },
       "isRLSEnabled": false

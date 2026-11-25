@@ -29,7 +29,7 @@ const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
 });
 
 // One attempt to submit one application. Claimed before the browser does anything, so a crash
-// leaves an in_progress row that is never retried blindly. A trigger (migration 0019) lets only
+// leaves an in_progress row that is never retried blindly. A trigger (migration 0021) lets only
 // an in_progress row change, once, to submitted or needs_human, and refuses deletes.
 export const applySubmission = pgTable(
   "apply_submission",
@@ -83,7 +83,7 @@ export const applySubmission = pgTable(
 );
 
 // Proof of submission (APPLY-008): the confirmation page as HTML and a screenshot, what was sent
-// and with which resume. Append-only (migration 0019). It holds personal data (the field values),
+// and with which resume. Append-only (migration 0021). It holds personal data (the field values),
 // so it never leaves the database: events and spans carry its id and hashes only.
 export const submissionProof = pgTable(
   "submission_proof",
