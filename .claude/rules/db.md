@@ -41,3 +41,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
 - The watchlist (NS-115, ADR-0015) is `company_watch`, written only through `watch-write.ts`. It
   holds the scheduling state (`next_poll_at`, failures, status); `packages/sources` decides
   backoff and quarantine. Its events carry the ATS kind, tier and counts, never a board name.
+- Search preferences and fit scores (NS-116) are `search_preference` (one row per version; the
+  current one is the highest version) and `fit_score` (unique per job, preference version, resume
+  import and job fingerprint), written only through `fit-write.ts` (`fit-schema.ts`), which only
+  inserts: rows are never edited, by that convention (no trigger guards them). `packages/sources`
+  decides the score. Their events (`preferences.changed`, `preferences.rescored`, `job.scored`)
+  carry ids, versions, numbers, bands, reason codes, flags and field names, never a preference
+  value, title, requirement or atom text.
