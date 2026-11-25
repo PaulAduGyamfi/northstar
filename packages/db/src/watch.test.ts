@@ -71,14 +71,14 @@ describe("watchlist", () => {
       candidateId,
       watchId: a.id,
       now: NOW,
-      result: { outcome: "ok", seen: 3, added: 1, errorName: null },
+      result: { outcome: "ok", seen: 3, added: 1, failed: 0, errorName: null },
       next: { nextPollAt: later(10), status: "ok", consecutiveFailures: 0 },
     });
     await savePollResult(db, {
       candidateId,
       watchId: b.id,
       now: NOW,
-      result: { outcome: "failed", seen: 0, added: 0, errorName: "TimeoutError" },
+      result: { outcome: "failed", seen: 0, added: 0, failed: 0, errorName: "TimeoutError" },
       next: { nextPollAt: later(1), status: "quarantined", consecutiveFailures: 5 },
     });
     expect(await dueWatches(db, candidateId, later(5))).toEqual([]);
@@ -91,7 +91,7 @@ describe("watchlist", () => {
       candidateId,
       watchId: id,
       now: NOW,
-      result: { outcome: "ok", seen: 12, added: 2, errorName: null },
+      result: { outcome: "ok", seen: 12, added: 2, failed: 0, errorName: null },
       next: { nextPollAt: later(10), status: "ok", consecutiveFailures: 0 },
     });
     const [row] = await listWatches(db, candidateId);
@@ -103,6 +103,7 @@ describe("watchlist", () => {
       outcome: "ok",
       seen: 12,
       added: 2,
+      failed: 0,
       tier: 1,
     });
     expect(JSON.stringify(event?.payload)).not.toContain("globex");
@@ -114,7 +115,7 @@ describe("watchlist", () => {
       candidateId,
       watchId: id,
       now: NOW,
-      result: { outcome: "failed", seen: 0, added: 0, errorName: "FetchRefused" },
+      result: { outcome: "failed", seen: 0, added: 0, failed: 0, errorName: "FetchRefused" },
       next: { nextPollAt: later(360), status: "quarantined", consecutiveFailures: 5 },
     });
     expect((await events()).map((e) => e.type)).toEqual([
@@ -134,7 +135,7 @@ describe("watchlist", () => {
       candidateId,
       watchId: id,
       now: NOW,
-      result: { outcome: "failed", seen: 0, added: 0, errorName: "TimeoutError" },
+      result: { outcome: "failed", seen: 0, added: 0, failed: 0, errorName: "TimeoutError" },
       next: { nextPollAt: later(360), status: "quarantined", consecutiveFailures: 5 },
     });
     expect(await retryWatch(db, { candidateId, watchId: id, now: later(30) })).toBe(true);
@@ -144,9 +145,20 @@ describe("watchlist", () => {
 
   it("removes a board, and says so when there is none", async () => {
     const { id } = await addWatch(db, { candidateId, now: NOW, watch: globex });
-    expect(await removeWatch(db, { candidateId, watchId: id })).toBe(true);
-    expect(await removeWatch(db, { candidateId, watchId: id })).toBe(false);
+    expect(await removeWatch(db, { candidateId, watchId: id, now: NOW })).toBe(true);
+    expect(await removeWatch(db, { candidateId, watchId: id, now: NOW })).toBe(false);
     expect(await listWatches(db, candidateId)).toEqual([]);
+  });
+
+  it("retrying and removing a board are in the feed, stamped with the caller's clock", async () => {
+    const { id } = await addWatch(db, { candidateId, now: NOW, watch: globex });
+    await retryWatch(db, { candidateId, watchId: id, now: later(1) });
+    await removeWatch(db, { candidateId, watchId: id, now: later(2) });
+    expect((await events()).map((e) => [e.type, e.actor, e.occurredAt])).toEqual([
+      ["source.watched", "user", NOW],
+      ["source.retried", "user", later(1)],
+      ["source.unwatched", "user", later(2)],
+    ]);
   });
 
   it("the database refuses a tier outside 1 to 3", async () => {

@@ -153,6 +153,20 @@ describe("ingestUrl", () => {
     expect(calls).toEqual([]);
   });
 
+  it("a pasted SmartRecruiters link is read from its page but stored with its ATS posting id", async () => {
+    const url = "https://jobs.smartrecruiters.com/Acme/744000012345678-site-reliability-engineer";
+    const { deps, store, asked } = setup({ [url]: { body: careersPage() } });
+    expect(await ingestUrl(deps, url)).toMatchObject({ status: "created", method: "jsonld" });
+    expect(store.saves[0]?.source).toEqual({
+      url,
+      method: "jsonld",
+      ats: "smartrecruiters",
+      atsPostingId: "744000012345678",
+    });
+    // No API client for it: only the page itself was asked for.
+    expect(asked).toEqual([url]);
+  });
+
   it("reads a careers page's JSON-LD with no model call", async () => {
     const url = "https://globex.example/careers/backend";
     const { deps, calls } = setup({ [url]: { body: careersPage() } });

@@ -81,7 +81,7 @@ try {
           watch: { ats: target.ats, board: target.board, url: target.url, tier },
         }),
       list: () => listWatches(db, candidateId),
-      remove: (watchId) => removeWatch(db, { candidateId, watchId }),
+      remove: (watchId) => removeWatch(db, { candidateId, watchId, now: new Date() }),
       retry: (watchId) => retryWatch(db, { candidateId, watchId, now: new Date() }),
       poll: () =>
         pollDue(

@@ -132,6 +132,16 @@ describe("listBoard", () => {
     });
   });
 
+  it("scopes Workable ids by the account in lower case, whatever case the board was typed in", async () => {
+    const { deps } = fakeWeb({
+      "https://apply.workable.com/api/v1/widget/accounts/Umbrella?details=true": {
+        body: { jobs: [{ title: "QA", shortcode: "ZZ11" }] },
+      },
+    });
+    const [p] = await listBoard(deps, { ats: "workable", board: "Umbrella" });
+    expect(p?.extraction.atsPostingId).toBe("umbrella/ZZ11");
+  });
+
   it("an empty board is an empty list, not a failure", async () => {
     const { deps } = fakeWeb({ [GH]: { body: { jobs: [] } } });
     expect(await listBoard(deps, { ats: "greenhouse", board: "globex" })).toEqual([]);
@@ -149,6 +159,46 @@ describe("listBoard", () => {
     await expect(listBoard(deps, { ats: "ashby", board: "hooli" })).rejects.toThrow(
       new BoardUnavailable("the board's response didn't have the expected shape"),
     );
+  });
+
+  it("odd character codes in a posting decode safely instead of failing the board", async () => {
+    const { deps } = fakeWeb({
+      [GH]: {
+        body: {
+          jobs: [
+            { id: 1, title: "Engineer &#99999999;", content: "a&#0;b &#xD800; c" },
+            { id: 2, title: "Designer" },
+          ],
+        },
+      },
+    });
+    const list = await listBoard(deps, { ats: "greenhouse", board: "globex" });
+    expect(list.map((p) => p.extraction.fields.title)).toEqual([
+      "Engineer &#99999999;",
+      "Designer",
+    ]);
+    expect(list[0]?.extraction.fields.description).toBe("a&#0;b &#xD800; c");
+  });
+
+  it("skips postings whose ids aren't the ATS's id shape, so a link can't be bent", async () => {
+    const { deps } = fakeWeb({
+      [LEVER]: {
+        body: [
+          { id: "../other-co/x", text: "Bent" },
+          { id: LEVER_ID.toUpperCase(), text: "Platform Engineer" },
+        ],
+      },
+    });
+    const list = await listBoard(deps, { ats: "lever", board: "initech" });
+    expect(list.map((p) => [p.url, p.extraction.atsPostingId])).toEqual([
+      [`https://jobs.lever.co/initech/${LEVER_ID}`, LEVER_ID],
+    ]);
+  });
+
+  it("reads at most 2,000 postings from one board", async () => {
+    const many = Array.from({ length: 2_005 }, (_, i) => ({ id: i + 1, title: `Role ${i}` }));
+    const { deps } = fakeWeb({ [GH]: { body: { jobs: many } } });
+    expect(await listBoard(deps, { ats: "greenhouse", board: "globex" })).toHaveLength(2_000);
   });
 
   it("skips one malformed posting and keeps the rest", async () => {

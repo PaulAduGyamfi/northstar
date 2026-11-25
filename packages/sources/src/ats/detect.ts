@@ -6,7 +6,11 @@ export type AtsTarget =
   | { ats: "greenhouse"; board: string; postingId: string }
   | { ats: "lever"; company: string; postingId: string }
   | { ats: "ashby"; org: string; postingId: string }
-  | { ats: "workday"; host: string; tenant: string; site: string; path: string; postingId: string };
+  | { ats: "workday"; host: string; tenant: string; site: string; path: string; postingId: string }
+  // Read from the page, not an API (NS-115): detected so a pasted link and its board posting
+  // share one ATS id (SRC-006).
+  | { ats: "smartrecruiters"; company: string; postingId: string }
+  | { ats: "workable"; account: string; postingId: string };
 
 const SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 
@@ -41,6 +45,24 @@ export function detectAts(raw: string): AtsTarget | null {
     const [org, id] = parts;
     if (org && id && SLUG.test(org) && /^[0-9a-f-]{36}$/i.test(id)) {
       return { ats: "ashby", org, postingId: id.toLowerCase() };
+    }
+    return null;
+  }
+  // jobs.smartrecruiters.com/<Company>/<numericId>[-title-slug]
+  if (host === "jobs.smartrecruiters.com" || host === "careers.smartrecruiters.com") {
+    const [company, idSlug] = parts;
+    const id = /^(\d{1,20})(-|$)/.exec(idSlug ?? "")?.[1];
+    if (company && id && SLUG.test(company) && parts.length === 2) {
+      return { ats: "smartrecruiters", company, postingId: id };
+    }
+    return null;
+  }
+  // apply.workable.com/<account>/j/<SHORTCODE>[/apply]
+  if (host === "apply.workable.com") {
+    const [account, j, code] = parts;
+    if (account && j === "j" && code && SLUG.test(account) && /^[A-Za-z0-9]{1,40}$/.test(code)) {
+      // Scoped by account in lower case, exactly as the board listing does (boards/list.ts).
+      return { ats: "workable", account, postingId: `${account.toLowerCase()}/${code}` };
     }
     return null;
   }
