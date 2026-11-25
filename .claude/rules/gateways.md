@@ -12,7 +12,10 @@ paths:
 its ticket, stop and ask Paul.
 
 - Every page fetch goes through `safeFetch` (https only, public addresses on every redirect,
-  2 MB, 15 s). Never call `fetch` on a pasted link directly.
+  2 MB, 15 s). Never call `fetch` on a pasted link directly. Whole-board listings (NS-115,
+  `boards/list.ts`) pass `BOARD_MAX_BYTES` (10 MB); nothing else does.
+- Board polling (`poll.ts`) never throws for one board: a failure is that board's result, it
+  backs off, and after 5 failures it is quarantined until Paul retries it (RES-002/003).
 
 When they land:
 
