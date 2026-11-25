@@ -22,6 +22,15 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
 - The `job-extract` route (NS-114) lives in `packages/sources`; its values pass
   `checkJobProvenance` (dropped, never kept, when the page lacks them). Never run `jobs add` on a
   real link yourself; tests use the fake web in `packages/sources/src/test/fake-web.ts`.
+- The `answer-draft` route (NS-135) lives in `packages/profile/src/answer/`. Every sentence
+  cites a story or atom with a verbatim quote, checked by `validateAnswerDraft`. It is off by
+  default (`draftAnswer` returns `off` unless the caller passes `enabled: true`), because its
+  fixtures are hand-written.
+- A new route with no real recordings gets hand-written fixtures (ADR-0016 item 8). Write the
+  expected outputs to `evals/<route>/handwritten.jsonl` and run
+  `node evals/dist/handwrite-bin.js <route>` (after building `evals`). Each fixture is marked
+  `handWritten` and has its real request key. The baseline is provisional until Paul runs
+  `--record` and `--live --update-baseline`.
 - The `mail-classify` route (NS-113) lives in `packages/inbox`. Never run any `funnel` command
   yourself: they read Paul's real Gmail and print his real applications.
 
