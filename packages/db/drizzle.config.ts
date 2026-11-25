@@ -14,6 +14,8 @@ export default defineConfig({
     "./src/answer-schema.ts",
     "./src/resilience-schema.ts",
     "./src/apply-schema.ts",
+    "./src/vault-schema.ts",
+    "./src/thesis-schema.ts",
   ],
   out: "./migrations",
 });

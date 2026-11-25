@@ -3,7 +3,7 @@
 export { type AtsAdapter, adapterFor, hostAllowed } from "./apply/adapters/index.js";
 export type { Challenge, Fill, FormDriver, FormField, PageState, Upload } from "./apply/driver.js";
 export { type FieldPlan, type MapError, mapPackage } from "./apply/map.js";
-export { type ApplyPorts, dbPorts, dbSweepPorts } from "./apply/ports.js";
+export { type ApplyPorts, dbPorts, dbSweepPorts, dbVaultPorts } from "./apply/ports.js";
 export { type SweepPorts, sweepStaleClaims } from "./apply/stale.js";
 export {
   ApplyInvariantError,
@@ -20,3 +20,14 @@ export {
   type SubmitRefusal,
   submitApplication,
 } from "./apply/submit.js";
+// The credential vault (NS-122, ADR-0010): loading the master key, generating and storing tenant
+// passwords. Opening (decrypting) is deliberately not exported: only code inside this package
+// may call src/vault/open.ts (CRD-002), and a test enforces it.
+export { loadVaultKey, type MasterKey } from "./vault/key.js";
+export { VaultSecret } from "./vault/secret.js";
+export {
+  generateTenantPassword,
+  type StorePorts,
+  storeTenantPassword,
+  TENANT_PASSWORD_LENGTH,
+} from "./vault/store.js";

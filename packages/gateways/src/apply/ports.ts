@@ -4,12 +4,16 @@ import {
   type Db,
   DEFAULT_APPLY_LIMITS,
   listStaleClaims,
+  openSealedSecret,
   recordNeedsHuman,
   recordSubmitted,
+  storeSealedSecret,
   transitionApplication,
   verifyApproval,
 } from "@northstar/db";
 import type { CandidateId } from "@northstar/domain";
+import type { OpenPorts } from "../vault/open.js";
+import type { StorePorts } from "../vault/store.js";
 import type { FormDriver } from "./driver.js";
 import type { SweepPorts } from "./stale.js";
 
@@ -65,5 +69,14 @@ export function dbSweepPorts(db: Db): SweepPorts {
     listStaleClaims: (candidateId) => listStaleClaims(db, candidateId),
     recordNeedsHuman: (c, s, r) => recordNeedsHuman(db, c, s, r),
     transitionApplication: (input) => transitionApplication(db, input),
+  };
+}
+
+// The vault's ports on the real write paths (NS-122): storing sealed rows, and handing one out
+// with its access recorded. Decryption itself stays in src/vault/open.ts.
+export function dbVaultPorts(db: Db): StorePorts & OpenPorts {
+  return {
+    storeSealedSecret: (input) => storeSealedSecret(db, input),
+    openSealedSecret: (input) => openSealedSecret(db, input),
   };
 }

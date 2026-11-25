@@ -72,7 +72,9 @@ export async function setKillSwitch(
 
 type Reader = Pick<Db, "select">;
 
-async function currentState(db: Reader, candidateId: CandidateId, subsystem: string) {
+// Also used inside the vault's open transaction (vault-write.ts), so "no row means on" lives here
+// only.
+export async function currentState(db: Reader, candidateId: CandidateId, subsystem: string) {
   const [row] = await db
     .select({ enabled: killSwitch.enabled })
     .from(killSwitch)

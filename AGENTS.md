@@ -96,8 +96,10 @@ Exists now:
   `recordAnswerReuse` serve reuse. No CLI or UI yet.
 - The positioning thesis check (NS-127, DX-009): `checkThesis` in `packages/profile`
   (`thesis.ts`, plain code: one sentence, cites atoms, every number and capitalised name backed by
-  the cited quotes, roles or skills, a plain "N years" by the roles' locked dates). Storage,
-  drafting and a CLI are follow-ups.
+  the cited quotes, roles or skills, a plain "N years" by the roles' locked dates). Since NS-155
+  its approved versions are stored in `packages/db` (`thesis-schema.ts`, `thesis-write.ts`:
+  `saveApprovedThesis`, `readCurrentThesis`, `readThesisHistory`; append-only, each version
+  cites atoms of the current resume import). Drafting and a CLI are follow-ups (NS-152).
 - Answer drafting (NS-135, ANS-004) in `packages/profile/src/answer/`:
   - `selectEvidence` picks Paul's stories and atoms by the question's words (plain code).
   - The `answer-draft` route drafts from them.
@@ -187,6 +189,16 @@ Exists now:
   are in `packages/domain` (`apply-package.ts`). Its tests run on fakes and, through `dbPorts`,
   on the real write paths: `@northstar/db/testing` exports `createTestDb` and friends for that. There is no real browser driver yet, so
   nothing can be submitted until the Playwright driver lands.
+- The credential vault (NS-122, ADR-0010, CRD-001/002/003/005): append-only `vault_secret`
+  (envelope-encrypted tenant passwords, one row per version) and `vault_access` (every opening,
+  under a Gate decision id) in `packages/db` (`vault-schema.ts`, `vault-write.ts`:
+  `storeSealedSecret`, `openSealedSecret`, refused while the `vault` kill switch is off or
+  unless the decision is a live approval).
+  Sealing, opening and password generation live in `packages/gateways/src/vault/`: the master
+  key comes from `VAULT_MASTER_KEY_FILE` (`loadVaultKey`), and the decrypt module (`open.ts`) is
+  never exported; a boundary test fails if anything outside `packages/gateways/src` imports it.
+  Secrets come back as `VaultSecret`, which prints `[redacted]`. No caller yet (NS-124), and no
+  password-manager mirror yet (CRD-004, Q-16).
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write
