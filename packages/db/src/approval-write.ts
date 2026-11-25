@@ -635,7 +635,8 @@ async function decideOne(
   } catch (error) {
     // The one-live-decision trigger refused a decision that raced in after our check.
     if (pgCode(error) === UNIQUE_VIOLATION) return err({ kind: "AlreadyDecided" });
-    // The decision trigger refused it: a Paul decision is refused only on a withdrawn request.
+    // The decision trigger refused it: only on a withdrawn request (its other check failures
+    // apply to policy decisions only).
     if (pgCode(error) === CHECK_VIOLATION) return err({ kind: "Withdrawn" });
     throw error;
   }
@@ -917,6 +918,9 @@ async function withdrawOnce(
       })
       .returning({ id: approvalWithdrawal.id, withdrawnAt: approvalWithdrawal.withdrawnAt });
     if (!row) throw new Error("approval_withdrawal insert returned no row");
+    // Read again now the trigger holds the locks: a decision that committed after the first read
+    // (Paul approving while he withdraws) is the one this withdrawal closed.
+    const closed = await liveDecision(tx, request.id);
     await appendEvent(tx, span, {
       candidateId: input.candidateId,
       aggregate: `approval:${request.id}`,
@@ -929,7 +933,7 @@ async function withdrawOnce(
       // Ids and codes only: never content or its hashes.
       payload: {
         withdrawalId: row.id,
-        decisionId: live?.decisionId ?? null,
+        decisionId: closed?.decisionId ?? null,
         withdrawnBy: input.by,
         reason: input.by === "user" ? "paul" : "content_changed",
       },

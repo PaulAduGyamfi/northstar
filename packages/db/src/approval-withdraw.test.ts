@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { CandidateId, type PackageFacts, type PolicyRule, UNDO_WINDOW_MS } from "@northstar/domain";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { approvalWithdrawal } from "./approval-schema.js";
+import { approvalPolicySet, approvalWithdrawal } from "./approval-schema.js";
 import {
   decideApprovals,
   listPendingApprovals,
@@ -304,6 +304,58 @@ describe("approval_withdrawal in the database", () => {
       await sqlState(row(pending.requestId, "gateway")),
       await sqlState(row(rejected.requestId, "user")),
     ]).toEqual([CHECK_VIOLATION, CHECK_VIOLATION]);
+  });
+
+  it("refuses truncate", async () => {
+    expect(await sqlState(db.execute(sql`truncate approval_withdrawal`))).toBe(RESTRICT_VIOLATION);
+  });
+
+  it("refuses an undo of a withdrawn request's decision even written directly", async () => {
+    const { requestId } = await request(`email:${randomUUID()}`);
+    const decisionId = await approve(requestId);
+    await withdrawApproval(db, { candidateId, requestId, by: "user" });
+    expect(
+      await sqlState(
+        db.execute(sql`insert into approval_undo (candidate_id, decision_id, undone_at)
+          values (${candidateId}, ${decisionId}, now())`),
+      ),
+    ).toBe(CHECK_VIOLATION);
+  });
+
+  it("lets Paul undo a rejection once the newer request for its subject was withdrawn", async () => {
+    const subject = `email:${randomUUID()}`;
+    const first = await request(subject);
+    const rejected = await decideApprovals(db, {
+      candidateId,
+      requestIds: [first.requestId],
+      decision: "reject",
+      reason: "Not yet",
+    });
+    const rejection = rejected.ok ? rejected.value[0]?.result : undefined;
+    if (!rejection?.ok) throw new Error("not rejected");
+    const second = await request(subject);
+    await withdrawApproval(db, { candidateId, requestId: second.requestId, by: "user" });
+    expect(await undoDecision(db, { candidateId, decisionId: rejection.value.decisionId })).toEqual(
+      {
+        ok: true,
+        value: { requestId: first.requestId },
+      },
+    );
+  });
+
+  it("refuses a policy decision on a subject Paul withdrew, even written directly", async () => {
+    await setApprovalPolicies(db, { candidateId, rules: [rule] });
+    const subject = `application:${randomUUID()}`;
+    const first = await request(subject, { kind: "application_package" });
+    await withdrawApproval(db, { candidateId, requestId: first.requestId, by: "user" });
+    const again = await request(subject, { kind: "application_package" });
+    const [policySet] = await db.select({ id: approvalPolicySet.id }).from(approvalPolicySet);
+    expect(
+      await sqlState(
+        db.execute(sql`insert into approval_decision (candidate_id, request_id, decision, decided_by, policy_set_id, rule_name, decided_at, effective_at)
+          values (${candidateId}, ${again.requestId}, 'approved', 'policy', ${policySet?.id}, 'strong fit', now(), now())`),
+      ),
+    ).toBe(CHECK_VIOLATION);
   });
 
   it("refuses a decision on a withdrawn request even written directly", async () => {

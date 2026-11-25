@@ -24,7 +24,8 @@ DECLARE
   req approval_request%ROWTYPE;
   live approval_decision%ROWTYPE;
 BEGIN
-  PERFORM 1 FROM approval_decision WHERE request_id = NEW.request_id FOR UPDATE;
+  -- In id order, so two withdrawals racing on one request lock its decisions the same way.
+  PERFORM 1 FROM approval_decision WHERE request_id = NEW.request_id ORDER BY id FOR UPDATE;
   SELECT * INTO req FROM approval_request WHERE id = NEW.request_id FOR UPDATE;
   PERFORM pg_advisory_xact_lock(hashtextextended(req.candidate_id::text || req.subject, 0));
   SELECT d.* INTO live FROM approval_decision d
