@@ -6,9 +6,13 @@ paths:
 
 # Web app and UI kit (ADR-0009: B · Momentum)
 
-These don't exist yet. If you are about to create one outside its ticket, stop and ask Paul.
+`apps/web` exists since NS-156 (a Next.js shell with one page). `packages/ui` doesn't exist yet: if
+you are about to create it outside its ticket, stop and ask Paul. Until it lands, the color tokens
+are CSS variables in `apps/web/app/globals.css`.
 
-When they land:
+- Every page that shows Paul's data checks the session with `readSession` (`src/session.ts`, the
+  API's `GET /me`) and renders nothing else when the API is unreachable (ADR-0018).
+- Fonts are never downloaded at build time: the build runs offline in CI.
 
 - Use the tokens and components in `docs/design/tokens.md`. No ad hoc colors, fonts or radii.
 - Light and night themes both work. WCAG 2.2 AA contrast. Never put lime text on a light background.

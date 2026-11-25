@@ -4,7 +4,7 @@ Status: autonomous (ADR-0016; agent-planned, not reviewed by Paul before the bui
 Requirements: APR-001 (only Paul's authenticated path will reach the approval queue), UX-* (shell
 and navigation, `docs/requirements/12-ui-ux.md`), NFR-SEC-* (no secrets in client code, least
 privilege). GitHub issue #107.
-Rules that apply: ADR-0002 (only Paul's authenticated UI path may later call `decideApprovals`
+Rules that apply: ADR-0018 (this ticket's sign-in decision), ADR-0002 (only Paul's authenticated UI path may later call `decideApprovals`
 and `setKillSwitch`), ADR-0005 (Next.js PWA, typed REST with Zod), ADR-0009 and
 `docs/design/tokens.md` (B · Momentum), ADR-0011 (toolchain), `.claude/rules/web.md`,
 `.claude/rules/tests.md`, AGENTS.md ("No secrets in client code. The browser talks only to the
