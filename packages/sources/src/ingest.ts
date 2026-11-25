@@ -220,8 +220,19 @@ async function viaModel(
   return store(deps, existing, url, draft, [], outcome.record);
 }
 
+// A posting read some other way (a board poll, NS-115), stored exactly as `jobs add` stores one:
+// the same dedupe (SRC-006), apply-link cleanup and event.
+export function storeExtraction(
+  deps: { store: Pick<IngestDeps["store"], "save"> },
+  existing: DedupeCandidate[],
+  url: string,
+  x: Extraction,
+): Promise<IngestResult> {
+  return store(deps, existing, url, x, [], null);
+}
+
 async function store(
-  deps: IngestDeps,
+  deps: { store: Pick<IngestDeps["store"], "save"> },
   existing: DedupeCandidate[],
   url: string,
   x: Extraction,
