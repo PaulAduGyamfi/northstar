@@ -106,6 +106,12 @@ Exists now:
   (`approval-write.ts`: `requestApproval`, `setApprovalPolicies`, `listPendingApprovals`,
   `decideApprovals` for one or a batch, `undoDecision` inside the 2-minute undo window, and
   `verifyApproval`, which every gateway calls before it acts). No CLI or UI yet.
+- Resilience (NS-126, ADR-0007): the circuit breaker state machine in `packages/domain`
+  (`breaker.ts`: 5 failures open it, 60 s pause doubling to 15 min, one probe), stored per
+  dependency in `packages/db` (`dependency_breaker`, `breaker-write.ts`: `acquireCall`,
+  `recordCallOutcome`, `readBreakers`), and append-only kill switches per subsystem
+  (`kill_switch`, `kill-switch-write.ts`: `setKillSwitch`, `isSubsystemOn`, `readKillSwitches`).
+  No caller uses them yet.
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write
