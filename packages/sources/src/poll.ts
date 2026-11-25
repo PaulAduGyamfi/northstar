@@ -53,7 +53,7 @@ export async function pollDue(deps: PollDeps, now: Date): Promise<PassSummary> {
     if (!admission.ok) {
       // Not read and not recorded: the board stays due, its own backoff untouched, and it is
       // read on the first pass after the switch is back on or the breaker lets calls through.
-      pausedSpan(watch, admission.by);
+      pausedSpan(watch, admission);
       summary.paused = (summary.paused ?? 0) + 1;
       continue;
     }
@@ -68,7 +68,9 @@ export async function pollDue(deps: PollDeps, now: Date): Promise<PassSummary> {
 }
 
 type Admission =
-  | { ok: false; by: "kill_switch" | "breaker" | "guard_error" }
+  | { ok: false; by: "kill_switch" | "breaker" }
+  // The check itself failed; `error` is the error's name, never its message.
+  | { ok: false; by: "guard_error"; error: string }
   // `dependency` is null when there is no call to guard (Workday boards are never read).
   | { ok: true; dependency: string | null; probeToken: string | null };
 
@@ -82,19 +84,21 @@ async function admit(guard: PollGuard, watch: Watch): Promise<Admission> {
     const decision = await guard.acquire(name);
     if (!decision.allowed) return { ok: false, by: "breaker" };
     return { ok: true, dependency: name, probeToken: decision.probe ? decision.probeToken : null };
-  } catch {
-    return { ok: false, by: "guard_error" };
+  } catch (error) {
+    return { ok: false, by: "guard_error", error: errorName(error) };
   }
 }
 
 // A held-back board leaves a trace, so "why wasn't this board read?" has an answer.
-function pausedSpan(watch: Watch, by: string): void {
+function pausedSpan(watch: Watch, admission: Admission & { ok: false }): void {
   const span = trace.getTracer("@northstar/sources").startSpan("source.poll.paused");
   span.setAttributes({
     "source.ats": watch.ats,
     "source.watch_id": watch.id,
-    "source.paused_by": by,
+    "source.paused_by": admission.by,
   });
+  // Tells "Postgres down" from a bad name in traces, by error name only.
+  if (admission.by === "guard_error") span.setAttribute("source.guard_error", admission.error);
   span.end();
 }
 

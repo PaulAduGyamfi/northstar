@@ -394,4 +394,45 @@ describe("source.poll span", () => {
     expect(span?.attributes["source.watch_id"]).toBe(WATCH_UUID);
     expect(JSON.stringify(span?.attributes)).not.toContain("globex");
   });
+
+  it("a board held back by its switch leaves a source.poll.paused span saying so, and no source.poll span", async () => {
+    const w = world({ [GH]: { body: { jobs: [] } } }, [watch({ id: WATCH_UUID })]);
+    w.g.off.add("source:greenhouse");
+    await pollDue(w.deps, T0);
+    const spans = exporter.getFinishedSpans();
+    expect(spans.map((s) => s.name)).toEqual(["source.poll.paused"]);
+    expect(spans[0]?.attributes).toEqual({
+      "source.ats": "greenhouse",
+      "source.watch_id": WATCH_UUID,
+      "source.paused_by": "kill_switch",
+    });
+  });
+
+  it("a board refused by its breaker is paused_by breaker", async () => {
+    const w = world({ [GH]: { body: { jobs: [] } } }, [watch({})]);
+    w.g.decisions.set("source:greenhouse", { allowed: false, retryAt: at(1), lastError: null });
+    await pollDue(w.deps, T0);
+    const span = exporter.getFinishedSpans().find((s) => s.name === "source.poll.paused");
+    expect(span?.attributes["source.paused_by"]).toBe("breaker");
+  });
+
+  it("a guard that throws is paused_by guard_error with the error's name, never its message", async () => {
+    const w = world({ [GH]: { body: { jobs: [] } } }, [watch({})]);
+    w.g.breakAll();
+    await pollDue(w.deps, T0);
+    const span = exporter.getFinishedSpans().find((s) => s.name === "source.poll.paused");
+    expect(span?.attributes["source.paused_by"]).toBe("guard_error");
+    expect(span?.attributes["source.guard_error"]).toBe("Error");
+    expect(JSON.stringify(span?.attributes)).not.toContain("database down");
+  });
+
+  it("a breaker report that throws marks the source.poll span", async () => {
+    const w = world({ [GH]: { body: { jobs: [] } } }, [watch({})]);
+    w.deps.guard.report = async () => {
+      throw new Error("database down");
+    };
+    await pollDue(w.deps, T0);
+    const span = exporter.getFinishedSpans().find((s) => s.name === "source.poll");
+    expect(span?.attributes["source.breaker_report_failed"]).toBe(true);
+  });
 });

@@ -133,7 +133,7 @@ describe("jobs poll and jobs run", () => {
     });
     expect(await main(d)).toBe(0);
     expect(printed).toEqual([
-      "Polled 3 boards: 1 new job, 2 paused (switched off or ATS breaker open).",
+      "Polled 3 boards: 1 new job, 2 paused (switched off, ATS breaker open or not checkable).",
     ]);
   });
 

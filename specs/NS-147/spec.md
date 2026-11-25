@@ -52,7 +52,8 @@ For each due board in `pollDue` (`packages/sources/src/poll.ts`), before reading
 ## Observability
 The `source.poll` span is only started for boards that are read. A paused board gets a
 `source.poll.paused` span with `source.ats`, `source.watch_id` and `source.paused_by`
-(`kill_switch`, `breaker` or `guard_error`). `source.poll` gains
+(`kill_switch`, `breaker` or `guard_error`, the last with `source.guard_error`: the error's
+name, never its message). `source.poll` gains
 `source.breaker_report_failed` when reporting throws. Breaker and switch changes already write
 their own domain events (NS-126).
 
