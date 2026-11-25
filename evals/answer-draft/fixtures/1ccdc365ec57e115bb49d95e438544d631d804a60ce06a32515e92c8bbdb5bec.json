@@ -1,0 +1,27 @@
+{
+  "requestSha256": "1ccdc365ec57e115bb49d95e438544d631d804a60ce06a32515e92c8bbdb5bec",
+  "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval answer-draft --record.",
+  "response": {
+    "id": "msg_handwritten_7",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-5-5",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"sentences\":[{\"text\":\"The on-call rotation got woken up most nights by alerts that needed no action.\",\"cites\":[{\"id\":\"s-oncall\",\"quote\":\"The on-call rotation got woken up most nights by alerts that needed no action.\"}]},{\"text\":\"I volunteered to look into it, with help from two teammates.\",\"cites\":[{\"id\":\"s-oncall\",\"quote\":\"I volunteered to look into it, with help from two teammates.\"}]},{\"text\":\"We went through a month of alerts and I deleted the ones nobody acted on.\",\"cites\":[{\"id\":\"s-oncall\",\"quote\":\"We went through a month of alerts and I deleted the ones nobody acted on.\"}]},{\"text\":\"Night pages went down to about one a week.\",\"cites\":[{\"id\":\"s-oncall\",\"quote\":\"Night pages went down to about one a week.\"}]}],\"followUps\":[]}",
+        "citations": null
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  }
+}
