@@ -140,4 +140,4 @@ current resume import:
    decides (AGENTS.md). The cost model's Opus scoring becomes the follow-up.
 2. Weights (25/40/10/25), stretch (50–75 % of must-haves), comp floor as a hard skip, defaults
    A = 80 and B = 60 are mine.
-3. Two new tables (`search_preference`, `fit_score`) and migration 0015.
+3. Two new tables (`search_preference`, `fit_score`) and migration 0017 (0015 and 0016 went to NS-119).
