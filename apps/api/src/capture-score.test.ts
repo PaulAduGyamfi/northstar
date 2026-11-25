@@ -1,6 +1,12 @@
 import { createServer, type Server } from "node:http";
 import type { IngestResult } from "@northstar/sources";
-import { afterEach, describe, expect, it } from "vitest";
+import { trace } from "@opentelemetry/api";
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { type CapturePorts, captureEndpoint } from "./capture.js";
 import type { ApiConfig } from "./config.js";
 import { createApi } from "./server.js";
@@ -15,6 +21,21 @@ const EXT_HASH = "2f50a0607c1fb6606c98272169b134502f7c188b1e17f3d1579320aa3e3fb6
 const WEB = "http://northstar.localhost:3100";
 const EXT_ORIGIN = `chrome-extension://${"a".repeat(32)}`;
 const OWN_SITE = "https://jobs.example.com/postings/123";
+// A posting on a known ATS: read through the ATS's own API (the link path).
+const ATS_LINK = "https://boards.greenhouse.io/globex/jobs/123";
+
+const exporter = new InMemorySpanExporter();
+beforeAll(() => {
+  trace.setGlobalTracerProvider(
+    new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] }),
+  );
+});
+afterAll(() => {
+  trace.disable();
+});
+beforeEach(() => {
+  exporter.reset();
+});
 
 const saved = (status: "created" | "merged" | "unchanged"): IngestResult => ({
   status,
@@ -38,7 +59,10 @@ afterEach(async () => {
 async function serve(result: IngestResult, score?: () => Promise<unknown>) {
   const calls: string[] = [];
   const ports: CapturePorts = {
-    byUrl: async () => result,
+    byUrl: async () => {
+      calls.push("save by link");
+      return result;
+    },
     byText: async () => {
       calls.push("save");
       return result;
@@ -63,7 +87,7 @@ async function serve(result: IngestResult, score?: () => Promise<unknown>) {
       extra: [captureEndpoint(ports)],
     }),
   );
-  const capture = (): Promise<Sent> =>
+  const capture = (url = OWN_SITE): Promise<Sent> =>
     send(s, {
       method: "POST",
       path: "/jobs/capture",
@@ -73,7 +97,7 @@ async function serve(result: IngestResult, score?: () => Promise<unknown>) {
         authorization: `Bearer ${EXT_TOKEN}`,
       },
       body: JSON.stringify({
-        url: OWN_SITE,
+        url,
         title: "Engineer at Globex",
         text: "Globex is hiring.",
       }),
@@ -92,6 +116,25 @@ describe("POST /jobs/capture: scoring the saved job", () => {
       expect(calls).toEqual(["save", "score"]);
     });
   }
+
+  it("scores after a job saved through an ATS link, too", async () => {
+    const { calls, capture } = await serve(saved("created"), done);
+    const res = await capture(ATS_LINK);
+    expect(JSON.parse(res.body)).toMatchObject({ status: "created", via: "link" });
+    expect(calls).toEqual(["save by link", "score"]);
+  });
+
+  it("names a failed scoring pass on the request span, never its message", async () => {
+    const { capture } = await serve(saved("created"), async () => {
+      const e = new Error("relation fit_score does not exist");
+      e.name = "DbError";
+      throw e;
+    });
+    await capture();
+    const span = exporter.getFinishedSpans().find((s) => s.name === "api.request");
+    expect(span?.attributes["capture.score_error"]).toBe("DbError");
+    expect(JSON.stringify(span?.attributes)).not.toContain("fit_score");
+  });
 
   it("doesn't score when nothing was saved", async () => {
     const outcomes: IngestResult[] = [

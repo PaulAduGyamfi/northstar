@@ -1,5 +1,5 @@
 import { detectAts, type IngestResult } from "@northstar/sources";
-import { trace } from "@opentelemetry/api";
+import type { Span } from "@opentelemetry/api";
 import { z } from "zod";
 import { type AnyEndpoint, endpoint } from "./endpoint.js";
 
@@ -60,18 +60,18 @@ export function captureEndpoint(ports: CapturePorts): AnyEndpoint {
     maxBodyBytes: CAPTURE_MAX_BODY,
     input: Capture,
     output: Captured,
-    handler: async ({ url, title, text }) => {
+    handler: async ({ url, title, text }, { span }) => {
       if (detectAts(url) !== null) {
         const byLink = await ports.byUrl(url);
         if (!TRY_TEXT.has(byLink.status)) {
-          await scoreSaved(ports, byLink);
+          await scoreSaved(ports, byLink, span);
           return { ok: true, body: answer(byLink, "link") };
         }
       }
       // The title leads, so the model sees it with the description.
       const page = title ? `${title}\n\n${text}` : text;
       const byText = await ports.byText(url, page);
-      await scoreSaved(ports, byText);
+      await scoreSaved(ports, byText, span);
       return { ok: true, body: answer(byText, "text") };
     },
   });
@@ -80,14 +80,12 @@ export function captureEndpoint(ports: CapturePorts): AnyEndpoint {
 // Scores the saved job before answering, as `jobs add` does. A pass that fails never fails the
 // capture: the job is saved and the next pass scores it. Its error is named on the request's
 // span, never quoted (a database error's detail can quote a row).
-async function scoreSaved(ports: CapturePorts, r: IngestResult): Promise<void> {
+async function scoreSaved(ports: CapturePorts, r: IngestResult, span: Span): Promise<void> {
   if (!ports.score || !SAVED.has(r.status)) return;
   try {
     await ports.score();
   } catch (error) {
-    trace
-      .getActiveSpan()
-      ?.setAttribute("capture.score_error", error instanceof Error ? error.name : "Error");
+    span.setAttribute("capture.score_error", error instanceof Error ? error.name : "Error");
   }
 }
 
