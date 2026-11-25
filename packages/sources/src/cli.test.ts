@@ -1,5 +1,5 @@
 import type { JobListItem } from "@northstar/db";
-import { LlmTransportError } from "@northstar/llm";
+import { HeldBack, LlmTransportError } from "@northstar/llm";
 import { describe, expect, it } from "vitest";
 import { type CliDeps, main } from "./cli.js";
 import { noFit } from "./fit/test/fake-fit.js";
@@ -131,6 +131,17 @@ describe("jobs add", () => {
     await main(d);
     expect(printed).toEqual([
       "Not added: the Claude API didn't answer (status 529). Try again later.",
+    ]);
+  });
+
+  it("says which breaker held the model back and when to try again", async () => {
+    const { d, printed } = deps(
+      ["add", "https://x.example/1"],
+      new HeldBack("breaker", "anthropic", new Date("2026-11-25T22:30:00Z")),
+    );
+    expect(await main(d)).toBe(1);
+    expect(printed).toEqual([
+      "Not added: the anthropic breaker is open until 2026-11-25T22:30:00.000Z. Try again later.",
     ]);
   });
 

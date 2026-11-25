@@ -90,6 +90,8 @@ export function createGmailClient(deps: GmailDeps): GmailClient {
     const admission = await admit(guard, { subsystem: null, dependency: GMAIL_DEPENDENCY });
     if (!admission.ok) {
       span.setAttribute("gmail.held_by", admission.held.by);
+      // The error's name only, as the LLM gateway does: its message could name a host.
+      if (admission.errorName !== null) span.setAttribute("gmail.guard_error", admission.errorName);
       throw admission.held;
     }
     const report = async (outcome: GuardOutcome) => {

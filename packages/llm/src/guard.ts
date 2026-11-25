@@ -69,3 +69,14 @@ export async function admit(
     return { ok: false, held: new HeldBack("guard_error", checks.dependency), errorName: name };
   }
 }
+
+// One plain line for a person: which switch or breaker held the call back, and until when. Built
+// from the fixed fields only (names and a date), so it is safe to print.
+export function describeHeldBack(held: HeldBack): string {
+  if (held.by === "kill_switch") return `${held.what} is switched off`;
+  if (held.by === "breaker") {
+    const until = held.retryAt ? ` until ${held.retryAt.toISOString()}` : "";
+    return `the ${held.what} breaker is open${until}`;
+  }
+  return `the switch and breaker check failed for ${held.what} (is the database up?)`;
+}

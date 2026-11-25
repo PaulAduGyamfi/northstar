@@ -7,7 +7,7 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createLlmGateway } from "./gateway.js";
-import { HeldBack } from "./guard.js";
+import { describeHeldBack, HeldBack } from "./guard.js";
 import type { BetaMessage } from "./sdk-types.js";
 import { fakeClient } from "./test/fake-client.js";
 import { fakeGuard } from "./test/fake-guard.js";
@@ -148,5 +148,25 @@ describe("llm gateway with a guard", () => {
     const outcome = await gateway.call(testRoute, INPUT);
     expect(outcome.kind).toBe("Ok");
     expect(spanAttrs()?.["northstar.llm.breaker_report_failed"]).toBe(true);
+  });
+});
+
+describe("describeHeldBack", () => {
+  it("names the switch that is off", () => {
+    expect(describeHeldBack(new HeldBack("kill_switch", "agent:mail-classify"))).toBe(
+      "agent:mail-classify is switched off",
+    );
+  });
+
+  it("names the open breaker and when it allows the next try", () => {
+    expect(describeHeldBack(new HeldBack("breaker", "anthropic", RETRY_AT))).toBe(
+      "the anthropic breaker is open until 2026-11-25T22:30:00.000Z",
+    );
+  });
+
+  it("says the check itself failed when the guard couldn't answer", () => {
+    expect(describeHeldBack(new HeldBack("guard_error", "gmail"))).toBe(
+      "the switch and breaker check failed for gmail (is the database up?)",
+    );
   });
 });

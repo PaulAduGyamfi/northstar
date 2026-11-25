@@ -20,6 +20,7 @@ export {
   type Admission,
   admit,
   type CallGuard,
+  describeHeldBack,
   type GuardDecision,
   type GuardOutcome,
   HeldBack,
