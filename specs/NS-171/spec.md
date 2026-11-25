@@ -35,7 +35,8 @@ goes stale. It must be plain code (no model), the same input always giving the s
      - the week never exceeds `weeklyMinutes` (default 480: Q-09's 8 hours).
    - **Over capacity:** if the hours can't give every focus track its minimum sessions after
      maintenance, focus shrinks to as many tracks as fit and the rest move to maintenance, marked
-     `over_capacity`. Maintenance blocks that don't fit are left out, marked `no_time`.
+     `over_capacity`. Maintenance blocks that don't fit are left out, marked `no_time` (one note per
+       track: `no_time` wins).
    - **Next actions** (GRW-002): an active track whose next action is missing or longer than 90
      minutes is flagged `needs_next_action`.
 3. `parsePlanSettings` checks the settings (weekly minutes 0–10080, WIP 1–10, block 15–90 minutes,
