@@ -97,11 +97,14 @@ export async function setConsentPolicy(
 export type ConsentError =
   | { kind: "MarketingRefused" }
   | { kind: "InvalidNotice" }
-  | { kind: "NotFound" };
+  | { kind: "NotFound" }
+  // Paul chose "ask me per tenant": nothing is accepted for him until he answers. Asking him
+  // (through the Approval Gate) arrives with account creation (NS-197).
+  | { kind: "AskPaul" };
 
-// Records a notice accepted for Paul on a tenant, with its exact text. A marketing opt-in is
-// refused here (and by the database): it is always declined, whatever the policy. The caller
-// decides with decideConsent first; this only keeps the record.
+// Records a notice accepted for Paul on a tenant, with its exact text, only when his stored
+// policy accepts it. A marketing opt-in is refused here (and by the database): it is always
+// declined, whatever the policy.
 export async function recordConsent(
   db: Db,
   input: {
@@ -132,6 +135,15 @@ export async function recordConsent(
             ),
           );
         if (!tenant) return err({ kind: "NotFound" });
+        // Paul's stored policy decides, read in the same transaction as the write (ACC-008).
+        const [current] = await tx
+          .select({ policy: consentPolicy.policy })
+          .from(consentPolicy)
+          .where(eq(consentPolicy.candidateId, input.candidateId))
+          .orderBy(desc(consentPolicy.position))
+          .limit(1);
+        const policy = (current?.policy as ConsentPolicy | undefined) ?? DEFAULT_CONSENT_POLICY;
+        if (decideConsent(policy, input.kind) !== "accept") return err({ kind: "AskPaul" });
         const now = await gateNow(tx);
         const [row] = await tx
           .insert(consentRecord)

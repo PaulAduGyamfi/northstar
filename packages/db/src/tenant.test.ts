@@ -255,6 +255,14 @@ describe("recordConsent (ACC-008)", () => {
     expect(JSON.stringify([e?.payload, e?.reason])).not.toMatch(/Globex Candidate|example\.com/);
   });
 
+  it("refuses to record an acceptance under ask_per_tenant, so nothing is accepted without Paul", async () => {
+    await register();
+    await setConsentPolicy(db, { candidateId, policy: "ask_per_tenant" });
+    const r = await recordConsent(db, { candidateId, ...NOTICE });
+    expect(r).toEqual({ ok: false, error: { kind: "AskPaul" } });
+    expect(await db.select().from(consentRecord)).toEqual([]);
+  });
+
   it("refuses a marketing opt-in, and stores nothing", async () => {
     await register();
     const r = await recordConsent(db, { candidateId, ...NOTICE, kind: "marketing" });

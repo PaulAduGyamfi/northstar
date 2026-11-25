@@ -163,44 +163,49 @@ export async function moveAccount(
     "db.tenant.move",
     { "northstar.tenant.key": input.tenantKey, "northstar.tenant.to": input.to },
     (span) =>
-      db.transaction(async (tx): Promise<Result<{ status: AccountStatus }, MoveError>> => {
-        const tenant = await lockTenant(tx, input.candidateId, input.tenantKey);
-        if (!tenant) return err({ kind: "NotFound" });
-        const actual = await currentStatus(tx, tenant.id);
-        if (actual !== input.from) {
-          return err({ kind: "StaleStatus", expected: input.from, actual });
-        }
-        const now = await gateNow(tx);
-        const [row] = await tx
-          .insert(tenantAccountStatus)
-          .values({
+      db.transaction(
+        async (tx): Promise<Result<{ status: AccountStatus }, MoveError>> => {
+          const tenant = await lockTenant(tx, input.candidateId, input.tenantKey);
+          if (!tenant) return err({ kind: "NotFound" });
+          const actual = await currentStatus(tx, tenant.id);
+          if (actual !== input.from) {
+            return err({ kind: "StaleStatus", expected: input.from, actual });
+          }
+          const now = await gateNow(tx);
+          const [row] = await tx
+            .insert(tenantAccountStatus)
+            .values({
+              candidateId: input.candidateId,
+              tenantId: tenant.id,
+              fromStatus: input.from,
+              toStatus: input.to,
+              reason: input.reason,
+              actor: input.actor,
+              changedAt: now,
+            })
+            .returning({ id: tenantAccountStatus.id });
+          if (!row) throw new Error("tenant_account_status insert returned no row");
+          await appendEvent(tx, span, {
             candidateId: input.candidateId,
             tenantId: tenant.id,
-            fromStatus: input.from,
-            toStatus: input.to,
-            reason: input.reason,
+            type: "tenant.account_changed",
             actor: input.actor,
-            changedAt: now,
-          })
-          .returning({ id: tenantAccountStatus.id });
-        if (!row) throw new Error("tenant_account_status insert returned no row");
-        await appendEvent(tx, span, {
-          candidateId: input.candidateId,
-          tenantId: tenant.id,
-          type: "tenant.account_changed",
-          actor: input.actor,
-          payload: {
-            tenantKey: input.tenantKey,
-            ats: tenant.ats,
-            from: input.from,
-            to: input.to,
-            reason: input.reason,
-          },
-          idempotencyKey: `tenant_account_status:${row.id}`,
-          at: now,
-        });
-        return ok({ status: input.to });
-      }),
+            payload: {
+              tenantKey: input.tenantKey,
+              ats: tenant.ats,
+              from: input.from,
+              to: input.to,
+              reason: input.reason,
+            },
+            idempotencyKey: `tenant_account_status:${row.id}`,
+            at: now,
+          });
+          return ok({ status: input.to });
+        },
+        // The ACC-006 guard relies on READ COMMITTED: after waiting on the tenant's row lock, the
+        // status read sees what the other caller committed. A snapshot isolation level would not.
+        { isolationLevel: "read committed" },
+      ),
   );
 }
 
