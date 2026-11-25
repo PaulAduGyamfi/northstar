@@ -292,7 +292,10 @@ Exists now:
   text (untrusted, the `job-extract` route only), so the server never fetches a host the page's
   owner controls. A captured job isn't scored until the next `jobs score` or poll pass.
 - `apps/web/` (NS-156): the Next.js shell (PillNav, B · Momentum colors as CSS variables) with
-  Today, since NS-153 `/health`, and since NS-139 the Queue (`/approvals`). `/api/*` is rewritten to the API, and pages that need Paul go
+  Today, since NS-153 `/health`, since NS-139 the Queue (`/approvals`), and since NS-168 the
+  Pipeline (`/pipeline`: a board by status in UX-020's words, and `/pipeline/<id>`, an
+  application's timeline from `listApplications` and `readApplicationTimeline` in `packages/db`,
+  served by the API's `GET /applications` and `GET /applications/timeline`). Read-only. `/api/*` is rewritten to the API, and pages that need Paul go
   through `readSession`/`todayView` or `readApi` (`src/session.ts`, `src/system.ts`), which forward
   his session cookie to the API. It holds no secret.
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports

@@ -115,3 +115,7 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   is `consent_policy` and `consent_record` (append-only, marketing refused by a CHECK), written
   only through `consent-write.ts`. Their events carry tenant keys, statuses, reason codes, the
   policy, the notice kind and its SHA-256: never the account email, a URL or a notice's text.
+- The pipeline reads (NS-168, `pipeline-read.ts`) are read-only: `listApplications` and
+  `readApplicationTimeline`. A timeline is the application's own events plus events whose payload
+  names it (`applicationId`); its lines come only from `feedLine`. So an event about an
+  application should carry `applicationId` in its payload.

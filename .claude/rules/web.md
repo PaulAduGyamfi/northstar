@@ -6,8 +6,8 @@ paths:
 
 # Web app and UI kit (ADR-0009: B · Momentum)
 
-`apps/web` exists since NS-156 (a Next.js shell; Today, `/health` since NS-153, and the Queue,
-`/approvals`, since NS-139). `packages/ui` doesn't exist yet: if
+`apps/web` exists since NS-156 (a Next.js shell; Today, `/health` since NS-153, the Queue,
+`/approvals`, since NS-139, and the Pipeline, `/pipeline`, since NS-168). `packages/ui` doesn't exist yet: if
 you are about to create it outside its ticket, stop and ask Paul. Until it lands, the color tokens
 are CSS variables in `apps/web/app/globals.css`.
 
@@ -30,3 +30,5 @@ are CSS variables in `apps/web/app/globals.css`.
   `safeHref` (https only) and opens in a new tab with `rel="noopener noreferrer"`.
 - Approvals are decided only through the API's session endpoints (`/approvals/*`, NS-139). An
   undo countdown reads the API's `effectiveAt` (the database clock); the browser only counts down.
+- Application statuses are shown only through `STATUS_WORDS` (`src/pipeline.ts`, UX-020): every
+  ending but an offer reads "closed" (UX-045).
