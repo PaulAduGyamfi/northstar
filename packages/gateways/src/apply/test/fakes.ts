@@ -31,6 +31,7 @@ export type FakeWorld = {
 export function fakeWorld(script: {
   open?: () => Promise<PageState>;
   submit?: () => Promise<PageState>;
+  close?: () => Promise<void>;
   initialStatus?: ApplicationStatus;
   // Whether a repeated in-progress claim is past CLAIM_STALE_AFTER_MS (the database decides).
   claimStale?: boolean;
@@ -61,6 +62,7 @@ export function fakeWorld(script: {
     },
     close: async () => {
       driverCalls.close++;
+      if (script.close) await script.close();
     },
   };
 

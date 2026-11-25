@@ -6,6 +6,7 @@ export { type FieldPlan, type MapError, mapPackage } from "./apply/map.js";
 export { type ApplyPorts, dbPorts } from "./apply/ports.js";
 export {
   ApplyInvariantError,
+  CLOSE_TIMEOUT_MS,
   type FileChanged,
   type HostNotAllowed,
   type InProgress,

@@ -30,5 +30,7 @@ export interface FormDriver {
   open(url: string): Promise<PageState>;
   // Types the values, attaches the files, presses submit, and returns the page that follows.
   fillAndSubmit(fills: readonly Fill[], uploads: readonly Upload[]): Promise<PageState>;
+  // Ends the session and aborts any step still running: after a time limit the gateway calls
+  // close, and a timed-out submit must not press the button later.
   close(): Promise<void>;
 }

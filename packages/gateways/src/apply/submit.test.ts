@@ -7,7 +7,12 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PageState } from "./driver.js";
-import { NotApprovedError, SUBMIT_TIMEOUT_MS, submitApplication } from "./submit.js";
+import {
+  CLOSE_TIMEOUT_MS,
+  NotApprovedError,
+  SUBMIT_TIMEOUT_MS,
+  submitApplication,
+} from "./submit.js";
 import { type FakeWorld, fakeWorld } from "./test/fakes.js";
 import { APPLY_URLS, CONFIRMATIONS, FORMS, makePackage } from "./test/fixtures.js";
 
@@ -357,6 +362,26 @@ describe("needs_human", () => {
         world.status(),
         world.driverCalls.close,
       ]).toEqual(["driver_error", "needs_human", 1]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("still records the submission when the browser never finishes closing", async () => {
+    vi.useFakeTimers();
+    try {
+      const world = fakeWorld({
+        open: form,
+        submit: confirmed,
+        close: () => new Promise(() => {}),
+      });
+      const pending = run(world);
+      await vi.advanceTimersByTimeAsync(CLOSE_TIMEOUT_MS);
+      const result = await pending;
+      expect([result.ok && result.value.outcome, world.status()]).toEqual([
+        "submitted",
+        "submitted",
+      ]);
     } finally {
       vi.useRealTimers();
     }

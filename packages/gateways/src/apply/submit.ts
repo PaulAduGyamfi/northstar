@@ -65,6 +65,7 @@ export type SubmitRefusal =
 // CLAIM_STALE_AFTER_MS, so a claim older than that can only belong to a run that died.
 export const OPEN_TIMEOUT_MS = 60_000;
 export const SUBMIT_TIMEOUT_MS = 5 * 60_000;
+export const CLOSE_TIMEOUT_MS = 30_000;
 
 // A status move or ledger write that should always succeed didn't: the ledger and the
 // application disagree, so stop loudly instead of reporting an outcome (ADR-0007).
@@ -320,7 +321,7 @@ async function drive(
 
 async function closeQuietly(driver: FormDriver): Promise<void> {
   try {
-    await driver.close();
+    await within(CLOSE_TIMEOUT_MS, driver.close());
   } catch {
     // A browser that won't close is the worker pool's problem (recycled, ADR-0007), not this
     // submission's: its outcome is already recorded.
