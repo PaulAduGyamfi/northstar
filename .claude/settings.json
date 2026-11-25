@@ -49,6 +49,15 @@
       "Edit(**/package.json)"
     ],
     "deny": [
+      "mcp__github__create_or_update_file",
+      "mcp__github__push_files",
+      "mcp__github__delete_file",
+      "mcp__github__create_branch",
+      "mcp__github__create_repository",
+      "mcp__github__fork_repository",
+      "mcp__github__actions_run_trigger",
+      "mcp__github__enable_pr_auto_merge",
+      "mcp__github__update_pull_request_branch",
       "Read(.env)",
       "Read(.env.*)",
       "Read(!.env.example)",

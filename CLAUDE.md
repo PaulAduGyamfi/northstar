@@ -11,10 +11,12 @@
   each step. The hooks, deny rules and `ask` prompts (pushes, PR creation, merges, dependencies,
   harness edits) are the checkpoints, so never route around them. Work ticket by ticket from the
   GitHub issues.
-- **Autonomous lane (ADR-0015).** On an open issue Paul wrote, nothing waits for him: write the
-  spec and plan, then keep going through PR, green `checks`, the reviewers and the merge. Where a
-  rule below says "stop for Paul" or "ask Paul", decide, then record it under "Decisions made
-  without Paul" in the PR. Hooks, deny rules and the "Never" list still bind.
+- **Autonomous lane (ADR-0015).** On an open issue Paul created, or an `agent-filed` issue whose
+  `Parent: #N` chain leads back to one (never `needs:paul`), don't wait for him: keep going
+  through PR, green `checks`, the reviewers and the pinned merge. Only the five cases in
+  AGENTS.md's "Autonomous lane" become decisions you record in the PR; everything else that says
+  "stop" still stops (open a `needs:paul` issue). Issues you open get the `agent-filed` label and
+  a `Parent: #N` first line. Hooks, deny and `ask` rules, and the "Never" list are unchanged.
 - **Plan first.** For a ticket, run `/ticket <id>`: it writes `specs/<id>/spec.md`, puts the plan
   and tasks in the chat, and stops for Paul's approval. Edit nothing until he approves.
 - **Verify before you say done.** Run `/verify` and paste its summary lines. If you didn't run a
