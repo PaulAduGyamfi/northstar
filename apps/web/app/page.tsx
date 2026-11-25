@@ -1,10 +1,12 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { webConfig } from "../src/config";
+import { HandoffsBody, handoffCards } from "../src/handoffs";
 import { PillNav } from "../src/pill-nav";
 import { readSession, SESSION_COOKIE, todayView } from "../src/session";
 import { dotStatus, FeedBody, HealthBody, readApi } from "../src/system";
 import { LiveFeed } from "./live-feed";
+import { NeedsYourHands } from "./needs-your-hands";
 import { SignOutButton } from "./sign-out-button";
 
 // Asked for on every request: the answer depends on Paul's session, never on a cached build.
@@ -16,11 +18,13 @@ export const dynamic = "force-dynamic";
 export default async function TodayPage() {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   const deps = { apiOrigin: webConfig().apiOrigin, token, fetch };
-  const [session, health, feed] = await Promise.all([
+  const [session, health, feed, handoffs] = await Promise.all([
     readSession(deps),
     readApi(deps, "/system/health", HealthBody),
     readApi(deps, "/feed?limit=20", FeedBody),
+    readApi(deps, "/handoffs", HandoffsBody),
   ]);
+  const cards = handoffs.kind === "ok" ? handoffCards(handoffs.body.items) : [];
   const view = todayView(session);
   if ("redirect" in view) redirect(view.redirect);
   if (view.render === "unreachable") {
@@ -42,6 +46,17 @@ export default async function TodayPage() {
           <p className="muted">Signed in. Your queue, replies and quests will show up here.</p>
           <SignOutButton />
         </div>
+        {/* Shown only when a challenge stopped an application (NS-121). */}
+        {cards.length > 0 ? (
+          <div className="card">
+            <h2>Needs your hands</h2>
+            <p className="muted">
+              A check only you can pass stopped these. Open the page, finish it yourself, then say
+              what happened.
+            </p>
+            <NeedsYourHands cards={cards} />
+          </div>
+        ) : null}
         <div className="card">
           <h2>Activity</h2>
           {feed.kind === "ok" ? null : (

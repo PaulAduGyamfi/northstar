@@ -223,6 +223,12 @@ Exists now:
   are in `packages/domain` (`apply-package.ts`). Its tests run on fakes and, through `dbPorts`,
   on the real write paths: `@northstar/db/testing` exports `createTestDb` and friends for that. There is no real browser driver yet, so
   nothing can be submitted until the Playwright driver lands.
+  Since NS-121 a challenge (`captcha`, `login`, `mfa`, `account`) also opens a human handoff:
+  `recordNeedsHuman` stores `apply_handoff` (the apply URL, https only) in the same transaction,
+  `listOpenHandoffs` and `resolveHandoff` (`handoff-write.ts`, append-only) serve the API's
+  `GET /handoffs` and `POST /handoffs/resolve`, and Today shows a "Needs your hands" card. Paul's
+  "I submitted it" moves the application `needs_human` → `submitted` once
+  (`application:<id>:handoff:<handoffId>:submitted`). No pre-fill through the extension yet.
 - The credential vault (NS-122, ADR-0010, CRD-001/002/003/005): append-only `vault_secret`
   (envelope-encrypted tenant passwords, one row per version) and `vault_access` (every opening,
   under a Gate decision id) in `packages/db` (`vault-schema.ts`, `vault-write.ts`:

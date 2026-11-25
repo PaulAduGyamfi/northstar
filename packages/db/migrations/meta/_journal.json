@@ -218,6 +218,20 @@
       "when": 1795637174357,
       "tag": "0030_fit_method_rules_model",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1795639387197,
+      "tag": "0031_handoff",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1795639390455,
+      "tag": "0032_handoff_append_only",
+      "breakpoints": true
     }
   ]
 }

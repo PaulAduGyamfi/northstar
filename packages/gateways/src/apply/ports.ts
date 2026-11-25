@@ -36,6 +36,8 @@ export type ApplyPorts = {
     candidateId: CandidateId,
     submissionId: string,
     reason: Parameters<typeof recordNeedsHuman>[3],
+    // The package's apply URL: a challenge opens a handoff to it for Paul (NS-121).
+    applyUrl?: string,
   ) => ReturnType<typeof recordNeedsHuman>;
   transitionApplication: (
     input: Parameters<typeof transitionApplication>[1],
@@ -56,7 +58,7 @@ export function dbPorts(
     verifyApproval: (input) => verifyApproval(db, input),
     claimSubmission: (input) => claimSubmission(db, input, limits),
     recordSubmitted: (c, s, p) => recordSubmitted(db, c, s, p),
-    recordNeedsHuman: (c, s, r) => recordNeedsHuman(db, c, s, r),
+    recordNeedsHuman: (c, s, r, url) => recordNeedsHuman(db, c, s, r, url),
     transitionApplication: (input) => transitionApplication(db, input),
     ...deps,
   };

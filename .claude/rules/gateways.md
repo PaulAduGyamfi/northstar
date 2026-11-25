@@ -51,7 +51,8 @@ For every gateway (the Apply Gateway now, the others when they land):
   Calendar, GitHub). Breaker state shows up in the health model.
 - Adapters fail into quarantine and assisted apply, never into a silent drop.
 - No CAPTCHA solving, stealth plugins, fingerprint spoofing or credential storage. A challenge
-  returns `needs_human` with a deep link.
+  returns `needs_human` with a deep link. The Apply Gateway passes the package's apply URL to
+  `recordNeedsHuman`, which opens a handoff for Paul on a challenge reason (NS-121).
 - Human pacing: one submission at a time per ATS domain, with daily caps.
 - Job sources declare their terms status (`official-api`, `public-feed`, `user-session-capture`,
   `prohibited`). `prohibited` can't be enabled.

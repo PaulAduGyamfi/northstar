@@ -139,6 +139,15 @@ export {
   saveFunnelMessages,
   setManualRows,
 } from "./funnel-write.js";
+export { HANDOFF_OUTCOMES, type HandoffOutcome } from "./handoff-schema.js";
+export {
+  CHALLENGE_REASONS,
+  type HandoffView,
+  listOpenHandoffs,
+  type Resolved,
+  type ResolveError,
+  resolveHandoff,
+} from "./handoff-write.js";
 export { readSystemHealth } from "./health-read.js";
 export {
   type Ats,

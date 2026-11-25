@@ -4,6 +4,30 @@ import { FEED_TYPES, type FeedEvent, feedLine } from "./feed.js";
 const ev = (type: string, payload: Record<string, unknown> = {}, over: Partial<FeedEvent> = {}) =>
   ({ type, actor: "system", reason: "", payload, ...over }) satisfies FeedEvent;
 
+describe("feedLine: human handoffs (NS-121)", () => {
+  it("says which kind of form needs Paul's hands, and why", () => {
+    expect(feedLine(ev("handoff.opened", { ats: "greenhouse", reason: "captcha" }))).toBe(
+      "Needs your hands: a Greenhouse form stopped at a CAPTCHA",
+    );
+    expect(feedLine(ev("handoff.opened", { ats: "ashby", reason: "login" }))).toBe(
+      "Needs your hands: an Ashby form stopped at a sign-in",
+    );
+  });
+
+  it("says what Paul did with a handoff", () => {
+    expect(feedLine(ev("handoff.resolved", { outcome: "submitted" }, { actor: "user" }))).toBe(
+      "You finished an application by hand",
+    );
+    expect(feedLine(ev("handoff.resolved", { outcome: "gave_up" }, { actor: "user" }))).toBe(
+      "You set an application aside after a challenge",
+    );
+  });
+
+  it("falls back to plain words for an unknown ATS or reason", () => {
+    expect(feedLine(ev("handoff.opened", {}))).toBe("Needs your hands: a form stopped at a check");
+  });
+});
+
 describe("feedLine: resilience", () => {
   it("says which dependency paused, after how many failures and why", () => {
     expect(
@@ -190,6 +214,8 @@ describe("feedLine: fallbacks and bad payloads", () => {
       "breaker.closed",
       "breaker.opened",
       "breaker.probing",
+      "handoff.opened",
+      "handoff.resolved",
       "job.draft_completed",
       "job.ingested",
       "job.merged",
