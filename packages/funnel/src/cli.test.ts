@@ -1,5 +1,6 @@
 import type { FunnelMessageRow, ManualRowInput, ReviewDecision } from "@northstar/db";
 import { OAuthError } from "@northstar/inbox";
+import { HeldBack } from "@northstar/llm";
 import { describe, expect, it } from "vitest";
 import type { BackfillCounts } from "./backfill.js";
 import { type CliDeps, main } from "./cli.js";
@@ -124,6 +125,17 @@ describe("funnel cli", () => {
     expect(await main(d)).toBe(1);
     expect(printed[0]).toBe("Backfill stopped: Google consent was not given (access_denied)");
     expect(events[0]?.payload).toMatchObject({ modelCalls: 3, stopped: "OAuthError" });
+  });
+
+  it("a backfill held back by a switch says which one and to run it again later", async () => {
+    const { d, printed } = deps(["backfill"]);
+    d.runBackfill = async () => {
+      throw new HeldBack("kill_switch", "agent:mail-classify");
+    };
+    expect(await main(d)).toBe(1);
+    expect(printed[0]).toBe(
+      "Backfill stopped: agent:mail-classify is switched off; run it again later",
+    );
   });
 
   it("an unexpected error is named, never quoted", async () => {

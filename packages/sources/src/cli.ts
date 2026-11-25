@@ -1,7 +1,7 @@
 import { basename } from "node:path";
 import type { JobListItem, SetFieldError } from "@northstar/db";
 import type { Result } from "@northstar/domain";
-import { LlmTransportError } from "@northstar/llm";
+import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
 import { FIT_USAGE, type FitCliDeps, fitCommand, scoreAfter } from "./fit/cli.js";
 import type { IngestResult } from "./ingest.js";
 import { ageHours, freshness, queueScore } from "./queue.js";
@@ -87,6 +87,11 @@ async function report(deps: CliDeps, run: () => Promise<IngestResult>): Promise<
       deps.print(
         `Not added: the Claude API didn't answer (status ${error.status ?? "none"}). Try again later.`,
       );
+      return 1;
+    }
+    // A kill switch or breaker (NS-174): the model was never called.
+    if (error instanceof HeldBack) {
+      deps.print(`Not added: ${describeHeldBack(error)}. Try again later.`);
       return 1;
     }
     // Named, never quoted: a message could echo page or database content.

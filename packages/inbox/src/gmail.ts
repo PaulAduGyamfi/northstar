@@ -1,3 +1,4 @@
+import { admit, type CallGuard, type GuardOutcome } from "@northstar/llm";
 import { type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 import type { GmailAccess } from "./oauth.js";
 
@@ -14,6 +15,8 @@ const MAX_RETRY_AFTER_S = 60;
 const METADATA_HEADERS = ["From", "Subject", "Date", "Delivered-To", "Authentication-Results"];
 const MAX_RETRIES = 5;
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+// The breaker every Gmail read goes through (NS-174, RES-002).
+export const GMAIL_DEPENDENCY = "gmail";
 
 export type GmailDeps = {
   access: GmailAccess;
@@ -21,6 +24,8 @@ export type GmailDeps = {
   sleep: (ms: number) => Promise<void>;
   // 0..1, for backoff jitter (injected so tests are exact).
   random: () => number;
+  // The `gmail` breaker (NS-174). Without one, reads go out unguarded (tests, tools).
+  guard?: CallGuard;
 };
 
 export type MessageHeaders = {
@@ -65,11 +70,50 @@ type GmailPayload = {
 };
 type GmailMessage = { id: string; threadId: string; internalDate: string; payload?: GmailPayload };
 
+// Errors that are Gmail's own trouble (no answer, or a 429, 5xx or rate limit that outlasted the
+// retries), as opposed to Gmail answering that our request is wrong (401, 404, other 403s). Only
+// these count against its breaker.
+const GMAIL_FAULTS = new WeakSet<GmailError>();
+const gmailFault = (e: GmailError) => {
+  GMAIL_FAULTS.add(e);
+  return e;
+};
+
 export function createGmailClient(deps: GmailDeps): GmailClient {
   const tracer = trace.getTracer("@northstar/inbox");
 
-  // One GET with retries. Records the final status and retry count on the span.
+  // One read through the `gmail` breaker: held back (HeldBack, nothing sent) while it is open,
+  // and reported after the retries, as Gmail's failure only when it is Gmail's.
   async function get(url: string, span: Span): Promise<unknown> {
+    const guard = deps.guard;
+    if (!guard) return send(url, span);
+    const admission = await admit(guard, { subsystem: null, dependency: GMAIL_DEPENDENCY });
+    if (!admission.ok) {
+      span.setAttribute("gmail.held_by", admission.held.by);
+      // The error's name only, as the LLM gateway does: its message could name a host.
+      if (admission.errorName !== null) span.setAttribute("gmail.guard_error", admission.errorName);
+      throw admission.held;
+    }
+    const report = async (outcome: GuardOutcome) => {
+      try {
+        await guard.report(GMAIL_DEPENDENCY, outcome, admission.probeToken);
+      } catch {
+        span.setAttribute("gmail.breaker_report_failed", true);
+      }
+    };
+    try {
+      const body = await send(url, span);
+      await report({ ok: true });
+      return body;
+    } catch (e) {
+      const fault = e instanceof GmailError && GMAIL_FAULTS.has(e);
+      await report(fault ? { ok: false, error: "GmailError" } : { ok: true });
+      throw e;
+    }
+  }
+
+  // One GET with retries. Records the final status and retry count on the span.
+  async function send(url: string, span: Span): Promise<unknown> {
     for (let attempt = 0; ; attempt++) {
       let res: Response;
       try {
@@ -83,7 +127,7 @@ export function createGmailClient(deps: GmailDeps): GmailClient {
           await deps.sleep(backoff(attempt));
           continue;
         }
-        throw new GmailError(`Gmail didn't answer (${(e as Error).name})`, 0);
+        throw gmailFault(new GmailError(`Gmail didn't answer (${(e as Error).name})`, 0));
       }
       span.setAttribute("http.response.status_code", res.status);
       span.setAttribute("gmail.retries", attempt);
@@ -97,7 +141,7 @@ export function createGmailClient(deps: GmailDeps): GmailClient {
         RATE_LIMIT_REASONS.has(reason);
       if (!RETRYABLE.has(res.status) && !rateLimited) throw new GmailError(said, res.status);
       if (attempt >= MAX_RETRIES) {
-        throw new GmailError(`${said} after ${MAX_RETRIES} retries`, res.status);
+        throw gmailFault(new GmailError(`${said} after ${MAX_RETRIES} retries`, res.status));
       }
       const retryAfter = Number(res.headers.get("retry-after"));
       await deps.sleep(
