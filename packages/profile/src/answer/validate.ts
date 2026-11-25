@@ -1,4 +1,4 @@
-import { hasWhole, normalize, numbers } from "../validate.js";
+import { hasWhole, normalize, numbers, quotedIn } from "../validate.js";
 import type { EvidenceItem } from "./evidence.js";
 import type { AnswerDraft } from "./schema.js";
 
@@ -63,9 +63,10 @@ export function validateAnswerDraft(
         return;
       }
       citedTexts.push(itemText);
-      // Whole words only: a quote cut from inside a word or a number ("2 engineers" out of
-      // "12 engineers") would let an invented figure pass the number rule below.
-      if (!hasWhole(itemText, cite.quote)) fail(`cite ${c} quote is not in its item`);
+      // Whole words and whole numbers only (NS-200): a quote cut from inside a word or a number
+      // ("2 engineers" out of "12 engineers", "5 million" out of "1.5 million") would let an
+      // invented figure pass the number rule below.
+      if (!quotedIn(itemText, normalize(cite.quote))) fail(`cite ${c} quote is not in its item`);
       // A quote must carry meaning: two words at least, so "e" can't make a sentence "cited".
       else if (normalize(cite.quote).split(" ").length < MIN_QUOTE_WORDS) {
         fail(`cite ${c} quote is shorter than ${MIN_QUOTE_WORDS} words`);

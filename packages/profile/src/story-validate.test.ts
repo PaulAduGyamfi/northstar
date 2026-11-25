@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { StoryDraft } from "./story-schema.js";
-import { quotedIn, validateStoryDraft } from "./story-validate.js";
+import { unbackedNames, validateStoryDraft } from "./story-validate.js";
+import { quotedIn } from "./validate.js";
 
 // A synthetic atom and interview (invented company and people).
 const atom = {
@@ -215,6 +216,39 @@ describe("validateStoryDraft", () => {
   });
 });
 
+describe("names in story text", () => {
+  it("refuses a part that names a company no answer or the atom mentions", () => {
+    const d = draft({
+      task: {
+        text: "I owned the route planner at Globex and had to fix it before peak season.",
+        quotes: ["I owned the route planner and had to fix it before peak season."],
+      },
+    });
+    expect(validateStoryDraft(d, { atom, answers })).toEqual({
+      ok: false,
+      failures: [{ item: "task", problem: "name at word 6 is not in the answers or the atom" }],
+    });
+  });
+
+  it("passes names the atom holds and ordinary sentence openers", () => {
+    const d = draft({
+      result: {
+        text: "Late deliveries went from 12% to 3% in the first month. Example Freight kept the feed.",
+        quotes: ["Late deliveries went from 12% to 3% in the first month."],
+      },
+    });
+    expect(validateStoryDraft(d, { atom, answers })).toEqual({ ok: true });
+  });
+
+  it("checks a sentence's first word when it is a name", () => {
+    expect([
+      unbackedNames("Globex asked me to fix it.", "they asked me to fix it"),
+      unbackedNames("Then I fixed it. Drivers were happy.", "drivers were late"),
+      unbackedNames("I've fixed it and I'm glad.", "nothing"),
+    ]).toEqual([[0], [], []]);
+  });
+});
+
 describe("quotedIn", () => {
   it("refuses a quote that starts or ends inside a decimal, a separated number or a minus sign", () => {
     expect([
@@ -226,6 +260,13 @@ describe("quotedIn", () => {
       quotedIn("we were 12 engineers", "2 engineers"),
       quotedIn("Late deliveries went from 12.5% to 3%", "went from 12"),
     ]).toEqual([false, false, false, false, false, false, false]);
+  });
+
+  it("refuses a quote that stops inside a contraction", () => {
+    expect([
+      quotedIn("I can't fix the planner alone", "I can"),
+      quotedIn("I can't fix the planner alone", "I can't fix"),
+    ]).toEqual([false, true]);
   });
 
   it("accepts whole numbers, a sentence's last full stop and a quote that keeps its sign", () => {
