@@ -66,7 +66,9 @@ Exists now:
   Resume readers ignore it; `profile facts check` compares its positions with the official
   record too.
   Since NS-111 also the guided story interview: a fixed STAR script per atom, the `story-draft`
-  route, and a provenance check that every story part quotes Paul's answers verbatim. Stories
+  route, and a provenance check that every story part quotes Paul's answers verbatim (whole words
+  and whole numbers, `quotedIn`, NS-184/NS-200), with its numbers, number words and capitalised
+  names backed by its quotes, the answers or the resume line. Stories
   are stored only when Paul approves them, then locked by a trigger (`packages/db`,
   `story-schema.ts`).
   Since NS-112 also the employment-facts check (DX-011): Paul's official HR record
@@ -204,7 +206,12 @@ Exists now:
   the append-only `approval_*` tables with the Gate's one write path in `packages/db`
   (`approval-write.ts`: `requestApproval`, `setApprovalPolicies`, `listPendingApprovals`,
   `decideApprovals` for one or a batch, `undoDecision` inside the 2-minute undo window, and
-  `verifyApproval`, which every gateway calls before it acts). No CLI or UI yet.
+  `verifyApproval`, which every gateway calls before it acts).
+  Since NS-139 the queue is in the app: the API's `GET /approvals`, `POST /approvals/decide`
+  (one or up to 100 at once, reject with a reason) and `POST /approvals/undo`, session only and
+  the only callers of `decideApprovals`/`undoDecision` (`approvals.ts`, `approval-ports.ts`), and
+  the web app's Queue tab (`/approvals`) with an undo countdown to `effectiveAt`. No inline edit
+  or push approve yet.
 - Resilience (NS-126, ADR-0007): the circuit breaker state machine in `packages/domain`
   (`breaker.ts`: 5 failures open it, 60 s pause doubling to 15 min, one probe), stored per
   dependency in `packages/db` (`dependency_breaker`, `breaker-write.ts`: `acquireCall`,
@@ -291,7 +298,7 @@ Exists now:
   text (untrusted, the `job-extract` route only), so the server never fetches a host the page's
   owner controls. A captured job isn't scored until the next `jobs score` or poll pass.
 - `apps/web/` (NS-156): the Next.js shell (PillNav, B · Momentum colors as CSS variables) with
-  Today and, since NS-153, `/health`. `/api/*` is rewritten to the API, and pages that need Paul go
+  Today, since NS-153 `/health`, and since NS-139 the Queue (`/approvals`). `/api/*` is rewritten to the API, and pages that need Paul go
   through `readSession`/`todayView` or `readApi` (`src/session.ts`, `src/system.ts`), which forward
   his session cookie to the API. It holds no secret.
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
