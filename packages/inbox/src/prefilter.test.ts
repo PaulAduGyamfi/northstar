@@ -90,6 +90,40 @@ describe("authenticatedDomains", () => {
     ).toEqual(["mail.globex.example", "globex.example"]);
     expect(authenticatedDomains(null)).toEqual([]);
   });
+
+  it("reads a Gmail-style header whose results carry comments", () => {
+    expect(
+      authenticatedDomains(
+        "mx.google.com; dkim=pass (test mode) header.i=@globex.example header.s=s1 header.b=AbC1; spf=pass (google.com: domain of jobs@globex.example designates 192.0.2.1 as permitted sender) smtp.mailfrom=jobs@globex.example; dmarc=pass (p=NONE sp=NONE dis=NONE) header.from=globex.example",
+      ),
+    ).toEqual(["globex.example", "globex.example"]);
+  });
+
+  it("doesn't trust a pass the sender wrote into its own envelope address", () => {
+    // The attacker picks the envelope sender; Gmail copies it into the SPF comment and
+    // smtp.mailfrom. Only a result whose method comes first, with its own header.* token, counts.
+    expect(
+      authenticatedDomains(
+        "mx.google.com; dkim=none; spf=pass (google.com: domain of dkim=pass.header.d=myworkday.com@evil.example designates 192.0.2.9 as permitted sender) smtp.mailfrom=dkim=pass.header.d=myworkday.com@evil.example; dmarc=fail (p=NONE) header.from=myworkday.com",
+      ),
+    ).toEqual([]);
+  });
+
+  it("reads nothing from a header with a quoted envelope address, which could hide a fake result", () => {
+    expect(
+      authenticatedDomains(
+        'mx.google.com; spf=pass smtp.mailfrom="x;dkim=pass header.d=myworkday.com"@evil.example; dmarc=fail header.from=myworkday.com',
+      ),
+    ).toEqual([]);
+  });
+
+  it("reads nothing from a header with unbalanced comment parentheses", () => {
+    expect(
+      authenticatedDomains(
+        "mx.google.com; spf=pass (unclosed; dmarc=pass header.from=myworkday.com",
+      ),
+    ).toEqual([]);
+  });
 });
 
 describe("backfillQuery", () => {

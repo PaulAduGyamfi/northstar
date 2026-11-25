@@ -9,6 +9,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   type Catcher,
   createCatcher,
+  MAX_BODY_CHARS,
   type VerificationMessage,
   type WindowSpec,
 } from "./catcher.js";
@@ -34,7 +35,8 @@ const SPEC: WindowSpec = {
   linkHosts: ["acme.wd5.myworkdayjobs.com"],
 };
 
-const verified = (d: string) => `mx.example; dkim=pass header.d=${d}; dmarc=pass header.from=${d}`;
+const verified = (d: string) =>
+  `mx.google.com; dkim=pass header.d=${d}; dmarc=pass header.from=${d}`;
 
 function mail(over: Partial<VerificationMessage> = {}): VerificationMessage {
   return {
@@ -71,6 +73,17 @@ describe("open", () => {
   it("never opens a window longer than 30 minutes", () => {
     const w = catcher.open({ ...SPEC, ttlMs: 3 * 60 * 60_000 });
     expect(w.expiresAt.toISOString()).toBe("2026-11-25T12:30:00.000Z");
+  });
+
+  it("refuses allowlist entries that would allow far more than one tenant", () => {
+    for (const bad of ["com", "", ".myworkday.com", "*.myworkday.com", "203.0.113.7"]) {
+      expect(() => catcher.open({ ...SPEC, senderDomains: [bad] })).toThrow(
+        'a verification window\'s sender domains must be host names like "example.com"',
+      );
+      expect(() => catcher.open({ ...SPEC, linkHosts: [bad] })).toThrow(
+        'a verification window\'s link hosts must be host names like "example.com"',
+      );
+    }
   });
 
   it("refuses a window with no sender domain, since it could never match safely", () => {
@@ -112,6 +125,25 @@ describe("offer: routing (VER-002)", () => {
     ).toBe("not_verification");
   });
 
+  it("ignores a pass in a header that Gmail didn't write", () => {
+    catcher.open(SPEC);
+    const r = catcher.offer(
+      mail({ authenticationResults: "relay.evil.example; dmarc=pass header.from=myworkday.com" }),
+    );
+    expect(r.status).toBe("not_verification");
+  });
+
+  it("ignores a sender that wrote a pass into its own envelope address", () => {
+    catcher.open(SPEC);
+    const r = catcher.offer(
+      mail({
+        authenticationResults:
+          "mx.google.com; dkim=none; spf=pass (google.com: domain of dkim=pass.header.d=myworkday.com@evil.example designates 192.0.2.9 as permitted sender) smtp.mailfrom=dkim=pass.header.d=myworkday.com@evil.example; dmarc=fail (p=NONE) header.from=myworkday.com",
+      }),
+    );
+    expect(r.status).toBe("not_verification");
+  });
+
   it("ignores an authenticated sender that isn't on the window's list", () => {
     catcher.open(SPEC);
     const r = catcher.offer(
@@ -147,7 +179,10 @@ describe("offer: routing (VER-002)", () => {
     expect(catcher.offer(mail()).status).toBe("ambiguous_window");
     // Both stay open: a later timeout still treats each one on its own.
     clock = minutes(10);
-    expect(catcher.timeout("w-1").action).toBe("resend");
+    expect([catcher.timeout("w-1").action, catcher.timeout("w-2").action]).toEqual([
+      "resend",
+      "resend",
+    ]);
   });
 });
 
@@ -157,6 +192,30 @@ describe("offer: content (VER-003, VER-004)", () => {
     const html = `<p>Welcome!</p><a href="${LINK.replace("&", "&amp;")}">Verify your email</a>`;
     const r = catcher.offer(mail({ text: "", html }));
     expect(r.status === "verified" && [r.kind, r.secret.reveal()]).toEqual(["link", LINK]);
+  });
+
+  it("returns the link in the parsed form it was checked in", () => {
+    catcher.open(SPEC);
+    const r = catcher.offer(
+      mail({ text: "Verify: https://ACME.wd5.myworkdayjobs.com:443/verify?token=tok-123" }),
+    );
+    expect(r.status === "verified" && r.secret.reveal()).toBe(LINK);
+  });
+
+  it("raises needs_human for a link with a backslash, which parsers read differently", () => {
+    catcher.open(SPEC);
+    const html = '<a href="https://acme.wd5.myworkdayjobs.com\\@evil.example/verify">Verify</a>';
+    const r = catcher.offer(mail({ text: "", html }));
+    expect(r.status === "needs_human" && [r.reason, r.refusal]).toEqual([
+      "link_host_not_allowed",
+      "unsafe_characters",
+    ]);
+  });
+
+  it("raises needs_human without scanning a body over the size limit", () => {
+    catcher.open(SPEC);
+    const r = catcher.offer(mail({ html: `<p>${"x".repeat(MAX_BODY_CHARS)}</p>` }));
+    expect(r.status === "needs_human" && r.reason).toBe("message_too_large");
   });
 
   it("prefers the code when the mail carries a code and a link", () => {
@@ -224,6 +283,13 @@ describe("timeout (VER-006)", () => {
     expect(catcher.offer(mail({ receivedAt: minutes(15) })).status).toBe("verified");
   });
 
+  it("after a resend, ignores a late first email, whose code the ATS may have voided", () => {
+    catcher.open(SPEC);
+    clock = minutes(10);
+    catcher.timeout("w-1");
+    expect(catcher.offer(mail({ receivedAt: minutes(9) })).status).toBe("not_verification");
+  });
+
   it("raises needs_human with what was expected when the resend brings nothing either", () => {
     catcher.open(SPEC);
     clock = minutes(10);
@@ -280,6 +346,36 @@ describe("secrets stay out of logs and spans (VER-005)", () => {
           "verification.outcome": "verified",
         },
       ],
+    ]);
+  });
+
+  it("records a refused link's span with no part of the link", () => {
+    catcher.open(SPEC);
+    catcher.offer(mail({ text: "Verify: https://evil.example/verify/tok-123" }));
+    const attrs = exporter.getFinishedSpans().map((s) => s.attributes);
+    expect(attrs).toEqual([
+      {
+        "verification.window_id": "w-1",
+        "verification.tenant": "Acme",
+        "verification.ats": "Workday",
+        "verification.purpose": "sign_up",
+        "verification.kind": "link",
+        "verification.outcome": "link_host_not_allowed",
+      },
+    ]);
+  });
+
+  it("records a span on each window a message matched ambiguously", () => {
+    catcher.open(SPEC);
+    catcher.open({ ...SPEC, tenant: "Globex" });
+    catcher.offer(mail());
+    expect(
+      exporter
+        .getFinishedSpans()
+        .map((s) => [s.attributes["verification.window_id"], s.attributes["verification.outcome"]]),
+    ).toEqual([
+      ["w-1", "ambiguous_window"],
+      ["w-2", "ambiguous_window"],
     ]);
   });
 

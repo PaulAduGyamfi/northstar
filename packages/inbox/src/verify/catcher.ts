@@ -59,7 +59,7 @@ export type OfferResult =
   | {
       status: "needs_human";
       windowId: string;
-      reason: "link_host_not_allowed" | "ambiguous_content";
+      reason: "link_host_not_allowed" | "ambiguous_content" | "message_too_large";
       refusal?: LinkRefusal;
       feedLine: string;
     };
@@ -85,7 +85,28 @@ export interface Catcher {
 export const DEFAULT_WINDOW_MS = 10 * 60_000; // VER-001's default
 export const MAX_WINDOW_MS = 30 * 60_000; // a code older than this is no use to anyone
 
-type State = { window: VerificationWindow; ttlMs: number; resent: boolean; open: boolean };
+type State = { window: VerificationWindow; ttlMs: number; resent: boolean };
+
+// A body larger than this is not a verification mail; scanning it would only cost time.
+export const MAX_BODY_CHARS = 256 * 1024;
+
+// Gmail's own Authentication-Results header starts with this authserv-id. One added by any other
+// server (or by the sender, before Gmail) proves nothing.
+const GMAIL_AUTHSERV = /^\s*mx\.google\.com\s*;/i;
+
+// An allowlist entry is a plain host name with at least one dot: no wildcard, no bare "com", no
+// leading or trailing dot, no IP address. A bad entry would allow far more than one tenant.
+const ALLOWLIST_ENTRY = /^(?=.*[a-z])[a-z0-9-]+(\.[a-z0-9-]+)+$/;
+
+function allowlist(entries: readonly string[], what: string): readonly string[] {
+  const out = entries.map((e) => e.toLowerCase());
+  for (const e of out) {
+    if (!ALLOWLIST_ENTRY.test(e) || /^[0-9.]+$/.test(e)) {
+      throw new Error(`a verification window's ${what} must be host names like "example.com"`);
+    }
+  }
+  return Object.freeze(out);
+}
 
 // Feed lines name the tenant and ATS only, never the code, link or address (VER-005).
 const verifiedLine = (w: VerificationWindow) => `Verified email for ${w.tenant} (${w.ats})`;
@@ -94,9 +115,11 @@ const handoffLine = (w: VerificationWindow) =>
 
 export function createCatcher(deps: { now: () => Date; newId?: () => string }): Catcher {
   const newId = deps.newId ?? randomUUID;
+  // Open windows only: a window is removed the moment it closes, so the map stays small.
   const windows = new Map<string, State>();
-  // Message ids already given to a window: one email verifies at most one step.
-  const usedMessages = new Set<string>();
+  // Message ids already given to a window (one email verifies at most one step), with the time
+  // each was received, so entries no open window could ever match again can be dropped.
+  const usedMessages = new Map<string, number>();
   const tracer = trace.getTracer("@northstar/inbox");
 
   // One span per decision, with ids and outcome only: never the code, link, subject or sender.
@@ -115,15 +138,29 @@ export function createCatcher(deps: { now: () => Date; newId?: () => string }): 
       .end();
   }
 
+  function close(w: VerificationWindow): void {
+    windows.delete(w.id);
+    // A message received before every open window opened (and before now, when new windows
+    // open) can never match one again.
+    const oldest = Math.min(
+      deps.now().getTime(),
+      ...[...windows.values()].map((s) => s.window.openedAt.getTime()),
+    );
+    for (const [id, receivedAt] of usedMessages) {
+      if (receivedAt < oldest) usedMessages.delete(id);
+    }
+  }
+
   function matches(s: State, m: VerificationMessage): boolean {
     const w = s.window;
     const domain = m.senderDomain.toLowerCase();
     return (
-      s.open &&
       m.receivedAt.getTime() >= w.openedAt.getTime() &&
       m.receivedAt.getTime() <= w.expiresAt.getTime() &&
       w.senderDomains.some((d) => underDomain(domain, d)) &&
-      // The From domain alone is forgeable: Gmail must have verified it (DMARC or DKIM pass).
+      // The From domain alone is forgeable: Gmail must have verified it (DMARC or DKIM pass),
+      // in the header Gmail itself wrote.
+      GMAIL_AUTHSERV.test(m.authenticationResults ?? "") &&
       isAuthenticatedSender({
         senderDomain: domain,
         authenticationResults: m.authenticationResults,
@@ -137,19 +174,45 @@ export function createCatcher(deps: { now: () => Date; newId?: () => string }): 
     }
     const ttlMs = Math.min(spec.ttlMs ?? DEFAULT_WINDOW_MS, MAX_WINDOW_MS);
     if (!(ttlMs > 0)) throw new Error("a verification window needs a positive duration");
+    const senderDomains = allowlist(spec.senderDomains, "sender domains");
+    const linkHosts = allowlist(spec.linkHosts, "link hosts");
     const openedAt = deps.now();
     const window: VerificationWindow = Object.freeze({
       id: newId(),
       tenant: spec.tenant,
       ats: spec.ats,
       purpose: spec.purpose,
-      senderDomains: Object.freeze(spec.senderDomains.map((d) => d.toLowerCase())),
-      linkHosts: Object.freeze(spec.linkHosts.map((h) => h.toLowerCase())),
+      senderDomains,
+      linkHosts,
       openedAt,
       expiresAt: new Date(openedAt.getTime() + ttlMs),
     });
-    windows.set(window.id, { window, ttlMs, resent: false, open: true });
+    windows.set(window.id, { window, ttlMs, resent: false });
     return window;
+  }
+
+  function needsHuman(
+    w: VerificationWindow,
+    kind: "link" | "none",
+    reason: "link_host_not_allowed" | "ambiguous_content" | "message_too_large",
+    refusal?: LinkRefusal,
+  ): OfferResult {
+    close(w);
+    record(w, kind, reason);
+    return {
+      status: "needs_human",
+      windowId: w.id,
+      reason,
+      ...(refusal ? { refusal } : {}),
+      feedLine: handoffLine(w),
+    };
+  }
+
+  function verified(w: VerificationWindow, kind: "code" | "link", value: string): OfferResult {
+    close(w);
+    record(w, kind, "verified");
+    const secret = new VerificationSecret(value);
+    return { status: "verified", windowId: w.id, kind, secret, feedLine: verifiedLine(w) };
   }
 
   function offer(message: VerificationMessage): OfferResult {
@@ -157,59 +220,29 @@ export function createCatcher(deps: { now: () => Date; newId?: () => string }): 
     const candidates = [...windows.values()].filter((s) => matches(s, message));
     if (candidates.length === 0) return { status: "not_verification" };
     // Two sessions waiting on the same sender: the mail can't say which one it's for, so neither
-    // gets it. Both stay open and time out on their own (VER-006).
-    if (candidates.length > 1) return { status: "ambiguous_window" };
-    const state = candidates[0] as State;
-    const w = state.window;
-    usedMessages.add(message.messageId);
+    // gets it. Both stay open and time out on their own (VER-006); the spans show why.
+    if (candidates.length > 1) {
+      for (const s of candidates) record(s.window, "none", "ambiguous_window");
+      return { status: "ambiguous_window" };
+    }
+    const w = (candidates[0] as State).window;
+    usedMessages.set(message.messageId, message.receivedAt.getTime());
 
+    if (message.text.length > MAX_BODY_CHARS || (message.html?.length ?? 0) > MAX_BODY_CHARS) {
+      return needsHuman(w, "none", "message_too_large");
+    }
     const { codes, links } = extractVerification(message.text, message.html);
     // A code wins over links: verify mails often carry both, and a code needs no navigation.
     if (codes.length > 1 || (codes.length === 0 && links.length > 1)) {
-      state.open = false;
-      record(w, "none", "ambiguous_content");
-      return {
-        status: "needs_human",
-        windowId: w.id,
-        reason: "ambiguous_content",
-        feedLine: handoffLine(w),
-      };
+      return needsHuman(w, "none", "ambiguous_content");
     }
-    if (codes.length === 1) {
-      state.open = false;
-      record(w, "code", "verified");
-      const secret = new VerificationSecret(codes[0] as string);
-      return {
-        status: "verified",
-        windowId: w.id,
-        kind: "code",
-        secret,
-        feedLine: verifiedLine(w),
-      };
-    }
+    if (codes.length === 1) return verified(w, "code", codes[0] as string);
     if (links.length === 1) {
-      state.open = false;
-      const link = links[0] as string;
-      const check = checkLink(link, w.linkHosts);
-      if (!check.ok) {
-        record(w, "link", "link_host_not_allowed");
-        return {
-          status: "needs_human",
-          windowId: w.id,
-          reason: "link_host_not_allowed",
-          refusal: check.reason,
-          feedLine: handoffLine(w),
-        };
-      }
-      record(w, "link", "verified");
-      const secret = new VerificationSecret(link);
-      return {
-        status: "verified",
-        windowId: w.id,
-        kind: "link",
-        secret,
-        feedLine: verifiedLine(w),
-      };
+      const check = checkLink(links[0] as string, w.linkHosts);
+      if (!check.ok) return needsHuman(w, "link", "link_host_not_allowed", check.reason);
+      // The parsed form that was checked, not the raw text: another URL parser must not be able
+      // to read a different host out of it.
+      return verified(w, "link", check.href);
     }
     // From the right sender but nothing to use (a welcome mail): the window keeps waiting.
     record(w, "none", "no_code_or_link");
@@ -218,20 +251,25 @@ export function createCatcher(deps: { now: () => Date; newId?: () => string }): 
 
   function timeout(windowId: string): TimeoutResult {
     const state = windows.get(windowId);
-    if (!state?.open) return { action: "closed", windowId };
+    if (!state) return { action: "closed", windowId };
     const w = state.window;
     const now = deps.now();
     if (now.getTime() < w.expiresAt.getTime()) {
       return { action: "wait", windowId, expiresAt: w.expiresAt };
     }
     if (!state.resent) {
-      // One "resend code" (VER-006). openedAt stays, so the first email arriving late still counts.
+      // One "resend code" (VER-006). The window restarts at now: many ATSs void the old code on
+      // resend, so a late first email must not hand the gateway a dead code.
       state.resent = true;
-      state.window = Object.freeze({ ...w, expiresAt: new Date(now.getTime() + state.ttlMs) });
+      state.window = Object.freeze({
+        ...w,
+        openedAt: now,
+        expiresAt: new Date(now.getTime() + state.ttlMs),
+      });
       record(state.window, "none", "resend");
       return { action: "resend", windowId, expiresAt: state.window.expiresAt };
     }
-    state.open = false;
+    close(w);
     record(w, "none", "no_email");
     return {
       action: "needs_human",
