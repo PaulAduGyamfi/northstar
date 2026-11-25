@@ -79,6 +79,16 @@ Exists now:
   `validateTailoredResume` blocks any line without atom provenance, `diffResume` and
   `applySkillToggles` for the diff view, and `preSendScore` (title match, keyword coverage, ATS
   re-parse check) over the plain-text render.
+  Since NS-144 also the `resume-tailor` route (`tailor/route.ts`). `tailorWithModel` lets the
+  model reword the deterministic resume's lines and write a summary. It uses the result only if
+  `checkModelResume` passes:
+  - `validateTailoredResume`;
+  - the deterministic tailor's sections, line order, atoms per line, skills and not-claimed
+    notes;
+  - in the model's text, every capitalised word and number word comes from the cited atoms,
+    their roles or the skills, never from the job.
+
+  Otherwise it falls back to the deterministic resume. Off by default (hand-written fixtures).
 - The answer bank (GH-59, ANS-005/006) in `packages/db` (`answer-schema.ts`, `answer-write.ts`):
   append-only `bank_answer` (versioned per canonical question), `bank_answer_citation` and
   `bank_answer_use`. `saveApprovedAnswer` stores an answer only with a live Gate approval by Paul
@@ -121,6 +131,16 @@ Exists now:
   Since NS-150 also `isVerificationMail` (headers) and `hasVerificationCode` (body), which the
   funnel backfill uses to drop ATS verification mail before it is classified, sent to the model
   or stored (VER-005).
+  Since NS-158 also linking mail to applications (`src/link/`, plain code, no model):
+  `generateTag`/`taggedAddress` (VER-007: `+ns-<6 base32>`), `tagFromDeliveredTo` (only the
+  Gmail-added `Delivered-To`), and `matchMail`: tag, then an already-linked thread, then an
+  authenticated company domain inside the application's active window; anything else goes to the
+  confirm queue, verification mail is skipped, and `senderVerified` says whether a DMARC pass or
+  a DKIM pass aligned with From covers the application's domains (INB-011); shared ATS and
+  freemail domains never pick an application. Tags and links are stored in `packages/db`
+  (`mail-link-schema.ts`, `mail-link-write.ts`: `assignTag`, `readTags`, `readLinkedThreads`,
+  `recordMailLink`, `listConfirmQueue`; append-only). Links never change a status (P1). No mail
+  loop, origin fields or gateway use yet.
 - `packages/funnel/` (NS-113): the 9-month backfill, funnel records derived by plain code from
   `funnel_message` and `funnel_manual_row` (`packages/db`, `funnel-schema.ts`), the tracker CSV
   import, the funnel report (Wilson intervals, rejection latency) and the hypothesis board.

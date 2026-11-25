@@ -159,6 +159,19 @@ export {
   type SetKillSwitchResult,
   setKillSwitch,
 } from "./kill-switch-write.js";
+export * as mailLinkSchema from "./mail-link-schema.js";
+export {
+  assignTag,
+  type LinkDecision,
+  listConfirmQueue,
+  type QueuedMail,
+  type RecordLinkInput,
+  readLinkedThreads,
+  readTags,
+  recordMailLink,
+  type TagTarget,
+  type TagView,
+} from "./mail-link-write.js";
 export * as profileSchema from "./profile-schema.js";
 export {
   currentResumeHash,
