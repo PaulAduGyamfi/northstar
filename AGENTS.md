@@ -67,6 +67,12 @@ Exists now:
   questions (`question-canon.ts`) and `matchQuestion`/`classifyQuestion`, plain code that maps a
   form question to one of them with a confidence score (factual, reusable narrative or
   company-specific), or to "new". No model, no database yet; the answer bank builds on it.
+  Since NS-117 also resume tailoring (`tailor/`, TLR-001…004), plain code with no model or
+  database yet: `tailorResume` selects and orders the master's atoms for a job (verbatim lines,
+  skills the job asks for first, a `not claimed` note for requirements nothing proves),
+  `validateTailoredResume` blocks any line without atom provenance, `diffResume` and
+  `applySkillToggles` for the diff view, and `preSendScore` (title match, keyword coverage, ATS
+  re-parse check) over the plain-text render.
 - `packages/inbox/` (NS-113): read-only Gmail (ADR-0014: `gmail.readonly`, desktop OAuth with
   PKCE, token in memory for one run, never stored), the job-mail pre-filter (headers only; ATS
   senders, job phrases, same-thread follow-ups), confirmation rules, and the `mail-classify` route
