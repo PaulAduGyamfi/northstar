@@ -18,25 +18,22 @@ const Component = z.object({
   minValue: z.number().nullable().optional(),
   maxValue: z.number().nullable().optional(),
 });
-const Board = z.object({
-  jobs: z.array(
-    z.object({
-      id: z.string(),
-      title: z.string(),
-      location: z.string().optional(),
-      isRemote: z.boolean().optional(),
-      workplaceType: z.string().nullable().optional(),
-      descriptionPlain: z.string().optional(),
-      publishedAt: z.string().optional(),
-      jobUrl: z.string().optional(),
-      applyUrl: z.string().optional(),
-      compensation: z
-        .object({ summaryComponents: z.array(Component).optional() })
-        .nullable()
-        .optional(),
-    }),
-  ),
+export const AshbyJob = z.object({
+  id: z.string(),
+  title: z.string(),
+  location: z.string().optional(),
+  isRemote: z.boolean().optional(),
+  workplaceType: z.string().nullable().optional(),
+  descriptionPlain: z.string().optional(),
+  publishedAt: z.string().optional(),
+  jobUrl: z.string().optional(),
+  applyUrl: z.string().optional(),
+  compensation: z
+    .object({ summaryComponents: z.array(Component).optional() })
+    .nullable()
+    .optional(),
 });
+export const AshbyBoard = z.object({ jobs: z.array(AshbyJob) });
 
 const PERIODS: Record<string, "year" | "month" | "hour"> = {
   "1 YEAR": "year",
@@ -51,10 +48,15 @@ export async function ashby(
   const url = `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(t.org)}?includeCompensation=true`;
   const res = await safeFetch(deps, url);
   if (res.status !== 200) return null;
-  const parsed = Board.safeParse(safeJson(res.body));
+  const parsed = AshbyBoard.safeParse(safeJson(res.body));
   if (!parsed.success) return null;
   const p = parsed.data.jobs.find((j) => j.id.toLowerCase() === t.postingId);
   if (!p) return null;
+  return fromAshby(p, t.org);
+}
+
+// One Ashby job as a job; the company is the org slug from the URL.
+export function fromAshby(p: z.infer<typeof AshbyJob>, org: string): Extraction {
   const salary = p.compensation?.summaryComponents?.find((c) => c.compensationType === "Salary");
   return {
     method: "ats_api",
@@ -63,7 +65,7 @@ export async function ashby(
     fields: {
       ...emptyFields(),
       title: p.title,
-      company: t.org,
+      company: org,
       location: p.location ?? null,
       remote: remoteFrom(p.workplaceType, p.isRemote ? "remote" : null, p.location),
       salaryMin: wholeOrNull(salary?.minValue),

@@ -14,6 +14,10 @@ import { termsFor } from "./terms.js";
 export const MAX_BYTES = 2 * 1024 * 1024;
 export const MAX_REDIRECTS = 5;
 export const TIMEOUT_MS = 15_000;
+// A whole company board in one response (NS-115) can pass 2 MB; it gets this larger cap.
+export const BOARD_MAX_BYTES = 10 * 1024 * 1024;
+
+export type FetchOptions = { maxBytes?: number };
 
 export type FetchDeps = {
   // All addresses a host name resolves to.
@@ -36,12 +40,16 @@ export class FetchRefused extends Error {
 
 // One `source.fetch` span per fetch (OBV-001): the host, final status, bytes and redirect count.
 // Never the path or query (they can carry ids from Paul's search) or any page content.
-export async function safeFetch(deps: FetchDeps, start: string): Promise<Fetched> {
+export async function safeFetch(
+  deps: FetchDeps,
+  start: string,
+  opts: FetchOptions = {},
+): Promise<Fetched> {
   const tracer = trace.getTracer("@northstar/sources");
   return tracer.startActiveSpan("source.fetch", async (span) => {
     try {
       span.setAttribute("server.address", hostOf(start));
-      const r = await fetchHops(deps, start);
+      const r = await fetchHops(deps, start, opts.maxBytes ?? MAX_BYTES);
       span.setAttribute("http.response.status_code", r.status);
       span.setAttribute("source.bytes", Buffer.byteLength(r.body));
       span.setAttribute("source.redirects", r.redirects);
@@ -63,7 +71,7 @@ const hostOf = (raw: string) => {
   }
 };
 
-async function fetchHops(deps: FetchDeps, start: string): Promise<Fetched> {
+async function fetchHops(deps: FetchDeps, start: string, maxBytes: number): Promise<Fetched> {
   const signal = AbortSignal.timeout(TIMEOUT_MS);
   let url = start;
   for (let redirects = 0; ; redirects++) {
@@ -82,14 +90,14 @@ async function fetchHops(deps: FetchDeps, start: string): Promise<Fetched> {
       continue;
     }
     const declared = Number(res.headers.get("content-length"));
-    if (Number.isFinite(declared) && declared > MAX_BYTES) {
-      throw new FetchRefused("the page is larger than 2 MB");
+    if (Number.isFinite(declared) && declared > maxBytes) {
+      throw new FetchRefused(`the page is larger than ${mb(maxBytes)}`);
     }
     return {
       url,
       status: res.status,
       contentType: res.headers.get("content-type") ?? "",
-      body: await readCapped(res),
+      body: await readCapped(res, maxBytes),
       redirects,
     };
   }
@@ -125,7 +133,9 @@ async function checkTarget(deps: FetchDeps, raw: string): Promise<void> {
 
 // Reads the body as text, stopping (and refusing) once it passes MAX_BYTES, whatever the
 // content-length said.
-async function readCapped(res: Response): Promise<string> {
+const mb = (bytes: number) => `${bytes / 1024 / 1024} MB`;
+
+async function readCapped(res: Response, maxBytes: number): Promise<string> {
   if (!res.body) return "";
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -134,9 +144,9 @@ async function readCapped(res: Response): Promise<string> {
     const { done, value } = await reader.read();
     if (done) break;
     total += value.byteLength;
-    if (total > MAX_BYTES) {
+    if (total > maxBytes) {
       await reader.cancel();
-      throw new FetchRefused("the page is larger than 2 MB");
+      throw new FetchRefused(`the page is larger than ${mb(maxBytes)}`);
     }
     chunks.push(value);
   }
