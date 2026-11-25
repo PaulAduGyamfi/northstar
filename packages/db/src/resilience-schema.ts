@@ -24,6 +24,10 @@ const candidateId = () =>
 // (`anthropic`, `ats:greenhouse`, `source:lever`). Never a URL, an address or free text.
 export const NAME_PATTERN = "^[a-z0-9]+([_.:-][a-z0-9]+)*$";
 
+// The subsystems a kill switch can name (RES-008): the fixed ones, or a source, adapter or agent.
+export const SUBSYSTEM_PATTERN =
+  "^(auto_apply|outreach_send|inbox_auto_label|(source|adapter|agent):[a-z0-9]+([_.-][a-z0-9]+)*)$";
+
 // One circuit breaker per candidate and dependency (RES-002). The state machine is in
 // packages/domain (breaker.ts); this row is its stored state, locked while it changes.
 export const dependencyBreaker = pgTable(
@@ -83,7 +87,7 @@ export const killSwitch = pgTable(
     unique("kill_switch_position_unique").on(t.position),
     check(
       "kill_switch_subsystem_valid",
-      sql`${t.subsystem} ~ '^(auto_apply|outreach_send|inbox_auto_label|(source|adapter|agent):[a-z0-9]+([_.-][a-z0-9]+)*)$'`,
+      sql`${t.subsystem} ~ ${sql.raw(`'${SUBSYSTEM_PATTERN}'`)}`,
     ),
     check("kill_switch_actor_valid", sql`${t.actor} in ('user', 'system')`),
     check("kill_switch_reason_length", sql`length(trim(${t.reason})) between 1 and 200`),

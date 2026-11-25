@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import {
   type BreakerState,
   type CallDecision,
@@ -8,10 +7,11 @@ import {
   onAcquire,
   onOutcome,
 } from "@northstar/domain";
+import type { Span } from "@opentelemetry/api";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "./db.js";
+import { appendEvent, inSpan } from "./resilience-event.js";
 import { dependencyBreaker, NAME_PATTERN } from "./resilience-schema.js";
-import { domainEvent } from "./schema.js";
 
 // Stored circuit breakers (RES-002, ADR-0007 item 3). The rules are packages/domain's; this file
 // keeps one row per dependency, locks it while it changes, and writes an event on each change of
@@ -60,30 +60,30 @@ const EVENT_FOR: Record<BreakerState["status"], { type: string; reason: string }
   closed: { type: "breaker.closed", reason: "Dependency recovered" },
 };
 
+const sameState = (a: BreakerState, b: BreakerState): boolean =>
+  a.status === b.status &&
+  a.consecutiveFailures === b.consecutiveFailures &&
+  a.opens === b.opens &&
+  a.retryAt?.getTime() === b.retryAt?.getTime() &&
+  a.lastError === b.lastError;
+
 // Saves the new state; on a change of status, also its event.
-async function save(
-  tx: Tx,
-  row: Row,
-  next: BreakerState,
-  now: Date,
-  traceId: string | null,
-): Promise<void> {
+async function save(tx: Tx, span: Span, row: Row, next: BreakerState, now: Date): Promise<void> {
   const prev = toState(row);
-  if (JSON.stringify(prev) === JSON.stringify(next)) return;
+  span.setAttribute("northstar.breaker.status", next.status);
+  if (sameState(prev, next)) return;
   await tx
     .update(dependencyBreaker)
     .set({ ...next, updatedAt: now })
     .where(eq(dependencyBreaker.id, row.id));
   if (prev.status === next.status) return;
   const event = EVENT_FOR[next.status];
-  await tx.insert(domainEvent).values({
-    id: randomUUID(),
-    candidateId: row.candidateId,
+  await appendEvent(tx, span, {
+    candidateId: row.candidateId as CandidateId,
     aggregate: `dependency_breaker:${row.id}`,
     type: event.type,
     actor: "system",
     reason: event.reason,
-    inputsSummary: "",
     payload: {
       dependency: row.dependency,
       from: prev.status,
@@ -93,28 +93,31 @@ async function save(
       retryAt: next.retryAt?.toISOString() ?? null,
       lastError: next.lastError,
     },
-    links: [],
-    traceId,
-    // One event per change of state: the row's id, the new status and the moment it changed.
+    // One event per change of state. A status can't be entered twice at the same instant (each
+    // change moves to a different status), so the row, the new status and the moment are unique.
     idempotencyKey: `breaker:${row.id}:${next.status}:${now.toISOString()}`,
-    occurredAt: now,
+    at: now,
   });
 }
 
 // May a call to this dependency go out now? `probe` marks the one trial call after a pause; the
 // caller must report its outcome. Refused calls get when to try again and the last error name,
-// so the UI can say "Gmail paused: RateLimited, retrying 14:05".
+// so the UI can say "Gmail paused: RateLimited, retrying 14:05". A probe's caller passes its
+// `probeToken` back to recordCallOutcome.
 export async function acquireCall(
   db: Db,
-  input: { candidateId: CandidateId; dependency: string; now?: Date; traceId?: string | null },
+  input: { candidateId: CandidateId; dependency: string; now?: Date },
 ): Promise<CallDecision> {
   const now = input.now ?? new Date();
-  return db.transaction(async (tx) => {
-    const row = await lockRow(tx, input.candidateId, input.dependency, now);
-    const { decision, state } = onAcquire(toState(row), now);
-    await save(tx, row, state, now, input.traceId ?? null);
-    return decision;
-  });
+  return inSpan("breaker.acquire", { "northstar.dependency": input.dependency }, (span) =>
+    db.transaction(async (tx) => {
+      const row = await lockRow(tx, input.candidateId, input.dependency, now);
+      const { decision, state } = onAcquire(toState(row), now);
+      await save(tx, span, row, state, now);
+      span.setAttribute("northstar.breaker.allowed", decision.allowed);
+      return decision;
+    }),
+  );
 }
 
 // Reports how a call went. A failure carries its error name only; a name that isn't one (a
@@ -125,20 +128,26 @@ export async function recordCallOutcome(
     candidateId: CandidateId;
     dependency: string;
     outcome: CallOutcome;
+    // The token acquireCall gave the probe; null for any other call.
+    probeToken?: string | null;
     now?: Date;
-    traceId?: string | null;
   },
 ): Promise<BreakerState> {
   const now = input.now ?? new Date();
   const outcome: CallOutcome = input.outcome.ok
     ? input.outcome
     : { ok: false, error: ERROR_NAME.test(input.outcome.error) ? input.outcome.error : "Error" };
-  return db.transaction(async (tx) => {
-    const row = await lockRow(tx, input.candidateId, input.dependency, now);
-    const next = onOutcome(toState(row), outcome, now);
-    await save(tx, row, next, now, input.traceId ?? null);
-    return next;
-  });
+  return inSpan(
+    "breaker.outcome",
+    { "northstar.dependency": input.dependency, "northstar.breaker.call_ok": outcome.ok },
+    (span) =>
+      db.transaction(async (tx) => {
+        const row = await lockRow(tx, input.candidateId, input.dependency, now);
+        const next = onOutcome(toState(row), outcome, now, input.probeToken ?? null);
+        await save(tx, span, row, next, now);
+        return next;
+      }),
+  );
 }
 
 export type BreakerView = BreakerState & { dependency: string; updatedAt: Date };

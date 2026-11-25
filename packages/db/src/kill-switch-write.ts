@@ -1,17 +1,15 @@
-import { randomUUID } from "node:crypto";
 import type { CandidateId } from "@northstar/domain";
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "./db.js";
-import { killSwitch } from "./resilience-schema.js";
-import { domainEvent } from "./schema.js";
+import { appendEvent, inSpan } from "./resilience-event.js";
+import { killSwitch, SUBSYSTEM_PATTERN } from "./resilience-schema.js";
 
 // Kill switches per subsystem (RES-008, ADR-0007 item 6). Append-only rows; the newest per
 // subsystem is its state, and a subsystem with no row is on. Reads go straight to Postgres, so
 // a flip takes effect on the next check.
 
-// The subsystems a switch can name; the database CHECK uses the same shape.
-const SUBSYSTEM =
-  /^(auto_apply|outreach_send|inbox_auto_label|(source|adapter|agent):[a-z0-9]+([_.-][a-z0-9]+)*)$/;
+// The subsystems a switch can name; the database CHECK uses the same pattern.
+const SUBSYSTEM = new RegExp(SUBSYSTEM_PATTERN);
 
 export type SetKillSwitchResult =
   | { ok: true; changed: boolean }
@@ -27,7 +25,6 @@ export async function setKillSwitch(
     enabled: boolean;
     actor: "user" | "system";
     reason: string;
-    traceId?: string | null;
   },
 ): Promise<SetKillSwitchResult> {
   if (!SUBSYSTEM.test(input.subsystem)) return { ok: false, error: { kind: "InvalidSubsystem" } };
@@ -35,40 +32,42 @@ export async function setKillSwitch(
   if (reason.length === 0 || reason.length > 200) {
     return { ok: false, error: { kind: "ReasonRequired" } };
   }
-  return db.transaction(async (tx) => {
-    // One flip per subsystem at a time: two flips racing would otherwise both read "on".
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtext(${`kill_switch:${input.candidateId}:${input.subsystem}`}))`,
-    );
-    const current = await currentState(tx, input.candidateId, input.subsystem);
-    if (current === input.enabled) return { ok: true, changed: false };
-    const [row] = await tx
-      .insert(killSwitch)
-      .values({
-        candidateId: input.candidateId,
-        subsystem: input.subsystem,
-        enabled: input.enabled,
-        actor: input.actor,
-        reason,
-      })
-      .returning({ id: killSwitch.id, setAt: killSwitch.setAt });
-    if (!row) throw new Error("kill_switch insert returned no row");
-    await tx.insert(domainEvent).values({
-      id: randomUUID(),
-      candidateId: input.candidateId,
-      aggregate: `kill_switch:${input.subsystem}`,
-      type: "kill_switch.set",
-      actor: input.actor,
-      reason: input.enabled ? `Turned ${input.subsystem} on` : `Turned ${input.subsystem} off`,
-      inputsSummary: "",
-      payload: { subsystem: input.subsystem, enabled: input.enabled, reason },
-      links: [],
-      traceId: input.traceId ?? null,
-      idempotencyKey: `kill-switch:${row.id}`,
-      occurredAt: row.setAt,
-    });
-    return { ok: true, changed: true };
-  });
+  return inSpan(
+    "kill_switch.set",
+    { "northstar.subsystem": input.subsystem, "northstar.kill_switch.enabled": input.enabled },
+    (span) =>
+      db.transaction(async (tx) => {
+        // One flip per subsystem at a time: two flips racing would otherwise both read "on".
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${`kill_switch:${input.candidateId}:${input.subsystem}`}))`,
+        );
+        const current = await currentState(tx, input.candidateId, input.subsystem);
+        if (current === input.enabled) return { ok: true, changed: false };
+        const [row] = await tx
+          .insert(killSwitch)
+          .values({
+            candidateId: input.candidateId,
+            subsystem: input.subsystem,
+            enabled: input.enabled,
+            actor: input.actor,
+            reason,
+          })
+          .returning({ id: killSwitch.id, setAt: killSwitch.setAt });
+        if (!row) throw new Error("kill_switch insert returned no row");
+        await appendEvent(tx, span, {
+          candidateId: input.candidateId,
+          aggregate: `kill_switch:${row.id}`,
+          type: "kill_switch.set",
+          actor: input.actor,
+          reason: input.enabled ? `Turned ${input.subsystem} on` : `Turned ${input.subsystem} off`,
+          // Paul's reason is shown in the feed. It is his note on why, never a code or a secret.
+          payload: { subsystem: input.subsystem, enabled: input.enabled, reason },
+          idempotencyKey: `kill-switch:${row.id}`,
+          at: row.setAt,
+        });
+        return { ok: true, changed: true };
+      }),
+  );
 }
 
 type Reader = Pick<Db, "select">;

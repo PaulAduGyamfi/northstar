@@ -31,8 +31,12 @@ export const CLOSED: BreakerState = {
   lastError: null,
 };
 
+// A probe carries a token (the moment its probe window ends, as ISO text): only the report that
+// brings it back settles a half_open breaker, so a late report from a call that started before
+// the breaker opened can't close it or reopen it in the probe's place.
 export type CallDecision =
-  | { allowed: true; probe: boolean }
+  | { allowed: true; probe: false }
+  | { allowed: true; probe: true; probeToken: string }
   | { allowed: false; retryAt: Date; lastError: string | null };
 
 export type CallOutcome = { ok: true } | { ok: false; error: string };
@@ -53,17 +57,25 @@ export function onAcquire(
   if (now.getTime() < retryAt.getTime()) {
     return { decision: { allowed: false, retryAt, lastError: state.lastError }, state };
   }
+  const probeEnds = later(now, PROBE_TIMEOUT_MS);
   return {
-    decision: { allowed: true, probe: true },
-    state: { ...state, status: "half_open", retryAt: later(now, PROBE_TIMEOUT_MS) },
+    decision: { allowed: true, probe: true, probeToken: probeEnds.toISOString() },
+    state: { ...state, status: "half_open", retryAt: probeEnds },
   };
 }
 
 // The state after a call reports back. A success closes and resets; a failure counts, opens the
 // breaker at the threshold, and a failed probe reopens it with a longer pause. While open, a
-// late report from a call that started before it opened changes nothing.
-export function onOutcome(state: BreakerState, outcome: CallOutcome, now: Date): BreakerState {
+// late report from a call that started before it opened changes nothing; while half_open, only
+// the current probe's report (its token) counts.
+export function onOutcome(
+  state: BreakerState,
+  outcome: CallOutcome,
+  now: Date,
+  probeToken: string | null = null,
+): BreakerState {
   if (state.status === "open") return state;
+  if (state.status === "half_open" && probeToken !== state.retryAt?.toISOString()) return state;
   if (outcome.ok) return CLOSED;
   const consecutiveFailures = state.consecutiveFailures + 1;
   if (state.status === "half_open" || consecutiveFailures >= FAILURE_THRESHOLD) {

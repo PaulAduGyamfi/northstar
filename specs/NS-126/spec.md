@@ -22,6 +22,9 @@ place: "may I call this dependency now?" and "is this subsystem switched on?".
      until `retryAt` + `PROBE_TIMEOUT_MS` (2 min). Other callers are refused meanwhile, and a
      probe that never reports is replaced once that time passes. The probe's success closes the
      breaker and resets it. Its failure opens it again with the doubled pause.
+   - The probe gets a `probeToken`, and only a report carrying it settles a `half_open`
+     breaker. A late report from a call that started before the pause changes nothing, so it
+     can't close the breaker or reopen it in the probe's place.
    - A success while closed resets the failure count.
 2. **Stored breakers** (`packages/db`, `dependency_breaker`, `breaker-write.ts`): one row per
    candidate and dependency (`anthropic`, `gmail`, `ats:greenhouse`, …).
@@ -59,10 +62,15 @@ place: "may I call this dependency now?" and "is this subsystem switched on?".
 - **A caller crashes mid-probe:** the probe timeout lets another caller probe.
 - **A caller never reports an outcome while closed:** nothing changes, and the breaker only acts
   on reported outcomes.
+- **Concurrent callers:** the row is locked (`FOR UPDATE`), and kill-switch flips take an
+  advisory lock. PGlite runs on one connection, so the tests can't show that locking under real
+  concurrency.
 
 ## Observability
 `breaker.opened`, `breaker.probing`, `breaker.closed` and `kill_switch.set` domain events, in the
-same transaction as the row they describe.
+same transaction as the row they describe and checked against the `DomainEvent` schema first.
+Spans `breaker.acquire`, `breaker.outcome` and `kill_switch.set` carry the dependency or
+subsystem, the status and whether the call was allowed. They never carry error messages.
 
 ## Out of scope (follow-up issues, `agent-filed`, `Parent: #25`)
 - Wiring breakers and switches into callers: the LLM gateway, Gmail, board polling, and the Apply

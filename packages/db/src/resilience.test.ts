@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { acquireCall, readBreakers, recordCallOutcome } from "./breaker-write.js";
 import type { Db } from "./db.js";
 import { isSubsystemOn, readKillSwitches, setKillSwitch } from "./kill-switch-write.js";
+import { readEventsAfter } from "./read-events.js";
 import { killSwitch } from "./resilience-schema.js";
 import { candidate, domainEvent } from "./schema.js";
 import { createTestDb, sqlState } from "./test/pglite.js";
@@ -69,17 +70,28 @@ describe("stored circuit breakers", () => {
   it("allow one probe after the pause, and close on its success", async () => {
     await fail("gmail", FAILURE_THRESHOLD);
     const after = at(BASE_COOLDOWN_MS);
+    const probeToken = at(BASE_COOLDOWN_MS + PROBE_TIMEOUT_MS).toISOString();
     expect(await acquireCall(db, { candidateId, dependency: "gmail", now: after })).toEqual({
       allowed: true,
       probe: true,
+      probeToken,
     });
     expect((await acquireCall(db, { candidateId, dependency: "gmail", now: after })).allowed).toBe(
       false,
     );
+    // A late success from a call that started before the pause doesn't settle the probe.
+    const late = await recordCallOutcome(db, {
+      candidateId,
+      dependency: "gmail",
+      outcome: { ok: true },
+      now: after,
+    });
+    expect(late.status).toBe("half_open");
     const state = await recordCallOutcome(db, {
       candidateId,
       dependency: "gmail",
       outcome: { ok: true },
+      probeToken,
       now: after,
     });
     expect(state.status).toBe("closed");
@@ -97,6 +109,7 @@ describe("stored circuit breakers", () => {
     expect(await acquireCall(db, { candidateId, dependency: "gmail", now: late })).toEqual({
       allowed: true,
       probe: true,
+      probeToken: at(BASE_COOLDOWN_MS + 2 * PROBE_TIMEOUT_MS).toISOString(),
     });
   });
 
@@ -130,6 +143,21 @@ describe("stored circuit breakers", () => {
     await expect(
       acquireCall(db, { candidateId, dependency: "https://evil.example", now: T0 }),
     ).rejects.toThrow("invalid dependency name");
+  });
+});
+
+describe("the feed", () => {
+  it("reads breaker and kill switch events back through readEventsAfter", async () => {
+    await fail("gmail", FAILURE_THRESHOLD);
+    await setKillSwitch(db, {
+      candidateId,
+      subsystem: "adapter:lever",
+      enabled: false,
+      actor: "user",
+      reason: "Layout changed",
+    });
+    const events = await readEventsAfter(db, candidateId, 0n, 10);
+    expect(events.map((e) => e.event.type)).toEqual(["breaker.opened", "kill_switch.set"]);
   });
 });
 
