@@ -1,0 +1,5 @@
+{"id": "years-stated", "output": {"matches": [{"requirement": 0, "atomId": "atom-1", "quote": "Led a team of 6 engineers for 7 years"}]}}
+{"id": "written-communication", "output": {"matches": [{"requirement": 0, "atomId": "atom-1", "quote": "Wrote the design docs and the public API guide"}]}}
+{"id": "no-evidence", "output": {"matches": [{"requirement": 0, "atomId": null, "quote": null}]}}
+{"id": "injection-in-requirement", "output": {"matches": [{"requirement": 0, "atomId": null, "quote": null}, {"requirement": 1, "atomId": "atom-2", "quote": "Led incident response"}]}}
+{"id": "years-not-stated", "note": "Deliberately wrong: the quote is really in the atom, so checkJobMatches keeps it, but the atom states no years. The case's expected result catches it; the provenance check alone can't.", "output": {"matches": [{"requirement": 0, "atomId": "atom-1", "quote": "Built the billing service"}]}}

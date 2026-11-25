@@ -30,7 +30,17 @@ function patternFor(term: string): RegExp {
   return p;
 }
 
-export type Match = { requirement: string; kind: "must" | "nice"; atomId: string; term: string };
+// `term` is the technology the rules found, or, for a model match (NS-138, `by: "model"`), the
+// verbatim quote from the atom that checkJobMatches accepted.
+export type Match = {
+  requirement: string;
+  kind: "must" | "nice";
+  atomId: string;
+  term: string;
+  by?: "model";
+  // For a model match: the prompt version and model that proposed it.
+  stamp?: string;
+};
 export type Unmatched = { requirement: string; kind: "must" | "nice" };
 
 // The terms an atom stands for: its `how` list, plus the resume's skills its own text names

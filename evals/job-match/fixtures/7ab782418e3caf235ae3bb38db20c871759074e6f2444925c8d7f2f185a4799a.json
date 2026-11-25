@@ -1,0 +1,27 @@
+{
+  "requestSha256": "7ab782418e3caf235ae3bb38db20c871759074e6f2444925c8d7f2f185a4799a",
+  "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval job-match --record.",
+  "response": {
+    "id": "msg_handwritten_3",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-5-5",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"matches\":[{\"requirement\":0,\"atomId\":null,\"quote\":null},{\"requirement\":1,\"atomId\":\"atom-2\",\"quote\":\"Led incident response\"}]}",
+        "citations": null
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  }
+}

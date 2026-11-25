@@ -145,3 +145,76 @@ describe("scorePending", () => {
     ]);
   });
 });
+
+describe("scorePending with a model assist (NS-138)", () => {
+  const payments = { requirement: "Payments experience", atomId: "a1", quote: "billing service" };
+
+  it("sends only what the rules left unmatched, and stores an assisted score as rules_model", async () => {
+    const asked: string[][] = [];
+    const { s, saved } = store({
+      jobs: async () => [JOB],
+      assist: async (unmatched) => {
+        asked.push(unmatched.map((u) => u.requirement));
+        return { kind: "assisted", matches: [payments] };
+      },
+    });
+    await scorePending(s);
+    const [stored] = [...saved.values()];
+    expect([asked, stored?.method]).toEqual([
+      [["Experience with Rust", "Terraform", "Payments experience"]],
+      "rules_model",
+    ]);
+  });
+
+  it("stores rules when the assist accepted nothing", async () => {
+    const { s, saved } = store({
+      jobs: async () => [JOB],
+      assist: async () => ({ kind: "assisted", matches: [] }),
+    });
+    await scorePending(s);
+    expect([...saved.values()].map((x) => x.method)).toEqual(["rules"]);
+  });
+
+  it("keeps the rules score when the assist fails, and counts it on the span", async () => {
+    const { s, saved } = store({
+      jobs: async () => [JOB],
+      assist: async () => {
+        throw new TypeError("transport down");
+      },
+    });
+    const r = await scorePending(s);
+    const span = exporter.getFinishedSpans().find((x) => x.name === "fit.score");
+    expect([
+      r.status,
+      [...saved.values()].map((x) => x.method),
+      span?.attributes["fit.assist_failed"],
+      span?.attributes["fit.assisted"],
+    ]).toEqual(["done", ["rules"], 1, 0]);
+  });
+
+  it("counts a refused or malformed assist as failed and keeps the rules score", async () => {
+    const { s, saved } = store({
+      jobs: async () => [JOB],
+      assist: async () => ({ kind: "failed" }),
+    });
+    await scorePending(s);
+    const span = exporter.getFinishedSpans().find((x) => x.name === "fit.score");
+    expect([
+      [...saved.values()].map((x) => x.method),
+      span?.attributes["fit.assist_failed"],
+    ]).toEqual([["rules"], 1]);
+  });
+
+  it("doesn't ask about a job whose rules matched everything", async () => {
+    let calls = 0;
+    const { s } = store({
+      jobs: async () => [{ ...JOB, requirements: ["PostgreSQL at scale"], niceToHaves: [] }],
+      assist: async () => {
+        calls++;
+        return { kind: "assisted", matches: [] };
+      },
+    });
+    await scorePending(s);
+    expect(calls).toBe(0);
+  });
+});

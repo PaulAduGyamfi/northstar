@@ -1,5 +1,5 @@
 {
-  "id": "23127d54-35ad-4989-bcf5-f69de674d319",
+  "id": "83f56204-1109-475d-845f-ca00e2e8841d",
   "prevId": "d04cc099-70be-43de-b3f4-dc8effd06f34",
   "version": "7",
   "dialect": "postgresql",
@@ -2732,7 +2732,7 @@
         },
         "fit_score_method_valid": {
           "name": "fit_score_method_valid",
-          "value": "\"fit_score\".\"method\" in ('rules')"
+          "value": "\"fit_score\".\"method\" in ('rules', 'rules_model')"
         },
         "fit_score_fingerprint_format": {
           "name": "fit_score_fingerprint_format",
@@ -4916,178 +4916,6 @@
         "mail_tag_tenant_key_shape": {
           "name": "mail_tag_tenant_key_shape",
           "value": "\"mail_tag\".\"tenant_key\" is null or \"mail_tag\".\"tenant_key\" ~ '^[a-z0-9]+:[a-z0-9]+([_.-][a-z0-9]+)*$'"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.apply_handoff": {
-      "name": "apply_handoff",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "candidate_id": {
-          "name": "candidate_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "submission_id": {
-          "name": "submission_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "apply_url": {
-          "name": "apply_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "apply_handoff_candidate_id_candidate_id_fk": {
-          "name": "apply_handoff_candidate_id_candidate_id_fk",
-          "tableFrom": "apply_handoff",
-          "tableTo": "candidate",
-          "columnsFrom": [
-            "candidate_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "apply_handoff_submission_id_apply_submission_id_fk": {
-          "name": "apply_handoff_submission_id_apply_submission_id_fk",
-          "tableFrom": "apply_handoff",
-          "tableTo": "apply_submission",
-          "columnsFrom": [
-            "submission_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "apply_handoff_one_per_submission": {
-          "name": "apply_handoff_one_per_submission",
-          "nullsNotDistinct": false,
-          "columns": [
-            "submission_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "apply_handoff_url_https": {
-          "name": "apply_handoff_url_https",
-          "value": "\"apply_handoff\".\"apply_url\" ~ '^https://[^\\s]+$'"
-        },
-        "apply_handoff_url_length": {
-          "name": "apply_handoff_url_length",
-          "value": "length(\"apply_handoff\".\"apply_url\") <= 2048"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.apply_handoff_done": {
-      "name": "apply_handoff_done",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "candidate_id": {
-          "name": "candidate_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "handoff_id": {
-          "name": "handoff_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "outcome": {
-          "name": "outcome",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "done_at": {
-          "name": "done_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "apply_handoff_done_candidate_id_candidate_id_fk": {
-          "name": "apply_handoff_done_candidate_id_candidate_id_fk",
-          "tableFrom": "apply_handoff_done",
-          "tableTo": "candidate",
-          "columnsFrom": [
-            "candidate_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "apply_handoff_done_handoff_id_apply_handoff_id_fk": {
-          "name": "apply_handoff_done_handoff_id_apply_handoff_id_fk",
-          "tableFrom": "apply_handoff_done",
-          "tableTo": "apply_handoff",
-          "columnsFrom": [
-            "handoff_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "apply_handoff_done_once": {
-          "name": "apply_handoff_done_once",
-          "nullsNotDistinct": false,
-          "columns": [
-            "handoff_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "apply_handoff_done_outcome_valid": {
-          "name": "apply_handoff_done_outcome_valid",
-          "value": "\"apply_handoff_done\".\"outcome\" in ('submitted', 'gave_up')"
         }
       },
       "isRLSEnabled": false

@@ -47,7 +47,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   inserts: rows are never edited, by that convention (no trigger guards them). `packages/sources`
   decides the score. Their events (`preferences.changed`, `preferences.rescored`, `job.scored`)
   carry ids, versions, numbers, bands, reason codes, flags and field names, never a preference
-  value, title, requirement or atom text.
+  value, title, requirement or atom text. `method` is `rules`, or `rules_model` when a
+  model-proposed match that passed its provenance check was used (NS-138); such a match keeps
+  its short verbatim atom quote and a prompt/model stamp in `evidence`, never in an event.
 - The Approval Gate's records (NS-119, ADR-0017) are `approval_request`, `approval_policy_set`,
   `approval_decision` and `approval_undo`: append-only (triggers), written only through
   `approval-write.ts`. Reject reasons and draft text never go into events or spans. Every Gate

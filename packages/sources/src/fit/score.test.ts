@@ -208,3 +208,62 @@ describe("jobFingerprint", () => {
     expect(jobFingerprint(JOB)).toMatch(/^[0-9a-f]{64}$/);
   });
 });
+
+describe("scoreJob with model matches (NS-138)", () => {
+  const assisted = [{ requirement: "Payments experience", atomId: "a1", quote: "billing service" }];
+
+  it("moves a requirement the model matched from unmatched to matched, marked by model", () => {
+    const fit = scoreJob(JOB, PREFS, PROFILE, assisted);
+    expect([
+      fit.evidence.matched.find((m) => m.requirement === "Payments experience"),
+      fit.evidence.unmatched.some((u) => u.requirement === "Payments experience"),
+    ]).toEqual([
+      {
+        requirement: "Payments experience",
+        kind: "nice",
+        atomId: "a1",
+        term: "billing service",
+        by: "model",
+      },
+      false,
+    ]);
+  });
+
+  it("raises coverage for a model-matched requirement", () => {
+    const rules = scoreJob(JOB, PREFS, PROFILE);
+    const withModel = scoreJob(JOB, PREFS, PROFILE, assisted);
+    expect([rules.components.niceToHave, withModel.components.niceToHave]).toEqual([0, 0.5]);
+  });
+
+  it("ignores a model match for a requirement the job doesn't have or the rules matched", () => {
+    const fit = scoreJob(JOB, PREFS, PROFILE, [
+      { requirement: "Not in this job", atomId: "a1", quote: "billing service" },
+      { requirement: "PostgreSQL at scale", atomId: "a2", quote: "Kubernetes clusters" },
+    ]);
+    expect(fit).toEqual(scoreJob(JOB, PREFS, PROFILE));
+  });
+
+  it("ignores a model match whose atom or quote doesn't check out against the profile", () => {
+    const fit = scoreJob(JOB, PREFS, PROFILE, [
+      { requirement: "Payments experience", atomId: "a9", quote: "billing service" },
+      { requirement: "Experience with Rust", atomId: "a1", quote: "written in Rust" },
+    ]);
+    expect(fit).toEqual(scoreJob(JOB, PREFS, PROFILE));
+  });
+
+  it("raises must-have coverage for a model-matched must-have, keeping the stamp", () => {
+    const rust = {
+      requirement: "Experience with Rust",
+      atomId: "a1",
+      quote: "billing service",
+      stamp: "job-match/v1 claude-opus-5-5",
+    };
+    const rules = scoreJob(JOB, PREFS, PROFILE);
+    const withModel = scoreJob(JOB, PREFS, PROFILE, [rust]);
+    expect([
+      rules.components.mustHave,
+      withModel.components.mustHave,
+      withModel.evidence.matched.find((m) => m.requirement === "Experience with Rust")?.stamp,
+    ]).toEqual([0.75, 1, "job-match/v1 claude-opus-5-5"]);
+  });
+});

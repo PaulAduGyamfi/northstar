@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { FitBand, PreferenceValues, ScorableJob, ScoringProfile } from "@northstar/db";
 import { type Match, matchRequirements, namesTerm, type Unmatched } from "./match.js";
+import { type ModelMatch, quoteInAtom } from "./model-match.js";
 
 // The Fit Score (NS-116, MAT-001…003). Plain functions, no model: the same job, preferences and
 // resume always give the same score, and every number has its evidence.
@@ -134,18 +135,42 @@ function dealbreakerIn(job: ScorableJob, prefs: PreferenceValues): string | null
 
 const mean = (xs: number[]) => (xs.length === 0 ? null : xs.reduce((a, b) => a + b, 0) / xs.length);
 
+// `assisted`: model matches that passed checkJobMatches (NS-138). Each moves its requirement
+// from unmatched to matched; one for a requirement the rules already matched, or the job doesn't
+// have, changes nothing. The rules always run first and stay the floor.
 export function scoreJob(
   job: ScorableJob,
   prefs: PreferenceValues,
   profile: ScoringProfile,
+  assisted: readonly ModelMatch[] = [],
 ): FitResult {
-  const { matched, unmatched } = matchRequirements(
+  const { matched, unmatched: ruleUnmatched } = matchRequirements(
     [
       ...job.requirements.map((text) => ({ text, kind: "must" as const })),
       ...job.niceToHaves.map((text) => ({ text, kind: "nice" as const })),
     ],
     profile,
   );
+  const unmatched: Unmatched[] = [];
+  for (const u of ruleUnmatched) {
+    // Re-checked here against this profile, whoever built the list: an unknown atom or a quote
+    // that isn't in it leaves the requirement unmatched.
+    const m = assisted.find(
+      (a) =>
+        a.requirement === u.requirement &&
+        profile.atoms.some((atom) => atom.id === a.atomId && quoteInAtom(atom, a.quote)),
+    );
+    if (m) {
+      matched.push({
+        requirement: u.requirement,
+        kind: u.kind,
+        atomId: m.atomId,
+        term: m.quote,
+        by: "model",
+        ...(m.stamp ? { stamp: m.stamp } : {}),
+      });
+    } else unmatched.push(u);
+  }
   const [title, titleEvidence] = titleFit(job, prefs);
   const pay = payCheck(job, prefs);
   const place = placeCheck(job, prefs);

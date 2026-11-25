@@ -93,6 +93,14 @@ Exists now:
   (`renderResumePdf` with pdf-lib, `renderResumeDocx` with docx; ADR-0020). `tailorToPages`
   keeps the most lines that fit the page budget, measured on the PDF (1 page by default), and
   `preSendScoreFromPdf` runs the ATS check on what `pdfToText` reads back from the PDF.
+  Since NS-159 also the resume audit (`audit/`, AUD-001/002), plain code with no model or
+  database yet:
+  - `auditResume(master, targets)` scores impact, verbs, ATS re-parse, length, keyword coverage
+    and consistency (0–100 each), with line-level suggestions keyed `<kind>:<target>`.
+  - A bullet with no number becomes a question, never a proposed metric (AUD-003). A missing date
+    points to `profile facts`, because dates are locked.
+  - `applySuggestion` swaps in Paul's own new line for that one atom. It refuses anything else:
+    a role, a term, a multi-line text, or another role's employer, title or year.
 - The answer bank (GH-59, ANS-005/006) in `packages/db` (`answer-schema.ts`, `answer-write.ts`):
   append-only `bank_answer` (versioned per canonical question), `bank_answer_citation` and
   `bank_answer_use`. `saveApprovedAnswer` stores an answer only with a live Gate approval by Paul
@@ -166,6 +174,11 @@ Exists now:
   checks, the MAT-003 bands, and the evidence behind each number. A score is keyed by the job's
   fields, the preference version and the resume import, so any change re-scores. The queue
   orders by freshness × fit.
+  Since NS-138 also the `job-match` route (`fit/model-match.ts`), off by default (hand-written
+  fixtures): for the requirements the rules left unmatched it proposes an atom and a verbatim
+  quote, `checkJobMatches` keeps only those whose atom and quote check out, and `scorePending`
+  takes them through an optional `assist` step (a score that used one is stored as
+  `method: "rules_model"`; a failed assist keeps the rules score). No caller turns it on yet.
 - The Approval Gate (NS-119, ADR-0002, ADR-0017): the auto-approve rules and their evaluator in
   `packages/domain` (`approval.ts`; only application packages can ever be auto-approved), and
   the append-only `approval_*` tables with the Gate's one write path in `packages/db`

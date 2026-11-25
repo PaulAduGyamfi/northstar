@@ -29,6 +29,10 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
   cites a story or atom with a verbatim quote, checked by `validateAnswerDraft`. It is off by
   default (`draftAnswer` returns `off` unless the caller passes `enabled: true`), because its
   fixtures are hand-written.
+- The `job-match` route (NS-138) lives in `packages/sources/src/fit/model-match.ts`. Call it
+  only through `assistUnmatched`, which sends only what the rules left unmatched and keeps a
+  proposal only when `checkJobMatches` finds its quote verbatim in a real atom. It is off by
+  default (`enabled: true` turns it on), because its fixtures are hand-written.
 - A new route with no real recordings gets hand-written fixtures (ADR-0016 item 8). Write the
   expected outputs to `evals/<route>/handwritten.jsonl` and run
   `node evals/dist/handwrite-bin.js <route>` (after building `evals`). Each fixture is marked

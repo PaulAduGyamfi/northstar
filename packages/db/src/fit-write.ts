@@ -119,7 +119,8 @@ export type ScoringAtom = { id: string; what: string; how: string[] };
 export type ScoringProfile = { sourceId: string; atoms: ScoringAtom[]; skills: string[] };
 
 // The current resume import's atoms (resume order) and skills, or null before any import.
-// Held in memory for scoring only; nothing from it is stored but atom ids and matched terms.
+// Held in memory for scoring only; nothing from it is stored but atom ids, matched terms and,
+// for a model match (NS-138), the short verbatim quote from the atom that checked out.
 export async function readScoringProfile(
   db: Db,
   candidateId: CandidateId,
@@ -221,7 +222,13 @@ export type FitScoreInput = {
   stretch: boolean;
   components: Record<string, number | null>;
   evidence: Record<string, unknown>;
+  // rules: plain-code matching only (NS-116); rules_model: some requirement was matched by the
+  // job-match route after its provenance check (NS-138). Defaults to rules.
+  method?: FitMethod;
 };
+
+export const FIT_METHODS = ["rules", "rules_model"] as const;
+export type FitMethod = (typeof FIT_METHODS)[number];
 
 // Stores one score and its `job.scored` event in one transaction. The same key twice stores
 // nothing the second time ("exists").
@@ -230,10 +237,10 @@ export async function saveFitScore(
   input: FitScoreInput & { candidateId: CandidateId; now: Date },
 ): Promise<"saved" | "exists"> {
   return db.transaction(async (tx) => {
-    const { candidateId, now, preferenceVersion, ...row } = input;
+    const { candidateId, now, preferenceVersion, method = "rules", ...row } = input;
     const [saved] = await tx
       .insert(fitScore)
-      .values({ candidateId, ...row, method: "rules", scoredAt: now })
+      .values({ candidateId, ...row, method, scoredAt: now })
       .onConflictDoNothing({
         target: [
           fitScore.candidateId,
@@ -261,7 +268,7 @@ export async function saveFitScore(
         reason: input.reason,
         stretch: input.stretch,
         preferenceVersion,
-        method: "rules",
+        method,
       },
       links: [],
       traceId: null,
