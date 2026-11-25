@@ -29,14 +29,14 @@ or puts it in a "confirm link" queue, never a guess.
       From domain) under exactly one candidate's **own company domains**, received inside that
       application's active window. Shared ATS and freemail domains never count as a company's
       own, whatever the caller passes: one signs mail for every company on it, so it would pick
-      the wrong application (untagged ATS mail goes to the queue instead). A caller may pass a
-      per-tenant ATS host such as `acme.myworkdayjobs.com` as a company domain. Never the
-      `From:` header alone.
+      the wrong application (untagged ATS mail goes to the queue instead). Subdomains of shared
+      domains don't count either (ATS mail comes from the shared domain; per-tenant hosts appear
+      in links, not as senders). Never the `From:` header alone.
    Anything else, or more than one hit at a step, goes to the confirm queue with a reason
    (`unknown_tag`, `ambiguous`, `no_match`). Each result records the step that made it.
 4. **A tag is not proof of the sender (INB-011).** Each link carries `senderVerified`: true only
-   when a DMARC pass or an aligned DKIM pass is for a domain under the application's company or
-   ATS domains. An unaligned DKIM pass (a shared ATS signing someone else's From) never counts.
+   when a DMARC pass, or a DKIM pass whose signing domain is the From domain or a parent of it,
+   is for a domain under the application's company or ATS domains. An unaligned DKIM pass (a shared ATS signing someone else's From) never counts.
    A replayed, genuinely signed email can still verify, so P2 must not change a status on this
    flag alone. P1 never
    changes a status from email (INB-004); `senderVerified` is what a later status change

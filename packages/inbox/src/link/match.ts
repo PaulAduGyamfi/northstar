@@ -51,19 +51,21 @@ const SHARED_DOMAINS: readonly string[] = [
 ];
 
 // The domains that vouch for this message's From (INB-011): a DMARC pass, or a DKIM pass whose
-// signing domain is aligned with the From domain (relaxed: the same domain, or one under the
-// other). Any DKIM signature can pass for its own domain, so an unaligned one (a shared ATS
-// signing someone else's From) proves nothing about the sender.
+// signing domain is the From domain or a parent of it (relaxed alignment, one direction only).
+// Any DKIM signature passes for its own domain, so an unaligned one (a shared ATS signing
+// someone else's From) proves nothing. A signer under the From domain doesn't count either:
+// with a bare-suffix From (`x@co.uk`) every signer would be "under" it.
 function verifiedDomains(mail: MessageHeaders): string[] {
   const from = mail.senderDomain.toLowerCase();
   if (from === "") return [];
-  return authenticatedDomains(mail.authenticationResults).filter(
-    (d) => underDomain(from, d) || underDomain(d, from),
-  );
+  return authenticatedDomains(mail.authenticationResults).filter((d) => underDomain(from, d));
 }
 
+// A candidate's own company domains: never a shared ATS or freemail domain, nor one under it.
 const ownDomains = (c: LinkCandidate) =>
-  c.companyDomains.map((d) => d.toLowerCase()).filter((d) => !SHARED_DOMAINS.includes(d));
+  c.companyDomains
+    .map((d) => d.toLowerCase())
+    .filter((d) => !SHARED_DOMAINS.some((shared) => underDomain(d, shared)));
 
 const inWindow = (c: LinkCandidate, at: Date) =>
   c.activeFrom.getTime() <= at.getTime() &&

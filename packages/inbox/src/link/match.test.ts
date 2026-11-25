@@ -253,4 +253,21 @@ describe("matchMail and sender verification (INB-011: DMARC or aligned DKIM only
     ];
     expect(results.map((r) => r.kind)).toEqual(["queued", "queued"]);
   });
+
+  it("doesn't count a DKIM domain under a bare-suffix From as aligned", () => {
+    const suffixFrom = tagged({
+      senderDomain: "example.com",
+      authenticationResults: "mx.google.com; dkim=pass header.d=acme.example.com",
+    });
+    expect(matchMail(suffixFrom, TAGS, [ACME])).toMatchObject({ senderVerified: false });
+  });
+
+  it("never treats a subdomain of a shared domain as a company's own", () => {
+    const sloppy = app("app-x", { companyDomains: ["mail.greenhouse.io"] });
+    const signed = mail({
+      senderDomain: "mail.greenhouse.io",
+      authenticationResults: "mx.google.com; dkim=pass header.d=mail.greenhouse.io",
+    });
+    expect(matchMail(signed, [], [sloppy])).toMatchObject({ kind: "queued", reason: "no_match" });
+  });
 });
