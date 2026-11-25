@@ -30,6 +30,13 @@ export {
   jobMatchRoute,
   type ModelMatch,
 } from "./fit/model-match.js";
+// One Fit Score pass (NS-116), exported for the API's capture (NS-186).
+export {
+  type ScoreCounts,
+  type ScoreRun,
+  type ScoreStore,
+  scorePending,
+} from "./fit/run.js";
 export { type IngestDeps, type IngestResult, ingestText, ingestUrl } from "./ingest.js";
 export {
   checkJobProvenance,
