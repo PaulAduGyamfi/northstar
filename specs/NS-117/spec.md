@@ -37,8 +37,10 @@ job is its title, requirements and nice-to-haves (as `jobs add` stores them).
 - **Skills.** Master skills the job names come first (in the job's order), then the rest in
   resume order. A term an atom proves (its `how`) that the job asks for but the skills section
   lacks is **added**, citing that atom, and marked as added for the diff.
-- **Not claimed.** Each requirement no atom's term meets yields the note
-  `not claimed: <requirement> (no evidence)`. Nothing from it enters the resume.
+- **Not claimed.** Each requirement that no atom's term and no master skill meets yields the note
+  `not claimed: <requirement> (no evidence)`. Nothing from it enters the resume. A skill on the
+  master's skills list counts as claimed even with no atom behind it: the skills section already
+  states it, so a note saying otherwise would contradict the resume.
 - **Summary.** The deterministic tailor writes no summary line; the schema has a `summary` list
   (lines with citations) for the model route.
 - **Locked facts.** A `TailoredResume` holds no employer, title, school, degree or date: sections
@@ -46,19 +48,37 @@ job is its title, requirements and nice-to-haves (as `jobs add` stores them).
   them, by construction.
 
 ### Provenance validator (TLR-002)
-`validateTailoredResume(resume, master, { terms })` is plain code that blocks the resume, naming
-the item and the problem (never its text), when:
+`validateTailoredResume(resume, master, job, { terms })` is plain code that blocks the resume,
+naming the item and the problem (never a line's text), when:
+- a line or skill has a line break or control character (it could render as a fake header), or
+  uses digits other than 0-9 (they would escape the number check);
+- a master role has no section, has more than one, or the roles are out of resume order;
+- a skill's `added` flag doesn't match the master (a master skill marked added could be toggled
+  off);
 - a summary or bullet line cites no atom, or cites an id not in the master;
 - a section names a role not in the master, or a bullet cites an atom of another role (a project
   section may cite only role-less atoms);
 - a line uses a number none of its cited atoms' resume lines state;
-- a line names a term (any master skill, any atom `how` item, or a caller-supplied term such as
-  the job's keywords) that none of its cited atoms names in its `what`, `how` or resume line;
+- a line names a term (any master skill, any atom `how` item, any technology-like word in the
+  job's requirements, each requirement whole, or a caller-supplied term) that none of its cited
+  atoms names in its `what`, `how` or resume line. A technology-like word has a capital after its
+  first letter (PostgreSQL), a digit, `+` or `#` (S3, C++), or starts with a capital and isn't
+  the first word of its requirement. The job is a required input, so the job's own names are
+  always policed;
 - a skill isn't a master skill and isn't named by an atom it cites, or cites an unknown atom;
 - an atom appears in more than one line of the experience sections (a duplicated claim).
 
-Its known limits are the ones ADR-0004 lists (digit-token numbers, whole-word names); paraphrase
-faithfulness for the model route is that route's eval.
+Its known limits are the ones ADR-0004 lists (digit-token numbers, so "120 million" → "120
+billion" passes; whole-word names), plus:
+- a technology neither the profile nor the job names ("Go, Postgres and Redis" citing an atom
+  that names only Go and Postgres) isn't policed;
+- a lower-case name, or one that opens its requirement ("Kubernetes experience"), is caught only
+  when the whole requirement matches;
+- a term passes when the cited atom merely mentions it ("Replaced Kubernetes with Nomad");
+- capitalised ordinary words in requirements ("Strong Communication") are policed too, so a
+  model line using them is blocked (it falls back to the deterministic resume, never to a
+  weaker check).
+Paraphrase faithfulness for the model route is that route's eval.
 
 ### Render
 `renderResumeText(resume, master)` gives an ATS-safe plain-text resume: single column, the fixed
@@ -99,8 +119,9 @@ headers `SUMMARY` (only when it has lines), `EXPERIENCE`, `PROJECTS` (only when 
       header stays (test).
 - [ ] A skill the job asks for that an atom's `how` proves but the skills section lacks is added,
       citing that atom; one no atom proves is not (test).
-- [ ] The validator passes the tailor's own output, and blocks each case listed above with the
-      item and problem (tests, one per rule).
+- [ ] The validator passes the tailor's own output (sample job, empty job, one-line budget,
+      master with no atoms), and blocks each case listed above with the item and problem (tests,
+      one per rule).
 - [ ] The diff reports kept, moved, dropped, reworded, added and removed (tests);
       `applySkillToggles` drops an added skill and refuses to drop a master skill (test).
 - [ ] The pre-send score reports title match, `covered/total` with the missing list, and an ATS

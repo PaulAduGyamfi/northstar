@@ -1,22 +1,31 @@
 import { normalize, numbers } from "../validate.js";
-import { atomNames, mentions } from "./terms.js";
-import type { Line, MasterAtom, MasterResume, TailoredResume } from "./types.js";
+import { atomNames, jobTerms, mentions } from "./terms.js";
+import type { Line, MasterAtom, MasterResume, TailoredResume, TailorJob } from "./types.js";
 
 // The deterministic provenance check for tailored resumes (NS-117, TLR-002, ADR-0004): plain code,
 // no model. Every line must rest on atoms of the master, and may only state the numbers and name
-// the technologies those atoms do. A failure names the item and the problem, never its text.
+// the technologies those atoms do. A failure names the item and the problem, never a line's
+// text; it may name a number or term, which come from the profile or the job, never from a line.
 export type TailorFailure = { item: string; problem: string };
 export type TailorValidation = { ok: true } | { ok: false; failures: TailorFailure[] };
 
 export type TailorValidateOptions = {
-  // Extra names to police beyond the master's own (its skills and atoms' `how`): typically the
-  // job's keywords, so a line can't claim a technology the job asks for and no atom names.
+  // Extra names to police beyond the master's own and those found in the job's text.
   terms?: string[];
 };
+
+// Line breaks and other control characters: one could start a fake header (a role, an
+// employer) when rendered, so a line or skill must be a single line of text.
+const CONTROL = /\p{Cc}/u;
+// Digits outside 0-9 (Arabic-Indic, full-width…) escape the digit-token number check.
+const OTHER_DIGIT = /(?![0-9])\p{Nd}/u;
 
 export function validateTailoredResume(
   resume: TailoredResume,
   master: MasterResume,
+  // Required: the job's technology names are the claims a tailored resume is most tempted to
+  // make without evidence (TLR-002).
+  job: TailorJob,
   options: TailorValidateOptions = {},
 ): TailorValidation {
   const failures: TailorFailure[] = [];
@@ -25,12 +34,22 @@ export function validateTailoredResume(
   const vocabulary = [
     ...master.skills,
     ...master.atoms.flatMap((a) => a.how),
+    // Requirements, not the title: a title's words ("Platform Engineer") aren't claims of
+    // experience, and policing them would block ordinary summary lines.
+    ...jobTerms([...job.requirements, ...job.niceToHaves]),
     ...(options.terms ?? []),
   ];
+
+  const checkText = (item: string, text: string) => {
+    if (CONTROL.test(text))
+      failures.push({ item, problem: "has a line break or control character" });
+    if (OTHER_DIGIT.test(text)) failures.push({ item, problem: "uses digits other than 0-9" });
+  };
 
   // Citations, numbers and names of one line. `roleId` undefined: a summary line, which may cite
   // atoms from anywhere.
   const checkLine = (item: string, line: Line, roleId?: string | null) => {
+    checkText(item, line.text);
     if (line.atomIds.length === 0) failures.push({ item, problem: "cites no atom" });
     const cited: MasterAtom[] = [];
     line.atomIds.forEach((id, i) => {
@@ -66,6 +85,24 @@ export function validateTailoredResume(
     checkLine(`summary line ${i}`, line);
   });
 
+  // Every master role keeps exactly one section, in resume order: dropping one hides a period of
+  // the work history, repeating or swapping them misstates the timeline (CPG-004).
+  const sectionRoles = resume.sections.map((s) => s.roleId).filter((r): r is string => r !== null);
+  const expected = master.roles.map((r) => r.id);
+  if (sectionRoles.join("\n") !== expected.join("\n")) {
+    expected.forEach((id, i) => {
+      const count = sectionRoles.filter((r) => r === id).length;
+      if (count === 0) failures.push({ item: `role ${i}`, problem: "has no section" });
+      else if (count > 1)
+        failures.push({ item: `role ${i}`, problem: "has more than one section" });
+    });
+    const known = sectionRoles.filter((r) => roles.has(r));
+    const ordered = expected.filter((r) => known.includes(r));
+    if ([...new Set(known)].join("\n") !== ordered.join("\n")) {
+      failures.push({ item: "sections", problem: "roles are out of resume order" });
+    }
+  }
+
   // An atom is one claim: on two experience lines it would be stated twice.
   const used = new Set<string>();
   resume.sections.forEach((section, s) => {
@@ -85,17 +122,21 @@ export function validateTailoredResume(
   const masterSkills = new Set(master.skills.map((s) => s.toLowerCase()));
   resume.skills.forEach((skill, i) => {
     const item = `skill ${i}`;
+    checkText(item, skill.name);
     const cited: MasterAtom[] = [];
     skill.atomIds.forEach((id, j) => {
       const atom = atoms.get(id);
       if (atom) cited.push(atom);
       else failures.push({ item, problem: `cites unknown atom ${j}` });
     });
-    if (
-      !masterSkills.has(skill.name.toLowerCase()) &&
-      !cited.some((a) => atomNames(a, skill.name))
-    ) {
+    const isMaster = masterSkills.has(skill.name.toLowerCase());
+    if (!isMaster && !cited.some((a) => atomNames(a, skill.name))) {
       failures.push({ item, problem: "not a master skill and not named by its atoms" });
+    }
+    // The flag decides what Paul may toggle off (applySkillToggles): a master skill marked as
+    // added could be removed from his record that way.
+    if (skill.added === isMaster) {
+      failures.push({ item, problem: "added flag doesn't match the master" });
     }
   });
 

@@ -79,4 +79,22 @@ describe("tailorResume", () => {
       tailorResume(sampleMaster(), sampleJob()),
     );
   });
+
+  it("counts a skill the master's skills list names as claimed, even with no atom behind it", () => {
+    const master = { ...sampleMaster(), skills: [...sampleMaster().skills, "Rust"] };
+    const job = { title: null, requirements: ["Rust", "Kubernetes"], niceToHaves: [] };
+    expect(tailorResume(master, job).notClaimed).toEqual(["not claimed: Kubernetes (no evidence)"]);
+  });
+
+  it("gives a master with no atoms its role headers and skills and claims nothing", () => {
+    const bare = { ...sampleMaster(), atoms: [] };
+    const resume = tailorResume(bare, { ...sampleJob(), requirements: ["Terraform"] });
+    expect([resume.sections, resume.notClaimed]).toEqual([
+      [
+        { roleId: "role-1", lines: [] },
+        { roleId: "role-2", lines: [] },
+      ],
+      ["not claimed: Terraform (no evidence)"],
+    ]);
+  });
 });

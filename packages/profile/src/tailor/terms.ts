@@ -29,6 +29,28 @@ export function atomTerms(atom: MasterAtom, skills: string[]): string[] {
   });
 }
 
+// Words in job text that look like a technology or product name, so the validator can police
+// them even when nothing in Paul's profile knows them ("Kubernetes" in "Experience with
+// Kubernetes"): a word with a capital after its first letter (PostgreSQL, GraphQL, iOS), one
+// with a digit or + or # in it (S3, C++, C#), or one starting with a capital that isn't the
+// first word of its text (the first word is capitalised anyway). Plus each requirement whole.
+// A heuristic: lower-case names ("terraform") and names that open a requirement ("Kubernetes
+// experience") are caught only when the whole requirement matches.
+export function jobTerms(texts: string[]): string[] {
+  const out = new Set<string>();
+  for (const text of texts) {
+    const t = normalize(text);
+    if (t !== "") out.add(t);
+    const words = t.match(/[\p{L}\p{N}][\p{L}\p{N}+#./-]*/gu) ?? [];
+    words.forEach((raw, i) => {
+      const w = raw.replace(/[./-]+$/, "");
+      const named = /^.+\p{Lu}/u.test(w) || /[\p{N}+#]/u.test(w) || (i > 0 && /^\p{Lu}/u.test(w));
+      if (named && w.length >= 2) out.add(w);
+    });
+  }
+  return [...out];
+}
+
 // True when the atom's own text (`what`, `how` or resume line) names the term.
 export function atomNames(atom: MasterAtom, term: string): boolean {
   return (

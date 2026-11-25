@@ -44,10 +44,16 @@ export type TailorJob = {
   niceToHaves: string[];
 };
 
-// One line of the resume and the atoms it rests on. At least one: a line with no atom behind it
+// A line of the resume and the atoms it rests on. At least one: a line with no atom behind it
 // is blocked (TLR-002). Zod, because the model route will return this shape.
+// One line of text: a line break could start a fake header (a role, an employer) when rendered.
+const OneLine = z
+  .string()
+  .min(1)
+  .refine((t) => !/\p{Cc}/u.test(t), "must be one line without control characters");
+
 const Line = z.object({
-  text: z.string().min(1),
+  text: OneLine,
   atomIds: z.array(z.string().min(1)).min(1),
 });
 export type Line = z.infer<typeof Line>;
@@ -60,7 +66,7 @@ export const TailoredResume = z.object({
   sections: z.array(z.object({ roleId: z.string().min(1).nullable(), lines: z.array(Line) })),
   // A skill the master lists cites nothing; one it doesn't list (added) cites the atoms proving it.
   skills: z.array(
-    z.object({ name: z.string().min(1), atomIds: z.array(z.string().min(1)), added: z.boolean() }),
+    z.object({ name: OneLine, atomIds: z.array(z.string().min(1)), added: z.boolean() }),
   ),
   // "not claimed: Kubernetes (no evidence)": requirements nothing in the profile meets.
   notClaimed: z.array(z.string()),

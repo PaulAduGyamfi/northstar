@@ -1,3 +1,4 @@
+import { normalize } from "../validate.js";
 import type { MasterResume, MasterRole, TailoredResume } from "./types.js";
 
 // The ATS-safe plain-text resume (NS-117): one column, fixed upper-case headers, `- ` bullets, no
@@ -29,9 +30,12 @@ const withDates = (head: string, when: string) => (when === "" ? head : `${head}
 export function renderResumeText(resume: TailoredResume, master: MasterResume): string {
   const roles = new Map(master.roles.map((r) => [r.id, r]));
   const blocks: string[][] = [];
-  const bullets = (lines: { text: string }[]) => lines.map((l) => `- ${l.text}`);
+  // The same normalised text the validator checked, so the two can't disagree (a line break
+  // the validator would read as a space is never written as one).
+  const bullets = (lines: { text: string }[]) => lines.map((l) => `- ${normalize(l.text)}`);
 
-  if (resume.summary.length > 0) blocks.push(["SUMMARY", ...resume.summary.map((l) => l.text)]);
+  if (resume.summary.length > 0)
+    blocks.push(["SUMMARY", ...resume.summary.map((l) => normalize(l.text))]);
 
   const experience: string[] = [];
   for (const section of resume.sections) {
@@ -57,7 +61,7 @@ export function renderResumeText(resume: TailoredResume, master: MasterResume): 
   }
 
   if (resume.skills.length > 0) {
-    blocks.push(["SKILLS", resume.skills.map((s) => s.name).join(", ")]);
+    blocks.push(["SKILLS", resume.skills.map((s) => normalize(s.name)).join(", ")]);
   }
 
   return `${blocks.map((b) => b.join("\n")).join("\n\n")}\n`;
