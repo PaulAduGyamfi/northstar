@@ -48,3 +48,22 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   decides the score. Their events (`preferences.changed`, `preferences.rescored`, `job.scored`)
   carry ids, versions, numbers, bands, reason codes, flags and field names, never a preference
   value, title, requirement or atom text.
+- The Approval Gate's records (NS-119, ADR-0017) are `approval_request`, `approval_policy_set`,
+  `approval_decision` and `approval_undo`: append-only (triggers), written only through
+  `approval-write.ts`. Reject reasons and draft text never go into events or spans. Every Gate
+  time comes from `northstar_gate_now()`, and Gate functions take no time from their caller; never
+  override it outside the PGlite test setup (`src/test/global-setup.ts`). Gate transactions stay
+  READ COMMITTED.
+- The answer bank (GH-59) is `bank_answer`, `bank_answer_citation` and `bank_answer_use`:
+  append-only (a trigger refuses UPDATE, DELETE and TRUNCATE), written only through
+  `answer-write.ts`. An answer is stored only with a live Gate approval by Paul (kind `answer`,
+  subject `answer:<id>`, `answerContentSha256`). The answer text is Paul's words: never copy it
+  into events, spans, logs or fixtures.
+- Resilience state (NS-126, ADR-0007) is `dependency_breaker` (one row per dependency, written
+  only through `breaker-write.ts`) and `kill_switch` (append-only, written only through
+  `kill-switch-write.ts`; the newest row per subsystem is its state, no row means on). Breaker
+  events are written only on a change of state and carry the dependency, counts and an error name,
+  never a message or URL.
+- One agent at a time changes this package's schema or migrations (ADR-0016): parallel agents
+  renumbering migrations caused replacement PRs. Before adding a migration, merge the latest
+  `main` and generate it then.
