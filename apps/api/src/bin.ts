@@ -2,9 +2,11 @@ import { lookup } from "node:dns/promises";
 import { createServer } from "node:http";
 import {
   connectDb,
+  listApplications,
   listOpenHandoffs,
   listTenants,
   loadDbConfig,
+  readApplicationTimeline,
   readDedupeCandidates,
   readFeed,
   readFeedAfter,
@@ -29,6 +31,7 @@ import { approvalEndpoints } from "./approvals.js";
 import { captureEndpoint } from "./capture.js";
 import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
 import { handoffEndpoints } from "./handoffs.js";
+import { pipelineEndpoints } from "./pipeline.js";
 import { createApi } from "./server.js";
 import { createSessions } from "./sessions.js";
 import { systemEndpoints } from "./system.js";
@@ -116,11 +119,16 @@ try {
   // The approval queue (NS-139): the only path to decideApprovals and undoDecision, behind
   // Paul's session, so every decision is his (ADR-0002).
   const approvals = approvalEndpoints(dbApprovalPorts(db, candidateId));
+  // The pipeline board and application timeline (NS-168), read-only.
+  const pipeline = pipelineEndpoints({
+    list: async () => listApplications(db, await candidateId()),
+    timeline: async (id) => readApplicationTimeline(db, await candidateId(), id),
+  });
   const handler = createApi({
     config,
     sessions: createSessions(Date.now),
     extensionTokenSha256,
-    extra: [capture, ...system, ...handoffs, ...accounts, ...approvals],
+    extra: [capture, ...system, ...handoffs, ...accounts, ...approvals, ...pipeline],
   });
   const server = createServer(handler);
   server.listen(config.port, "127.0.0.1", () => {

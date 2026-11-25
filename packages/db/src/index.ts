@@ -207,6 +207,14 @@ export {
   type TagTarget,
   type TagView,
 } from "./mail-link-write.js";
+// The pipeline board and application timeline (NS-168), read-only.
+export {
+  type ApplicationRow,
+  listApplications,
+  MAX_APPLICATIONS,
+  readApplicationTimeline,
+  type TimelineItem,
+} from "./pipeline-read.js";
 export * as profileSchema from "./profile-schema.js";
 export {
   currentResumeHash,
