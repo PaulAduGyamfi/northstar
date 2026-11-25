@@ -1,8 +1,10 @@
 import type { CallRecord, LlmGateway } from "@northstar/llm";
+import { findAvoided } from "../voice/edits.js";
+import { words } from "../voice/words.js";
 import { type EvidenceItem, selectEvidence } from "./evidence.js";
 import { answerDraftRoute } from "./route.js";
 import type { AnswerDraft } from "./schema.js";
-import { type AnswerFailure, validateAnswerDraft } from "./validate.js";
+import { type AnswerFailure, answerText, validateAnswerDraft } from "./validate.js";
 
 // Drafting an answer to a new narrative question (ANS-004, NS-135). Code decides: it picks the
 // evidence, the model drafts from it, and the provenance check decides whether Paul sees the draft
@@ -12,7 +14,10 @@ import { type AnswerFailure, validateAnswerDraft } from "./validate.js";
 export type DraftRequest = {
   question: string;
   limit: number | null;
+  // How Paul writes (renderVoiceGuide, NS-136). May be empty.
   voiceGuide: string;
+  // Phrases Paul keeps deleting from drafts (avoidedPhrases, ANS-008).
+  avoid?: readonly string[];
   // Paul's approved stories and his atoms (storyEvidence, atomEvidence).
   items: readonly EvidenceItem[];
 };
@@ -24,7 +29,7 @@ export type DraftResult =
   | { kind: "drafted"; draft: AnswerDraft; evidence: string[]; record: CallRecord }
   | {
       kind: "needs_human";
-      reason: "no_evidence" | "refused" | "truncated" | "invalid_output" | "provenance";
+      reason: "no_evidence" | "refused" | "truncated" | "invalid_output" | "provenance" | "voice";
       failures: AnswerFailure[];
       // For the caller's domain event; null when no call was made.
       record: CallRecord | null;
@@ -41,11 +46,21 @@ export async function draftAnswer(
   if (evidence.length === 0) {
     return { kind: "needs_human", reason: "no_evidence", failures: [], record: null };
   }
+  // Only the plain words the check below uses reach the prompt: no quotes, line breaks or
+  // anything else a caller's text might carry.
+  const avoid = (request.avoid ?? []).map((p) => words(p).join(" ")).filter((p) => p !== "");
+  // The model is told what to avoid; code still checks below, since telling isn't enough.
+  const voiceGuide =
+    avoid.length === 0
+      ? request.voiceGuide
+      : [request.voiceGuide, `Avoid: ${avoid.map((p) => `"${p}"`).join(", ")}.`]
+          .filter((line) => line !== "")
+          .join("\n");
   // A transport error throws, so the caller's retry policy handles it (llm.md).
   const outcome = await deps.gateway.call(answerDraftRoute(), {
     question: request.question,
     limit: request.limit,
-    voiceGuide: request.voiceGuide,
+    voiceGuide,
     evidence,
   });
   const needsHuman = (reason: "refused" | "truncated" | "invalid_output") => ({
@@ -68,6 +83,20 @@ export async function draftAnswer(
           kind: "needs_human",
           reason: "provenance",
           failures: check.failures,
+          record: outcome.record,
+        };
+      }
+      // A phrase Paul deleted from three drafts never reaches him again (ANS-008). The failure
+      // names the phrase by its position in `avoid`, never the text.
+      const avoided = findAvoided(answerText(outcome.output), avoid);
+      if (avoided.length > 0) {
+        return {
+          kind: "needs_human",
+          reason: "voice",
+          failures: avoided.map((i) => ({
+            sentence: null,
+            problem: `avoided phrase ${i} is in the draft`,
+          })),
           record: outcome.record,
         };
       }
