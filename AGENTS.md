@@ -92,6 +92,16 @@ Exists now:
   (`approval-write.ts`: `requestApproval`, `setApprovalPolicies`, `listPendingApprovals`,
   `decideApprovals` for one or a batch, `undoDecision` inside the 2-minute undo window, and
   `verifyApproval`, which every gateway calls before it acts). No CLI or UI yet.
+- `packages/gateways/` (NS-120): the Apply Gateway, the only code that submits an application
+  (ADR-0002). `submitApplication` checks the approval with the Gate at the moment it acts (no
+  verified approval throws `NotApprovedError`), re-hashes the package and its files, claims the
+  submission once in `packages/db` (`apply-write.ts`: idempotency key, requisition dedupe,
+  one in progress per ATS, 90 s gap, 25 a day), drives the form through a `FormDriver`, and
+  stores proof (`submission_proof`, append-only). Anything it can't finish is `needs_human`
+  with a reason code, never retried blindly. Greenhouse, Lever and Ashby adapters map the
+  package onto the form and recognize the confirmation page. The package schema and its hash
+  are in `packages/domain` (`apply-package.ts`). There is no real browser driver yet, so
+  nothing can be submitted until the Playwright driver lands.
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write
@@ -107,7 +117,7 @@ with the ticket that needs it.
 
 ```
 apps/web  apps/api  apps/worker  apps/extension
-packages/agents  gateways  ats-adapters  ui
+packages/agents  ats-adapters  ui
 ops/  docs/runbooks/
 ```
 

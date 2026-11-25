@@ -39,8 +39,9 @@ In order, stopping at the first refusal:
    `boards.greenhouse.io` / `job-boards.greenhouse.io`, Lever `jobs.lever.co`, Ashby
    `jobs.ashbyhq.com`). Anything else is refused (`InvalidPackage`, `HostNotAllowed`).
 2. `verifyApproval` with the given decision id, kind `application_package`, the subject and the
-   recomputed hash. Any refusal is returned as `NotApproved` with the Gate's reason; nothing else
-   happens. The gateway never trusts the id without this lookup.
+   recomputed hash. Any refusal **throws** `NotApprovedError` with the Gate's reason
+   (`.claude/rules/gateways.md`); nothing is claimed. The gateway never trusts the id without
+   this lookup.
 3. The resume (and cover letter) bytes are read by hash and re-hashed. A mismatch is refused
    (`FileChanged`).
 4. **Claim** in one transaction (`claimSubmission`, `packages/db/src/apply-write.ts`), using the
@@ -48,6 +49,7 @@ In order, stopping at the first refusal:
    - idempotency key `application:<applicationId>:submit`. A finished submission with that key is
      returned as a replay (same proof, nothing sent). An `in_progress` one (a crash mid-run) is
      **never** retried: the outcome is unknown, so it becomes `needs_human` (`outcome_unknown`).
+     A `needs_human` one is returned as it is.
    - requisition key `<ats>:<postingId>`: a second application to the same requisition is
      refused (`DuplicateRequisition`, APPLY-009). Reposts under a new posting id are caught one
      level up: dedupe makes them one job (SRC-006), and one job has one application.
@@ -78,7 +80,8 @@ In order, stopping at the first refusal:
 
 ## Acceptance criteria
 - [ ] A call without a valid approval (unknown id, rejected, undone, in its undo window, other
-      subject, changed content) is refused and claims nothing (gateway tests, one per reason).
+      subject, changed content) throws `NotApprovedError` and claims nothing (gateway tests, one
+      per reason).
 - [ ] Submitting the same approved package twice sends once; the second call returns the first
       proof (gateway test with a counting fake driver).
 - [ ] A crash after the claim is never retried: the next call returns `needs_human`
@@ -100,15 +103,18 @@ In order, stopping at the first refusal:
 - **Form changed since the package was built:** `needs_human` (`form_changed` /
   `unmapped_required`) before anything is typed.
 - **Database down:** the claim fails and nothing is sent; the caller sees the error.
-- **Gate refuses:** `NotApproved` with the Gate's reason; nothing is claimed.
+- **Gate refuses:** `NotApprovedError` is thrown with the Gate's reason; nothing is claimed.
+- **Database down after a confirmed submit:** the claim stays `in_progress`; the next call
+  returns `needs_human` (`outcome_unknown`) and Paul checks. Never a second submit.
 
 ## Observability
 - Span `apply.submit` with `northstar.apply.ats` and `northstar.apply.outcome`
   (`submitted`, `replayed`, a refusal kind or a `needs_human` reason). Never field values,
   URLs or HTML.
-- Events (aggregate `application:<id>`): `apply.submission_claimed`, `apply.submitted`,
-  `apply.needs_human` (reason code), each with ids and the ATS only; plus the status events
-  `transitionApplication` writes.
+- Events (aggregate `apply_submission:<id>`): `apply_submission.claimed`,
+  `apply_submission.submitted` (with the proof id), `apply_submission.needs_human` (reason code),
+  each with ids and the ATS only; plus the status events `transitionApplication` writes.
+- DB spans `db.apply.claim`, `db.apply.submitted`, `db.apply.needs_human`.
 
 ## Out of scope
 - The Playwright driver, recorded real ATS fixtures, file upload mechanics (follow-up issue).

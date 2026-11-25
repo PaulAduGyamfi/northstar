@@ -1,0 +1,15 @@
+// Public entry of @northstar/gateways (NS-120): the Apply Gateway, its ATS adapters and the
+// browser driver contract. The only package that may act under Paul's name (ADR-0002).
+export { type AtsAdapter, adapterFor, hostAllowed } from "./apply/adapters/index.js";
+export type { Challenge, Fill, FormDriver, FormField, PageState, Upload } from "./apply/driver.js";
+export { type FieldPlan, type MapError, mapPackage } from "./apply/map.js";
+export { type ApplyPorts, dbPorts } from "./apply/ports.js";
+export {
+  type FileChanged,
+  type HostNotAllowed,
+  NotApprovedError,
+  type SubmitInput,
+  type SubmitOutcome,
+  type SubmitRefusal,
+  submitApplication,
+} from "./apply/submit.js";
