@@ -125,6 +125,8 @@ function summary(s: PassSummary): string {
   const parts = [`${s.added} new job${s.added === 1 ? "" : "s"}`];
   if (s.failed > 0) parts.push(`${s.failed} failed`);
   if (s.quarantined > 0) parts.push(`${s.quarantined} quarantined (see jobs watch list)`);
+  // Held back, not failed: they are read again once the switch is on or the breaker allows it.
+  if ((s.paused ?? 0) > 0) parts.push(`${s.paused} paused (switched off or ATS breaker open)`);
   return `Polled ${s.boards} board${s.boards === 1 ? "" : "s"}: ${parts.join(", ")}.`;
 }
 

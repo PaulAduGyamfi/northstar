@@ -127,6 +127,16 @@ describe("jobs poll and jobs run", () => {
     expect(printed).toEqual(["Polled 2 boards: 3 new jobs, 1 failed."]);
   });
 
+  it("poll says how many boards a kill switch or an open breaker held back", async () => {
+    const { d, printed } = deps(["poll"], {
+      poll: async () => ({ boards: 3, added: 1, failed: 0, quarantined: 0, paused: 2 }),
+    });
+    expect(await main(d)).toBe(0);
+    expect(printed).toEqual([
+      "Polled 3 boards: 1 new job, 2 paused (switched off or ATS breaker open).",
+    ]);
+  });
+
   it("run polls once a minute until stopped", async () => {
     let ticks = 0;
     const waits: number[] = [];
