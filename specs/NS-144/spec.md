@@ -37,6 +37,16 @@ All in `packages/profile/src/tailor/`.
        claimed: Kubernetes" note, and can't add one.
      - **Skills must be the deterministic tailor's skills** (the same names and added flags,
        any order). Wording may change; claims may not.
+     - **Structure is the deterministic tailor's:** the same sections in the same order, and the
+       same atoms on each line in the same order. The model can't drop, reorder, merge or re-add
+       lines; selection and the page budget stay code's (TLR-001). Only text and summary change.
+     - **Model-written text names nothing new** (`checkFreeText`). Every capitalised word must
+       be in the cited atoms (line, what, how), their roles' title or employer, or the master's
+       skills. It is never taken from the job. A line's first word passes as an ordinary opener
+       or a word those hold in lower case. Every number word ("ten", "billion") must be in the
+       cited atoms. This closes what the validator's digit-token and term rules can't see in
+       free text (an invented employer or title, "120 billion"). Failures give a word's
+       position, never the text. The rule errs toward the deterministic resume.
    - Returns the call record for the caller's event. Nothing is stored.
 3. **Eval** `evals/resume-tailor/`:
    - **Synthetic cases** from the NS-117 master, and a grader that runs the same check plus

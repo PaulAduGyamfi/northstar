@@ -22,6 +22,9 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
 - The `job-extract` route (NS-114) lives in `packages/sources`; its values pass
   `checkJobProvenance` (dropped, never kept, when the page lacks them). Never run `jobs add` on a
   real link yourself; tests use the fake web in `packages/sources/src/test/fake-web.ts`.
+- The `resume-tailor` route (NS-144) lives in `packages/profile/src/tailor/`. Call it only
+  through `tailorWithModel`, which checks the output and falls back to the deterministic resume.
+  It is off by default (`enabled: true` turns it on), because its fixtures are hand-written.
 - The `answer-draft` route (NS-135) lives in `packages/profile/src/answer/`. Every sentence
   cites a story or atom with a verbatim quote, checked by `validateAnswerDraft`. It is off by
   default (`draftAnswer` returns `off` unless the caller passes `enabled: true`), because its

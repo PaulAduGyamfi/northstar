@@ -79,6 +79,16 @@ Exists now:
   `validateTailoredResume` blocks any line without atom provenance, `diffResume` and
   `applySkillToggles` for the diff view, and `preSendScore` (title match, keyword coverage, ATS
   re-parse check) over the plain-text render.
+  Since NS-144 also the `resume-tailor` route (`tailor/route.ts`). `tailorWithModel` lets the
+  model reword the deterministic resume's lines and write a summary. It uses the result only if
+  `checkModelResume` passes:
+  - `validateTailoredResume`;
+  - the deterministic tailor's sections, line order, atoms per line, skills and not-claimed
+    notes;
+  - in the model's text, every capitalised word and number word comes from the cited atoms,
+    their roles or the skills, never from the job.
+
+  Otherwise it falls back to the deterministic resume. Off by default (hand-written fixtures).
 - The answer bank (GH-59, ANS-005/006) in `packages/db` (`answer-schema.ts`, `answer-write.ts`):
   append-only `bank_answer` (versioned per canonical question), `bank_answer_citation` and
   `bank_answer_use`. `saveApprovedAnswer` stores an answer only with a live Gate approval by Paul
