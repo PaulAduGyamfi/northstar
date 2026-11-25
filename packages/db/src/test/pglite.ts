@@ -9,12 +9,28 @@ import * as schema from "../schema.js";
 
 const migrationsFolder = fileURLToPath(new URL("../../migrations", import.meta.url));
 
-// A fresh in-memory Postgres (PGlite, ADR-0012) with every committed migration applied. It never
-// touches a server, so the "_test database names only" rule can't be broken from here.
-export async function createTestDb(): Promise<{ db: Db; close: () => Promise<void> }> {
+// The migrated, empty database as a data-directory snapshot, built once per test file. Applying
+// every migration for each test made the first beforeEach of a file pass Vitest's 10 s hook limit
+// on a busy CI runner; starting each test from the snapshot skips that work.
+let migrated: Promise<Blob> | undefined;
+
+async function migratedSnapshot(): Promise<Blob> {
   const client = new PGlite({ extensions: { vector } });
+  try {
+    await migrate(drizzle({ client, schema }), { migrationsFolder });
+    return await client.dumpDataDir("none");
+  } finally {
+    await client.close();
+  }
+}
+
+// A fresh in-memory Postgres (PGlite, ADR-0012) with every committed migration applied, and no
+// rows: each test gets its own copy of the snapshot. It never touches a server, so the "_test
+// database names only" rule can't be broken from here.
+export async function createTestDb(): Promise<{ db: Db; close: () => Promise<void> }> {
+  migrated ??= migratedSnapshot();
+  const client = new PGlite({ extensions: { vector }, loadDataDir: await migrated });
   const db = drizzle({ client, schema });
-  await migrate(db, { migrationsFolder });
   return { db, close: () => client.close() };
 }
 
