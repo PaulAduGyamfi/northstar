@@ -19,6 +19,9 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
 - Never run `profile import-resume`, `profile show`, `profile interview` or `profile stories`
   yourself: they read and print Paul's real resume, profile, answers and stories. Test with the
   synthetic fixtures; Paul runs the real commands.
+- The `job-extract` route (NS-114) lives in `packages/sources`; its values pass
+  `checkJobProvenance` (dropped, never kept, when the page lacks them). Never run `jobs add` on a
+  real link yourself; tests use the fake web in `packages/sources/src/test/fake-web.ts`.
 - The `mail-classify` route (NS-113) lives in `packages/inbox`. Never run any `funnel` command
   yourself: they read Paul's real Gmail and print his real applications.
 

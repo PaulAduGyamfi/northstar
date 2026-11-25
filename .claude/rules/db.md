@@ -34,3 +34,7 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
 - Tests only touch databases whose name ends in `_test`. Unit tests use `createTestDb()` (in-process
   PGlite with every migration applied), never a server.
 - Application status changes go through `transitionApplication` only, so each one writes its event.
+- Jobs (NS-114) are written through `job-write.ts` only: `saveIngestedJob` (create, merge as a new
+  `job_source`, or unchanged) and `setJobField` (Paul's edits). A job missing a title or company is
+  a `draft`; a check refuses a `ready` one without them. Job events carry ids, counts and methods,
+  never a title, company or URL.
