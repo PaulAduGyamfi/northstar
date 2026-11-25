@@ -200,6 +200,12 @@ describe("feedLine: applications and approvals", () => {
 });
 
 describe("feedLine: profile", () => {
+  it("names a LinkedIn export import (NS-133)", () => {
+    expect(feedLine(ev("profile.imported", { kind: "linkedin" }))).toBe(
+      "Imported your LinkedIn export into the profile graph",
+    );
+  });
+
   it("describes resume import, locked-fact edits and the employment-facts check", () => {
     expect(feedLine(ev("profile.imported"))).toBe("Imported your resume into the profile graph");
     expect(feedLine(ev("profile.locked_fact_edited", { table: "role" }, { actor: "user" }))).toBe(

@@ -58,6 +58,8 @@ async function save(
         .where(
           and(
             eq(experienceAtom.candidateId, candidateId),
+            // The resume only (NS-133): a LinkedIn import is also a current source.
+            eq(profileSource.kind, "resume"),
             isNull(profileSource.supersededAt),
             inArray(experienceAtom.id, atomIds),
           ),

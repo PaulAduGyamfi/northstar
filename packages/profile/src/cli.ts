@@ -1,10 +1,13 @@
 import { basename } from "node:path";
 import {
   COMPETENCIES,
+  type ImportReport,
   type OfficialPosition,
+  type ProfileImportInput,
   type ProfileView,
   type SaveThesisResult,
   type SetFactsResult,
+  type SourceRole,
   type StoryView,
   type ThesisProfile,
   type ThesisView,
@@ -13,6 +16,7 @@ import { LlmTransportError } from "@northstar/llm";
 import { type Claim, checkEmploymentFacts, type Mismatch, parseOfficialRecord } from "./facts.js";
 import type { ImportResult } from "./import.js";
 import type { InterviewOutcome } from "./interview.js";
+import { describeLinkedinProblem, type LinkedinFiles, parseLinkedinExport } from "./linkedin.js";
 import { type ThesisDraftResult, thesisProblems } from "./thesis-draft.js";
 
 // Everything main() touches, injected so tests run with no database, model or file.
@@ -40,10 +44,15 @@ export type CliDeps = {
   readThesis: () => Promise<ThesisView | null>;
   // Today's month (YYYY-MM) for "N years", from the clock bin.ts passes in.
   month: () => string;
+  // The LinkedIn data export (NS-133): its CSVs from a folder (null when Positions.csv is
+  // missing), the store, and the current import's roles for `facts check`.
+  readLinkedinExport: (folder: string) => Promise<LinkedinFiles | null>;
+  storeImport: (input: Omit<ProfileImportInput, "candidateId">) => Promise<ImportReport>;
+  readLinkedinRoles: () => Promise<SourceRole[] | null>;
 };
 
 const USAGE =
-  'usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check | profile thesis draft | profile thesis set "<text>" --atoms <id,id> | profile thesis show';
+  'usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check | profile thesis draft | profile thesis set "<text>" --atoms <id,id> | profile thesis show | profile import-linkedin <folder>';
 
 // `profile import-resume <path>`, `profile show`, `profile interview` and `profile stories`.
 // Import output is counts only, never resume text; `show`, `interview` and `stories` show Paul's
@@ -54,6 +63,9 @@ export async function main(deps: CliDeps): Promise<number> {
     return importCommand(deps, path, flags.includes("--reimport"));
   }
   if (command === "show") return showCommand(deps);
+  if (command === "import-linkedin" && path && flags.length === 0) {
+    return importLinkedinCommand(deps, path);
+  }
   if (command === "interview") {
     const rest = deps.argv.slice(1);
     if (rest.length === 0) return interviewCommand(deps);
@@ -133,6 +145,18 @@ async function factsCheckCommand(deps: CliDeps): Promise<number> {
     end: r.endMonth,
     current: r.current,
   }));
+  // The LinkedIn export's positions too, once one is imported (NS-133).
+  const linkedin = (await deps.readLinkedinRoles()) ?? [];
+  for (const r of linkedin) {
+    claims.push({
+      source: "linkedin",
+      employer: r.employer,
+      title: r.title,
+      start: r.startMonth,
+      end: r.endMonth,
+      current: r.current,
+    });
+  }
   const mismatches = checkEmploymentFacts(official, claims);
   await deps.recordCheck(claims.length, mismatches);
   for (const m of mismatches) {
@@ -143,14 +167,18 @@ async function factsCheckCommand(deps: CliDeps): Promise<number> {
     deps.print(`${SOURCE_LABEL[m.source]} · ${m.employer} · ${m.title}: ${what}`);
   }
   if (mismatches.length === 0) {
-    deps.print(
-      `All ${plural(claims.length, "resume role")} ${claims.length === 1 ? "agrees" : "agree"} with the official record.`,
-    );
+    const what =
+      linkedin.length === 0
+        ? plural(claims.length, "resume role")
+        : `${plural(claims.length - linkedin.length, "resume role")} and ${plural(linkedin.length, "LinkedIn position")}`;
+    deps.print(`All ${what} ${claims.length === 1 ? "agrees" : "agree"} with the official record.`);
     return 0;
   }
-  deps.print(
-    `${plural(mismatches.length, "mismatch", "mismatches")}. Fix the resume to match the official record, then re-import it.`,
-  );
+  // Where to fix it: the resume (as always), or LinkedIn itself when a position there disagrees.
+  const fix = mismatches.some((m) => m.source === "linkedin")
+    ? "Fix the resume or your LinkedIn profile to match the official record, then re-import the changed one."
+    : "Fix the resume to match the official record, then re-import it.";
+  deps.print(`${plural(mismatches.length, "mismatch", "mismatches")}. ${fix}`);
   return 1;
 }
 
@@ -427,5 +455,42 @@ async function thesisShowCommand(deps: CliDeps): Promise<number> {
   }
   deps.print(thesis.text);
   deps.print(`Version ${thesis.version}, atoms: ${thesis.atomIds.join(",")}`);
+  return 0;
+}
+
+// `profile import-linkedin <folder>`: Paul's unzipped LinkedIn export, parsed by plain code (no
+// model) and stored as its own source. Counts only: never a position or a line.
+async function importLinkedinCommand(deps: CliDeps, folder: string): Promise<number> {
+  const name = basename(folder);
+  const files = await deps.readLinkedinExport(folder);
+  if (!files) {
+    deps.print(`Not imported: ${name} has no Positions.csv. Unzip your LinkedIn export there.`);
+    return 1;
+  }
+  const parsed = parseLinkedinExport(files);
+  if (!parsed.ok) {
+    deps.print(`Not imported: ${describeLinkedinProblem(parsed.error)}. Nothing was written.`);
+    return 1;
+  }
+  const report = await deps.storeImport({
+    kind: "linkedin",
+    fileName: name,
+    textSha256: parsed.value.textSha256,
+    // No model: version 0 and "none" mark a deterministic import.
+    promptVersion: 0,
+    model: "none",
+    traceId: null,
+    call: {},
+    extract: parsed.value.extract,
+  });
+  if (report.status === "unchanged") {
+    deps.print("Your LinkedIn export is unchanged since the last import. Nothing to do.");
+    return 0;
+  }
+  const c = report.counts;
+  deps.print(
+    `Imported your LinkedIn export: ${plural(c.roles, "position")}, ${c.education} education, ${plural(c.atoms, "atom")}, ${plural(c.skills, "skill")}.`,
+  );
+  deps.print("Run `profile facts check` to compare it with your official record.");
   return 0;
 }

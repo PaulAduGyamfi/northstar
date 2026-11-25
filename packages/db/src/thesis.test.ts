@@ -145,6 +145,48 @@ describe("saveApprovedThesis", () => {
     expect(message).toBe("thesis.save failed|");
   });
 
+  it("refuses an atom from a LinkedIn import: only the resume backs a thesis", async () => {
+    await writeProfileImport(db, {
+      candidateId,
+      kind: "linkedin",
+      fileName: "linkedin-export",
+      textSha256: "e".repeat(64),
+      promptVersion: 0,
+      model: "none",
+      traceId: null,
+      call: {},
+      extract: {
+        roles: [],
+        education: [],
+        atoms: [
+          {
+            roleKey: null,
+            what: "Synthetic LinkedIn line",
+            how: [],
+            impact: null,
+            scope: null,
+            startMonth: null,
+            endMonth: null,
+            sourceQuote: "Did a synthetic LinkedIn thing.",
+            evidenceLink: null,
+          },
+        ],
+        skills: [],
+        certifications: [],
+        links: [],
+      },
+    });
+    const [li] = await db
+      .select({ id: experienceAtom.id })
+      .from(experienceAtom)
+      .where(eq(experienceAtom.what, "Synthetic LinkedIn line"));
+    const id = li?.id ?? "";
+    expect(await saveApprovedThesis(db, { candidateId, text: THESIS_A, atomIds: [id] })).toEqual({
+      ok: false,
+      error: { kind: "AtomNotCurrent", atomIds: [id] },
+    });
+  });
+
   it("refuses a thesis with no atom, or with another candidate's atom", async () => {
     expect(await saveApprovedThesis(db, { candidateId, text: THESIS_A, atomIds: [] })).toEqual({
       ok: false,

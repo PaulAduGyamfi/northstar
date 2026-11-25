@@ -56,6 +56,9 @@ function deps(
     saveThesis: async () => ({ ok: true, version: 1, saved: true }),
     readThesis: async () => null,
     month: () => "2026-11",
+    readLinkedinExport: async () => null,
+    storeImport: async () => ({ status: "unchanged", sourceId: "s1" }),
+    readLinkedinRoles: async () => null,
   };
   return { d, printed, interviewedAtoms };
 }
@@ -214,7 +217,7 @@ describe("profile cli", () => {
     const { d, printed } = deps([], { kind: "unchanged" });
     expect(await main(d)).toBe(1);
     expect(printed).toEqual([
-      'usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check | profile thesis draft | profile thesis set "<text>" --atoms <id,id> | profile thesis show',
+      'usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check | profile thesis draft | profile thesis set "<text>" --atoms <id,id> | profile thesis show | profile import-linkedin <folder>',
     ]);
   });
 
@@ -381,6 +384,43 @@ describe("profile facts", () => {
     expect(printed).toEqual(["All 1 resume role agrees with the official record."]);
   });
 
+  it("facts check also compares the LinkedIn export's positions (NS-133)", async () => {
+    const { d, printed } = deps(["facts", "check"], new Error("unused"), resume("2025-11", false));
+    d.readFacts = async () => official;
+    d.readLinkedinRoles = async () => [
+      {
+        employer: "Globex",
+        title: "Engineer",
+        startMonth: "2019-04",
+        endMonth: "2025-11",
+        current: false,
+      },
+    ];
+    expect(await main(d)).toBe(1);
+    expect(printed).toEqual([
+      "LinkedIn · Globex · Engineer: start says 2019-04, official record says 2019-06-03",
+      "1 mismatch. Fix the resume or your LinkedIn profile to match the official record, then re-import the changed one.",
+    ]);
+  });
+
+  it("facts check counts LinkedIn positions when everything agrees", async () => {
+    const { d, printed } = deps(["facts", "check"], new Error("unused"), resume("2025-11", false));
+    d.readFacts = async () => official;
+    d.readLinkedinRoles = async () => [
+      {
+        employer: "Globex",
+        title: "Engineer",
+        startMonth: "2019-06",
+        endMonth: "2025-11",
+        current: false,
+      },
+    ];
+    expect(await main(d)).toBe(0);
+    expect(printed).toEqual([
+      "All 1 resume role and 1 LinkedIn position agree with the official record.",
+    ]);
+  });
+
   it("facts check with no resume imported says how to import one and exits 1", async () => {
     const { d, printed } = deps(["facts", "check"], new Error("unused"), null);
     d.readFacts = async () => official;
@@ -542,6 +582,63 @@ describe("profile thesis cli", () => {
     expect(await main(d)).toBe(1);
     expect(printed).toEqual([
       "The Claude API didn't answer (status 529). Nothing was saved; try again later.",
+    ]);
+  });
+});
+
+describe("profile import-linkedin (NS-133)", () => {
+  const POSITIONS = [
+    "Company Name,Title,Description,Location,Started On,Finished On",
+    'Sample Labs,Founding Engineer,"Shipped agents.\nWrote the runbook.",Remote,Jun 2025,',
+  ].join("\n");
+
+  it("imports the export as a LinkedIn source and prints counts only", async () => {
+    const { d, printed } = deps(["import-linkedin", "data/linkedin"], new Error("unused"));
+    d.readLinkedinExport = async () => ({ positions: POSITIONS, skills: "Name\nGo\n" });
+    const stored: unknown[] = [];
+    d.storeImport = async (input) => {
+      stored.push([input.kind, input.fileName, input.model, input.extract.atoms.length]);
+      return {
+        status: "imported",
+        sourceId: "s2",
+        counts: { roles: 1, education: 0, atoms: 2, skills: 1, certifications: 0, links: 0 },
+      };
+    };
+    expect(await main(d)).toBe(0);
+    expect([printed, stored]).toEqual([
+      [
+        "Imported your LinkedIn export: 1 position, 0 education, 2 atoms, 1 skill.",
+        "Run `profile facts check` to compare it with your official record.",
+      ],
+      [["linkedin", "linkedin", "none", 2]],
+    ]);
+  });
+
+  it("says when the export is unchanged", async () => {
+    const { d, printed } = deps(["import-linkedin", "data/linkedin"], new Error("unused"));
+    d.readLinkedinExport = async () => ({ positions: POSITIONS });
+    expect(await main(d)).toBe(0);
+    expect(printed).toEqual([
+      "Your LinkedIn export is unchanged since the last import. Nothing to do.",
+    ]);
+  });
+
+  it("refuses a folder with no Positions.csv, and a file missing a column, storing nothing", async () => {
+    const { d, printed } = deps(["import-linkedin", "data/linkedin"], new Error("unused"));
+    let stores = 0;
+    d.storeImport = async () => {
+      stores++;
+      return { status: "unchanged", sourceId: "s1" };
+    };
+    expect(await main(d)).toBe(1);
+    d.readLinkedinExport = async () => ({ positions: "Company Name,Title\nSample Labs,Engineer" });
+    expect(await main(d)).toBe(1);
+    expect([printed, stores]).toEqual([
+      [
+        "Not imported: linkedin has no Positions.csv. Unzip your LinkedIn export there.",
+        'Not imported: Positions.csv has no "Description" column. Nothing was written.',
+      ],
+      0,
     ]);
   });
 });

@@ -46,9 +46,15 @@ const atom = (n: number): ProfileImportInput["extract"]["atoms"][number] => ({
   evidenceLink: null,
 });
 
-async function importAtoms(owner: CandidateId, count: number, sha = "a"): Promise<string[]> {
+async function importAtoms(
+  owner: CandidateId,
+  count: number,
+  sha = "a",
+  kind: "resume" | "linkedin" = "resume",
+): Promise<string[]> {
   await writeProfileImport(db, {
     candidateId: owner,
+    kind,
     fileName: "resume.txt",
     textSha256: sha.repeat(64),
     promptVersion: 1,
@@ -388,6 +394,11 @@ describe("nextAtomForInterview", () => {
     const other = await newCandidate();
     const [foreignAtom = ""] = await importAtoms(other, 1, "c");
     expect(await nextAtomForInterview(db, candidateId, foreignAtom)).toBeNull();
+  });
+
+  it("returns null for a LinkedIn export's atom asked for by id (NS-133)", async () => {
+    const [linkedinAtom = ""] = await importAtoms(candidateId, 1, "d", "linkedin");
+    expect(await nextAtomForInterview(db, candidateId, linkedinAtom)).toBeNull();
   });
 });
 
