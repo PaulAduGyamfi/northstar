@@ -38,6 +38,7 @@ import { scorePending } from "./fit/run.js";
 import { type IngestDeps, ingestText, ingestUrl } from "./ingest.js";
 import { jobExtractRoute } from "./job-extract-route.js";
 import { pollDue } from "./poll.js";
+import { dbPollGuard } from "./poll-guard.js";
 
 // Entry point for `pnpm --filter @northstar/sources jobs …`. The only place in this package that
 // reads process.env (DATABASE_URL, and ANTHROPIC_API_KEY only when a page needs the model).
@@ -108,6 +109,8 @@ try {
           {
             resolve: deps.resolve,
             fetch,
+            // Each ATS's kill switch and breaker, `source:<ats>` (RES-008, RES-002).
+            guard: dbPollGuard(db, candidateId),
             store: {
               due: (now) => dueWatches(db, candidateId, now),
               candidates: deps.store.candidates,
