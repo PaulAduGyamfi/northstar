@@ -66,7 +66,7 @@ describe("validateStoryDraft", () => {
     });
   });
 
-  it("a quote cut from inside a longer number is rejected, so it can't back that number", () => {
+  it("a quote cut from inside a longer number is rejected", () => {
     // "2% to 3%" is a substring of Paul's "12% to 3%", starting inside "12".
     const d = draft({
       result: {
@@ -78,6 +78,20 @@ describe("validateStoryDraft", () => {
       ok: false,
       failures: [{ item: "result", problem: "quote 0 is not in the answers" }],
     });
+  });
+
+  it("a quote cut from inside a decimal is rejected", () => {
+    const decimal = [{ answer: "Late deliveries went from 12.5% to 3% in the first month." }];
+    const d = draft({
+      result: {
+        text: "Late deliveries went from 5% to 3%.",
+        quotes: ["5% to 3% in the first month."],
+      },
+    });
+    const result = validateStoryDraft(d, { atom, answers: [...answers, ...decimal] });
+    expect(result.ok ? [] : result.failures.filter((f) => f.item === "result")).toEqual([
+      { item: "result", problem: "quote 0 is not in the answers" },
+    ]);
   });
 
   it("a one-word quote is rejected as too short", () => {
@@ -210,7 +224,8 @@ describe("quotedIn", () => {
       quotedIn("we were 1.5 teams", "we were 1"),
       quotedIn("cost fell -5% overall", "5% overall"),
       quotedIn("we were 12 engineers", "2 engineers"),
-    ]).toEqual([false, false, false, false, false, false]);
+      quotedIn("Late deliveries went from 12.5% to 3%", "went from 12"),
+    ]).toEqual([false, false, false, false, false, false, false]);
   });
 
   it("accepts whole numbers, a sentence's last full stop and a quote that keeps its sign", () => {
