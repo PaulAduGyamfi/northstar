@@ -1,0 +1,12 @@
+{
+  "name": "@northstar/extension",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "biome check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-static.mjs"
+  }
+}
