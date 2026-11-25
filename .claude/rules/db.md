@@ -50,6 +50,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   value, title, requirement or atom text. `method` is `rules`, or `rules_model` when a
   model-proposed match that passed its provenance check was used (NS-138); such a match keeps
   its short verbatim atom quote and a prompt/model stamp in `evidence`, never in an event.
+- Fresh-job alerts (NS-163) have no table: each is one `domain_event` (`job.fresh_alert`,
+  `job.fresh_alert_held`) keyed `<type>:<jobId>`, written only through `alert-write.ts`, so a job
+  is alerted and held at most once. They carry the job id, score, age, tier and a held flag,
+  never a title, company or URL.
 - The Approval Gate's records (NS-119, ADR-0017) are `approval_request`, `approval_policy_set`,
   `approval_decision` and `approval_undo`: append-only (triggers), written only through
   `approval-write.ts`. Reject reasons and draft text never go into events or spans. Every Gate
@@ -73,7 +77,8 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `readSystemHealth` (`health-read.ts`). Feed text comes only from `feedLine` in
   `packages/domain`, which shows shape-checked payload fields and, for types without a template,
   the event's `reason`. So keep `reason` a plain sentence with no names, ids, URLs or secrets, and
-  give a new event type a template in `feed.ts`.
+  give a new event type a template in `feed.ts`, or (like the fresh-job alerts, NS-163) a
+  `reason` built only from numbers and fixed words.
 - The submission ledger (NS-120) is `apply_submission` and `submission_proof`, written only
   through `apply-write.ts`. A trigger lets a submission row finish only once, and proof is
   append-only. `listStaleClaims` reads the claims in progress past `CLAIM_STALE_AFTER_MS` by the
