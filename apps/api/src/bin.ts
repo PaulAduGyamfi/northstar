@@ -10,8 +10,13 @@ import {
   readDedupeCandidates,
   readFeed,
   readFeedAfter,
+  readPreferences,
+  readScorableJobs,
+  readScoreKeys,
+  readScoringProfile,
   readSystemHealth,
   resolveHandoff,
+  saveFitScore,
   saveIngestedJob,
   setKillSwitch,
   soleCandidate,
@@ -24,7 +29,13 @@ import {
   type LlmGateway,
   loadLlmConfig,
 } from "@northstar/llm";
-import { type IngestDeps, ingestText, ingestUrl, jobExtractRoute } from "@northstar/sources";
+import {
+  type IngestDeps,
+  ingestText,
+  ingestUrl,
+  jobExtractRoute,
+  scorePending,
+} from "@northstar/sources";
 import { accountsEndpoints } from "./accounts.js";
 import { dbApprovalPorts } from "./approval-ports.js";
 import { approvalEndpoints } from "./approvals.js";
@@ -81,6 +92,18 @@ try {
   const capture = captureEndpoint({
     byUrl: (url) => ingestUrl(ingest, url),
     byText: (url, text) => ingestText(ingest, url, text),
+    // The same scoring pass `jobs add` runs after saving (NS-186), on the same packages/db paths.
+    score: async () => {
+      const owner = await candidateId();
+      return scorePending({
+        preferences: () => readPreferences(db, owner),
+        profile: () => readScoringProfile(db, owner),
+        jobs: () => readScorableJobs(db, owner),
+        keys: (preferenceId, profileSourceId) =>
+          readScoreKeys(db, { candidateId: owner, preferenceId, profileSourceId }),
+        save: (input) => saveFitScore(db, { ...input, candidateId: owner, now: new Date() }),
+      });
+    },
   });
   // System Health, the feed and kill switches (NS-153), on packages/db's read paths and its one
   // kill-switch write path. A flip from the app is always Paul's (actor "user", ADR-0002).

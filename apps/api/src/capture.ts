@@ -1,4 +1,5 @@
 import { detectAts, type IngestResult } from "@northstar/sources";
+import { trace } from "@opentelemetry/api";
 import { z } from "zod";
 import { type AnyEndpoint, endpoint } from "./endpoint.js";
 
@@ -20,7 +21,13 @@ const CAPTURE_MAX_BODY = 96 * 1024;
 export type CapturePorts = {
   byUrl: (url: string) => Promise<IngestResult>;
   byText: (url: string, text: string) => Promise<IngestResult>;
+  // One Fit Score pass over every job not yet scored (NS-186), as `jobs add` runs after saving.
+  // Optional: without it a captured job waits for the next `jobs score` or poll pass.
+  score?: () => Promise<unknown>;
 };
+
+// Outcomes that leave a saved job behind, so a scoring pass has something to score.
+const SAVED = new Set<IngestResult["status"]>(["created", "merged", "unchanged"]);
 
 const Capture = z.object({
   url: z.string().min(1).max(2048),
@@ -56,13 +63,32 @@ export function captureEndpoint(ports: CapturePorts): AnyEndpoint {
     handler: async ({ url, title, text }) => {
       if (detectAts(url) !== null) {
         const byLink = await ports.byUrl(url);
-        if (!TRY_TEXT.has(byLink.status)) return { ok: true, body: answer(byLink, "link") };
+        if (!TRY_TEXT.has(byLink.status)) {
+          await scoreSaved(ports, byLink);
+          return { ok: true, body: answer(byLink, "link") };
+        }
       }
       // The title leads, so the model sees it with the description.
       const page = title ? `${title}\n\n${text}` : text;
-      return { ok: true, body: answer(await ports.byText(url, page), "text") };
+      const byText = await ports.byText(url, page);
+      await scoreSaved(ports, byText);
+      return { ok: true, body: answer(byText, "text") };
     },
   });
+}
+
+// Scores the saved job before answering, as `jobs add` does. A pass that fails never fails the
+// capture: the job is saved and the next pass scores it. Its error is named on the request's
+// span, never quoted (a database error's detail can quote a row).
+async function scoreSaved(ports: CapturePorts, r: IngestResult): Promise<void> {
+  if (!ports.score || !SAVED.has(r.status)) return;
+  try {
+    await ports.score();
+  } catch (error) {
+    trace
+      .getActiveSpan()
+      ?.setAttribute("capture.score_error", error instanceof Error ? error.name : "Error");
+  }
 }
 
 function answer(r: IngestResult, via: Captured["via"]): Captured {

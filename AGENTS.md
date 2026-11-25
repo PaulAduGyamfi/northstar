@@ -305,7 +305,8 @@ Exists now:
   "extension"`, which never opens a session endpoint). The API reads the link only for a known
   ATS (`detectAts`), through the same path as `jobs add <url>`; every other page is saved from its
   text (untrusted, the `job-extract` route only), so the server never fetches a host the page's
-  owner controls. A captured job isn't scored until the next `jobs score` or poll pass.
+  owner controls. Since NS-186 a capture that saves a job runs the same scoring pass as `jobs add`
+  before it answers; a scoring failure never fails the capture.
 - `apps/web/` (NS-156): the Next.js shell (PillNav, B · Momentum colors as CSS variables) with
   Today, since NS-153 `/health`, since NS-139 the Queue (`/approvals`), and since NS-168 the
   Pipeline (`/pipeline`: a board by status in UX-020's words, and `/pipeline/<id>`, an
@@ -363,7 +364,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/sources jobs watch add <board-url> --tier 1\|2\|3` | watch a company's board (`boards.greenhouse.io/<board>`, `jobs.lever.co/<company>`, `jobs.ashbyhq.com/<org>`, `jobs.smartrecruiters.com/<Company>`, `apply.workable.com/<account>`); tier 1 polls every 10 min, 2 every 20, 3 hourly. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs watch list` / `watch remove <id>` / `watch retry <id>` | each board's tier, status and last read; stop watching one; put a quarantined one back. Paul only |
 | repo root | `pnpm --filter @northstar/sources jobs prefs` / `jobs prefs set <field> <value>` | show the search preferences / change one (`titles`, `seniority`, `locations`, `remote`, `dealbreakers` as comma lists; `compFloor`, `compTarget` per year; `currency`; `queueAt`, `suggestAt` thresholds; `-` clears). A change stores a new version and re-scores every ready job at once. Paul only: needs `DATABASE_URL` |
-| repo root | `pnpm --filter @northstar/sources jobs score` / `jobs why <job-id>` | score every job not scored for the current preferences and resume (also runs after `jobs add`, `jobs set` and each poll pass) / a job's score with each matched requirement, its atom, and the unmatched ones. Paul only: prints his real profile |
+| repo root | `pnpm --filter @northstar/sources jobs score` / `jobs why <job-id>` | score every job not scored for the current preferences and resume (also runs after `jobs add`, `jobs set`, each poll pass and each browser capture) / a job's score with each matched requirement, its atom, and the unmatched ones. Paul only: prints his real profile |
 | repo root | `pnpm --filter @northstar/sources jobs poll` / `jobs run` | one pass over the due boards / poll once a minute until Ctrl-C (boards are only polled while it runs). Paul only: real network and database |
 | repo root | `cp .env.example .env` | once per clone (Paul): then replace every `change-me` in `.env` |
 | repo root | `docker compose -f docker-compose.yml up -d --wait` | local stack: Postgres+pgvector :5432, Temporal :7233 (UI :8233), SeaweedFS S3 :8333, Grafana :3000 + OTLP :4317/:4318, all on 127.0.0.1. Agents must use this exact form (runs outside the sandbox) |
