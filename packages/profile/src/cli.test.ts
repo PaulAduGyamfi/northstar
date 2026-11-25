@@ -1,8 +1,9 @@
-import type { ProfileView } from "@northstar/db";
+import type { ProfileView, StoryView } from "@northstar/db";
 import { LlmTransportError } from "@northstar/llm";
 import { describe, expect, it } from "vitest";
 import { type CliDeps, main } from "./cli.js";
 import type { ImportResult } from "./import.js";
+import type { InterviewOutcome } from "./interview.js";
 import { SAMPLE_RESUME } from "./test/sample.js";
 
 const record = {
@@ -23,8 +24,14 @@ const record = {
   fallbackUsed: false,
 };
 
-function deps(argv: string[], result: ImportResult | Error, view: ProfileView | null = null) {
+function deps(
+  argv: string[],
+  result: ImportResult | Error,
+  view: ProfileView | null = null,
+  story: { interview?: InterviewOutcome | Error; stories?: StoryView[] } = {},
+) {
   const printed: string[] = [];
+  const interviewedAtoms: (string | undefined)[] = [];
   const d: CliDeps = {
     argv,
     print: (line) => printed.push(line),
@@ -34,8 +41,15 @@ function deps(argv: string[], result: ImportResult | Error, view: ProfileView | 
       return result;
     },
     readProfile: async () => view,
+    runInterview: async (atomId) => {
+      interviewedAtoms.push(atomId);
+      const outcome = story.interview ?? { kind: "no_atoms" };
+      if (outcome instanceof Error) throw outcome;
+      return outcome;
+    },
+    readStories: async () => story.stories ?? [],
   };
-  return { d, printed };
+  return { d, printed, interviewedAtoms };
 }
 
 describe("profile cli", () => {
@@ -172,6 +186,85 @@ describe("profile cli", () => {
   it("prints usage for anything else", async () => {
     const { d, printed } = deps([], { kind: "unchanged" });
     expect(await main(d)).toBe(1);
-    expect(printed).toEqual(["usage: profile import-resume <path> [--reimport] | profile show"]);
+    expect(printed).toEqual([
+      "usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories",
+    ]);
+  });
+
+  it("interview prints the summed cost of every call after an approved story, and no story text", async () => {
+    const { d, printed } = deps(["interview"], new Error("unused"), null, {
+      interview: {
+        kind: "approved",
+        storyId: "story-1",
+        // A follow-up round: two calls, both counted.
+        records: [
+          { ...record, route: "story-draft" },
+          { ...record, route: "story-draft", inputTokens: 1000, outputTokens: 100, costUsd: 0.004 },
+        ],
+      },
+    });
+    expect(await main(d)).toBe(0);
+    expect(printed).toEqual([
+      "Model claude-opus-5-5, prompt v1, 2 call(s), 3000 in / 1000 out tokens, $0.03.",
+      "Run `profile interview` for the next atom, or `profile stories` to read them back.",
+    ]);
+  });
+
+  it("interview --atom passes the atom id through", async () => {
+    const id = "8c0b3a52-4c4e-4c41-9d1e-0e6f6f3b9a01";
+    const { d, interviewedAtoms } = deps(["interview", "--atom", id], new Error("unused"), null, {
+      interview: { kind: "skipped" },
+    });
+    expect(await main(d)).toBe(0);
+    expect(interviewedAtoms).toEqual([id]);
+  });
+
+  it("interview reports an unknown atom id", async () => {
+    const { d, printed } = deps(["interview", "--atom", "nope"], new Error("unused"), null, {
+      interview: { kind: "atom_not_found" },
+    });
+    expect(await main(d)).toBe(1);
+    expect(printed).toEqual(["No atom with that id in your profile."]);
+  });
+
+  it("interview says answers are saved when the Claude API is down", async () => {
+    const { d, printed } = deps(["interview"], new Error("unused"), null, {
+      interview: new LlmTransportError({ status: 529, retryable: true }),
+    });
+    expect(await main(d)).toBe(1);
+    expect(printed).toEqual([
+      "The Claude API didn't answer (status 529). Your answers are saved; run `profile interview` again later.",
+    ]);
+  });
+
+  it("stories lists approved stories and the competencies with none yet", async () => {
+    const stories: StoryView[] = [
+      {
+        id: "story-1",
+        title: "Routing around closures",
+        situation: "Routes ignored closures.",
+        task: "I owned the planner.",
+        action: "I added a closures feed.",
+        result: "Late deliveries went from 12% to 3%.",
+        competencies: ["ownership", "scale"],
+        atomIds: ["atom-1"],
+      },
+    ];
+    const { d, printed } = deps(["stories"], new Error("unused"), null, { stories });
+    expect(await main(d)).toBe(0);
+    expect(printed).toEqual([
+      "Routing around closures [ownership, scale]",
+      "  Situation: Routes ignored closures.",
+      "  Task: I owned the planner.",
+      "  Action: I added a closures feed.",
+      "  Result: Late deliveries went from 12% to 3%.",
+      "No story yet for: leadership, conflict, ambiguity, failure, collaboration, technical-depth, customer-impact, learning",
+    ]);
+  });
+
+  it("stories says how to start when the bank is empty", async () => {
+    const { d, printed } = deps(["stories"], new Error("unused"));
+    expect(await main(d)).toBe(0);
+    expect(printed[0]).toBe("No stories yet. Run: profile interview");
   });
 });

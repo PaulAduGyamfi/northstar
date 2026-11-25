@@ -23,7 +23,7 @@ export function normalize(text: string): string {
 }
 
 // Numbers as whole tokens, so "4" is not found inside "40".
-function numbers(text: string): Set<string> {
+export function numbers(text: string): Set<string> {
   return new Set(text.match(/\d+(?:[.,]\d+)*/g) ?? []);
 }
 
