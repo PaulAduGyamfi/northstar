@@ -26,7 +26,7 @@ const message: FakeMessage = {
   threadId: "t1",
   internalDate: "2026-03-02T15:00:00Z",
   headers: {
-    From: "Globex Recruiting <no-reply@ats.example.com>",
+    From: "Globex Recruiting <no-reply.ats@example.com>",
     Subject: "Thank you for applying to Globex",
     Date: "Mon, 2 Mar 2026 15:00:00 +0000",
     "Delivered-To": "candidate@example.com",
@@ -70,8 +70,8 @@ describe("gmail client", () => {
     expect(h).toEqual({
       id: "m1",
       threadId: "t1",
-      from: "Globex Recruiting <no-reply@ats.example.com>",
-      senderDomain: "ats.example.com",
+      from: "Globex Recruiting <no-reply.ats@example.com>",
+      senderDomain: "example.com",
       subject: "Thank you for applying to Globex",
       deliveredTo: "candidate@example.com",
       authenticationResults: "mx.example.com; dmarc=pass header.from=ats.example.com",
