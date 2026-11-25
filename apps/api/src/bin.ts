@@ -2,15 +2,19 @@ import { lookup } from "node:dns/promises";
 import { createServer } from "node:http";
 import {
   connectDb,
+  listOpenHandoffs,
   loadDbConfig,
   readDedupeCandidates,
   readFeed,
   readFeedAfter,
   readSystemHealth,
+  resolveHandoff,
   saveIngestedJob,
   setKillSwitch,
   soleCandidate,
+  transitionApplication,
 } from "@northstar/db";
+import { ApplicationId } from "@northstar/domain";
 import {
   createAnthropicClient,
   createLlmGateway,
@@ -20,6 +24,7 @@ import {
 import { type IngestDeps, ingestText, ingestUrl, jobExtractRoute } from "@northstar/sources";
 import { captureEndpoint } from "./capture.js";
 import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
+import { handoffEndpoints } from "./handoffs.js";
 import { createApi } from "./server.js";
 import { createSessions } from "./sessions.js";
 import { systemEndpoints } from "./system.js";
@@ -79,11 +84,32 @@ try {
     // system.ts sets the actor to Paul; the candidate is always the server's own.
     setSwitch: async (input) => setKillSwitch(db, { ...input, candidateId: await candidateId() }),
   });
+  // "Needs your hands" (NS-121) on packages/db's handoff paths. Paul's "I submitted it" moves
+  // the application through transitionApplication, the one write path for status changes.
+  const handoffs = handoffEndpoints({
+    listOpen: async () => listOpenHandoffs(db, await candidateId()),
+    resolve: async (handoffId, outcome) =>
+      resolveHandoff(db, { candidateId: await candidateId(), handoffId, outcome }),
+    markSubmitted: async (applicationId, idempotencyKey) => {
+      const moved = await transitionApplication(db, {
+        candidateId: await candidateId(),
+        applicationId: ApplicationId.parse(applicationId),
+        from: "needs_human",
+        to: "submitted",
+        actor: "user",
+        reason: "",
+        inputsSummary: "",
+        links: [],
+        idempotencyKey,
+      });
+      return { ok: moved.ok };
+    },
+  });
   const handler = createApi({
     config,
     sessions: createSessions(Date.now),
     extensionTokenSha256,
-    extra: [capture, ...system],
+    extra: [capture, ...system, ...handoffs],
   });
   const server = createServer(handler);
   server.listen(config.port, "127.0.0.1", () => {
