@@ -50,6 +50,7 @@ export {
   type VerificationWindow,
   type WindowSpec,
 } from "./verify/catcher.js";
+export { hasVerificationCode, isVerificationMail, VERIFICATION_PHRASES } from "./verify/detect.js";
 export { type Extracted, extractVerification, htmlToText } from "./verify/extract.js";
 export {
   checkLink,
