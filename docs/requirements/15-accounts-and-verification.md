@@ -56,7 +56,7 @@ stronger controls below.
 | VER-004 | M | P1 | **Link safety:** magic links are opened only if the link's host matches the tenant or ATS allowlist (after resolving redirects). Anything else becomes `needs_human`. |
 | VER-005 | M | P1 | Codes and links are **never logged, never shown in the activity feed, never stored** beyond the session (the feed says "Verified email for Acme (Workday)"). Messages are labeled `Northstar/Verification` and archived after use. |
 | VER-006 | M | P1 | No matching email in the window: retry "resend code" once, then raise `needs_human` with what was expected. |
-| VER-007 | S | P2 | **Plus-addressing (optional):** apply with `name+acme@<your domain>`-style addresses per tenant, so verification and follow-up emails route to the right application deterministically (feeds INB-004). Falls back to the plain address where a form rejects `+`. |
+| VER-007 | M | P1 | **Tagged applicant address.** When Northstar submits, it uses a plus-address `<you>+ns-<code>@gmail.com` (Gmail delivers it to the normal inbox). `<code>` is a short random tag (6 base32 characters) mapped to the application in the database; it never contains the company name or anything guessable. Where the employer needs an account (ACC-*), the tag is per tenant, because the account email must stay fixed; otherwise it's per application. If a form rejects `+`, use the plain address and rely on INB-009 steps 2–3. Feeds INB-009 and INB-004. |
 
 ### Credential vault (ADR-0010)
 | ID | Pri | Phase | Requirement |
