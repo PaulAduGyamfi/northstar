@@ -207,6 +207,11 @@ Exists now:
   (`approval-write.ts`: `requestApproval`, `setApprovalPolicies`, `listPendingApprovals`,
   `decideApprovals` for one or a batch, `undoDecision` inside the 2-minute undo window, and
   `verifyApproval`, which every gateway calls before it acts).
+  Since NS-140 also `withdrawApproval`: Paul closes a pending or approved request, or a gateway
+  closes an approval whose content changed (it passes the new hash, which must differ). A
+  withdrawn request (`approval_withdrawal`, append-only) is neither pending nor approved:
+  `verifyApproval` returns `Withdrawn`, the vault won't open under it, and its subject may be
+  requested again (after Paul's withdrawal, always waiting for him). No caller yet.
   Since NS-139 the queue is in the app: the API's `GET /approvals`, `POST /approvals/decide`
   (one or up to 100 at once, reject with a reason) and `POST /approvals/undo`, session only and
   the only callers of `decideApprovals`/`undoDecision` (`approvals.ts`, `approval-ports.ts`), and

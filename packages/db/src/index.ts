@@ -82,6 +82,11 @@ export {
   type VerifiedApproval,
   type VerifyError,
   verifyApproval,
+  type WithdrawError,
+  type WithdrawInput,
+  type Withdrawn,
+  type WithdrawResult,
+  withdrawApproval,
 } from "./approval-write.js";
 export {
   acquireCall,

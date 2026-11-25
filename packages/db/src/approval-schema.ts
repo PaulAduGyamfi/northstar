@@ -149,3 +149,36 @@ export const approvalUndo = pgTable(
     }),
   ],
 );
+
+// A closed request (NS-140, APR-004): Paul withdrew it, or a gateway did after the approved
+// content changed for good. A withdrawn request is neither pending nor approved, so its subject
+// may be requested again. Append-only, one per request; its time comes from the Gate's clock
+// (migration 0036).
+export const approvalWithdrawal = pgTable(
+  "approval_withdrawal",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    candidateId: uuid("candidate_id")
+      .notNull()
+      .references(() => candidate.id),
+    requestId: uuid("request_id").notNull(),
+    withdrawnBy: text("withdrawn_by").notNull(),
+    reason: text("reason").notNull(),
+    withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    unique("approval_withdrawal_one_per_request").on(t.requestId),
+    check("approval_withdrawal_by_valid", sql`${t.withdrawnBy} in ('user', 'gateway')`),
+    check("approval_withdrawal_reason_valid", sql`${t.reason} in ('paul', 'content_changed')`),
+    // Paul withdraws for his own reasons; a gateway only because the content changed.
+    check(
+      "approval_withdrawal_reason_matches_by",
+      sql`(${t.withdrawnBy} = 'user' and ${t.reason} = 'paul') or (${t.withdrawnBy} = 'gateway' and ${t.reason} = 'content_changed')`,
+    ),
+    foreignKey({
+      name: "approval_withdrawal_request_same_candidate_fk",
+      columns: [t.requestId, t.candidateId],
+      foreignColumns: [approvalRequest.id, approvalRequest.candidateId],
+    }),
+  ],
+);

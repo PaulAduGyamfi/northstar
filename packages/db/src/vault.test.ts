@@ -2,7 +2,13 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { CandidateId, UNDO_WINDOW_MS } from "@northstar/domain";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { decideApprovals, requestApproval, undoDecision } from "./approval-write.js";
+import { approvalDecision } from "./approval-schema.js";
+import {
+  decideApprovals,
+  requestApproval,
+  undoDecision,
+  withdrawApproval,
+} from "./approval-write.js";
 import type { Db } from "./db.js";
 import { setKillSwitch } from "./kill-switch-write.js";
 import { domainEvent } from "./schema.js";
@@ -177,6 +183,23 @@ describe("openSealedSecret", () => {
         const undone = await undoDecision(db, { candidateId, decisionId: id });
         if (!undone.ok) throw new Error(undone.error.kind);
         await setGateClock(db, PAST_UNDO);
+        return id;
+      },
+    ],
+    [
+      "whose request Paul withdrew (NS-140)",
+      async () => {
+        const id = await decision();
+        const [row] = await db
+          .select({ requestId: approvalDecision.requestId })
+          .from(approvalDecision)
+          .where(eq(approvalDecision.id, id));
+        const withdrawn = await withdrawApproval(db, {
+          candidateId,
+          requestId: row?.requestId ?? "",
+          by: "user",
+        });
+        if (!withdrawn.ok) throw new Error(withdrawn.error.kind);
         return id;
       },
     ],
