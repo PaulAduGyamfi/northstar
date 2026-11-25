@@ -50,6 +50,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   value, title, requirement or atom text. `method` is `rules`, or `rules_model` when a
   model-proposed match that passed its provenance check was used (NS-138); such a match keeps
   its short verbatim atom quote and a prompt/model stamp in `evidence`, never in an event.
+- Fresh-job alerts (NS-163) have no table: each is one `domain_event` (`job.fresh_alert`,
+  `job.fresh_alert_held`) keyed `<type>:<jobId>`, written only through `alert-write.ts`, so a job
+  is alerted and held at most once. They carry the job id, score, age, tier and a held flag,
+  never a title, company or URL.
 - The Approval Gate's records (NS-119, ADR-0017) are `approval_request`, `approval_policy_set`,
   `approval_decision` and `approval_undo`: append-only (triggers), written only through
   `approval-write.ts`. Reject reasons and draft text never go into events or spans. Every Gate

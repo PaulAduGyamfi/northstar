@@ -186,6 +186,13 @@ Exists now:
   quote, `checkJobMatches` keeps only those whose atom and quote check out, and `scorePending`
   takes them through an optional `assist` step (a score that used one is stored as
   `method: "rules_model"`; a failed assist keeps the rules score). No caller turns it on yet.
+  Since NS-163 also fresh-job alerts (`alerts.ts`, SRC-015, plain code): after every scoring
+  pass, a job whose latest score is in the queue band and that is under an hour old gets one
+  `job.fresh_alert` event, its feed line "Posted 12 min ago · Fit 88 · ready to approve". Inside
+  quiet hours it is held (`job.fresh_alert_held`) and sent on the first pass after they end,
+  unless it comes from a tier-1 watched board. Settings: `ALERT_QUIET_HOURS`, `ALERT_TIME_ZONE`,
+  `ALERT_TIER1_IN_QUIET_HOURS` (`.env.example`). Events per job are stored once
+  (`packages/db`, `alert-write.ts`). No phone push yet: that needs the PWA.
 - The Approval Gate (NS-119, ADR-0002, ADR-0017): the auto-approve rules and their evaluator in
   `packages/domain` (`approval.ts`; only application packages can ever be auto-approved), and
   the append-only `approval_*` tables with the Gate's one write path in `packages/db`
