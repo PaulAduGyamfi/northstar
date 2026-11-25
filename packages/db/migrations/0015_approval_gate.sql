@@ -33,6 +33,7 @@ CREATE TABLE "approval_request" (
 	"candidate_id" uuid NOT NULL,
 	"kind" text NOT NULL,
 	"subject" text NOT NULL,
+	"content_sha256" text NOT NULL,
 	"facts" jsonb,
 	"actor" text NOT NULL,
 	"idempotency_key" text NOT NULL,
@@ -40,6 +41,7 @@ CREATE TABLE "approval_request" (
 	CONSTRAINT "approval_request_id_candidate_unique" UNIQUE("id","candidate_id"),
 	CONSTRAINT "approval_request_idempotency_unique" UNIQUE("candidate_id","idempotency_key"),
 	CONSTRAINT "approval_request_kind_valid" CHECK ("approval_request"."kind" in ('application_package', 'answer', 'email_reply', 'outreach', 'profile_fix', 'growth_plan', 'prep_plan')),
+	CONSTRAINT "approval_request_content_sha256_format" CHECK ("approval_request"."content_sha256" ~ '^[0-9a-f]{64}$'),
 	CONSTRAINT "approval_request_subject_format" CHECK ("approval_request"."subject" ~ '^[a-z_]+:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
 );
 --> statement-breakpoint

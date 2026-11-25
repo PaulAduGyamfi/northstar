@@ -98,6 +98,9 @@ export type PolicyOutcome =
         | "no_policies"
         | "never_auto"
         | "missing_facts"
+        // Set by the Gate, not the evaluator: Paul rejected or undid this subject before, so a
+        // new request for it always waits for him.
+        | "declined_before"
         | { rule: string; failed: PolicyCondition[] }[];
     };
 

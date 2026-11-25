@@ -93,7 +93,10 @@ describe("evaluatePolicies", () => {
       ...good,
       answers: [{ source: "bank_high_confidence" as const, freeTextWords: 10 }],
     };
-    expect(evaluatePolicies("application_package", facts, [rule]).auto).toBe(false);
+    expect(evaluatePolicies("application_package", facts, [rule])).toEqual({
+      auto: false,
+      why: [{ rule: rule.name, failed: ["answers_reused"] }],
+    });
     expect(
       evaluatePolicies("application_package", facts, [
         { ...rule, allowHighConfidenceAnswers: true },
