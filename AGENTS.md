@@ -86,8 +86,10 @@ Exists now:
   `recordAnswerReuse` serve reuse. No CLI or UI yet.
 - The positioning thesis check (NS-127, DX-009): `checkThesis` in `packages/profile`
   (`thesis.ts`, plain code: one sentence, cites atoms, every number and capitalised name backed by
-  the cited quotes, roles or skills, a plain "N years" by the roles' locked dates). Storage,
-  drafting and a CLI are follow-ups.
+  the cited quotes, roles or skills, a plain "N years" by the roles' locked dates). Since NS-155
+  its approved versions are stored in `packages/db` (`thesis-schema.ts`, `thesis-write.ts`:
+  `saveApprovedThesis`, `readCurrentThesis`, `readThesisHistory`; append-only, each version
+  cites atoms of the current resume import). Drafting and a CLI are follow-ups (NS-152).
 - Answer drafting (NS-135, ANS-004) in `packages/profile/src/answer/`:
   - `selectEvidence` picks Paul's stories and atoms by the question's words (plain code).
   - The `answer-draft` route drafts from them.

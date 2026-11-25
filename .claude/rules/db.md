@@ -85,3 +85,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `vault` kill switch and that the decision is a live approval, and records the access, in the
   same transaction before handing a row out. Only `vaultAccess` is exported; sealed rows never
   leave `vault-write.ts`.
+- The positioning thesis (NS-127, stored since NS-155) is `positioning_thesis` and
+  `positioning_thesis_atom`, append-only (a trigger), each version citing at least one atom (a
+  deferred trigger), written only through `thesis-write.ts`, which also requires the atoms to be
+  from the current resume import (in code, not in the database). The text
+  is Paul's words: its `thesis.approved` event carries the version and atom count only, never the
+  text. Callers run `checkThesis` (`packages/profile`) before saving.
