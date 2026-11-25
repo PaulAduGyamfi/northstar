@@ -1,7 +1,6 @@
 import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { createInterface, type Interface } from "node:readline/promises";
 import {
   connectDb,
   knownGmailIds,
@@ -24,6 +23,7 @@ import {
 } from "@northstar/inbox";
 import { createAnthropicClient, createLlmGateway, loadLlmConfig } from "@northstar/llm";
 import { sql } from "drizzle-orm";
+import { createAsker } from "./ask.js";
 import { runBackfill } from "./backfill.js";
 import { main } from "./cli.js";
 import { Baselines } from "./report.js";
@@ -32,7 +32,8 @@ import { Baselines } from "./report.js";
 // reads process.env (DATABASE_URL, GOOGLE_OAUTH_CLIENT_*, ANTHROPIC_API_KEY from .env). Paul runs
 // it; agents never do (it reads his real mail and prints his real funnel).
 const { db, close } = connectDb(loadDbConfig(process.env));
-let rl: Interface | undefined;
+// Paul's keyboard, opened only when `review` asks (an open readline keeps the process waiting).
+let asker: ReturnType<typeof createAsker> | undefined;
 try {
   // Fail before contacting Google or the model if the database isn't reachable.
   await db.execute(sql`select 1`);
@@ -45,13 +46,9 @@ try {
   process.exitCode = await main({
     argv: process.argv.slice(2),
     print,
-    ask: async (question) => {
-      rl ??= createInterface({ input: process.stdin, output: process.stdout });
-      try {
-        return await rl.question(printable(question));
-      } catch {
-        return null;
-      }
+    ask: (question) => {
+      asker ??= createAsker({ input: process.stdin, output: process.stdout });
+      return asker.question(printable(question));
     },
     now: () => new Date(),
     baselines,
@@ -109,7 +106,7 @@ try {
   console.error(`funnel: ${error instanceof Error ? error.name : "an unknown error"}`);
   process.exitCode = 1;
 } finally {
-  rl?.close();
+  asker?.close();
   await close();
 }
 
