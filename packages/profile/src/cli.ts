@@ -94,6 +94,12 @@ async function importCommand(deps: CliDeps, path: string, reimport: boolean): Pr
 // terminal, but never put this summary in an event, span or log.
 export function safeErrorSummary(error: unknown): string {
   if (!(error instanceof Error)) return "an unknown error";
+  // Drizzle wraps driver errors (DrizzleQueryError, named plain "Error", with the query and its
+  // parameters in the message): describe the pg error it carries instead, the same safe way.
+  const cause = (error as { cause?: unknown }).cause;
+  if (cause instanceof Error && typeof (cause as { code?: unknown }).code === "string") {
+    return safeErrorSummary(cause);
+  }
   const e = error as Error & { code?: unknown; constraint?: unknown };
   const parts: string[] = [];
   if (typeof e.code === "string") parts.push(`code ${e.code}`);

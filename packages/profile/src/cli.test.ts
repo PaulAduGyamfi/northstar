@@ -127,6 +127,25 @@ describe("profile cli", () => {
     expect(printed.join("\n")).not.toContain("idempotent");
   });
 
+  it("names the database error inside a Drizzle query error, without its query or values", async () => {
+    // Drizzle wraps the pg error: its own name stays "Error" and its message holds the query and
+    // parameters, which can be Paul's answers. The code and constraint sit on the cause.
+    const cause = Object.assign(new Error('relation "story_interview" does not exist'), {
+      name: "DatabaseError",
+      code: "42P01",
+    });
+    const wrapped = Object.assign(
+      new Error("Failed query: select ... params: I paired with the dispatch lead"),
+      { cause },
+    );
+    const { d, printed } = deps(["interview"], new Error("unused"), null, { interview: wrapped });
+    expect(await main(d)).toBe(1);
+    expect(printed).toEqual([
+      "Interview stopped: DatabaseError (code 42P01). Answers given so far are saved.",
+    ]);
+    expect(printed.join("\n")).not.toContain("dispatch lead");
+  });
+
   it("--reimport asks for a fresh extraction even when the file is unchanged", async () => {
     const seen: boolean[] = [];
     const { d } = deps(["import-resume", "data/resume.pdf", "--reimport"], { kind: "unchanged" });
