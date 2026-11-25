@@ -8,9 +8,16 @@ paths:
 
 # LLM gateway, prompts, agents and evals (ADR-0004, ADR-0006)
 
-`packages/llm` and `evals/` exist since NS-106 (ADR-0013). `packages/prompts` and
-`packages/agents` don't yet: they arrive with the first agent ticket. Ask Paul before creating
-them elsewhere.
+`packages/llm` and `evals/` exist since NS-106 (ADR-0013); `packages/prompts` and the first
+route (`profile-extract` in `packages/profile`) since NS-110. `packages/agents` doesn't exist
+yet. Ask Paul before creating it.
+
+- Load prompts with `loadPrompt(id, version)`. A new or changed prompt is a new file
+  (`prompts/<route>/vN+1.md`) plus `pnpm --filter @northstar/prompts lock`; the lock test fails
+  if a committed version changes.
+- Register every route's eval set in `evals/src/routes.ts`; CI replays them all.
+- Never run `profile import-resume` or `profile show` yourself: they read and print Paul's real
+  resume and profile. Test with the synthetic fixtures; Paul runs the real commands.
 
 - Call the model only through `createLlmGateway(...).call(route, input)`. Handle every
   `LlmOutcome` kind (`Ok`, `Refused`, `Truncated`, `InvalidOutput`). Let `LlmTransportError`
@@ -21,7 +28,7 @@ them elsewhere.
   A cheaper tier needs an eval result and an amendment to ADR-0006.
 - Every agent result is a structured output validated with its Zod schema on arrival. Check
   `stop_reason` (including `refusal`) before reading content.
-- Prompts are versioned files (`<route>.v3.md`), never edited in place. Stamp prompt version and
+- Prompts are versioned files (`prompts/<route>/vN.md`), never edited in place once committed. Stamp prompt version and
   model on every output.
 - Stable prefix first for caching: system prompt, then profile-graph summary, then voice guide,
   then the volatile job or email.

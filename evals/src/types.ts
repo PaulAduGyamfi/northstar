@@ -92,7 +92,8 @@ async function runCase<I, O, E>(
 ) {
   try {
     const outcome = await gateway.call(route, testCase.input);
-    const passed = outcome.kind === "Ok" && grader(outcome.output, testCase.expected);
+    const passed =
+      outcome.kind === "Ok" && grader(outcome.output, testCase.expected, testCase.input);
     return {
       caseResult: { id: testCase.id, outcome: outcome.kind, passed },
       record: outcome.record,

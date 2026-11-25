@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@northstar/llm": "workspace:*",
+    "@northstar/profile": "workspace:*",
     "zod": "4.6.7"
   }
 }

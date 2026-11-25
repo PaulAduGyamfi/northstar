@@ -48,7 +48,14 @@ Exists now:
   span. Plus `untrustedBlock` and the request-keyed replay/recording fixtures (ADR-0013).
 - `evals/` (NS-106): the eval harness and CLI. One folder per route arrives with that route
   (`cases.jsonl`, `baseline.json`, `fixtures/`). Real-mail cases go in `evals/**/private/`
-  (gitignored). The CLI can't run them yet: it only reads the public `cases.jsonl`.
+  (gitignored). The CLI can't run them yet: it only reads the public `cases.jsonl`. CI runs
+  `eval --all` (replay only).
+- `packages/prompts/` (NS-110): versioned prompt files (`prompts/<route>/vN.md`), locked by
+  hash in `prompts.lock.json`. A test fails if a committed version changes; write `vN+1`.
+- `packages/profile/` (NS-110): resume (TXT/MD/DOCX/PDF) → profile graph via the
+  `profile-extract` route, with a deterministic provenance check (every atom quotes the resume
+  verbatim; no invented numbers, employers, titles or dates). `packages/db` holds the profile
+  tables; roles' and education's facts are locked by a trigger (CPG-004).
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write
@@ -64,7 +71,7 @@ with the ticket that needs it.
 
 ```
 apps/web  apps/api  apps/worker  apps/extension
-packages/agents  prompts  gateways  ats-adapters  sources  ui
+packages/agents  gateways  ats-adapters  sources  ui
 ops/  docs/runbooks/
 ```
 
@@ -84,6 +91,10 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter evals eval <route>` | replay a route's eval set from recorded fixtures (free, offline) and fail below `baseline.json` |
 | repo root | `pnpm --filter evals eval <route> --live [--update-baseline]` | run it against the real API (costs money; Paul only, needs `ANTHROPIC_API_KEY` in `.env`) |
 | repo root | `pnpm --filter evals eval <route> --record` | call the real API and save fixtures for replay (costs money; Paul only; synthetic inputs only) |
+| repo root | `pnpm --filter evals eval --all` | replay every registered eval against its baseline (what CI runs) |
+| repo root | `pnpm --filter @northstar/prompts lock` | add new prompt versions to `prompts.lock.json` (never rewrites an existing hash) |
+| repo root | `pnpm --filter @northstar/profile profile import-resume data/<file> [--reimport]` | import Paul's resume into the profile graph (`--reimport` redoes it even when the file is unchanged) (Paul only: real data, needs `DATABASE_URL` and `ANTHROPIC_API_KEY`; prints counts only) |
+| repo root | `pnpm --filter @northstar/profile profile show` | read the imported profile back (roles, atoms, skills). Paul only: it prints his real profile; agents never run it |
 | repo root | `cp .env.example .env` | once per clone (Paul): then replace every `change-me` in `.env` |
 | repo root | `docker compose -f docker-compose.yml up -d --wait` | local stack: Postgres+pgvector :5432, Temporal :7233 (UI :8233), SeaweedFS S3 :8333, Grafana :3000 + OTLP :4317/:4318, all on 127.0.0.1. Agents must use this exact form (runs outside the sandbox) |
 | repo root | `docker compose -f docker-compose.yml ps` | each service's health and ports |

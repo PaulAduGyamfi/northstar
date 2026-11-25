@@ -27,6 +27,31 @@ type Mode = "replay" | "live" | "record";
 
 // `eval <route> [--live | --record] [--update-baseline]`. Returns the process exit code.
 export async function main(deps: CliDeps): Promise<number> {
+  if (deps.argv[0] === "--all") return replayAll(deps);
+  return runOne(deps);
+}
+
+// `eval --all`: replay every registered eval against its baseline (what CI runs, ADR-0013).
+// Replay only: live runs cost money and happen one route at a time, on purpose.
+async function replayAll(deps: CliDeps): Promise<number> {
+  if (deps.argv.length > 1) {
+    deps.print("--all only replays; run --live or --record one route at a time");
+    return 1;
+  }
+  const names = Object.keys(deps.registry);
+  const failed: string[] = [];
+  for (const name of names) {
+    if ((await runOne({ ...deps, argv: [name] })) !== 0) failed.push(name);
+  }
+  deps.print(
+    failed.length === 0
+      ? `all ${names.length} eval(s) at or above baseline`
+      : `${failed.length} of ${names.length} eval(s) below baseline: ${failed.join(", ")}`,
+  );
+  return failed.length === 0 ? 0 : 1;
+}
+
+async function runOne(deps: CliDeps): Promise<number> {
   const [routeName, ...flags] = deps.argv;
   if (!routeName) {
     deps.print("usage: eval <route> [--live | --record] [--update-baseline]");
