@@ -27,7 +27,8 @@ auto-approve policies he controls, and a short undo window before any approval t
 - A subject that is already pending or approved can't be requested again
   (`SubjectAlreadyRequested`). After Paul rejects it, it may be requested again (edited
   content), and then it always waits for him: a subject Paul rejected or undid is never
-  auto-approved.
+  auto-approved. Undoing the old rejection while the new request is open is refused
+  (`SubjectReopened`). A subject is one send (one package, one draft), not a job or thread.
 - `listPendingApprovals` returns every request with no live decision, oldest first (one queue for
   every kind), optionally filtered by kind.
 

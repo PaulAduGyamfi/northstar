@@ -417,6 +417,30 @@ describe("one open request per subject", () => {
       null,
     ]);
   });
+
+  it("refuses to undo an old rejection while a newer request for the subject is open", async () => {
+    const subj = subject();
+    const first = await request({ subject: subj });
+    const rejection = await reject(first);
+    const second = await request({ subject: subj, contentSha256: HASH_B });
+    expect(await undoDecision(db, { candidateId, decisionId: rejection })).toEqual({
+      ok: false,
+      error: { kind: "SubjectReopened" },
+    });
+    expect((await listPendingApprovals(db, candidateId)).map((p) => p.requestId)).toEqual([second]);
+  });
+});
+
+describe("one open request per subject in the database", () => {
+  it("refuses an undo written straight to the table that would reopen a second request", async () => {
+    const subj = subject();
+    const rejection = await reject(await request({ subject: subj }));
+    await request({ subject: subj, contentSha256: HASH_B });
+    const state = await sqlState(
+      db.insert(approvalUndo).values({ candidateId, decisionId: rejection, undoneAt: NOW }),
+    );
+    expect(state).toBe(EXCLUSION_VIOLATION);
+  });
 });
 
 describe("setApprovalPolicies", () => {

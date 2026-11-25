@@ -2,14 +2,13 @@
 
 -- One clock for the Gate: the database's. Every request, decision and undo is stamped by a
 -- trigger below, and verifyApproval compares against it, so a caller's fast or slow clock can't
--- shorten or stretch the undo window. Tests pin it with the session setting
--- northstar.gate_test_now; production code never sets it (approval-write.ts doesn't).
+-- shorten or stretch the undo window. There is no override here on purpose: only the PGlite test
+-- database replaces this function with a pinnable one (src/test/global-setup.ts).
+-- The Gate's checks assume READ COMMITTED (the default): each check after a lock must see rows
+-- other transactions committed while it waited.
 CREATE FUNCTION northstar_gate_now() RETURNS timestamptz
 LANGUAGE sql VOLATILE AS $$
-  SELECT coalesce(
-    nullif(current_setting('northstar.gate_test_now', true), '')::timestamptz,
-    clock_timestamp()
-  )
+  SELECT clock_timestamp()
 $$;
 --> statement-breakpoint
 -- Approval records are immutable: a request, a policy set, a decision and an undo are each
@@ -131,17 +130,37 @@ CREATE TRIGGER approval_decision_checks
   BEFORE INSERT ON approval_decision
   FOR EACH ROW EXECUTE FUNCTION approval_decision_guard();
 --> statement-breakpoint
--- An undo is stamped by the database clock and only possible inside the undo window.
+-- An undo:
+-- * locks its decision row first; verifyApproval locks the same row, so an undo and a gateway's
+--   check never overlap: whichever commits first wins, and the other sees it;
+-- * is stamped by the database clock after that lock, and only possible inside the undo window;
+-- * is refused while another request for the same subject is open (pending or approved), so
+--   undoing an old rejection can't put two requests for one subject in the queue.
 CREATE FUNCTION approval_undo_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
+DECLARE
+  dec approval_decision%ROWTYPE;
+  req approval_request%ROWTYPE;
 BEGIN
+  SELECT * INTO dec FROM approval_decision WHERE id = NEW.decision_id FOR UPDATE;
+  SELECT * INTO req FROM approval_request WHERE id = dec.request_id;
+  PERFORM pg_advisory_xact_lock(hashtextextended(req.candidate_id::text || req.subject, 0));
   NEW.undone_at := northstar_gate_now();
-  IF NOT EXISTS (
-    SELECT 1 FROM approval_decision d
-    WHERE d.id = NEW.decision_id AND NEW.undone_at < d.effective_at
-  ) THEN
+  IF dec.id IS NULL OR NEW.undone_at >= dec.effective_at THEN
     RAISE EXCEPTION 'the undo window for this decision has closed'
       USING ERRCODE = 'check_violation';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM approval_request r
+    WHERE r.candidate_id = req.candidate_id AND r.subject = req.subject AND r.id <> req.id
+      AND NOT EXISTS (
+        SELECT 1 FROM approval_decision d
+        WHERE d.request_id = r.id AND d.decision = 'rejected'
+          AND NOT EXISTS (SELECT 1 FROM approval_undo u WHERE u.decision_id = d.id)
+      )
+  ) THEN
+    RAISE EXCEPTION 'another request for this subject is open; this decision stands'
+      USING ERRCODE = 'exclusion_violation';
   END IF;
   RETURN NEW;
 END;
