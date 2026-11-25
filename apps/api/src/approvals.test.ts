@@ -9,7 +9,9 @@ import { portOf, type Sent, send } from "./test/http.js";
 // The approval queue endpoints (NS-139) over a real http server, with the Gate faked. Synthetic
 // ids only.
 const HASH = "62af8704764faf8ea82fc61ce9c4c3908b6cb97d463a634e9e587d7c885db0ef"; // sha256("test-key")
-const EXT_HASH = "a".repeat(64);
+// The real SHA-256 of the token the test sends, so the token is valid: a 401 proves the session
+// endpoints ignore it, not that it was wrong (same pair as capture.test.ts).
+const EXT_HASH = "2f50a0607c1fb6606c98272169b134502f7c188b1e17f3d1579320aa3e3fb6c4";
 const WEB = "http://northstar.localhost:3100";
 const T = new Date("2026-11-25T12:00:00Z");
 const LATER = new Date("2026-11-25T12:02:00Z");
@@ -119,7 +121,7 @@ describe("who may call them", () => {
     expect(calls).toEqual([]);
   });
 
-  it("the extension token can't open the queue, decide or undo", async () => {
+  it("a valid extension token can't open the queue, decide or undo", async () => {
     const bearer = { authorization: "Bearer test-extension-token" };
     const viaToken = (path: string, body: unknown) =>
       send(server, {

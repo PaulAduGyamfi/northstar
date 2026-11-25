@@ -3,8 +3,9 @@ import { z } from "zod";
 // The approval queue page (NS-139, APR-001…003): the API's answers and the plain decisions made
 // from them. The browser talks only to the API; every decision goes through Paul's session.
 
-// The Gate's kinds (packages/domain, APPROVAL_KINDS). The web app doesn't depend on the domain
-// package, so the list is repeated here and checked by the schema: an unknown kind is refused.
+// The Gate's kinds: a copy of APPROVAL_KINDS in packages/domain/src/approval.ts. The web app
+// doesn't depend on the domain package, so the list is repeated here. Add a new Gate kind here in
+// the same PR, or the queue refuses to parse (QueueBody) and the page says it can't be read.
 const KINDS = [
   "application_package",
   "answer",
@@ -62,6 +63,26 @@ export function undoLabel(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `Undo (${m}:${String(s).padStart(2, "0")})`;
+}
+
+// The undo button for one batch of decisions: what it undoes, and the time left.
+export function batchUndoLabel(
+  decision: "approved" | "rejected",
+  count: number,
+  seconds: number,
+): string {
+  const verb = decision === "approved" ? "approving" : "rejecting";
+  return undoLabel(seconds).replace("Undo", `Undo ${verb} ${count}`);
+}
+
+// What an undo's refusal means, in words (the API's codes for POST /approvals/undo).
+export function undoErrorWords(status: number, code: unknown): string {
+  if (status === 401) return "You've been signed out. Sign in again to undo.";
+  if (code === "undo_window_closed") return "Too late to undo: the window has closed.";
+  if (code === "already_undone") return "That was already undone.";
+  if (code === "subject_reopened") return "It can't be undone: it's been asked for again.";
+  if (status >= 500) return "That didn't go through. Try undo again.";
+  return "That decision can't be undone any more.";
 }
 
 // How long an item has waited, in the largest whole unit.

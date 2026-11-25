@@ -1,6 +1,6 @@
 # NS-139: The approval queue in the app (slice 1)
 
-Status: draft (autonomous lane, ADR-0016)
+Status: built, in review (autonomous lane, ADR-0016)
 Requirements: APR-001, APR-002 (batch, reject with reason), APR-003 (mobile-friendly); APR-002
 inline edit and APR-003 push approve follow up
 Rules that apply: ADR-0002, ADR-0017, ADR-0018; `.claude/rules/web.md`, `db.md`, `tests.md`
@@ -35,15 +35,15 @@ from his laptop or phone. Only his signed-in path may decide.
      summary), tested without a browser.
 
 ## Acceptance criteria
-- [ ] Every endpoint refuses a request without a session (401) and the extension token.
-- [ ] `POST /approvals/decide` passes Paul's ids, decision and reason through as given, and
+- [x] Every endpoint refuses a request without a session (401) and the extension token.
+- [x] `POST /approvals/decide` passes Paul's ids, decision and reason through as given, and
       reports each id's outcome; a rejection without a reason is 400 and decides nothing; more than
       100 ids is 400.
-- [ ] `POST /approvals/undo` maps each Gate refusal to its status and code.
-- [ ] Decisions made through the API are recorded `decided_by = 'user'` (a test on the real write
+- [x] `POST /approvals/undo` maps each Gate refusal to its status and code.
+- [x] Decisions made through the API are recorded `decided_by = 'user'` (a test on the real write
       path).
-- [ ] The countdown reads from `effectiveAt` and reaches zero exactly at it (web test).
-- [ ] `pnpm turbo run lint typecheck test build --force` exits 0, and `checks` is green.
+- [x] The countdown reads from `effectiveAt` and reaches zero exactly at it (web test).
+- [ ] `pnpm turbo run lint typecheck test build --force` exits 0, and `checks` is green (CI on the PR).
 
 ## Failure modes
 - **Postgres down:** `GET /approvals` answers 503 and the page says the queue can't be read; a

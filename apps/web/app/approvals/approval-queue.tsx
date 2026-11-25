@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
+  batchUndoLabel,
   DecideBody,
   KIND_WORDS,
   MAX_BATCH,
@@ -10,14 +11,21 @@ import {
   type QueueItem,
   secondsLeft,
   summarizeOutcomes,
-  undoLabel,
+  undoErrorWords,
   waitedFor,
 } from "../../src/approvals";
 
-type Decided = { decisionId: string; effectiveAt: string };
+// One click's decisions: undone together, inside their shared window.
+type Batch = {
+  key: string;
+  decision: "approved" | "rejected";
+  decisionIds: string[];
+  // The latest effectiveAt in the batch: the button lasts as long as any of it can be undone.
+  effectiveAt: string;
+};
 
 // The queue's actions (APR-002, APR-003): select, approve selected or all, reject with a reason,
-// and undo each decision until its effectiveAt. Every action is a visible button, so it works by
+// and undo each batch until its effectiveAt. Every action is a visible button, so it works by
 // keyboard and on a phone (UX-043, UX-016 undo over confirm).
 export function ApprovalQueue({ items }: { items: QueueItem[] }) {
   const router = useRouter();
@@ -26,18 +34,18 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Decisions still inside their undo window, newest first.
-  const [undoable, setUndoable] = useState<Decided[]>([]);
+  // Batches still inside their undo window, newest first.
+  const [batches, setBatches] = useState<Batch[]>([]);
   const [now, setNow] = useState(() => Date.now());
 
   // Tick once a second while any undo is open, so the countdown moves.
   useEffect(() => {
-    if (undoable.length === 0) return;
+    if (batches.length === 0) return;
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [undoable.length]);
+  }, [batches.length]);
 
-  const open = undoable.filter((d) => secondsLeft(d.effectiveAt, now) > 0);
+  const open = batches.filter((b) => secondsLeft(b.effectiveAt, now) > 0);
 
   function toggle(id: string) {
     setSelected((s) => {
@@ -54,7 +62,8 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
     setMessage(null);
     const outcomes: Outcome[] = [];
     try {
-      // "Approve all" over a long queue goes in batches the API accepts.
+      // "Approve all" over a long queue goes in batches the API accepts. On any failure it stops,
+      // and what was already decided is still shown with its undo.
       for (let i = 0; i < ids.length; i += MAX_BATCH) {
         const res = await fetch("/api/approvals/decide", {
           method: "POST",
@@ -66,8 +75,8 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
           }),
         });
         if (res.status === 401) {
-          setError("You've been signed out. Sign in again.");
-          return;
+          setError("You've been signed out. Sign in again; nothing more was decided.");
+          break;
         }
         const body = DecideBody.safeParse(await res.json().catch(() => null));
         if (!res.ok || !body.success) {
@@ -80,60 +89,73 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
         }
         outcomes.push(...body.data.outcomes);
       }
-      setMessage(summarizeOutcomes(outcomes));
-      const decided = outcomes.flatMap((o) =>
-        o.outcome === "approved" || o.outcome === "rejected"
-          ? [{ decisionId: o.decisionId, effectiveAt: o.effectiveAt }]
-          : [],
-      );
-      setUndoable((u) => [...decided, ...u]);
-      setNow(Date.now());
-      setSelected(new Set());
-      setRejecting(false);
-      router.refresh();
     } catch {
-      setError("Couldn't reach Northstar. Is the API running?");
+      setError("Couldn't reach Northstar. Is the API running? Nothing more was decided.");
     } finally {
+      const decided = outcomes.flatMap((o) =>
+        o.outcome === "approved" || o.outcome === "rejected" ? [o] : [],
+      );
+      if (outcomes.length > 0) setMessage(summarizeOutcomes(outcomes));
+      if (decided.length > 0) {
+        const last = decided
+          .map((d) => d.effectiveAt)
+          .sort()
+          .at(-1) as string;
+        const batch: Batch = {
+          key: decided[0]?.decisionId as string,
+          decision: decision === "approve" ? "approved" : "rejected",
+          decisionIds: decided.map((d) => d.decisionId),
+          effectiveAt: last,
+        };
+        setBatches((b) => [batch, ...b]);
+        setSelected(new Set());
+        setRejecting(false);
+        router.refresh();
+      }
+      setNow(Date.now());
       setBusy(false);
     }
   }
 
-  async function undo(decisionId: string) {
+  async function undo(batch: Batch) {
     setBusy(true);
     setError(null);
+    let undone = 0;
+    let failure: string | null = null;
+    const left: string[] = [];
     try {
-      const res = await fetch("/api/approvals/undo", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ decisionId }),
-      });
-      if (res.status === 401) {
-        // Keep the undo button: Paul can sign in again and still be inside the window.
-        setError("You've been signed out. Sign in again to undo.");
-        return;
-      }
-      if (res.status >= 500) {
-        setError("That didn't go through. Try undo again.");
-        return;
-      }
-      setUndoable((u) => u.filter((d) => d.decisionId !== decisionId));
-      if (res.ok) {
-        setMessage("Undone. It's back in the queue.");
-        router.refresh();
-      } else {
+      for (const decisionId of batch.decisionIds) {
+        const res = await fetch("/api/approvals/undo", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ decisionId }),
+        });
+        if (res.ok) {
+          undone++;
+          continue;
+        }
         const body: unknown = await res.json().catch(() => null);
-        const code = (body as { error?: unknown } | null)?.error;
-        setError(
-          code === "undo_window_closed"
-            ? "Too late to undo that one: its window has closed."
-            : code === "already_undone"
-              ? "That one was already undone."
-              : "That decision can't be undone any more.",
-        );
+        failure = undoErrorWords(res.status, (body as { error?: unknown } | null)?.error);
+        // Signed out or a server error: keep the rest so Paul can try again inside the window.
+        if (res.status === 401 || res.status >= 500) {
+          left.push(...batch.decisionIds.slice(batch.decisionIds.indexOf(decisionId)));
+          break;
+        }
       }
     } catch {
-      setError("Couldn't reach Northstar. Is the API running?");
+      failure = "Couldn't reach Northstar. Is the API running?";
+      left.push(...batch.decisionIds.slice(undone));
     } finally {
+      setBatches((bs) =>
+        bs.flatMap((b) =>
+          b.key !== batch.key ? [b] : left.length > 0 ? [{ ...b, decisionIds: left }] : [],
+        ),
+      );
+      if (undone > 0) {
+        setMessage(`Undone ${undone}. ${undone === 1 ? "It's" : "They're"} back in the queue.`);
+        router.refresh();
+      }
+      if (failure) setError(failure);
       setBusy(false);
     }
   }
@@ -151,15 +173,15 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
       ) : null}
       {open.length > 0 ? (
         <p>
-          {open.map((d) => (
+          {open.map((b) => (
             <button
-              key={d.decisionId}
+              key={b.key}
               type="button"
               className="secondary"
               disabled={busy}
-              onClick={() => void undo(d.decisionId)}
+              onClick={() => void undo(b)}
             >
-              {undoLabel(secondsLeft(d.effectiveAt, now))}
+              {batchUndoLabel(b.decision, b.decisionIds.length, secondsLeft(b.effectiveAt, now))}
             </button>
           ))}
         </p>
@@ -173,9 +195,7 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
                 checked={selected.has(item.requestId)}
                 onChange={() => toggle(item.requestId)}
               />{" "}
-              <span className="status-label" data-on={false}>
-                Awaiting you
-              </span>{" "}
+              <span className="status-label">Awaiting you</span>{" "}
               <strong>{KIND_WORDS[item.kind]}</strong>{" "}
               <span className="muted">
                 {item.subject}, waiting {waitedFor(item.requestedAt, now)}

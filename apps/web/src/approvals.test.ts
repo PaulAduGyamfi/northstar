@@ -1,12 +1,43 @@
 import { describe, expect, it } from "vitest";
 import {
+  batchUndoLabel,
   KIND_WORDS,
   QueueBody,
   secondsLeft,
   summarizeOutcomes,
+  undoErrorWords,
   undoLabel,
   waitedFor,
 } from "./approvals";
+
+describe("batchUndoLabel", () => {
+  it("says what the button undoes and how long is left", () => {
+    expect([batchUndoLabel("approved", 3, 112), batchUndoLabel("rejected", 1, 9)]).toEqual([
+      "Undo approving 3 (1:52)",
+      "Undo rejecting 1 (0:09)",
+    ]);
+  });
+});
+
+describe("undoErrorWords", () => {
+  it("tells signed out, closed, already undone, reopened and server errors apart", () => {
+    expect([
+      undoErrorWords(401, "unauthenticated"),
+      undoErrorWords(409, "undo_window_closed"),
+      undoErrorWords(409, "already_undone"),
+      undoErrorWords(409, "subject_reopened"),
+      undoErrorWords(500, "internal"),
+      undoErrorWords(404, "not_found"),
+    ]).toEqual([
+      "You've been signed out. Sign in again to undo.",
+      "Too late to undo: the window has closed.",
+      "That was already undone.",
+      "It can't be undone: it's been asked for again.",
+      "That didn't go through. Try undo again.",
+      "That decision can't be undone any more.",
+    ]);
+  });
+});
 
 // The approval queue page's plain logic (NS-139), without a browser. Synthetic ids only.
 const T = Date.parse("2026-11-25T12:00:00.000Z");
