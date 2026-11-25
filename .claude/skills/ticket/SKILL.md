@@ -8,6 +8,10 @@ allowed-tools: Bash(git status *) Bash(git branch --show-current) Bash(git switc
 
 # Ticket $ARGUMENTS
 
+**Autonomous lane (ADR-0015):** on an open issue Paul wrote, don't stop for his approval at any
+step below. Take the issue body as the scope, make each call yourself, and record it under
+"Decisions made without Paul" in the PR description.
+
 Repo state when this ran:
 
 !`git status --short --branch`
