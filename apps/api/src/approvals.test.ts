@@ -119,9 +119,20 @@ describe("who may call them", () => {
     expect(calls).toEqual([]);
   });
 
-  it("the extension token can't open the queue", async () => {
-    const res = await get("/approvals", { authorization: "Bearer test-extension-token" });
-    expect(res.status).toBe(401);
+  it("the extension token can't open the queue, decide or undo", async () => {
+    const bearer = { authorization: "Bearer test-extension-token" };
+    const viaToken = (path: string, body: unknown) =>
+      send(server, {
+        method: "POST",
+        path,
+        headers: { "content-type": "application/json", origin: WEB, ...bearer },
+        body: JSON.stringify(body),
+      });
+    expect([
+      (await get("/approvals", bearer)).status,
+      (await viaToken("/approvals/decide", { requestIds: [R1], decision: "approve" })).status,
+      (await viaToken("/approvals/undo", { decisionId: D1 })).status,
+    ]).toEqual([401, 401, 401]);
     expect(calls).toEqual([]);
   });
 });

@@ -107,12 +107,29 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ decisionId }),
       });
+      if (res.status === 401) {
+        // Keep the undo button: Paul can sign in again and still be inside the window.
+        setError("You've been signed out. Sign in again to undo.");
+        return;
+      }
+      if (res.status >= 500) {
+        setError("That didn't go through. Try undo again.");
+        return;
+      }
       setUndoable((u) => u.filter((d) => d.decisionId !== decisionId));
       if (res.ok) {
         setMessage("Undone. It's back in the queue.");
         router.refresh();
       } else {
-        setError("Too late to undo that one: its window has closed.");
+        const body: unknown = await res.json().catch(() => null);
+        const code = (body as { error?: unknown } | null)?.error;
+        setError(
+          code === "undo_window_closed"
+            ? "Too late to undo that one: its window has closed."
+            : code === "already_undone"
+              ? "That one was already undone."
+              : "That decision can't be undone any more.",
+        );
       }
     } catch {
       setError("Couldn't reach Northstar. Is the API running?");

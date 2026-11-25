@@ -7,7 +7,8 @@ import type { ApprovalPorts } from "./approvals.js";
 export function dbApprovalPorts(db: Db, candidateId: () => Promise<CandidateId>): ApprovalPorts {
   return {
     list: async (kind) => listPendingApprovals(db, await candidateId(), kind),
-    decide: async (input) => decideApprovals(db, { candidateId: await candidateId(), ...input }),
+    // The server's candidate comes last, so nothing in the input can ever replace it.
+    decide: async (input) => decideApprovals(db, { ...input, candidateId: await candidateId() }),
     undo: async (decisionId) => undoDecision(db, { candidateId: await candidateId(), decisionId }),
   };
 }
