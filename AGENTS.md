@@ -117,6 +117,11 @@ Exists now:
   `recordCallOutcome`, `readBreakers`), and append-only kill switches per subsystem
   (`kill_switch`, `kill-switch-write.ts`: `setKillSwitch`, `isSubsystemOn`, `readKillSwitches`).
   No caller uses them yet.
+- Health and feed (NS-125, RES-013, OBS-002): `systemHealth` (`packages/domain`, `health.ts`)
+  turns breakers, kill switches and board watches into `healthy / degraded / down` per subsystem
+  with a plain reason, and `feedLine` (`feed.ts`) turns an event into one plain sentence from
+  checked payload fields only. `packages/db` reads them with `readSystemHealth` and `readFeed`
+  (newest first, paged by position). No UI or live push yet.
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write
