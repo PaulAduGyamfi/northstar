@@ -10,7 +10,7 @@ import type {
 } from "@northstar/db";
 import type { Result } from "@northstar/domain";
 import { GmailError, MAIL_KINDS, OAuthError, STAGE_SIGNALS } from "@northstar/inbox";
-import { LlmTransportError } from "@northstar/llm";
+import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
 import { type BackfillCounts, emptyCounts } from "./backfill.js";
 import { parseTracker } from "./csv.js";
 import { judgeHypotheses, summarize } from "./hypotheses.js";
@@ -123,6 +123,8 @@ function describeError(error: unknown): string {
   if (error instanceof LlmTransportError) {
     return `the Claude API didn't answer (status ${error.status ?? "none"})`;
   }
+  // A kill switch or breaker (NS-174): nothing went out; rerunning later is safe.
+  if (error instanceof HeldBack) return `${describeHeldBack(error)}; run it again later`;
   return error instanceof Error ? error.name : "an unknown error";
 }
 

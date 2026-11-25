@@ -10,7 +10,22 @@ export {
   MissingFixture,
   requestKey,
 } from "./fixtures.js";
-export { createLlmGateway, type LlmGateway } from "./gateway.js";
+export {
+  ANTHROPIC_DEPENDENCY,
+  agentSwitch,
+  createLlmGateway,
+  type LlmGateway,
+} from "./gateway.js";
+export {
+  type Admission,
+  admit,
+  type CallGuard,
+  describeHeldBack,
+  type GuardDecision,
+  type GuardOutcome,
+  HeldBack,
+  type HeldBy,
+} from "./guard.js";
 export type { CallRecord, LlmOutcome } from "./outcome.js";
 export { costUsd, type TokenUsage } from "./pricing.js";
 export { DEFAULT_MODEL, type Effort, type Route } from "./route.js";
