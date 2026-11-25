@@ -8,8 +8,15 @@ paths:
 # Action gateways, ATS adapters and job sources (ADR-0002, ADR-0003, ADR-0007)
 
 `packages/sources` exists since NS-114 (link ingest: `fetch.ts`, `ats/`, `jsonld.ts`,
-`terms.ts`). Gateways and ATS adapters don't exist yet: if you are about to create one outside
-its ticket, stop and ask Paul.
+`terms.ts`). The Apply Gateway is `packages/gateways` (NS-120); its ATS adapters live in
+`src/apply/adapters/`, not a separate `packages/ats-adapters`. Other gateways (mail, calendar,
+GitHub) don't exist yet: if you are about to create one outside its ticket, stop and ask Paul.
+
+- Every submission goes through `submitApplication`: the Gate check (throws
+  `NotApprovedError`), a re-hash of the files, `claimSubmission`, a `FormDriver` with time limits,
+  then proof. A live claim is never touched (`InProgress`). A claim older than 15 minutes becomes
+  `needs_human` (`outcome_unknown`) and is never retried. Status moves use the
+  `application:<id>:apply:<submissionId>:<to>` key namespace.
 
 - Every page fetch goes through `safeFetch` (https only, public addresses on every redirect,
   2 MB, 15 s). Never call `fetch` on a pasted link directly. Whole-board listings (NS-115,

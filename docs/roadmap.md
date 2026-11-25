@@ -5,13 +5,13 @@ Each phase ends with something you use daily. Estimates assume one engineer + co
 ## P0 — Foundations (now)
 - [x] Requirements, architecture, ADRs (this repo)
 - [x] UI direction chosen: B · Momentum (ADR-0009); tokens + component inventory
-- [ ] Clickable B prototypes: Queue (stack + compact), Pipeline, Growth, Diagnostics, Settings, for the UX-002 usability check
+- [x] Clickable B prototypes: Queue (stack + compact), Pipeline, Growth, Diagnostics, Settings, for the UX-002 usability check
 - [ ] Resolve open questions Q-02, Q-04, Q-06…Q-11, Q-13…Q-15
-- [ ] Monorepo scaffold, docker compose (Postgres+pgvector, Temporal, MinIO), CI, LLM Gateway skeleton, event outbox + feed
+- [x] Monorepo scaffold, docker compose (Postgres+pgvector, Temporal, MinIO), CI, LLM Gateway skeleton, event outbox + feed
 
 ## P1 — Core loop: "paste a link, get an application" (~3–4 weeks)
 - Candidate Profile Graph import + guided story interview (CPG-*)
-- Resume audit (RES-001/002)
+- Resume audit (AUD-001/002)
 - Link ingest + extension capture (SRC-001/002); ATS board polling for a starter watchlist (SRC-003)
 - Scoring with evidence (MAT-001..003)
 - Tailoring with provenance + diff + pre-send score (TLR-*)
