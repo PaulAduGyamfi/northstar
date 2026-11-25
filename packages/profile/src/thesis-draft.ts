@@ -94,7 +94,10 @@ export type ThesisDraftResult =
   | { kind: "skipped"; reason: "off" | "no_atoms" }
   | { kind: "failed"; reason: "refused" | "truncated" | "invalid_output"; record: CallRecord };
 
-// Why a candidate was dropped: checkThesis's failures, or atom ids not in the profile.
+// Why a candidate was dropped: checkThesis's failures, or atom ids not in the profile. This
+// proves "backed by the cited resume text", not "true": a line planted in the resume itself
+// passes when cited, so Paul reads every draft before `thesis set` (the eval's `forbidden`
+// words cover that case).
 export function thesisProblems(
   candidate: DraftedThesis,
   profile: ThesisProfile,
