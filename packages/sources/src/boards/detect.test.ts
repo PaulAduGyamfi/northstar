@@ -32,6 +32,17 @@ describe("detectBoard", () => {
     });
   });
 
+  it("folds Greenhouse and Lever board names to lower case, so one board is one watch", () => {
+    expect(detectBoard("https://boards.greenhouse.io/Globex")).toEqual({
+      ats: "greenhouse",
+      board: "globex",
+      url: "https://boards.greenhouse.io/globex",
+    });
+    expect(detectBoard("https://jobs.lever.co/InItech")?.board).toBe("initech");
+    // Unverified for these ATSs, so kept exactly as typed.
+    expect(detectBoard("https://jobs.smartrecruiters.com/Acme")?.board).toBe("Acme");
+  });
+
   it("drops tracking parameters and fragments from the stored board URL", () => {
     expect(detectBoard("https://boards.greenhouse.io/globex?gh_src=abc#top")?.url).toBe(
       "https://boards.greenhouse.io/globex",

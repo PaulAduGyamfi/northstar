@@ -42,7 +42,7 @@ export async function listBoard(deps: FetchDeps, t: Board): Promise<BoardPosting
       );
       return each(body.jobs, GreenhousePosting, (p) => ({
         url: `https://boards.greenhouse.io/${t.board}/jobs/${p.id}`,
-        extraction: fromGreenhouse(p),
+        extraction: withCompany(fromGreenhouse(p), t.board),
       }));
     }
     case "lever": {
@@ -209,4 +209,10 @@ function fromWorkable(
 function place(...parts: (string | undefined)[]): string | null {
   const present = parts.map((p) => p?.trim()).filter((p): p is string => Boolean(p));
   return present.length > 0 ? present.join(", ") : null;
+}
+
+// A listing that omits the company name gets the board's own name, as Lever and Ashby always do:
+// without it every polled job would be a draft.
+function withCompany(x: Extraction, board: string): Extraction {
+  return x.fields.company ? x : { ...x, fields: { ...x.fields, company: board } };
 }
