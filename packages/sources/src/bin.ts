@@ -9,6 +9,7 @@ import {
   listJobs,
   listWatches,
   loadDbConfig,
+  readAlertCandidates,
   readAtomTexts,
   readDedupeCandidates,
   readFitScore,
@@ -16,6 +17,8 @@ import {
   readScorableJobs,
   readScoreKeys,
   readScoringProfile,
+  recordAlertHeld,
+  recordFreshAlert,
   recordRescore,
   removeWatch,
   retryWatch,
@@ -33,6 +36,7 @@ import {
   loadLlmConfig,
 } from "@northstar/llm";
 import { sql } from "drizzle-orm";
+import { AlertSettingError, alertPass, loadAlertConfig, scoreThenAlert } from "./alerts.js";
 import { main } from "./cli.js";
 import { scorePending } from "./fit/run.js";
 import { type IngestDeps, ingestText, ingestUrl } from "./ingest.js";
@@ -74,8 +78,26 @@ try {
       save: (input) => saveIngestedJob(db, { candidateId, ...input }),
     },
   };
-  // One scoring pass over the current preferences and resume import (NS-116).
-  const score = () =>
+  // Fresh-job alerts (NS-163): settings read once, refused by name when bad.
+  const alertConfig = loadAlertConfig(
+    process.env,
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+  );
+  if (!alertConfig.ok) throw new AlertSettingError(alertConfig.setting);
+  const alerts = () =>
+    alertPass(
+      {
+        candidates: () => readAlertCandidates(db, candidateId),
+        watches: () => listWatches(db, candidateId),
+        alert: (input) => recordFreshAlert(db, { ...input, candidateId }),
+        hold: (input) => recordAlertHeld(db, { ...input, candidateId }),
+      },
+      new Date(),
+      alertConfig.value,
+    );
+  // One scoring pass over the current preferences and resume import (NS-116), then the alert
+  // pass over what it scored (NS-163).
+  const scoreOnly = () =>
     scorePending({
       preferences: () => readPreferences(db, candidateId),
       profile: () => readScoringProfile(db, candidateId),
@@ -84,6 +106,10 @@ try {
         readScoreKeys(db, { candidateId, preferenceId, profileSourceId }),
       save: (input) => saveFitScore(db, { ...input, candidateId, now: new Date() }),
     });
+  const score = () =>
+    scoreThenAlert(scoreOnly, alerts, (name) =>
+      console.log(`Alerts didn't run (${name}); the next pass retries.`),
+    );
   process.exitCode = await main({
     argv: process.argv.slice(2),
     print: (line) => console.log(printable(line)),
@@ -135,7 +161,11 @@ try {
   });
 } catch (error) {
   // Never let Node print the raw error: a database error's detail can quote a row.
-  console.error(`jobs: ${error instanceof Error ? error.name : "an unknown error"}`);
+  console.error(
+    error instanceof AlertSettingError
+      ? `jobs: the ${error.setting} setting isn't valid; see the example settings file.`
+      : `jobs: ${error instanceof Error ? error.name : "an unknown error"}`,
+  );
   process.exitCode = 1;
 } finally {
   await close();

@@ -1,5 +1,16 @@
 // Public entry of @northstar/db: the schema, the status-change write path and the event reader.
 
+// Fresh-job alerts (NS-163): candidates and the per-job alert events.
+export {
+  type AlertCandidate,
+  type AlertInput,
+  ageText,
+  FRESH_ALERT,
+  FRESH_ALERT_HELD,
+  readAlertCandidates,
+  recordAlertHeld,
+  recordFreshAlert,
+} from "./alert-write.js";
 export * as answerSchema from "./answer-schema.js";
 export { BANK_KINDS, type BankKind } from "./answer-schema.js";
 export {
