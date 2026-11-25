@@ -59,6 +59,8 @@ export type NotFound = { kind: "NotFound" };
 export type AlreadyDecided = { kind: "AlreadyDecided" };
 export type AlreadyUndone = { kind: "AlreadyUndone" };
 export type UndoWindowClosed = { kind: "UndoWindowClosed" };
+// Another request for the same subject is open, so this (older) decision stands.
+export type SubjectReopened = { kind: "SubjectReopened" };
 export type Rejected = { kind: "Rejected" };
 export type Undone = { kind: "Undone" };
 export type UndoWindowOpen = { kind: "UndoWindowOpen"; effectiveAt: Date };
@@ -67,7 +69,7 @@ export type ContentChanged = { kind: "ContentChanged" };
 
 export type RequestError = InvalidRequest | IdempotencyKeyReused | SubjectAlreadyRequested;
 export type DecideError = NotFound | AlreadyDecided;
-export type UndoError = NotFound | AlreadyUndone | UndoWindowClosed;
+export type UndoError = NotFound | AlreadyUndone | UndoWindowClosed | SubjectReopened;
 export type VerifyError =
   | NotFound
   | Rejected
@@ -319,10 +321,13 @@ export async function requestApproval(
       return await requestOnce(db, span, input.candidateId, parsed.data);
     } catch (error) {
       const code = pgCode(error);
-      // A concurrent call with the same key committed first: this call is its replay.
-      if (code === UNIQUE_VIOLATION) return requestOnce(db, span, input.candidateId, parsed.data);
-      // A concurrent request for the same subject committed first.
-      if (code === EXCLUSION_VIOLATION) return err({ kind: "SubjectAlreadyRequested" });
+      // A concurrent call committed first. With the same key (23505), or with the same key and
+      // subject (the subject trigger fires before the key's unique check, 23P01), this call is
+      // its replay; running again checks the key first and returns the first request, or
+      // reports SubjectAlreadyRequested as a value when it was a different request.
+      if (code === UNIQUE_VIOLATION || code === EXCLUSION_VIOLATION) {
+        return requestOnce(db, span, input.candidateId, parsed.data);
+      }
       throw error;
     }
   });
@@ -595,6 +600,8 @@ export async function undoDecision(
       if (code === UNIQUE_VIOLATION) return err({ kind: "AlreadyUndone" });
       // The window closed between our check and the insert; the trigger refused it.
       if (code === CHECK_VIOLATION) return err({ kind: "UndoWindowClosed" });
+      // A request for the same subject opened between our check and the insert.
+      if (code === EXCLUSION_VIOLATION) return err({ kind: "SubjectReopened" });
       throw error;
     }
   });
@@ -607,7 +614,11 @@ async function undoOnce(
 ): Promise<Result<{ requestId: string }, UndoError>> {
   return db.transaction(async (tx) => {
     const [found] = await tx
-      .select({ decision: approvalDecision, kind: approvalRequest.kind })
+      .select({
+        decision: approvalDecision,
+        kind: approvalRequest.kind,
+        subject: approvalRequest.subject,
+      })
       .from(approvalDecision)
       .innerJoin(approvalRequest, eq(approvalRequest.id, approvalDecision.requestId))
       .where(
@@ -628,6 +639,25 @@ async function undoOnce(
     if (now.getTime() >= decision.effectiveAt.getTime()) {
       return err({ kind: "UndoWindowClosed" } as const);
     }
+    // Same rule as the undo trigger: undoing this would reopen its request while another request
+    // for the subject is open (only possible after this decision rejected it).
+    const [otherOpen] = await tx
+      .select({ id: approvalRequest.id })
+      .from(approvalRequest)
+      .where(
+        and(
+          eq(approvalRequest.candidateId, input.candidateId),
+          eq(approvalRequest.subject, found.subject),
+          sql`${approvalRequest.id} <> ${decision.requestId}`,
+          sql`not exists (
+            select 1 from ${approvalDecision} d
+            where d.request_id = ${approvalRequest.id} and d.decision = 'rejected'
+              and not exists (select 1 from ${approvalUndo} u where u.decision_id = d.id)
+          )`,
+        ),
+      )
+      .limit(1);
+    if (otherOpen) return err({ kind: "SubjectReopened" } as const);
     // undone_at is overwritten by the trigger from the database clock.
     const [row] = await tx
       .insert(approvalUndo)
@@ -673,40 +703,54 @@ export async function verifyApproval(
 ): Promise<Result<VerifiedApproval, VerifyError>> {
   return inSpan("approval.verify", { "northstar.approval.kind": input.kind }, async () => {
     if (!Uuid.safeParse(input.decisionId).success) return err({ kind: "NotFound" });
-    const [row] = await db
-      .select({
-        decision: approvalDecision,
-        kind: approvalRequest.kind,
-        subject: approvalRequest.subject,
-        contentSha256: approvalRequest.contentSha256,
-        undoId: approvalUndo.id,
-        // Judged by the database clock, the same one that stamped effective_at.
-        effective: sql<boolean>`${approvalDecision.effectiveAt} <= northstar_gate_now()`,
-      })
-      .from(approvalDecision)
-      .innerJoin(approvalRequest, eq(approvalRequest.id, approvalDecision.requestId))
-      .leftJoin(approvalUndo, eq(approvalUndo.decisionId, approvalDecision.id))
-      .where(
-        and(
-          eq(approvalDecision.id, input.decisionId),
-          eq(approvalDecision.candidateId, input.candidateId),
-        ),
-      );
-    if (!row) return err({ kind: "NotFound" });
-    if (row.kind !== input.kind || row.subject !== input.subject) {
-      return err({ kind: "SubjectMismatch" });
-    }
-    if (row.contentSha256 !== input.contentSha256) return err({ kind: "ContentChanged" });
-    if (row.undoId !== null) return err({ kind: "Undone" });
-    if (row.decision.decision !== "approved") return err({ kind: "Rejected" });
-    if (row.effective !== true) {
-      return err({ kind: "UndoWindowOpen", effectiveAt: row.decision.effectiveAt });
-    }
-    return ok({
-      decisionId: row.decision.id,
-      requestId: row.decision.requestId,
-      decidedBy: row.decision.decidedBy as VerifiedApproval["decidedBy"],
-      effectiveAt: row.decision.effectiveAt,
+    return db.transaction(async (tx) => {
+      // Lock the decision row: an undo locks it too (migration 0016), so an undo committing at the
+      // edge of the window and this check never overlap. Whichever comes first, the other sees it.
+      await tx
+        .select({ id: approvalDecision.id })
+        .from(approvalDecision)
+        .where(
+          and(
+            eq(approvalDecision.id, input.decisionId),
+            eq(approvalDecision.candidateId, input.candidateId),
+          ),
+        )
+        .for("update");
+      const [row] = await tx
+        .select({
+          decision: approvalDecision,
+          kind: approvalRequest.kind,
+          subject: approvalRequest.subject,
+          contentSha256: approvalRequest.contentSha256,
+          undoId: approvalUndo.id,
+          // Judged by the database clock, the same one that stamped effective_at.
+          effective: sql<boolean>`${approvalDecision.effectiveAt} <= northstar_gate_now()`,
+        })
+        .from(approvalDecision)
+        .innerJoin(approvalRequest, eq(approvalRequest.id, approvalDecision.requestId))
+        .leftJoin(approvalUndo, eq(approvalUndo.decisionId, approvalDecision.id))
+        .where(
+          and(
+            eq(approvalDecision.id, input.decisionId),
+            eq(approvalDecision.candidateId, input.candidateId),
+          ),
+        );
+      if (!row) return err({ kind: "NotFound" });
+      if (row.kind !== input.kind || row.subject !== input.subject) {
+        return err({ kind: "SubjectMismatch" });
+      }
+      if (row.contentSha256 !== input.contentSha256) return err({ kind: "ContentChanged" });
+      if (row.undoId !== null) return err({ kind: "Undone" });
+      if (row.decision.decision !== "approved") return err({ kind: "Rejected" });
+      if (row.effective !== true) {
+        return err({ kind: "UndoWindowOpen", effectiveAt: row.decision.effectiveAt });
+      }
+      return ok({
+        decisionId: row.decision.id,
+        requestId: row.decision.requestId,
+        decidedBy: row.decision.decidedBy as VerifiedApproval["decidedBy"],
+        effectiveAt: row.decision.effectiveAt,
+      });
     });
   });
 }

@@ -36,13 +36,21 @@ ADR-0002; it doesn't amend it.
 5. **One clock: the database's.** No Gate function takes a time. Triggers stamp `requested_at`,
    `decided_at`, `effective_at`, `undone_at` and `created_at` from `northstar_gate_now()`, and
    `verifyApproval` compares `effective_at` with it in SQL, so a gateway or UI clock that runs fast
-   or slow can't shorten the window or record an undo after an action went out. Tests pin the
-   clock with the session setting `northstar.gate_test_now`; application code never sets it.
+   or slow can't shorten the window or record an undo after an action went out. In production the
+   function is plain `clock_timestamp()` with no override; only the PGlite test database replaces
+   it with one pinned by the session setting `northstar.gate_test_now`. `verifyApproval` and the
+   undo trigger lock the same decision row, so an undo at the edge of the window and a gateway's
+   check never overlap. The Gate's checks assume READ COMMITTED (the default isolation level).
 6. **One open request per subject.** A new request for a subject is refused
    (`SubjectAlreadyRequested`, and a trigger as backstop) while an earlier one is pending or
    approved. After Paul rejects it, a new request (e.g. with edited content) is allowed, but a
    subject Paul ever rejected or undid can never be approved by a policy again: asking again must
-   not route around him.
+   not route around him. Undoing an old rejection is refused (`SubjectReopened`) while another
+   request for the subject is open, so the queue never holds two requests for one subject.
+   **A subject is one send:** one application package, one email draft, one outreach message,
+   not a job or a thread. A new version is a new subject. An approved subject stays approved for
+   good, so a gateway that gets `ContentChanged` must turn it into a `needs_human` item (ADR-0007),
+   never retry it silently. A "withdrawn" record that closes an approved request is a follow-up.
 7. **Policies are whole sets.** Saving rules writes a new `approval_policy_set` row; the newest
    (highest `version`) is in force, older ones stay so each policy decision shows the exact rules
    it used. No set, or an empty one, means everything waits for Paul. Stored rules are parsed

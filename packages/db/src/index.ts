@@ -20,6 +20,7 @@ export {
   requestApproval,
   type SubjectAlreadyRequested,
   type SubjectMismatch,
+  type SubjectReopened,
   setApprovalPolicies,
   type UndoError,
   type Undone,
