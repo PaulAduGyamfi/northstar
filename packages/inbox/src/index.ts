@@ -56,6 +56,7 @@ export {
 } from "./prefilter.js";
 export { checkMailProvenance, type ProvenanceFailure } from "./provenance.js";
 export {
+  type CandidatePick,
   type Catcher,
   createCatcher,
   DEFAULT_WINDOW_MS,
@@ -75,4 +76,12 @@ export {
   type LinkCheck,
   type LinkRefusal,
 } from "./verify/link-safety.js";
+// The verification-extract fallback (NS-149, VER-003): off by default.
+export {
+  modelPick,
+  VERIFICATION_EXTRACT_VERSION,
+  VerificationChoice,
+  type VerificationExtractInput,
+  verificationExtractRoute,
+} from "./verify/model-pick.js";
 export { VerificationSecret } from "./verify/secret.js";

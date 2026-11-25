@@ -23,8 +23,11 @@ pattern rules validate what it returns.
    are several, otherwise the links):
    - a valid index picks that candidate; a link must still pass `checkLink` against the window's
      link hosts (VER-004), or the window becomes `needs_human` (`link_host_not_allowed`);
-   - null, an index out of range, a pick that throws, or a window that closed while waiting
-     ends as `needs_human` (`ambiguous_content`), exactly as without a fallback;
+   - null, an index out of range, or a pick that throws ends as `needs_human`
+     (`ambiguous_content`), exactly as without a fallback (a throw is flagged on the span);
+   - if the window changed while the pick waited (a resend restarted it, or another mail settled
+     it), this mail settles nothing and posts no feed line: `no_code_or_link` while the window is
+     still open (it keeps waiting for the new code), `not_verification` once it is gone;
    - the span records the outcome and whether the model was asked, never the code or link.
 3. **Off by default** (ADR-0016 item 8): `modelPick({ gateway, enabled })` returns a pick that
    answers null without a call unless `enabled` is true, and no caller enables it yet. Fixtures
@@ -35,6 +38,8 @@ pattern rules validate what it returns.
 - [ ] Two codes in a body: with a pick choosing index 1, the second code is returned as a
       `VerificationSecret`; with no pick or a null pick, `needs_human` (`ambiguous_content`).
 - [ ] An index out of range, or a pick that throws, ends as `needs_human` (`ambiguous_content`).
+- [ ] A window restarted or settled while the pick waited gets no result and no feed line from
+      this mail, and a restarted one still verifies on a later mail.
 - [ ] Two links: a chosen link on a non-allowed host is `needs_human` (`link_host_not_allowed`).
 - [ ] A message that isn't ambiguous never calls `pick`.
 - [ ] `modelPick` is off by default and makes no call; it maps every gateway outcome; the route

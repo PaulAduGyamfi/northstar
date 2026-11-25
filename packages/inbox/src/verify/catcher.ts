@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { trace } from "@opentelemetry/api";
 import { isAuthenticatedSender, underDomain } from "../prefilter.js";
-import { extractVerification } from "./extract.js";
+import { extractVerification, htmlToText } from "./extract.js";
 import { checkLink, type LinkRefusal } from "./link-safety.js";
 import { VerificationSecret } from "./secret.js";
 
@@ -76,11 +76,34 @@ export type TimeoutResult =
     }
   | { action: "closed"; windowId: string };
 
+// Chooses one of several candidates plain code found in an ambiguous message (NS-149, VER-003):
+// an index into `candidates`, or null. It only chooses, never invents: the catcher still checks
+// the choice (a link must pass checkLink). modelPick (model-pick.ts) is the model-backed one.
+export type CandidatePick = (input: {
+  body: string;
+  kind: "code" | "link";
+  candidates: string[];
+}) => Promise<number | null>;
+
 export interface Catcher {
   open(spec: WindowSpec): VerificationWindow;
   offer(message: VerificationMessage): OfferResult;
+  // offer, but ambiguous content is put to `pick` before it becomes needs_human.
+  offerAssisted(message: VerificationMessage, pick: CandidatePick): Promise<OfferResult>;
   timeout(windowId: string): TimeoutResult;
 }
+
+// What offer decided, or the ambiguous candidates still to be chosen among.
+type Decision =
+  | { done: OfferResult }
+  | {
+      ambiguous: {
+        window: VerificationWindow;
+        kind: "code" | "link";
+        candidates: string[];
+        body: string;
+      };
+    };
 
 export const DEFAULT_WINDOW_MS = 10 * 60_000; // VER-001's default
 export const MAX_WINDOW_MS = 30 * 60_000; // a code older than this is no use to anyone
@@ -123,7 +146,13 @@ export function createCatcher(deps: { now: () => Date; newId?: () => string }): 
   const tracer = trace.getTracer("@northstar/inbox");
 
   // One span per decision, with ids and outcome only: never the code, link, subject or sender.
-  function record(w: VerificationWindow, kind: "code" | "link" | "none", outcome: string): void {
+  function record(
+    w: VerificationWindow,
+    kind: "code" | "link" | "none",
+    outcome: string,
+    assisted = false,
+    pickError = false,
+  ): void {
     tracer
       .startSpan("verification.catch", {
         attributes: {
@@ -133,6 +162,11 @@ export function createCatcher(deps: { now: () => Date; newId?: () => string }): 
           "verification.purpose": w.purpose,
           "verification.kind": kind,
           "verification.outcome": outcome,
+          // Only when a pick (the model fallback) was asked; never what it chose.
+          ...(assisted ? { "verification.assisted": true } : {}),
+          // The pick threw (model down, transport error), as opposed to answering null. A flag
+          // only: the error's message could quote the email.
+          ...(pickError ? { "verification.pick_error": true } : {}),
         },
       })
       .end();
@@ -196,9 +230,10 @@ export function createCatcher(deps: { now: () => Date; newId?: () => string }): 
     kind: "link" | "none",
     reason: "link_host_not_allowed" | "ambiguous_content" | "message_too_large",
     refusal?: LinkRefusal,
+    assisted = false,
   ): OfferResult {
     close(w);
-    record(w, kind, reason);
+    record(w, kind, reason, assisted);
     return {
       status: "needs_human",
       windowId: w.id,
@@ -208,45 +243,110 @@ export function createCatcher(deps: { now: () => Date; newId?: () => string }): 
     };
   }
 
-  function verified(w: VerificationWindow, kind: "code" | "link", value: string): OfferResult {
+  function verified(
+    w: VerificationWindow,
+    kind: "code" | "link",
+    value: string,
+    assisted = false,
+  ): OfferResult {
     close(w);
-    record(w, kind, "verified");
+    record(w, kind, "verified", assisted);
     const secret = new VerificationSecret(value);
     return { status: "verified", windowId: w.id, kind, secret, feedLine: verifiedLine(w) };
   }
 
-  function offer(message: VerificationMessage): OfferResult {
-    if (usedMessages.has(message.messageId)) return { status: "not_verification" };
+  // A code or link from this window: a link must pass the host check first (VER-004).
+  function deliver(
+    w: VerificationWindow,
+    kind: "code" | "link",
+    value: string,
+    assisted = false,
+  ): OfferResult {
+    if (kind === "code") return verified(w, "code", value, assisted);
+    const check = checkLink(value, w.linkHosts);
+    if (!check.ok) {
+      return needsHuman(w, "link", "link_host_not_allowed", check.reason, assisted);
+    }
+    // The parsed form that was checked, not the raw text: another URL parser must not be able
+    // to read a different host out of it.
+    return verified(w, "link", check.href, assisted);
+  }
+
+  function decide(message: VerificationMessage): Decision {
+    if (usedMessages.has(message.messageId)) return { done: { status: "not_verification" } };
     const candidates = [...windows.values()].filter((s) => matches(s, message));
-    if (candidates.length === 0) return { status: "not_verification" };
+    if (candidates.length === 0) return { done: { status: "not_verification" } };
     // Two sessions waiting on the same sender: the mail can't say which one it's for, so neither
     // gets it. Both stay open and time out on their own (VER-006); the spans show why.
     if (candidates.length > 1) {
       for (const s of candidates) record(s.window, "none", "ambiguous_window");
-      return { status: "ambiguous_window" };
+      return { done: { status: "ambiguous_window" } };
     }
     const w = (candidates[0] as State).window;
     usedMessages.set(message.messageId, message.receivedAt.getTime());
 
     if (message.text.length > MAX_BODY_CHARS || (message.html?.length ?? 0) > MAX_BODY_CHARS) {
-      return needsHuman(w, "none", "message_too_large");
+      return { done: needsHuman(w, "none", "message_too_large") };
     }
     const { codes, links } = extractVerification(message.text, message.html);
     // A code wins over links: verify mails often carry both, and a code needs no navigation.
     if (codes.length > 1 || (codes.length === 0 && links.length > 1)) {
-      return needsHuman(w, "none", "ambiguous_content");
+      const body = message.text.trim() !== "" ? message.text : htmlToText(message.html ?? "");
+      return codes.length > 1
+        ? { ambiguous: { window: w, kind: "code", candidates: codes, body } }
+        : { ambiguous: { window: w, kind: "link", candidates: links, body } };
     }
-    if (codes.length === 1) return verified(w, "code", codes[0] as string);
-    if (links.length === 1) {
-      const check = checkLink(links[0] as string, w.linkHosts);
-      if (!check.ok) return needsHuman(w, "link", "link_host_not_allowed", check.reason);
-      // The parsed form that was checked, not the raw text: another URL parser must not be able
-      // to read a different host out of it.
-      return verified(w, "link", check.href);
-    }
+    if (codes.length === 1) return { done: deliver(w, "code", codes[0] as string) };
+    if (links.length === 1) return { done: deliver(w, "link", links[0] as string) };
     // From the right sender but nothing to use (a welcome mail): the window keeps waiting.
     record(w, "none", "no_code_or_link");
-    return { status: "no_code_or_link", windowId: w.id };
+    return { done: { status: "no_code_or_link", windowId: w.id } };
+  }
+
+  function offer(message: VerificationMessage): OfferResult {
+    const d = decide(message);
+    if ("done" in d) return d.done;
+    return needsHuman(d.ambiguous.window, "none", "ambiguous_content");
+  }
+
+  async function offerAssisted(
+    message: VerificationMessage,
+    pick: CandidatePick,
+  ): Promise<OfferResult> {
+    const d = decide(message);
+    if ("done" in d) return d.done;
+    const { window: w, kind, candidates, body } = d.ambiguous;
+    let choice: number | null = null;
+    let pickError = false;
+    try {
+      choice = await pick({ body, kind, candidates });
+    } catch {
+      // The model is down or refused: the same handoff as without a fallback.
+      pickError = true;
+    }
+    // While pick ran, the window may have been settled by another mail or restarted by a resend
+    // (which voids the codes this mail carried). Then this mail settles nothing and posts no feed
+    // line: a restarted window keeps waiting for the new code, a settled one already has its result.
+    if (windows.get(w.id)?.window !== w) {
+      record(w, "none", "window_changed", true, pickError);
+      return windows.has(w.id)
+        ? { status: "no_code_or_link", windowId: w.id }
+        : { status: "not_verification" };
+    }
+    if (pickError) {
+      close(w);
+      record(w, "none", "ambiguous_content", true, true);
+      return {
+        status: "needs_human",
+        windowId: w.id,
+        reason: "ambiguous_content",
+        feedLine: handoffLine(w),
+      };
+    }
+    const chosen =
+      choice !== null && Number.isInteger(choice) && choice >= 0 ? candidates[choice] : undefined;
+    if (chosen === undefined) return needsHuman(w, "none", "ambiguous_content", undefined, true);
+    return deliver(w, kind, chosen, true);
   }
 
   function timeout(windowId: string): TimeoutResult {
@@ -285,5 +385,5 @@ export function createCatcher(deps: { now: () => Date; newId?: () => string }): 
     };
   }
 
-  return { open, offer, timeout };
+  return { open, offer, offerAssisted, timeout };
 }
