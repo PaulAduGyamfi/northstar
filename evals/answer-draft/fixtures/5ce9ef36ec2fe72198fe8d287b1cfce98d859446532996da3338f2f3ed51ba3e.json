@@ -1,0 +1,27 @@
+{
+  "requestSha256": "5ce9ef36ec2fe72198fe8d287b1cfce98d859446532996da3338f2f3ed51ba3e",
+  "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval answer-draft --record.",
+  "response": {
+    "id": "msg_handwritten_2",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-5-5",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"sentences\":[{\"text\":\"Checkout calls to the card processor failed a few times an hour and customers saw errors.\",\"cites\":[{\"id\":\"s-retries\",\"quote\":\"Checkout calls to the card processor failed a few times an hour and customers saw errors.\"}]},{\"text\":\"I owned the checkout service, so I added idempotent retries in Go with a key per payment.\",\"cites\":[{\"id\":\"s-retries\",\"quote\":\"I owned the checkout service.\"},{\"id\":\"s-retries\",\"quote\":\"I added idempotent retries in Go with a key per payment.\"}]},{\"text\":\"Checkout errors dropped by 35% and nobody was charged twice.\",\"cites\":[{\"id\":\"s-retries\",\"quote\":\"Checkout errors dropped by 30% and nobody was charged twice.\"}]}],\"followUps\":[]}",
+        "citations": null
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  }
+}

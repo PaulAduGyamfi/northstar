@@ -34,12 +34,17 @@ All in `packages/profile/src/answer/`, plain code except the route.
      `followUps` (at most two questions for Paul when the evidence is too thin).
    - Effort `medium`, no tools.
 3. **Validation** (`validate.ts`, `validateAnswerDraft(draft, evidence, limit)`), plain code.
-   Failures name the sentence index and the problem, never the text:
+   Failures name the sentence index, the problem and a word's position, never the text (it is
+   Paul's material or the employer's, and failures reach the caller's events):
    - every sentence cites at least one item, and each cited id is in the evidence given;
-   - each cite's quote appears verbatim (after `normalize`) in that item's text;
-   - every number in a sentence appears in that sentence's quotes;
-   - every capitalised word in a sentence except its first word and "I" appears, as a whole word,
-     in the text of an item it cites (no invented employers, tools or names);
+   - each cite's quote is in that item's text **as whole words** (after `normalize`), so a quote
+     can't be cut from inside a number ("2 engineers" out of "12 engineers"), and it is at least
+     two words long;
+   - every number in a sentence, in digits or in words ("twenty", "dozen", "double"), appears in
+     that sentence's own quotes;
+   - every capitalised word in a sentence, except "I" and its contractions, appears as a whole
+     word in an item the sentence cites (no invented employers, tools or names). The first word
+     is exempt only when it is an ordinary opener or its lower-case form is in the cited text;
    - with a limit, the joined answer fits it (never cut: too long fails);
    - at least one sentence.
 
@@ -54,15 +59,20 @@ All in `packages/profile/src/answer/`, plain code except the route.
    - An `Ok` draft is validated. A failing one becomes `needs_human` with its failures and is
      never returned as a draft.
    - It returns the call record for the caller's domain event. Nothing stores or sends.
-5. **Eval** `evals/answer-draft/`: synthetic cases, a grader that runs `validateAnswerDraft` and
-   each case's expectations, and **hand-written fixtures**, each marked
-   `"handWritten": "NS-135 …"` with a `msg_handwritten_…` id.
-   - The fixtures are written by `evals/src/sets/answer-draft-handwritten.ts` through
-     `createRecordingClient`, so their request keys are the real ones.
+5. **Eval** `evals/answer-draft/`:
+   - Synthetic cases, and a grader that runs `validateAnswerDraft` plus each case's
+     expectations. Two injection cases put a claim in the question, once in digits and once in
+     words.
+   - **Hand-written fixtures**, each marked `"handWritten": "…"` with a `msg_handwritten_…` id.
+     Their outputs are in `evals/answer-draft/handwritten.jsonl`.
+   - The fixtures are written by a small generic tool (`evals/src/handwrite.ts`, run as
+     `node evals/dist/handwrite-bin.js <route>`). It goes through `createRecordingClient`, so the
+     request keys are the real ones, and it refuses to write where any recorded
+     (not hand-written) fixture exists.
    - One fixture deliberately cites a number its quote doesn't hold, so the grader is seen to
      fail it.
-   - The baseline is **provisional**: it is the replay of the hand-written fixtures, not a model
-     measurement.
+   - The baseline (7/8) is **provisional**: it is the replay of the hand-written fixtures, not a
+     model measurement.
    - A `needs:paul` issue asks Paul to `--record` real fixtures and run `--live
      --update-baseline`.
 
@@ -85,8 +95,9 @@ All in `packages/profile/src/answer/`, plain code except the route.
 - **Model down, refusing or truncating:** `needs_human` with the reason. A transport error is
   thrown for the caller's retry (llm.md).
 - **The model writes a claim the evidence doesn't support** in words with no number or name
-  ("I led the team" from "we did it"). The validator can't catch the upgraded verb, so Paul's
-  approval (ANS-005) is the backstop, the same limit as ADR-0004. The eval has a case for it.
+  ("I led the team" from "we did it"), or with a name written in lower case ("kubernetes",
+  "iPhone"). The validator can't catch these, so Paul's approval (ANS-005) is the backstop, the
+  same limit as ADR-0004. The eval has a case for the upgraded verb.
 - **Thin evidence:** follow-up questions, and every sentence still has to cite.
 
 ## Observability

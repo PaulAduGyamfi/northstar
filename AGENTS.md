@@ -49,7 +49,8 @@ Exists now:
 - `evals/` (NS-106): the eval harness and CLI. One folder per route arrives with that route
   (`cases.jsonl`, `baseline.json`, `fixtures/`). Real-mail cases go in `evals/**/private/`
   (gitignored). The CLI can't run them yet: it only reads the public `cases.jsonl`. CI runs
-  `eval --all` (replay only).
+  `eval --all` (replay only). Since NS-135 also `handwrite-bin` for a new route's hand-written
+  fixtures (ADR-0016 item 8), marked `handWritten` until Paul records real ones.
 - `packages/prompts/` (NS-110): versioned prompt files (`prompts/<route>/vN.md`), locked by
   hash in `prompts.lock.json`. A test fails if a committed version changes; write `vN+1`.
 - `packages/profile/` (NS-110): resume (TXT/MD/DOCX/PDF) → profile graph via the
@@ -87,6 +88,15 @@ Exists now:
   (`thesis.ts`, plain code: one sentence, cites atoms, every number and capitalised name backed by
   the cited quotes, roles or skills, a plain "N years" by the roles' locked dates). Storage,
   drafting and a CLI are follow-ups.
+- Answer drafting (NS-135, ANS-004) in `packages/profile/src/answer/`:
+  - `selectEvidence` picks Paul's stories and atoms by the question's words (plain code).
+  - The `answer-draft` route drafts from them.
+  - `validateAnswerDraft` requires every sentence to cite a given item with a verbatim quote,
+    and its numbers and capitalised names to come from what it cites.
+  - `draftAnswer` is off by default: its fixtures are hand-written until Paul records real ones.
+    When on, a failing draft becomes `needs_human`.
+
+  It has no caller, CLI or storage yet.
 - `packages/inbox/` (NS-113): read-only Gmail (ADR-0014: `gmail.readonly`, desktop OAuth with
   PKCE, token in memory for one run, never stored), the job-mail pre-filter (headers only; ATS
   senders, job phrases, same-thread follow-ups), confirmation rules, and the `mail-classify` route
@@ -193,6 +203,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter evals eval <route> --live [--update-baseline]` | run it against the real API (costs money; Paul only, needs `ANTHROPIC_API_KEY` in `.env`) |
 | repo root | `pnpm --filter evals eval <route> --record` | call the real API and save fixtures for replay (costs money; Paul only; synthetic inputs only) |
 | repo root | `pnpm --filter evals eval --all` | replay every registered eval against its baseline (what CI runs) |
+| repo root | `pnpm turbo run build --filter=evals... && node evals/dist/handwrite-bin.js <route>` | write a new route's hand-written fixtures from `evals/<route>/handwritten.jsonl` (offline and free; refuses where recorded fixtures exist; ADR-0016 item 8) |
 | repo root | `pnpm --filter @northstar/prompts lock` | add new prompt versions to `prompts.lock.json` (never rewrites an existing hash) |
 | repo root | `pnpm --filter @northstar/profile profile import-resume data/<file> [--reimport]` | import Paul's resume into the profile graph (`--reimport` redoes it even when the file is unchanged) (Paul only: real data, needs `DATABASE_URL` and `ANTHROPIC_API_KEY`; prints counts only) |
 | repo root | `pnpm --filter @northstar/profile profile show` | read the imported profile back (roles, atoms, skills). Paul only: it prints his real profile; agents never run it |
