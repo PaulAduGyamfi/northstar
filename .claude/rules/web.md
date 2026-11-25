@@ -25,3 +25,5 @@ are CSS variables in `apps/web/app/globals.css`.
 - One status vocabulary everywhere, from the application state machine (UX-020).
 - Every score, skip and grade has a "why" (UX-014).
 - No secrets in client code. The browser talks only to the API.
+- A link to a page outside Northstar (an apply URL in "Needs your hands", NS-121) goes through
+  `safeHref` (https only) and opens in a new tab with `rel="noopener noreferrer"`.
