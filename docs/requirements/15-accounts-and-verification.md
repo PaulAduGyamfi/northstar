@@ -51,12 +51,12 @@ stronger controls below.
 | ID | Pri | Phase | Requirement |
 |---|---|---|---|
 | VER-001 | M | P1 | When an apply, sign-up or sign-in step expects an email check, the gateway opens a **verification window** (default 10 min) bound to that session: expected sender domain(s), tenant, purpose. |
-| VER-002 | M | P1 | The Inbox pipeline (Gmail push) routes matching messages straight to the waiting session: sender domain must match the tenant or ATS allowlist, the message must arrive inside the window, and it's consumed once. |
+| VER-002 | M | P1 | The Inbox pipeline (Gmail push) routes matching messages straight to the waiting session, before any inbox triage (INB-012): sender domain must match the tenant or ATS allowlist, the message must arrive inside the window, and it's consumed once. |
 | VER-003 | M | P1 | **Deterministic extraction first:** regex and HTML parsing for codes (4–8 digits/alnum) and verification links. An LLM fallback (extraction only, no tools) runs only on mismatch, and its output is validated by the same pattern rules. |
 | VER-004 | M | P1 | **Link safety:** magic links are opened only if the link's host matches the tenant or ATS allowlist (after resolving redirects). Anything else becomes `needs_human`. |
 | VER-005 | M | P1 | Codes and links are **never logged, never shown in the activity feed, never stored** beyond the session (the feed says "Verified email for Acme (Workday)"). Messages are labeled `Northstar/Verification` and archived after use. |
 | VER-006 | M | P1 | No matching email in the window: retry "resend code" once, then raise `needs_human` with what was expected. |
-| VER-007 | M | P1 | **Tagged applicant address.** When Northstar submits, it uses a plus-address `<you>+ns-<code>@gmail.com` (Gmail delivers it to the normal inbox). `<code>` is a short random tag (6 base32 characters) mapped to the application in the database; it never contains the company name or anything guessable. Where the employer needs an account (ACC-*), the tag is per tenant, because the account email must stay fixed; otherwise it's per application. If a form rejects `+`, use the plain address and rely on INB-009 steps 2–3. Feeds INB-009 and INB-004. |
+| VER-007 | M | P1 | **Tagged applicant address.** When Northstar submits, it uses a plus-address `<you>+ns-<code>@gmail.com` (Gmail delivers it to the normal inbox). `<code>` is a short random tag (6 base32 characters) mapped to the application, or to the tenant, in the database; it never contains the company name or anything guessable. Where the employer needs an account (ACC-*), the tag is per tenant, because the account email must stay fixed; otherwise it's per application. If a form rejects `+`, use the plain address and rely on INB-009 steps 2–3. The tag routes mail; it never proves who sent it (INB-011). Feeds INB-009 and INB-004. |
 
 ### Credential vault (ADR-0010)
 | ID | Pri | Phase | Requirement |
