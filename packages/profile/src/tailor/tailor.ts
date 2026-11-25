@@ -6,8 +6,8 @@ import type { Line, MasterAtom, MasterResume, TailoredResume, TailorJob } from "
 // and never rewords them. Plain code, no model: the same master and job give the same resume.
 
 export type TailorOptions = {
-  // Bullet lines that fit one page (TLR-001, configurable). An inferred default until the PDF
-  // renderer measures the page (spec, open questions).
+  // Bullet lines to keep. The default is a guess at one page; tailorToPages (NS-145) measures the
+  // rendered PDF instead (TLR-001).
   maxLines?: number;
 };
 
