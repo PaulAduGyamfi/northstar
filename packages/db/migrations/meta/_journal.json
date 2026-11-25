@@ -110,8 +110,22 @@
     {
       "idx": 15,
       "version": "7",
-      "when": 1795616405987,
-      "tag": "0015_fit_scoring",
+      "when": 1795616962587,
+      "tag": "0015_approval_gate",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1795616963453,
+      "tag": "0016_approval_append_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795619646075,
+      "tag": "0017_fit_scoring",
       "breakpoints": true
     }
   ]

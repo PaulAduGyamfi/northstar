@@ -32,6 +32,18 @@ export default async function setup(project: TestProject): Promise<() => Promise
   const client = new PGlite({ extensions: { vector } });
   try {
     await migrate(drizzle({ client, schema }), { migrationsFolder });
+    // Test-only: the Gate's clock (migration 0016) becomes pinnable with the session setting
+    // northstar.gate_test_now, so tests move time without sleeping. Production keeps the plain
+    // clock_timestamp() version: no setting can move it there.
+    await client.exec(`
+      CREATE OR REPLACE FUNCTION northstar_gate_now() RETURNS timestamptz
+      LANGUAGE sql VOLATILE AS $$
+        SELECT coalesce(
+          nullif(current_setting('northstar.gate_test_now', true), '')::timestamptz,
+          clock_timestamp()
+        )
+      $$;
+    `);
     const dump = await client.dumpDataDir("none");
     await writeFile(path, Buffer.from(await dump.arrayBuffer()));
   } catch (error) {

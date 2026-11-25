@@ -1,5 +1,5 @@
 {
-  "id": "12dc488f-499f-4bb8-a715-8cbd1e233b17",
+  "id": "9b8ce2eb-ef40-40d3-b0c3-33e035da14c0",
   "prevId": "f5a2cb36-c398-4774-bca1-5d31dae920e6",
   "version": "7",
   "dialect": "postgresql",
@@ -2546,8 +2546,8 @@
       },
       "isRLSEnabled": false
     },
-    "public.fit_score": {
-      "name": "fit_score",
+    "public.approval_decision": {
+      "name": "approval_decision",
       "schema": "",
       "columns": {
         "id": {
@@ -2563,85 +2563,60 @@
           "primaryKey": false,
           "notNull": true
         },
-        "job_id": {
-          "name": "job_id",
+        "request_id": {
+          "name": "request_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "preference_id": {
-          "name": "preference_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "profile_source_id": {
-          "name": "profile_source_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "job_fingerprint": {
-          "name": "job_fingerprint",
+        "decision": {
+          "name": "decision",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "score": {
-          "name": "score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "band": {
-          "name": "band",
+        "decided_by": {
+          "name": "decided_by",
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "policy_set_id": {
+          "name": "policy_set_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rule_name": {
+          "name": "rule_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "reason": {
           "name": "reason",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "stretch": {
-          "name": "stretch",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "components": {
-          "name": "components",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "evidence": {
-          "name": "evidence",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "method": {
-          "name": "method",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scored_at": {
-          "name": "scored_at",
+        "decided_at": {
+          "name": "decided_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": true
+        },
+        "effective_at": {
+          "name": "effective_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "fit_score_candidate_id_candidate_id_fk": {
-          "name": "fit_score_candidate_id_candidate_id_fk",
-          "tableFrom": "fit_score",
+        "approval_decision_candidate_id_candidate_id_fk": {
+          "name": "approval_decision_candidate_id_candidate_id_fk",
+          "tableFrom": "approval_decision",
           "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
@@ -2652,12 +2627,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "fit_score_job_same_candidate_fk": {
-          "name": "fit_score_job_same_candidate_fk",
-          "tableFrom": "fit_score",
-          "tableTo": "job",
+        "approval_decision_request_same_candidate_fk": {
+          "name": "approval_decision_request_same_candidate_fk",
+          "tableFrom": "approval_decision",
+          "tableTo": "approval_request",
           "columnsFrom": [
-            "job_id",
+            "request_id",
             "candidate_id"
           ],
           "columnsTo": [
@@ -2667,27 +2642,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "fit_score_preference_same_candidate_fk": {
-          "name": "fit_score_preference_same_candidate_fk",
-          "tableFrom": "fit_score",
-          "tableTo": "search_preference",
+        "approval_decision_policy_set_same_candidate_fk": {
+          "name": "approval_decision_policy_set_same_candidate_fk",
+          "tableFrom": "approval_decision",
+          "tableTo": "approval_policy_set",
           "columnsFrom": [
-            "preference_id",
-            "candidate_id"
-          ],
-          "columnsTo": [
-            "id",
-            "candidate_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "fit_score_profile_source_same_candidate_fk": {
-          "name": "fit_score_profile_source_same_candidate_fk",
-          "tableFrom": "fit_score",
-          "tableTo": "profile_source",
-          "columnsFrom": [
-            "profile_source_id",
+            "policy_set_id",
             "candidate_id"
           ],
           "columnsTo": [
@@ -2700,41 +2660,125 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "fit_score_key_unique": {
-          "name": "fit_score_key_unique",
+        "approval_decision_id_candidate_unique": {
+          "name": "approval_decision_id_candidate_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "candidate_id",
-            "job_id",
-            "preference_id",
-            "profile_source_id",
-            "job_fingerprint"
+            "id",
+            "candidate_id"
           ]
         }
       },
       "policies": {},
       "checkConstraints": {
-        "fit_score_range": {
-          "name": "fit_score_range",
-          "value": "\"fit_score\".\"score\" between 0 and 100"
+        "approval_decision_decision_valid": {
+          "name": "approval_decision_decision_valid",
+          "value": "\"approval_decision\".\"decision\" in ('approved', 'rejected')"
         },
-        "fit_score_band_valid": {
-          "name": "fit_score_band_valid",
-          "value": "\"fit_score\".\"band\" in ('queue', 'suggest', 'skip')"
+        "approval_decision_decided_by_valid": {
+          "name": "approval_decision_decided_by_valid",
+          "value": "\"approval_decision\".\"decided_by\" in ('user', 'policy')"
         },
-        "fit_score_method_valid": {
-          "name": "fit_score_method_valid",
-          "value": "\"fit_score\".\"method\" in ('rules')"
+        "approval_decision_policy_fields": {
+          "name": "approval_decision_policy_fields",
+          "value": "(\"approval_decision\".\"decided_by\" = 'policy' and \"approval_decision\".\"decision\" = 'approved' and \"approval_decision\".\"policy_set_id\" is not null and \"approval_decision\".\"rule_name\" is not null)\n        or (\"approval_decision\".\"decided_by\" = 'user' and \"approval_decision\".\"policy_set_id\" is null and \"approval_decision\".\"rule_name\" is null)"
         },
-        "fit_score_fingerprint_format": {
-          "name": "fit_score_fingerprint_format",
-          "value": "\"fit_score\".\"job_fingerprint\" ~ '^[0-9a-f]{64}$'"
+        "approval_decision_reject_has_reason": {
+          "name": "approval_decision_reject_has_reason",
+          "value": "\"approval_decision\".\"decision\" <> 'rejected' or (\"approval_decision\".\"reason\" is not null and length(trim(\"approval_decision\".\"reason\")) > 0)"
+        },
+        "approval_decision_effective_after_decided": {
+          "name": "approval_decision_effective_after_decided",
+          "value": "\"approval_decision\".\"effective_at\" >= \"approval_decision\".\"decided_at\""
         }
       },
       "isRLSEnabled": false
     },
-    "public.search_preference": {
-      "name": "search_preference",
+    "public.approval_policy_set": {
+      "name": "approval_policy_set",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "version": {
+          "name": "version",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "approval_policy_set_version_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rules": {
+          "name": "rules",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "approval_policy_set_candidate_id_candidate_id_fk": {
+          "name": "approval_policy_set_candidate_id_candidate_id_fk",
+          "tableFrom": "approval_policy_set",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "approval_policy_set_id_candidate_unique": {
+          "name": "approval_policy_set_id_candidate_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "candidate_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "approval_policy_set_rules_array": {
+          "name": "approval_policy_set_rules_array",
+          "value": "jsonb_typeof(\"approval_policy_set\".\"rules\") = 'array'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.approval_request": {
+      "name": "approval_request",
       "schema": "",
       "columns": {
         "id": {
@@ -2750,93 +2794,54 @@
           "primaryKey": false,
           "notNull": true
         },
-        "version": {
-          "name": "version",
-          "type": "integer",
+        "kind": {
+          "name": "kind",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "titles": {
-          "name": "titles",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::text[]"
-        },
-        "seniority": {
-          "name": "seniority",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::text[]"
-        },
-        "locations": {
-          "name": "locations",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::text[]"
-        },
-        "remote": {
-          "name": "remote",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::text[]"
-        },
-        "dealbreakers": {
-          "name": "dealbreakers",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::text[]"
-        },
-        "comp_floor": {
-          "name": "comp_floor",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "comp_target": {
-          "name": "comp_target",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "currency": {
-          "name": "currency",
+        "subject": {
+          "name": "subject",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'USD'"
+          "notNull": true
         },
-        "queue_at": {
-          "name": "queue_at",
-          "type": "integer",
+        "content_sha256": {
+          "name": "content_sha256",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": 80
+          "notNull": true
         },
-        "suggest_at": {
-          "name": "suggest_at",
-          "type": "integer",
+        "facts": {
+          "name": "facts",
+          "type": "jsonb",
           "primaryKey": false,
-          "notNull": true,
-          "default": 60
+          "notNull": false
         },
-        "created_at": {
-          "name": "created_at",
+        "actor": {
+          "name": "actor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requested_at": {
+          "name": "requested_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": true
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "search_preference_candidate_id_candidate_id_fk": {
-          "name": "search_preference_candidate_id_candidate_id_fk",
-          "tableFrom": "search_preference",
+        "approval_request_candidate_id_candidate_id_fk": {
+          "name": "approval_request_candidate_id_candidate_id_fk",
+          "tableFrom": "approval_request",
           "tableTo": "candidate",
           "columnsFrom": [
             "candidate_id"
@@ -2850,50 +2855,113 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "search_preference_version_unique": {
-          "name": "search_preference_version_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "candidate_id",
-            "version"
-          ]
-        },
-        "search_preference_id_candidate_unique": {
-          "name": "search_preference_id_candidate_unique",
+        "approval_request_id_candidate_unique": {
+          "name": "approval_request_id_candidate_unique",
           "nullsNotDistinct": false,
           "columns": [
             "id",
             "candidate_id"
           ]
+        },
+        "approval_request_idempotency_unique": {
+          "name": "approval_request_idempotency_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "candidate_id",
+            "idempotency_key"
+          ]
         }
       },
       "policies": {},
       "checkConstraints": {
-        "search_preference_version_positive": {
-          "name": "search_preference_version_positive",
-          "value": "\"search_preference\".\"version\" >= 1"
+        "approval_request_kind_valid": {
+          "name": "approval_request_kind_valid",
+          "value": "\"approval_request\".\"kind\" in ('application_package', 'answer', 'email_reply', 'outreach', 'profile_fix', 'growth_plan', 'prep_plan')"
         },
-        "search_preference_remote_valid": {
-          "name": "search_preference_remote_valid",
-          "value": "\"search_preference\".\"remote\" <@ array['onsite', 'hybrid', 'remote']::text[]"
+        "approval_request_content_sha256_format": {
+          "name": "approval_request_content_sha256_format",
+          "value": "\"approval_request\".\"content_sha256\" ~ '^[0-9a-f]{64}$'"
         },
-        "search_preference_thresholds": {
-          "name": "search_preference_thresholds",
-          "value": "\"search_preference\".\"suggest_at\" between 0 and 100 and \"search_preference\".\"queue_at\" between 0 and 100 and \"search_preference\".\"suggest_at\" <= \"search_preference\".\"queue_at\""
-        },
-        "search_preference_comp_order": {
-          "name": "search_preference_comp_order",
-          "value": "\"search_preference\".\"comp_floor\" is null or \"search_preference\".\"comp_target\" is null or \"search_preference\".\"comp_floor\" <= \"search_preference\".\"comp_target\""
-        },
-        "search_preference_comp_nonnegative": {
-          "name": "search_preference_comp_nonnegative",
-          "value": "coalesce(\"search_preference\".\"comp_floor\", 0) >= 0 and coalesce(\"search_preference\".\"comp_target\", 0) >= 0"
-        },
-        "search_preference_currency_format": {
-          "name": "search_preference_currency_format",
-          "value": "\"search_preference\".\"currency\" ~ '^[A-Z]{3}$'"
+        "approval_request_subject_format": {
+          "name": "approval_request_subject_format",
+          "value": "\"approval_request\".\"subject\" ~ '^[a-z_]+:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.approval_undo": {
+      "name": "approval_undo",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "candidate_id": {
+          "name": "candidate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "decision_id": {
+          "name": "decision_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "undone_at": {
+          "name": "undone_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "approval_undo_candidate_id_candidate_id_fk": {
+          "name": "approval_undo_candidate_id_candidate_id_fk",
+          "tableFrom": "approval_undo",
+          "tableTo": "candidate",
+          "columnsFrom": [
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "approval_undo_decision_same_candidate_fk": {
+          "name": "approval_undo_decision_same_candidate_fk",
+          "tableFrom": "approval_undo",
+          "tableTo": "approval_decision",
+          "columnsFrom": [
+            "decision_id",
+            "candidate_id"
+          ],
+          "columnsTo": [
+            "id",
+            "candidate_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "approval_undo_one_per_decision": {
+          "name": "approval_undo_one_per_decision",
+          "nullsNotDistinct": false,
+          "columns": [
+            "decision_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     }
   },
