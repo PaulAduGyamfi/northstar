@@ -27,6 +27,14 @@ function deps(argv: string[], result?: IngestResult | Error) {
     readText: async () => "Backend Engineer\nGlobex",
     list: async () => [],
     set: async () => ({ ok: true, value: { status: "ready", missingFields: [] } }),
+    boards: {
+      add: async () => ({ status: "added", id: "w1" }),
+      list: async () => [],
+      remove: async () => false,
+      retry: async () => false,
+      poll: async () => ({ boards: 0, added: 0, failed: 0, quarantined: 0 }),
+      wait: async () => false,
+    },
   };
   return { d, printed, calls };
 }
