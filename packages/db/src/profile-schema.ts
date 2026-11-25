@@ -44,7 +44,7 @@ export const profileSource = pgTable(
     supersededAt: timestamp("superseded_at", { withTimezone: true }),
   },
   (t) => [
-    check("profile_source_kind_valid", sql`${t.kind} in ('resume')`),
+    check("profile_source_kind_valid", sql`${t.kind} in ('resume', 'linkedin')`),
     check("profile_source_sha_format", sql`${t.textSha256} ~ '^[0-9a-f]{64}$'`),
     unique("profile_source_id_candidate_unique").on(t.id, t.candidateId),
     // At most one current source of each kind per candidate.

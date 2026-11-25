@@ -16,8 +16,9 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
   (`prompts/<route>/vN+1.md`) plus `pnpm --filter @northstar/prompts lock`; the lock test fails
   if a committed version changes.
 - Register every route's eval set in `evals/src/routes.ts`; CI replays them all.
-- Never run `profile import-resume`, `profile show`, `profile interview` or `profile stories`
-  yourself: they read and print Paul's real resume, profile, answers and stories. Test with the
+- Never run `profile import-resume`, `profile import-linkedin`, `profile show`,
+  `profile interview` or `profile stories` yourself: they read and print Paul's real resume,
+  LinkedIn export, profile, answers and stories. Test with the
   synthetic fixtures; Paul runs the real commands.
 - The `job-extract` route (NS-114) lives in `packages/sources`; its values pass
   `checkJobProvenance` (dropped, never kept, when the page lacks them). Never run `jobs add` on a

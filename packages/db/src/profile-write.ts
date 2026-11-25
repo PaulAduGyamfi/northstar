@@ -15,10 +15,16 @@ import { domainEvent } from "./schema.js";
 
 type Month = string | null;
 
+export const PROFILE_SOURCE_KINDS = ["resume", "linkedin"] as const;
+export type ProfileSourceKind = (typeof PROFILE_SOURCE_KINDS)[number];
+
 // A validated extraction ready to store. packages/profile builds it after the provenance check;
 // this package only stores it, so it has no dependency on the LLM or its schema.
 export type ProfileImportInput = {
   candidateId: CandidateId;
+  // Which document this is (NS-133): the resume, or Paul's LinkedIn data export. Each kind has
+  // its own current source; importing one never supersedes the other. Defaults to the resume.
+  kind?: ProfileSourceKind;
   fileName: string;
   textSha256: string;
   promptVersion: number;
@@ -76,9 +82,9 @@ export type ImportReport =
   | { status: "imported"; sourceId: string; counts: ProfileCounts }
   | { status: "unchanged"; sourceId: string };
 
-// Stores one resume import in a single transaction (ADR-0012 style): the source, every row, and
+// Stores one import (a resume, or since NS-133 a LinkedIn export) in a single transaction (ADR-0012 style): the source, every row, and
 // one profile.imported event with counts only (no resume text, OBS-001). Importing the same text
-// again changes nothing (RES-006); a different text supersedes the current resume source.
+// again changes nothing (RES-006); a different text supersedes the current source of its kind.
 export async function writeProfileImport(db: Db, input: ProfileImportInput): Promise<ImportReport> {
   const x = input.extract;
   // Check role references before touching the database, so a bad extraction writes nothing.
@@ -91,6 +97,7 @@ export async function writeProfileImport(db: Db, input: ProfileImportInput): Pro
   // Skills are unique per source; the same skill twice in one resume is one skill.
   const skills = [...new Set(x.skills.map((s) => s.trim()).filter(Boolean))];
 
+  const kind = input.kind ?? "resume";
   return db.transaction(async (tx) => {
     const [current] = await tx
       .select()
@@ -98,7 +105,7 @@ export async function writeProfileImport(db: Db, input: ProfileImportInput): Pro
       .where(
         and(
           eq(profileSource.candidateId, input.candidateId),
-          eq(profileSource.kind, "resume"),
+          eq(profileSource.kind, kind),
           isNull(profileSource.supersededAt),
         ),
       );
@@ -116,7 +123,7 @@ export async function writeProfileImport(db: Db, input: ProfileImportInput): Pro
       .insert(profileSource)
       .values({
         candidateId: input.candidateId,
-        kind: "resume",
+        kind,
         fileName: input.fileName,
         textSha256: input.textSha256,
       })
@@ -179,9 +186,14 @@ export async function writeProfileImport(db: Db, input: ProfileImportInput): Pro
       aggregate: `candidate:${input.candidateId}`,
       type: "profile.imported",
       actor: "agent:profile-import",
-      reason: "Resume imported into the profile graph",
-      inputsSummary: `resume source ${source.id}`,
+      reason:
+        kind === "linkedin"
+          ? "LinkedIn export imported into the profile graph"
+          : "Resume imported into the profile graph",
+      inputsSummary: `${kind} source ${source.id}`,
       payload: {
+        // Only for a non-resume source, so a resume import's event is as it always was.
+        ...(kind === "resume" ? {} : { kind }),
         promptVersion: input.promptVersion,
         model: input.model,
         counts,
@@ -396,4 +408,44 @@ export async function readThesisProfile(
     atoms,
     skills: skills.map((s) => s.name),
   };
+}
+
+export type SourceRole = {
+  employer: string;
+  title: string;
+  startMonth: string | null;
+  endMonth: string | null;
+  current: boolean;
+};
+
+// The roles of the current import of one kind (NS-133: the LinkedIn export, for `facts check`),
+// in their order, or null before any import of that kind.
+export async function readSourceRoles(
+  db: Db,
+  candidateId: CandidateId,
+  kind: ProfileSourceKind,
+): Promise<SourceRole[] | null> {
+  const [source] = await db
+    .select({ id: profileSource.id })
+    .from(profileSource)
+    .where(
+      and(
+        eq(profileSource.candidateId, candidateId),
+        eq(profileSource.kind, kind),
+        isNull(profileSource.supersededAt),
+      ),
+    );
+  if (!source) return null;
+  const rows = await db
+    .select({
+      employer: role.employer,
+      title: role.title,
+      startMonth: role.startMonth,
+      endMonth: role.endMonth,
+      current: role.isCurrent,
+    })
+    .from(role)
+    .where(and(eq(role.candidateId, candidateId), eq(role.sourceId, source.id)))
+    .orderBy(role.position);
+  return rows;
 }

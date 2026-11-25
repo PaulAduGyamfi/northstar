@@ -1,5 +1,5 @@
 import { CandidateId } from "@northstar/domain";
-import { eq, sql } from "drizzle-orm";
+import { eq, isNull, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { soleCandidate } from "./candidate.js";
 import type { Db } from "./db.js";
@@ -16,6 +16,7 @@ import {
   editLockedFact,
   type ProfileImportInput,
   readProfile,
+  readSourceRoles,
   readThesisProfile,
   writeProfileImport,
 } from "./profile-write.js";
@@ -27,6 +28,7 @@ const UNIQUE_VIOLATION = "23505";
 const FOREIGN_KEY_VIOLATION = "23503";
 const SHA_A = "a".repeat(64);
 const SHA_B = "b".repeat(64);
+const SHA_C = "c".repeat(64);
 
 // The single row a query must return; fails the test loudly instead of using `!`.
 function one<T>(rows: T[]): T {
@@ -178,6 +180,72 @@ describe("writeProfileImport", () => {
     );
     expect((await db.select().from(profileSource)).length).toBe(0);
     expect((await db.select().from(domainEvent)).length).toBe(0);
+  });
+});
+
+describe("LinkedIn imports (NS-133)", () => {
+  const linkedin = (sha = SHA_B): ProfileImportInput => ({
+    ...importInput(sha),
+    kind: "linkedin",
+    fileName: "linkedin-export",
+    promptVersion: 0,
+    model: "none",
+  });
+
+  it("keeps a LinkedIn import beside the resume, superseding neither", async () => {
+    await writeProfileImport(db, importInput());
+    await writeProfileImport(db, linkedin());
+    const sources = await db
+      .select({ kind: profileSource.kind, supersededAt: profileSource.supersededAt })
+      .from(profileSource);
+    expect(sources.map((s) => [s.kind, s.supersededAt])).toEqual([
+      ["resume", null],
+      ["linkedin", null],
+    ]);
+  });
+
+  it("re-importing the same export is a no-op, and a changed one supersedes only LinkedIn", async () => {
+    const resume = await writeProfileImport(db, importInput());
+    const first = await writeProfileImport(db, linkedin());
+    expect(await writeProfileImport(db, linkedin())).toEqual({
+      status: "unchanged",
+      sourceId: first.sourceId,
+    });
+    await writeProfileImport(db, linkedin(SHA_C));
+    const current = await db
+      .select({ id: profileSource.id, kind: profileSource.kind })
+      .from(profileSource)
+      .where(isNull(profileSource.supersededAt));
+    expect(current.map((c) => c.kind).sort()).toEqual(["linkedin", "resume"]);
+    expect(current.some((c) => c.id === resume.sourceId)).toBe(true);
+  });
+
+  it("reads the roles of the current import of one kind, or null before one", async () => {
+    await writeProfileImport(db, importInput());
+    expect(await readSourceRoles(db, candidateId, "linkedin")).toBeNull();
+    await writeProfileImport(db, linkedin());
+    expect(await readSourceRoles(db, candidateId, "linkedin")).toEqual([
+      {
+        employer: "Example Payments",
+        title: "Senior Engineer",
+        startMonth: "2021-03",
+        endMonth: null,
+        current: true,
+      },
+    ]);
+  });
+
+  it("names the kind in its event and keeps the resume reader on the resume", async () => {
+    await writeProfileImport(db, linkedin());
+    const [event] = await db.select().from(domainEvent);
+    expect([event?.reason, (event?.payload as { kind?: string } | undefined)?.kind]).toEqual([
+      "LinkedIn export imported into the profile graph",
+      "linkedin",
+    ]);
+    expect([await readProfile(db, candidateId), await readThesisProfile(db, candidateId)]).toEqual([
+      null,
+      null,
+    ]);
   });
 });
 
