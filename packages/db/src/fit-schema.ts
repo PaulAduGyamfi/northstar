@@ -126,7 +126,7 @@ export const fitScore = pgTable(
     }),
     check("fit_score_range", sql`${t.score} between 0 and 100`),
     check("fit_score_band_valid", sql`${t.band} in (${bandList})`),
-    check("fit_score_method_valid", sql`${t.method} in ('rules')`),
+    check("fit_score_method_valid", sql`${t.method} in ('rules', 'rules_model')`),
     check("fit_score_fingerprint_format", sql`${t.jobFingerprint} ~ '^[0-9a-f]{64}$'`),
   ],
 );

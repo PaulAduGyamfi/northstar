@@ -1,5 +1,6 @@
 import { answerDraftEval } from "./sets/answer-draft.js";
 import { jobExtractEval } from "./sets/job-extract.js";
+import { jobMatchEval } from "./sets/job-match.js";
 import { mailClassifyEval } from "./sets/mail-classify.js";
 import { profileExtractEval } from "./sets/profile-extract.js";
 import { resumeTailorEval } from "./sets/resume-tailor.js";
@@ -10,6 +11,7 @@ import type { RegisteredEval } from "./types.js";
 export const registry: Readonly<Record<string, RegisteredEval>> = {
   "answer-draft": answerDraftEval,
   "job-extract": jobExtractEval,
+  "job-match": jobMatchEval,
   "mail-classify": mailClassifyEval,
   "profile-extract": profileExtractEval,
   "resume-tailor": resumeTailorEval,

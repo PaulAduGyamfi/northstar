@@ -93,7 +93,9 @@ export {
 export { type FeedItem, MAX_FEED_PAGE, readFeed } from "./feed-read.js";
 export * as fitSchema from "./fit-schema.js";
 export {
+  FIT_METHODS,
   type FitBand,
+  type FitMethod,
   type FitScoreInput,
   type FitScoreView,
   PREFERENCE_DEFAULTS,
