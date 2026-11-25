@@ -79,6 +79,11 @@ Exists now:
   PKCE, token in memory for one run, never stored), the job-mail pre-filter (headers only; ATS
   senders, job phrases, same-thread follow-ups), confirmation rules, and the `mail-classify` route
   with a provenance check (every extracted name must be in the email).
+  Since NS-123 also the Verification Catcher's core (`src/verify/`, VER-001…006): verification
+  windows (sender allowlist, 10-minute window, single use), deterministic code and link
+  extraction, the magic-link host check, and resend-once-then-`needs_human`. Codes and links come
+  back in a `VerificationSecret` that prints `[redacted]`. Plain code, windows in memory: no Gmail
+  push, database or model yet.
 - `packages/funnel/` (NS-113): the 9-month backfill, funnel records derived by plain code from
   `funnel_message` and `funnel_manual_row` (`packages/db`, `funnel-schema.ts`), the tracker CSV
   import, the funnel report (Wilson intervals, rejection latency) and the hypothesis board.
