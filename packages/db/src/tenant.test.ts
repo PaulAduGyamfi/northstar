@@ -272,6 +272,14 @@ describe("the consent policy (ACC-008)", () => {
   });
 });
 
+describe("setConsentPolicy's event (NS-198: the feed line)", () => {
+  it("writes one consent.policy_set event as Paul's, with the policy only", async () => {
+    await setConsentPolicy(db, { candidateId, policy: "ask_per_tenant" });
+    const rows = await events("consent.policy_set");
+    expect(rows.map((e) => [e.actor, e.payload])).toEqual([["user", { policy: "ask_per_tenant" }]]);
+  });
+});
+
 describe("recordConsent (ACC-008)", () => {
   it("keeps the notice's text, URL and hash, and an event with the hash only", async () => {
     await register();

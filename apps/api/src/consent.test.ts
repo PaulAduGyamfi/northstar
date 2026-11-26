@@ -118,6 +118,22 @@ describe("the consent policy", () => {
   });
 });
 
+describe("when the database can't be read", () => {
+  it("answers 503 for the policy, the notice list and a notice's text", async () => {
+    const down = async () => {
+      throw new Error("database down");
+    };
+    ports.readPolicy = down;
+    ports.listConsents = down;
+    ports.readConsentText = down;
+    expect([
+      (await get("/settings/consent-policy")).status,
+      (await get("/accounts/consents")).status,
+      (await get(`/accounts/consents/text?recordId=${R1}`)).status,
+    ]).toEqual([503, 503, 503]);
+  });
+});
+
 describe("accepted notices", () => {
   it("lists each notice's tenant, kind, link and time, without its text", async () => {
     const res = await get("/accounts/consents");
@@ -143,6 +159,17 @@ describe("accepted notices", () => {
       RECORDS.map((r) => ({ ...r, text: TEXT, accountEmail: "applicant@example.com" }));
     const body = (await get("/accounts/consents")).body;
     expect(body).not.toMatch(/Candidate Privacy Notice|applicant@/);
+  });
+
+  it("refuses a record id that isn't a uuid with 400, before reading anything", async () => {
+    let read = 0;
+    ports.readConsentText = async () => {
+      read++;
+      return TEXT;
+    };
+    expect([(await get("/accounts/consents/text?recordId=not-an-id")).status, read]).toEqual([
+      400, 0,
+    ]);
   });
 
   it("gives one notice's text on request, and 404 for one Paul doesn't have", async () => {

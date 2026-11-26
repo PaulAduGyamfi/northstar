@@ -31,6 +31,22 @@ export default async function AccountsPage() {
     readApi(deps, "/system/health", HealthBody),
   ]);
   if (accounts.kind === "signed_out") redirect("/sign-in");
+  // The API is down: say so and show nothing else (web.md), as the pipeline page does.
+  if (accounts.kind === "unreachable") {
+    return (
+      <>
+        <PillNav current="/settings/accounts" health={dotStatus(health)} />
+        <main className="page">
+          <div className="card">
+            <h1>Accounts</h1>
+            <p className="muted">
+              The Northstar API isn't answering. Start it with pnpm --filter @northstar/api start.
+            </p>
+          </div>
+        </main>
+      </>
+    );
+  }
   const rows = accounts.kind === "ok" ? accountRows(accounts.body.items) : [];
   const notices = consents.kind === "ok" ? noticeRows(consents.body.items) : [];
   return (
@@ -40,11 +56,7 @@ export default async function AccountsPage() {
         <div className="card">
           <h1>Accounts</h1>
           {accounts.kind !== "ok" ? (
-            <p className="muted">
-              {accounts.kind === "unreachable"
-                ? "The Northstar API isn't answering. Start it with pnpm --filter @northstar/api start."
-                : "Your employer accounts can't be read right now."}
-            </p>
+            <p className="muted">Your employer accounts can't be read right now.</p>
           ) : rows.length === 0 ? (
             <p className="muted">
               No employer accounts yet. One appears when an application needs a sign-up.
