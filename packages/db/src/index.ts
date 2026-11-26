@@ -321,6 +321,8 @@ export {
   type StageCounts,
 } from "./origin-write.js";
 // A package's inputs and the needs-you event (NS-227).
+// The Gate derives a package's policy facts itself (NS-213).
+export { type BankClaim, requestPackageApproval } from "./package-approval.js";
 export { type PackageInputs, readPackageInputs, readPackageRounds } from "./package-read.js";
 export { type PackageNeedsHumanRefusal, recordPackageNeedsHuman } from "./package-write.js";
 export * as passkeySchema from "./passkey-schema.js";

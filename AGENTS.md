@@ -700,6 +700,17 @@ Exists now:
   Gate request and a round after a rejection gets a new one; a crashed round whose inputs changed
   files nothing (`inputs_changed`). `autoApproved` only for a policy's approval at filing. The
   resume goes as `<first>-<last>-resume.pdf`. Nothing calls it yet (the worker, #230).
+  Since NS-213 (slice 1) `filePackage` files through the Gate's own entry point,
+  `requestPackageApproval` (`packages/db`, `package-approval.ts`), which derives the package's
+  policy facts from stored records instead of trusting the producer: the stored fit score, the
+  slice-5 form-seen-before check (only for the package's ATS), each field's words (0 for a
+  choice the stored form lists) and, per field, `new` unless a bank claim verifies (an
+  answerable field of the stored form whose value is exactly the newest version of Paul's banked
+  answer, with only `{company}` filled by a plain short name, `isSafeCompany` in
+  `packages/domain`). A package must name the job's own posting, Paul's stored contact and the
+  newest tailored PDF, or it is refused. Which question a verified answer belongs to, and its
+  exact/high split, are still the producer's. `requestApproval` still accepts facts for packages
+  from other callers (#195).
 - `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
   (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
   decision as an `approval` signal (or `withdrawn`), then runs the `submitApplication` activity

@@ -6,6 +6,7 @@ export * from "./application-status.js";
 export * from "./apply-package.js";
 export * from "./approval.js";
 export * from "./breaker.js";
+export * from "./company-name.js";
 export * from "./consent.js";
 export * from "./domain-event.js";
 export * from "./feed.js";
