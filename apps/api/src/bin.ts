@@ -24,6 +24,7 @@ import {
   readFeedNames,
   readGrowthSettings,
   readGrowthTracks,
+  readHandoffPackage,
   readInboxThreads,
   readPasskey,
   readPreferences,
@@ -72,6 +73,7 @@ import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
 import { consentEndpoints } from "./consent.js";
 import { deadLetterEndpoints } from "./dead-letters.js";
 import { growthEndpoints } from "./growth.js";
+import { handoffPackageEndpoint } from "./handoff-package.js";
 import { markHandoffSubmitted } from "./handoff-ports.js";
 import { handoffEndpoints } from "./handoffs.js";
 import { inboxEndpoints } from "./inbox.js";
@@ -192,6 +194,11 @@ try {
     markSubmitted: async (applicationId, idempotencyKey) =>
       markHandoffSubmitted(db, await candidateId(), applicationId, idempotencyKey),
   });
+  // The handoff pre-fill's read (NS-192), on the extension's own token: one open handoff's
+  // approved package, every check made in packages/db at the moment of the read.
+  const handoffPackage = handoffPackageEndpoint({
+    read: async (handoffId) => readHandoffPackage(db, await candidateId(), handoffId),
+  });
   // Employer accounts (NS-124), read-only from the tenant registry.
   const accounts = accountsEndpoints({
     listTenants: async () => listTenants(db, await candidateId()),
@@ -273,6 +280,7 @@ try {
       ...system,
       ...run,
       ...handoffs,
+      handoffPackage,
       ...accounts,
       ...consent,
       ...approvals,

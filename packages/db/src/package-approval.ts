@@ -6,6 +6,7 @@ import {
   packageSubject,
   parsePackage,
 } from "@northstar/domain";
+import { applicationPackage } from "./application-package-schema.js";
 import { type RequestError, type RequestResult, requestApproval } from "./approval-write.js";
 import type { Db } from "./db.js";
 import { readPackageInputs } from "./package-read.js";
@@ -138,14 +139,40 @@ export async function requestPackageApproval(
   };
   // These reads run before requestApproval's own transaction: a fit or form stored in between
   // only shows on the next package, and the request still pins this package's content.
-  return requestApproval(db, {
-    candidateId: input.candidateId,
-    kind: "application_package",
-    subject: packageSubject(pkg),
-    contentSha256: packageSha256(pkg),
-    facts,
-    actor: input.actor,
-    idempotencyKey: input.idempotencyKey,
+  const sha = packageSha256(pkg);
+  // One transaction (NS-192): the request and the package behind it commit together, so an
+  // approved request always has the exact package to fill from (the Gate's own transaction nests
+  // as a savepoint).
+  return db.transaction(async (tx) => {
+    const scoped = tx as unknown as Db;
+    const filed = await requestApproval(scoped, {
+      candidateId: input.candidateId,
+      kind: "application_package",
+      subject: packageSubject(pkg),
+      contentSha256: sha,
+      facts,
+      actor: input.actor,
+      idempotencyKey: input.idempotencyKey,
+    });
+    if (!filed.ok) return filed;
+    try {
+      await scoped
+        .insert(applicationPackage)
+        .values({
+          candidateId: input.candidateId,
+          requestId: filed.value.requestId,
+          applicationId: pkg.applicationId,
+          contentSha256: sha,
+          package: pkg,
+        })
+        // A replay of the same filing returns the same request: it stores nothing new.
+        .onConflictDoNothing({ target: applicationPackage.requestId });
+    } catch {
+      // A fresh error with no cause: the driver's message lists the insert's parameters, which
+      // hold Paul's contact details and answers.
+      throw new Error("application_package insert failed");
+    }
+    return filed;
   });
 }
 

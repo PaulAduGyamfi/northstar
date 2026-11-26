@@ -1,8 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { CandidateId, type PackageFacts, UNDO_WINDOW_MS } from "@northstar/domain";
+import {
+  CandidateId,
+  type PackageFacts,
+  packageSha256,
+  packageSubject,
+  parsePackage,
+  UNDO_WINDOW_MS,
+} from "@northstar/domain";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { answerContentSha256, saveApprovedAnswer } from "./answer-write.js";
+import { readHandoffPackage } from "./application-package-read.js";
+import { applicationPackage } from "./application-package-schema.js";
 import { applySubmission } from "./apply-schema.js";
 import { approvalRequest } from "./approval-schema.js";
 import { decideApprovals, requestApproval, setApprovalPolicies } from "./approval-write.js";
@@ -10,6 +19,7 @@ import { setContact } from "./contact-write.js";
 import type { Db } from "./db.js";
 import { searchPreference } from "./fit-schema.js";
 import { PREFERENCE_DEFAULTS, saveFitScore, savePreferences } from "./fit-write.js";
+import { applyHandoff, applyHandoffDone } from "./handoff-schema.js";
 import { type JobFormQuestion, jobForm } from "./job-form-schema.js";
 import { saveJobForm } from "./job-form-write.js";
 import { type BankClaim, requestPackageApproval } from "./package-approval.js";
@@ -451,5 +461,246 @@ describe("requestPackageApproval", () => {
       { kind: "InvalidRequest", fields: ["claims"] },
       { kind: "InvalidRequest", fields: ["claims"] },
     ]);
+  });
+});
+
+// The package store (NS-192): filing a package keeps the package itself, so a handoff's
+// pre-fill can read exactly what was approved.
+describe("the stored package", () => {
+  it("is stored with its request, and filing it again stores nothing new", async () => {
+    const p = pkg({ question_1: "Synthetic answer." });
+    const key = randomUUID();
+    const file = () =>
+      requestPackageApproval(db, {
+        candidateId,
+        package: p,
+        claims: [],
+        actor: "system",
+        idempotencyKey: key,
+      });
+    const first = await file();
+    const again = await file();
+    const parsed = parsePackage(p);
+    const rows = await db.select().from(applicationPackage);
+    expect([first.ok, again.ok, rows.length]).toEqual([true, true, 1]);
+    expect(rows[0]).toMatchObject({
+      candidateId,
+      requestId: first.ok ? first.value.requestId : "",
+      applicationId,
+      contentSha256: parsed.ok ? packageSha256(parsed.value) : "",
+      package: p,
+    });
+  });
+
+  it("stores nothing when the Gate refuses the package", async () => {
+    await request({ ...pkg({}), postingId: "999" });
+    expect(await db.select().from(applicationPackage)).toEqual([]);
+  });
+
+  it("can't sit behind a request of another kind or hash, and never changes", async () => {
+    const filed = await request(pkg({}));
+    if (!filed.ok) throw new Error(filed.error.kind);
+    const [stored] = await db.select().from(applicationPackage);
+    const insertWith = (over: Record<string, unknown>) =>
+      db
+        .insert(applicationPackage)
+        .values({
+          candidateId,
+          requestId: filed.value.requestId,
+          applicationId,
+          contentSha256: stored?.contentSha256 ?? "",
+          package: pkg({}) as never,
+          ...over,
+        })
+        .then(
+          () => "stored",
+          () => "refused",
+        );
+    const answer = await requestApproval(db, {
+      candidateId,
+      kind: "answer",
+      subject: `answer:${randomUUID()}`,
+      contentSha256: "d".repeat(64),
+      facts: null,
+      actor: "agent:answers",
+      idempotencyKey: randomUUID(),
+    });
+    const results = [
+      // Another hash than the request pins.
+      await insertWith({ requestId: randomUUID() }),
+      await insertWith({ contentSha256: "a".repeat(64) }),
+      // A request of another kind.
+      await insertWith({
+        requestId: answer.ok ? answer.value.requestId : "",
+        contentSha256: "d".repeat(64),
+        requestKind: "answer",
+      }),
+      await db
+        .update(applicationPackage)
+        .set({ contentSha256: "b".repeat(64) })
+        .then(
+          () => "changed",
+          () => "refused",
+        ),
+      await db.delete(applicationPackage).then(
+        () => "deleted",
+        () => "refused",
+      ),
+    ];
+    expect(results).toEqual(["refused", "refused", "refused", "refused", "refused"]);
+  });
+});
+
+// The handoff pre-fill's read (NS-192): one open handoff's approved package, checked on read.
+describe("readHandoffPackage", () => {
+  const APPLY_URL = "https://boards.greenhouse.io/example/jobs/4012345";
+
+  // Paul approves the request; the clock moves past the undo window unless told not to.
+  async function approve(requestId: string, pastUndo = true): Promise<string> {
+    const decided = await decideApprovals(db, {
+      candidateId,
+      requestIds: [requestId],
+      decision: "approve",
+    });
+    const result = decided.ok ? decided.value[0]?.result : undefined;
+    if (!result?.ok) throw new Error("not approved");
+    if (pastUndo) await setClock(new Date(clock.getTime() + UNDO_WINDOW_MS + 60_000));
+    return result.value.decisionId;
+  }
+
+  // A submission a CAPTCHA stopped, and its handoff, as the Apply Gateway records them.
+  async function handoffFor(decisionId: string): Promise<string> {
+    const [sub] = await db
+      .insert(applySubmission)
+      .values({
+        candidateId,
+        applicationId,
+        decisionId,
+        ats: "greenhouse",
+        requisitionKey: `greenhouse:${randomUUID()}`,
+        idempotencyKey: `application:${applicationId}:submit:${randomUUID()}`,
+        status: "needs_human",
+        reason: "captcha",
+        startedAt: clock,
+        finishedAt: clock,
+      })
+      .returning({ id: applySubmission.id });
+    const [h] = await db
+      .insert(applyHandoff)
+      .values({ candidateId, submissionId: sub?.id ?? "", applyUrl: APPLY_URL, createdAt: clock })
+      .returning({ id: applyHandoff.id });
+    return h?.id ?? "";
+  }
+
+  async function filedAndApproved(
+    fields: Record<string, string | string[]> = { question_1: "Synthetic answer." },
+  ) {
+    const p = pkg(fields);
+    const filed = await request(p);
+    if (!filed.ok) throw new Error(filed.error.kind);
+    return { p, handoffId: await handoffFor(await approve(filed.value.requestId)) };
+  }
+
+  it("gives an open handoff's approved package: link, ATS, contact and fields", async () => {
+    const { handoffId } = await filedAndApproved({
+      question_1: "Synthetic answer.",
+      question_2: "Yes",
+    });
+    expect(await readHandoffPackage(db, candidateId, handoffId)).toEqual({
+      ok: true,
+      value: {
+        handoffId,
+        applicationId,
+        ats: "greenhouse",
+        applyUrl: APPLY_URL,
+        contact: CONTACT,
+        fields: { question_1: "Synthetic answer.", question_2: "Yes" },
+      },
+    });
+  });
+
+  it("reads another candidate's handoff, or one that doesn't exist, as not found", async () => {
+    const { handoffId } = await filedAndApproved();
+    const other = await seedApplication(db, "awaiting_approval");
+    const results = [
+      await readHandoffPackage(db, CandidateId.parse(other.candidateId), handoffId),
+      await readHandoffPackage(db, candidateId, randomUUID()),
+      await readHandoffPackage(db, candidateId, "not-a-uuid"),
+    ];
+    expect(results).toEqual([
+      { ok: false, error: { kind: "NotFound" } },
+      { ok: false, error: { kind: "NotFound" } },
+      { ok: false, error: { kind: "NotFound" } },
+    ]);
+  });
+
+  it("refuses a handoff Paul already closed", async () => {
+    const { handoffId } = await filedAndApproved();
+    await db
+      .insert(applyHandoffDone)
+      .values({ candidateId, handoffId, outcome: "gave_up", doneAt: clock });
+    expect(await readHandoffPackage(db, candidateId, handoffId)).toEqual({
+      ok: false,
+      error: { kind: "Closed" },
+    });
+  });
+
+  it("says there is no package for a request filed without one", async () => {
+    const p = parsePackage(pkg({}));
+    if (!p.ok) throw new Error("bad package");
+    const filed = await requestApproval(db, {
+      candidateId,
+      kind: "application_package",
+      subject: packageSubject(p.value),
+      contentSha256: packageSha256(p.value),
+      facts: null,
+      actor: "system",
+      idempotencyKey: randomUUID(),
+    });
+    if (!filed.ok) throw new Error(filed.error.kind);
+    const handoffId = await handoffFor(await approve(filed.value.requestId));
+    expect(await readHandoffPackage(db, candidateId, handoffId)).toEqual({
+      ok: false,
+      error: { kind: "NoPackage" },
+    });
+  });
+
+  it("refuses while the approval doesn't verify now, naming the Gate's reason only", async () => {
+    const filed = await request(pkg({}));
+    if (!filed.ok) throw new Error(filed.error.kind);
+    // Inside the undo window, the approval isn't effective yet.
+    const handoffId = await handoffFor(await approve(filed.value.requestId, false));
+    expect(await readHandoffPackage(db, candidateId, handoffId)).toEqual({
+      ok: false,
+      error: { kind: "NotApproved", reason: "UndoWindowOpen" },
+    });
+  });
+
+  it("refuses a stored package that doesn't hash to what the Gate pinned", async () => {
+    const approved = parsePackage(pkg({}));
+    if (!approved.ok) throw new Error("bad package");
+    const filed = await requestApproval(db, {
+      candidateId,
+      kind: "application_package",
+      subject: packageSubject(approved.value),
+      contentSha256: packageSha256(approved.value),
+      facts: null,
+      actor: "system",
+      idempotencyKey: randomUUID(),
+    });
+    if (!filed.ok) throw new Error(filed.error.kind);
+    // A different package stored behind the same pinned hash.
+    await db.insert(applicationPackage).values({
+      candidateId,
+      requestId: filed.value.requestId,
+      applicationId,
+      contentSha256: packageSha256(approved.value),
+      package: { ...approved.value, fields: { question_1: "Not what was approved." } },
+    });
+    const handoffId = await handoffFor(await approve(filed.value.requestId));
+    expect(await readHandoffPackage(db, candidateId, handoffId)).toEqual({
+      ok: false,
+      error: { kind: "Changed" },
+    });
   });
 });

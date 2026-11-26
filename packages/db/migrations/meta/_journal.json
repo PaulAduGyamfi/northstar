@@ -575,6 +575,20 @@
       "when": 1795732292445,
       "tag": "0081_withdrawal_posting_closed_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1795734908447,
+      "tag": "0082_application_package",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1795734924582,
+      "tag": "0083_application_package_append_only",
+      "breakpoints": true
     }
   ]
 }

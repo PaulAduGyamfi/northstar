@@ -645,7 +645,22 @@ Exists now:
   `listOpenHandoffs` and `resolveHandoff` (`handoff-write.ts`, append-only) serve the API's
   `GET /handoffs` and `POST /handoffs/resolve`, and Today shows a "Needs your hands" card. Paul's
   "I submitted it" moves the application `needs_human` → `submitted` once
-  (`application:<id>:handoff:<handoffId>:submitted`). No pre-fill through the extension yet.
+  (`application:<id>:handoff:<handoffId>:submitted`).
+  Since NS-192 (slice 1) the package itself is stored: `requestPackageApproval` files the Gate
+  request and stores the package in append-only `application_package` (`packages/db`,
+  `application-package-schema.ts`) in one transaction. Its foreign key pins the request's id,
+  candidate, kind and content hash, and a replay stores nothing new.
+  - `readHandoffPackage` (`application-package-read.ts`) gives one open handoff's approved package:
+    apply URL, ATS, contact and fields, never files.
+  - It checks, at the moment of the read, that the handoff is the candidate's and open, that the
+    approval behind its submission still verifies (`verifyApproval`), and that the stored package
+    hashes to the pinned content.
+  - Otherwise it says why: `NotFound`, `Closed`, `NoPackage`, `NotApproved` or `Changed`.
+  - The API serves it as `POST /handoffs/package` (`apps/api/src/handoff-package.ts`) on the
+    extension's own token only (a session cookie gets 401, or 403 from a web page), with fixed
+    refusal codes.
+
+  The extension's fill and the `handoff.prefilled` event are slice 2, so no pre-fill happens yet.
 - Verification windows (NS-151, VER-001…006) in `packages/db` (`verification-schema.ts`,
   `verification-write.ts`, append-only): `verification_window`, one `verification_window_restart`
   and one `verification_window_close` per window, and `verification_used_message` (one window per

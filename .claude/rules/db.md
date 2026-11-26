@@ -144,6 +144,12 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `isSafeCompany` name); the package must name the job's own posting, contact and newest tailored
   PDF. New package producers use it, never `requestApproval` with their own facts. The question a
   verified answer belongs to is still the producer's claim.
+- Stored packages (NS-192) are `application_package`, one per `application_package` Gate
+  request, append-only (a trigger), written only by `requestPackageApproval` in the same
+  transaction as the request (a replay stores nothing). Its foreign key names the request's id,
+  candidate, kind and content hash, as `reply_draft`'s does. The package holds Paul's contact
+  details and answers: read it only through `readHandoffPackage`, which re-verifies the approval
+  and the hash, and never copy it into an event, span, log or error.
 - Stored files (NS-227, slice 2) are `stored_file`, append-only (a trigger), one row per candidate
   and SHA-256, written only through `file-write.ts` (`storeFileIn`, inside the caller's
   transaction; today only `saveTailoredResume`). CHECKs make the hash the bytes' own
