@@ -17,7 +17,10 @@ import type { PollGuard } from "./poll.js";
 export type Liveness = PostingOutcome;
 // What one check found, and whether the ATS failed to answer (a 5xx or 429): only that counts
 // against its breaker. A 404, for a posting or a whole board, is the ATS answering.
-export type CheckResult = { liveness: Liveness; failed: boolean };
+// `requested` is false when no request went out for this job (a board another job of the pass
+// already read, or a link with no API): then nothing is reported to the breaker, so one board read
+// counts once however many saved jobs it serves.
+export type CheckResult = { liveness: Liveness; failed: boolean; requested: boolean };
 
 const AshbyIds = z.object({ jobs: z.array(z.object({ id: z.string() })) });
 
@@ -25,6 +28,7 @@ const failedStatus = (status: number) => status === 429 || status >= 500;
 const byStatus = (status: number): CheckResult => ({
   liveness: status === 200 ? "open" : status === 404 ? "closed" : "unavailable",
   failed: failedStatus(status),
+  requested: true,
 });
 
 // The posting a stored link names, when its ATS has a public API we can ask: null otherwise. EU
@@ -40,22 +44,28 @@ export function checkTarget(url: string): AtsTarget | null {
 // One Ashby board's posting ids per org, shared by a pass so a board is read once.
 export type BoardCache = Map<string, Promise<{ ids: Set<string> | null; failed: boolean }>>;
 
+// Never throws: a refused or failed fetch is a failed read, so the cached promise is never a
+// rejection that every later job of the pass would hit.
 async function ashbyIds(
   deps: FetchDeps,
   org: string,
 ): Promise<{ ids: Set<string> | null; failed: boolean }> {
-  // A whole-board listing, so the board cap (as boards/list.ts), not the single-page one.
-  const res = await safeFetch(
-    deps,
-    `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(org)}`,
-    { maxBytes: BOARD_MAX_BYTES },
-  );
-  if (res.status !== 200) return { ids: null, failed: failedStatus(res.status) };
-  const board = AshbyIds.safeParse(safeJson(res.body));
-  return {
-    ids: board.success ? new Set(board.data.jobs.map((j) => j.id.toLowerCase())) : null,
-    failed: false,
-  };
+  try {
+    // A whole-board listing, so the board cap (as boards/list.ts), not the single-page one.
+    const res = await safeFetch(
+      deps,
+      `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(org)}`,
+      { maxBytes: BOARD_MAX_BYTES },
+    );
+    if (res.status !== 200) return { ids: null, failed: failedStatus(res.status) };
+    const board = AshbyIds.safeParse(safeJson(res.body));
+    return {
+      ids: board.success ? new Set(board.data.jobs.map((j) => j.id.toLowerCase())) : null,
+      failed: false,
+    };
+  } catch {
+    return { ids: null, failed: true };
+  }
 }
 
 export async function checkPosting(
@@ -64,7 +74,7 @@ export async function checkPosting(
   boards: BoardCache = new Map(),
 ): Promise<CheckResult> {
   const t = checkTarget(url);
-  if (!t) return { liveness: "unavailable", failed: false };
+  if (!t) return { liveness: "unavailable", failed: false, requested: false };
   const enc = encodeURIComponent;
   switch (t.ats) {
     case "greenhouse": {
@@ -93,16 +103,18 @@ export async function checkPosting(
       // a 404: the org may have moved) is unavailable.
       const key = t.org.toLowerCase();
       let board = boards.get(key);
+      // Only the job that reads the board made a request (and reports it to the breaker).
+      const requested = board === undefined;
       if (!board) {
         board = ashbyIds(deps, t.org);
         boards.set(key, board);
       }
       const { ids, failed } = await board;
-      if (ids === null) return { liveness: "unavailable", failed };
-      return { liveness: ids.has(t.postingId) ? "open" : "closed", failed: false };
+      if (ids === null) return { liveness: "unavailable", failed, requested };
+      return { liveness: ids.has(t.postingId) ? "open" : "closed", failed: false, requested };
     }
     default:
-      return { liveness: "unavailable", failed: false };
+      return { liveness: "unavailable", failed: false, requested: false };
   }
 }
 
@@ -146,6 +158,12 @@ export async function checkPass(deps: CheckPassDeps, now: Date): Promise<CheckPa
     // touches no breaker: it stays as it is.
     if (checkTarget(job.url)?.ats !== job.ats) {
       summary.unchecked++;
+      // An attempt, so it drops back in line rather than taking the front of every pass.
+      try {
+        await deps.store.record(job, "unavailable");
+      } catch {
+        // Our database: the job stays due and the pass goes on.
+      }
       continue;
     }
     const dependency = `source:${job.ats}`;
@@ -200,11 +218,12 @@ function checkOne(
           // A refused or failed fetch: the ATS didn't answer.
           await report({ ok: false, error: errorName(error) });
           span.setStatus({ code: SpanStatusCode.ERROR, message: errorName(error) });
-          result = { liveness: "unavailable", failed: true };
+          result = { liveness: "unavailable", failed: true, requested: true };
           await deps.store.record(job, result.liveness);
           return result.liveness;
         }
-        await report(result.failed ? { ok: false, error: "Unavailable" } : { ok: true });
+        if (result.requested)
+          await report(result.failed ? { ok: false, error: "Unavailable" } : { ok: true });
         span.setAttribute("source.liveness", result.liveness);
         // Every attempt is stored: an unavailable one moves the job back in line (it never
         // counts toward closing it), so a dead link can't stay first and take the whole pass.

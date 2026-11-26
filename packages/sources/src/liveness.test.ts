@@ -29,7 +29,7 @@ describe("checkPosting", () => {
       await check({ [LEVER_API]: { body: { id: "x" } } }, LEVER),
       await check({ [SR_API]: { body: { id: "7440001234567" } } }, SR),
       await check({ [ASHBY_API]: { body: { jobs: [{ id: A1 }] } } }, ASHBY(A1)),
-    ]).toEqual(Array(4).fill({ liveness: "open", failed: false }));
+    ]).toEqual(Array(4).fill({ liveness: "open", failed: false, requested: true }));
   });
 
   it("calls a posting closed only on the ATS's own answer that it's gone", async () => {
@@ -38,7 +38,7 @@ describe("checkPosting", () => {
       await check({}, LEVER),
       await check({}, SR),
       await check({ [ASHBY_API]: { body: { jobs: [{ id: "other" }] } } }, ASHBY(A1)),
-    ]).toEqual(Array(4).fill({ liveness: "closed", failed: false }));
+    ]).toEqual(Array(4).fill({ liveness: "closed", failed: false, requested: true }));
   });
 
   it("never closes on a server error, a gone Ashby board or an unknown link", async () => {
@@ -48,10 +48,10 @@ describe("checkPosting", () => {
       await check({ [ASHBY_API]: { body: "not json" } }, ASHBY(A1)),
       await check({}, "https://www.example.com/careers/1"),
     ]).toEqual([
-      { liveness: "unavailable", failed: true },
-      { liveness: "unavailable", failed: false },
-      { liveness: "unavailable", failed: false },
-      { liveness: "unavailable", failed: false },
+      { liveness: "unavailable", failed: true, requested: true },
+      { liveness: "unavailable", failed: false, requested: true },
+      { liveness: "unavailable", failed: false, requested: true },
+      { liveness: "unavailable", failed: false, requested: false },
     ]);
   });
 
@@ -59,7 +59,7 @@ describe("checkPosting", () => {
     const web = fakeWeb({});
     expect([checkTarget(LEVER_EU), await checkPosting(web.deps, LEVER_EU), web.asked]).toEqual([
       null,
-      { liveness: "unavailable", failed: false },
+      { liveness: "unavailable", failed: false, requested: false },
       [],
     ]);
   });
@@ -139,12 +139,24 @@ describe("checkPass", () => {
       { jobId: "j2", ats: "ashby", url: ASHBY(A2) },
     ]);
     await checkPass(w.deps, NOW);
-    expect([w.asked, w.recorded]).toEqual([
+    expect([w.asked, w.recorded, w.reports]).toEqual([
       [ASHBY_API],
       [
         ["j1", "open"],
         ["j2", "closed"],
       ],
+      [{ dependency: "source:ashby", outcome: { ok: true } }],
+    ]);
+  });
+
+  it("counts one failed Ashby board read against the breaker once, not once per job", async () => {
+    const w = world({ [ASHBY_API]: { status: 503 } }, [
+      { jobId: "j1", ats: "ashby", url: ASHBY(A1) },
+      { jobId: "j2", ats: "ashby", url: ASHBY(A2) },
+    ]);
+    await checkPass(w.deps, NOW);
+    expect(w.reports).toEqual([
+      { dependency: "source:ashby", outcome: { ok: false, error: "Unavailable" } },
     ]);
   });
 
@@ -167,10 +179,14 @@ describe("checkPass", () => {
       { jobId: "j1", ats: "lever", url: LEVER_EU },
       { jobId: "j2", ats: "greenhouse", url: LEVER },
     ]);
-    expect([await checkPass(w.deps, NOW), w.asked, w.reports]).toEqual([
+    expect([await checkPass(w.deps, NOW), w.asked, w.reports, w.recorded]).toEqual([
       { ...zero, unchecked: 2 },
       [],
       [],
+      [
+        ["j1", "unavailable"],
+        ["j2", "unavailable"],
+      ],
     ]);
   });
 
