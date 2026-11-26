@@ -451,6 +451,11 @@ Exists now:
   and `HeldBack` (at most 20 waits, then `gave_up`). Tests run without a server: `decide`, the
   activity on a fake gateway, and Temporal's workflow bundler. No worker process, client or
   restart test yet (the test server download is extra network).
+  Since NS-220 also `staleClaimSweepWorkflow` (on `pipeline`): every 5 minutes (input) it runs the
+  `sweepStaleClaims` activity per candidate (the gateway's sweep with `dbSweepPorts`; 1 minute,
+  3 attempts), continuing as new after 100 passes. A pass that fails all its attempts becomes a
+  dead letter (`recordSweepFailure`: kind `apply.stale_sweep`, reason `sweep_failed`, keyed by
+  run and pass) and the next pass tries again. Nothing starts it until the worker process (#230).
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 
