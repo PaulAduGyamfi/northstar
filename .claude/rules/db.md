@@ -126,6 +126,12 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   the questions' canonical SHA-256 under a lock on the job row), the newest current. Labels and
   choices are the employer's text, bounded before insert (200 fields, 1,000 characters per text,
   500 choices); `job.form_read` carries the job id, ATS and a count only.
+- A package's inputs (NS-227 slice 5) are read only through `readPackageInputs`
+  (`package-read.ts`, read-only, the candidate's own application). `formSeenBefore` counts only
+  another job's current form with the same SHA-256 whose application went out (submitted or
+  later). `recordPackageNeedsHuman` (`package-write.ts`) writes `application.package_needs_human`
+  with the application id, snake_case reason codes and counts only, keyed by the caller's
+  SHA-256 basis so the same inputs record it once.
 - Stored files (NS-227, slice 2) are `stored_file`, append-only (a trigger), one row per candidate
   and SHA-256, written only through `file-write.ts` (`storeFileIn`, inside the caller's
   transaction; today only `saveTailoredResume`). CHECKs make the hash the bytes' own

@@ -1,6 +1,6 @@
 # NS-227 (slice 5): Everything a package needs, read in one place, and the "needs you" event
 
-Status: in progress
+Status: built
 Requirements: APPLY-001 (assemble from stored data), APPLY-003 (a form seen before), APPLY-006
 (what code can't finish goes to Paul, visibly)
 Rules that apply: ADR-0016, `.claude/rules/db.md`, `.claude/rules/tests.md`. Parent: #112, issue
@@ -42,12 +42,12 @@ reason codes only. This slice is the `packages/db` side of that; the caller is p
 3. Exports; AGENTS.md and `.claude/rules/db.md`.
 
 ## Acceptance criteria
-- [ ] The inputs are read for the candidate's own application only, each newest where versions
+- [x] The inputs are read for the candidate's own application only, each newest where versions
       exist.
-- [ ] `formSeenBefore` is true only for the same shape on another job whose application went out.
-- [ ] The needs-you event has ids, codes and counts only, is written once per basis, and refuses a
+- [x] `formSeenBefore` is true only for the same shape on another job whose application went out.
+- [x] The needs-you event has ids, codes and counts only, is written once per basis, and refuses a
       code that isn't a short snake_case word.
-- [ ] `pnpm turbo run lint typecheck test build` passes.
+- [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Out of scope
 - The caller (slice 6): mapping the inputs, the NeedsHuman reasons, `packageId`, filing and the
