@@ -1,6 +1,6 @@
 # NS-227 (slice 3): Paul's contact details for application packages
 
-Status: in progress
+Status: built
 Requirements: APPLY-001 (the package carries the applicant's contact), ANS-001 (Paul's own data,
 never guessed)
 Rules that apply: ADR-0016, `.claude/rules/db.md`, `.claude/rules/tests.md`. Parent: #112, issue
@@ -35,12 +35,12 @@ needs them first.
 5. Docs: AGENTS.md (package note and command row), `.claude/rules/db.md`.
 
 ## Acceptance criteria
-- [ ] A contact is stored once, unchanged saves store nothing, the newest is current, a bad one
+- [x] A contact is stored once, unchanged saves store nothing, the newest is current, a bad one
       is refused with nothing stored, the table is append-only, and the event carries no
       contact text (PGlite).
-- [ ] `profile contact set|show` stores and prints it, says why it refuses, and prints its own
+- [x] `profile contact set|show` stores and prints it, says why it refuses, and prints its own
       usage for a bad command (CLI tests).
-- [ ] `pnpm turbo run lint typecheck test build` passes.
+- [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Decisions made without Paul (ADR-0016)
 - Schema change: a new table, rather than four new profile-setting fields (those are answers to

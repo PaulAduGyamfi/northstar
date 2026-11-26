@@ -126,6 +126,8 @@ export {
   recordConsent,
   setConsentPolicy,
 } from "./consent-write.js";
+// Paul's contact details for application packages (NS-227).
+export { type ContactRefusal, readContact, setContact } from "./contact-write.js";
 export type { Db } from "./db.js";
 // The dead-letter store (NS-175, RES-007).
 export {

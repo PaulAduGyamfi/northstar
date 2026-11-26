@@ -505,6 +505,20 @@
       "when": 1795708531684,
       "tag": "0071_stored_file_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1795711419559,
+      "tag": "0072_profile_contact",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1795711421136,
+      "tag": "0073_profile_contact_append_only",
+      "breakpoints": true
     }
   ]
 }

@@ -98,6 +98,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   there checks they agree). Values and qualifiers are Paul's data: `profile.setting_set` carries
   the field and a qualified flag, `answer.factual_used` the canonical id, kind, field and
   confidence, never a value, qualifier or question text.
+- Paul's contact details (NS-227 slice 3) are `profile_contact`, append-only (a trigger), written
+  only through `contact-write.ts`; the newest row is current and the same details store nothing.
+  `setContact` checks them with `ContactDetails` (`packages/domain`) and the CHECKs' bounds before
+  insert, refusing by field name. Names, email and phone are Paul's data: `profile.contact_set`
+  carries the row id and a phone flag only.
 - Tailored resumes (NS-146) are `tailored_resume`, one row per version per job, append-only (a
   trigger), written only through `tailor-write.ts`; `readTailorInput` reads the current resume
   import (`kind = 'resume'`) and a ready job. The stored resume, validation and score hold Paul's
