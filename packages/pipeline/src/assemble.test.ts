@@ -80,8 +80,63 @@ describe("assemblePackage", () => {
     if (!result.ok) throw new Error(JSON.stringify(result.error));
     expect(result.value.facts).toMatchObject({ fit: 82, adapter: "known", formSeenBefore: true });
     expect(result.value.facts.answers[0]).toEqual({ source: "new", freeTextWords: 0 });
-    expect(result.value.facts.answers[1]?.freeTextWords).toBe(6);
-    expect(result.value.facts.answers[1]?.source).toMatch(/^bank_/);
+    expect(result.value.facts.answers[1]).toEqual({ source: "bank_exact", freeTextWords: 6 });
+  });
+
+  // The policy source of one banked answer, for a form label asking "why this company".
+  const bankSourceFor = (label: string) => {
+    const result = assemblePackage(base({ questions: [q("question_2", label)] }));
+    if (!result.ok) throw new Error(JSON.stringify(result.error));
+    return result.value.facts.answers[0]?.source;
+  };
+
+  it("counts a banked answer as exact only for the canonical question's own wording", () => {
+    expect(bankSourceFor("Why do you want to join Example Co?")).toBe("bank_exact");
+  });
+
+  it("counts a full match in other words as high confidence, not exact", () => {
+    // Matches why-this-company at 1.0, but isn't one of its wordings.
+    expect(bankSourceFor("Why are you interested in working at Example Co?")).toBe(
+      "bank_high_confidence",
+    );
+  });
+
+  it("counts a weak match as new, so Paul reviews it", () => {
+    // Matches why-this-company at 0.75: above the matching floor, below high confidence.
+    expect(bankSourceFor("What makes you want to work at Example Co?")).toBe("new");
+  });
+
+  it("never reuses a banked answer for a negated question", () => {
+    const result = assemblePackage(
+      base({ questions: [q("question_2", "Why would you NOT want to work at Example Co?")] }),
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      error: { unanswered: [{ fieldName: "question_2", reason: "not_matched" }] },
+    });
+  });
+
+  it("counts a cover letter as new text for Paul to review", () => {
+    const result = assemblePackage(
+      base({ questions: [], coverLetter: { fileName: "letter.pdf", sha256: sha("c") } }),
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.error));
+    expect(result.value.facts.answers).toEqual([{ source: "new", freeTextWords: 0 }]);
+  });
+
+  it("refuses a form with two questions under one field name", () => {
+    const result = assemblePackage(
+      base({
+        questions: [
+          q("question_1", "Are you legally authorized to work in Canada?"),
+          q("question_1", "Why do you want to work at Example Co?"),
+        ],
+      }),
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: { kind: "InvalidPackage", fields: ["question_1"] },
+    });
   });
 
   it("needs Paul for every required question it can't answer, and says why", () => {

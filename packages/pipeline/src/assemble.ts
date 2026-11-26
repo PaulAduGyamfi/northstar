@@ -1,5 +1,4 @@
 import {
-  APPLY_ATS,
   type ApplicationPackage,
   type ApplyAts,
   err,
@@ -70,6 +69,8 @@ export type AnswerSource =
       version: number;
       variant: "long" | "short";
       confidence: number;
+      // The label is the canonical question's own wording (see bankSource).
+      exactWording: boolean;
     };
 
 // Why one question can't be answered without Paul.
@@ -96,9 +97,25 @@ export type Assembled = {
 };
 export type NeedsHuman = { kind: "NeedsHuman"; unanswered: Unanswered[] };
 
-// A banked answer counts as exact reuse only when the question matched its canonical wording
-// fully; any other match is "high confidence" for the Gate's policy (APPLY-004).
-const EXACT_MATCH = 1;
+// How a reused banked answer counts for the Gate's policy (APPLY-004). The form's label is the
+// employer's text, so only a close match may let an answer skip Paul's review:
+// - bank_exact: the label is the canonical question's own wording (or one of its examples),
+//   company name aside;
+// - bank_high_confidence: a match at HIGH_CONFIDENCE or above;
+// - new: a weaker match (the 0.6 matching floor is not "high confidence"). It still fills the
+//   field, but Paul reviews it.
+const HIGH_CONFIDENCE = 0.8;
+// A narrative label with a negation ("Why would you NOT…") asks the opposite of the banked
+// question, and the matcher drops "not" as filler: never reuse an answer for it.
+const NEGATION = /\b(?:without|not|no|never)\b|n't\b/i;
+
+// Lowercase, single spaces, no trailing punctuation: how two wordings are compared.
+const plain = (text: string) =>
+  text
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[?.!:\s]+$/, "")
+    .toLowerCase();
 
 type Answer =
   | { ok: true; value: string; source: AnswerSource; freeText: boolean }
@@ -118,9 +135,17 @@ function answer(q: FormQuestion, input: AssemblyInput): Answer {
   // A factual question whose setting is missing or doesn't fit: never drafted around.
   if (factual.reason !== "not_factual") return { ok: false, reason: factual.reason };
   const match = matchQuestion(q.label);
-  if (match.status !== "matched" || narrativeKindOf(match.canonical.id) === null) {
+  if (
+    match.status !== "matched" ||
+    narrativeKindOf(match.canonical.id) === null ||
+    NEGATION.test(q.label)
+  ) {
     return { ok: false, reason: "not_matched" };
   }
+  const company = input.company ?? "";
+  const exactWording = [match.canonical.text, ...match.canonical.examples].some(
+    (w) => plain(w.replaceAll("{company}", company)) === plain(q.label),
+  );
   const entry = input.bank.get(match.canonical.id);
   if (entry === undefined) return { ok: false, reason: "no_bank_answer" };
   const adapted = adaptAnswer(entry, { company: input.company, maxLength: q.maxLength });
@@ -135,6 +160,7 @@ function answer(q: FormQuestion, input: AssemblyInput): Answer {
       version: entry.version,
       variant: adapted.variant,
       confidence: match.confidence,
+      exactWording,
     },
     freeText: true,
   };
@@ -146,6 +172,14 @@ function pickChoice(choices: readonly string[], value: string): string | null {
   return choices.find((c) => norm(c) === norm(value)) ?? null;
 }
 
+// The policy source of one answer (see HIGH_CONFIDENCE).
+function bankSource(source: AnswerSource): PackageFacts["answers"][number]["source"] {
+  // Factual settings are marked for Paul's review (NS-141), so they never count as reuse.
+  if (source.from === "setting") return "new";
+  if (source.exactWording) return "bank_exact";
+  return source.confidence >= HIGH_CONFIDENCE ? "bank_high_confidence" : "new";
+}
+
 const words = (text: string) => text.split(/\s+/).filter((w) => w.length > 0).length;
 
 export function assemblePackage(
@@ -155,9 +189,16 @@ export function assemblePackage(
   if (input.coverLetterRequired && input.coverLetter === null) {
     unanswered.push({ fieldName: "cover_letter", reason: "cover_letter" });
   }
-  const fields: Record<string, string> = {};
+  // Two questions with one field name would overwrite each other: refuse the form as given.
+  const names = input.questions.map((q) => q.fieldName);
+  const duplicates = [...new Set(names.filter((n, i) => names.indexOf(n) !== i))];
+  if (duplicates.length > 0) return err({ kind: "InvalidPackage", fields: duplicates });
+  // A Map, so a field named like an Object property ("__proto__") is kept as data.
+  const fields = new Map<string, string>();
   const sources: AnswerSource[] = [];
   const factsAnswers: PackageFacts["answers"] = [];
+  // No cover-letter drafting exists yet, so any cover letter is new text Paul must review.
+  if (input.coverLetter !== null) factsAnswers.push({ source: "new", freeTextWords: 0 });
   for (const q of input.questions) {
     const found = answer(q, input);
     let value: string | null = null;
@@ -168,19 +209,14 @@ export function assemblePackage(
     }
     if (!found.ok || value === null) {
       // An optional question stays blank rather than guessed; a required one needs Paul.
+      // `reason` is always set here; the fallback only satisfies the type.
       if (q.required) unanswered.push({ fieldName: q.fieldName, reason: reason ?? "not_matched" });
       continue;
     }
-    fields[q.fieldName] = value;
+    fields.set(q.fieldName, value);
     sources.push(found.source);
     factsAnswers.push({
-      // Factual settings are marked for Paul's review (NS-141), so they never count as reuse.
-      source:
-        found.source.from === "setting"
-          ? "new"
-          : found.source.confidence >= EXACT_MATCH
-            ? "bank_exact"
-            : "bank_high_confidence",
+      source: bankSource(found.source),
       freeTextWords: found.freeText && q.choices === null ? words(value) : 0,
     });
   }
@@ -195,13 +231,13 @@ export function assemblePackage(
     contact: input.contact,
     resume: input.resume,
     coverLetter: input.coverLetter,
-    fields,
+    fields: Object.fromEntries(fields),
   });
   if (!parsed.ok) return parsed;
   const facts: PackageFacts = {
     fit: input.fit,
-    // Every ATS a package can name has a deterministic adapter (APPLY-002).
-    adapter: (APPLY_ATS as readonly string[]).includes(input.ats) ? "known" : "generic",
+    // Every ATS a package can name (APPLY_ATS) has a deterministic adapter (APPLY-002).
+    adapter: "known",
     formSeenBefore: input.formSeenBefore,
     answers: factsAnswers,
   };

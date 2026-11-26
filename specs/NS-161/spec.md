@@ -26,9 +26,15 @@ traceable to something he approved, and never a guess.
     (`cover_letter`): no cover-letter drafting exists yet;
   - the package is checked with `parsePackage` and hashed with `packageSha256`.
 - The policy facts it reports: `adapter: "known"` (every `APPLY_ATS` has an adapter), the fit
-  score given, `formSeenBefore` given, and per answer `bank_exact` (a banked answer matched with
-  confidence 1), `bank_high_confidence` (any other banked match) or `new` (factual settings: each
-  one is marked for Paul's review, so they never count as reuse).
+  score given and `formSeenBefore` given. Per answer, the label is the employer's text, so only a
+  close match may skip Paul's review:
+  - `bank_exact`: the label is the canonical question's own wording or one of its examples;
+  - `bank_high_confidence`: any other match at 0.8 or above;
+  - `new`: a weaker match (it still fills the field), every factual setting (each is marked for
+    Paul's review), and any cover letter (no drafting exists yet).
+
+  A narrative label with a negation ("Why would you NOT…") never reuses a banked answer. A form
+  with two questions under one field name is refused (`InvalidPackage`).
 - `filePackage(db, …)` files an assembled package with the Gate: `requestApproval` of kind
   `application_package`, subject `application_package:<packageId>`, its SHA-256 and facts,
   actor `system`, idempotency key `package:<packageId>`. It never submits.
@@ -56,6 +62,10 @@ traceable to something he approved, and never a guess.
 - The caller that loads the inputs (tailored resume file bytes and their storage, contact,
   settings, bank) and the worker activity that runs it.
 - Cover-letter drafting.
+- The caller must read `fit` and `formSeenBefore` from the database (the `fit_score` row and stored
+  form shapes), never from model or extension output; record a `NeedsHuman` result as an event
+  and a visible item; and say how `packageId` is chosen (a new id is a new Gate request; the
+  gateway's requisition dedupe is the backstop).
 
 ## Open questions
 None blocking.
