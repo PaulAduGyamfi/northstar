@@ -23,8 +23,9 @@ same rules: single use, ambiguity refused, one resend, then `needs_human`.
    - `verification_used_message`: a Gmail message id given to a window. It is unique per
      candidate, so one email serves at most one window, across processes.
 2. **The store** (`dbWindowStore(db, candidateId)`): open, read the open windows, claim a
-   message, restart once, close once. The database decides each race through a unique
-   constraint, never a read-then-write.
+   message, restart once, close once. Each is backed by a unique constraint, and restart and
+   close also lock the window row first, so a close can't miss a resend that commits at the
+   same moment.
    - A claim that loses returns false.
    - A second restart or close returns false, and a window closed by another process stays
      closed.
@@ -71,8 +72,12 @@ same rules: single use, ambiguity refused, one resend, then `needs_human`.
 ## Failure modes
 - **The database is down:** every store call throws, and the caller's step fails. No code is
   handed out without a claim and a close.
-- **Two processes:** the unique constraints settle every race. The loser gets
-  `not_verification`, or for `timeout`, the window's current state.
+- **Two processes:** the unique constraints and the window row lock settle every race. The
+  loser gets `not_verification`, or for `timeout`, the window's current state.
+- **A resend while a pick runs:** that mail is `not_verification`. The in-memory catcher says
+  `no_code_or_link` instead. Either way the window keeps waiting.
+- **A tenant that isn't a plain label** ("Acme, Inc."): the stored catcher's `open` refuses it
+  with a plain error before anything is stored.
 
 ## Observability
 - The same `verification.catch` spans as `createCatcher`: ids and outcome only.

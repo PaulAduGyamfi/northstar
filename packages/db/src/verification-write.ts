@@ -12,9 +12,11 @@ import {
 } from "./verification-schema.js";
 
 // The one writer of the verification tables (NS-151, VER-001…006). The process reading mail and
-// the gateway waiting for a code share windows through these functions; every race between them
-// is settled by a unique constraint (one claim per message, one restart and one close per
-// window), never by a read followed by a write. Names, domains, times and Gmail ids only.
+// the gateway waiting for a code share windows through these functions. Each claim, restart and
+// close is backed by a unique constraint (one claim per message, one restart and one close per
+// window). Restart and close also lock the window row first, so a close can't miss a resend that
+// commits at the same moment and hand out a code the resend voided. Names, domains, times and
+// Gmail ids only.
 
 export type WindowPurpose = (typeof WINDOW_PURPOSES)[number];
 export type WindowCloseReason = (typeof WINDOW_CLOSE_REASONS)[number];

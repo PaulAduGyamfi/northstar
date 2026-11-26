@@ -53,6 +53,9 @@ export interface StoredCatcher {
   timeout(windowId: string): Promise<TimeoutResult>;
 }
 
+// Letters, digits, spaces and . & ' - (verification_window's CHECK in @northstar/db).
+const WINDOW_LABEL = /^[A-Za-z0-9][A-Za-z0-9 .&'-]{0,63}$/;
+
 type NeedsHumanReason = "link_host_not_allowed" | "ambiguous_content" | "message_too_large";
 
 export function createStoredCatcher(deps: {
@@ -64,6 +67,16 @@ export function createStoredCatcher(deps: {
   const newId = deps.newId ?? randomUUID;
 
   async function open(spec: WindowSpec): Promise<VerificationWindow> {
+    // The stored window's tenant and ATS appear in the feed, so they must be plain labels (the
+    // same shape as verification_window's CHECK): pass "Acme", not a display name with commas.
+    for (const [what, value] of [
+      ["tenant", spec.tenant],
+      ["ATS", spec.ats],
+    ] as const) {
+      if (!WINDOW_LABEL.test(value)) {
+        throw new Error(`a stored verification window's ${what} must be a plain label like "Acme"`);
+      }
+    }
     const { window, ttlMs } = buildWindow(spec, newId(), deps.now());
     await store.insert(window, ttlMs);
     return window;
@@ -77,13 +90,14 @@ export function createStoredCatcher(deps: {
     kind: "code" | "link" | "none",
     assisted: boolean,
     result: () => OfferResult,
+    pickError = false,
   ): Promise<OfferResult> {
     const won = await store.close(s.window.id, reason, deps.now(), s.resent);
     if (!won) {
-      recordCatch(s.window, kind, "window_changed", assisted);
+      recordCatch(s.window, kind, "window_changed", assisted, pickError);
       return { status: "not_verification" };
     }
-    recordCatch(s.window, kind, reason === "verified" ? "verified" : reason, assisted);
+    recordCatch(s.window, kind, reason, assisted, pickError);
     return result();
   }
 
@@ -93,14 +107,22 @@ export function createStoredCatcher(deps: {
     reason: NeedsHumanReason,
     refusal: LinkRefusal | undefined,
     assisted: boolean,
+    pickError = false,
   ): Promise<OfferResult> {
-    return settle(s, reason, kind, assisted, () => ({
-      status: "needs_human",
-      windowId: s.window.id,
+    return settle(
+      s,
       reason,
-      ...(refusal ? { refusal } : {}),
-      feedLine: handoffLine(s.window),
-    }));
+      kind,
+      assisted,
+      () => ({
+        status: "needs_human",
+        windowId: s.window.id,
+        reason,
+        ...(refusal ? { refusal } : {}),
+        feedLine: handoffLine(s.window),
+      }),
+      pickError,
+    );
   }
 
   // A code or link from this window: a link must pass the host check first (VER-004).
@@ -158,8 +180,9 @@ export function createStoredCatcher(deps: {
     try {
       choice = await pick({ body: found.body, kind: found.which, candidates: found.candidates });
     } catch {
-      // The model is down or refused: the same handoff as without a fallback.
-      return needsHuman(s, "none", "ambiguous_content", undefined, true);
+      // The model is down or refused: the same handoff as without a fallback, flagged on the span
+      // like createCatcher's (never the error's message, which could quote the email).
+      return needsHuman(s, "none", "ambiguous_content", undefined, true, true);
     }
     const chosen =
       choice !== null && Number.isInteger(choice) && choice >= 0

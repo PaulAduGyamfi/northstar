@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { CandidateId, feedLine } from "@northstar/domain";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "./db.js";
 import { candidate, domainEvent } from "./schema.js";
@@ -164,20 +164,37 @@ describe("dbWindowStore", () => {
     expect(await theirs.close(w.id, "verified", at(1_000), false)).toBe(false);
   });
 
-  it("refuses an edit or delete of any verification row", async () => {
+  it("refuses an edit, delete or truncate of every verification table", async () => {
     const store = dbWindowStore(db, candidateId);
     const w = window();
     await store.insert(w, TTL);
     await store.claim("msg-1", w.id, at(1_000));
     await store.restart(w.id, at(TTL), at(2 * TTL));
     await store.close(w.id, "verified", at(TTL + 1), true);
-    expect([
-      await sqlState(db.update(verificationWindow).set({ tenant: "Globex" })),
-      await sqlState(db.delete(verificationUsedMessage)),
-      await sqlState(db.delete(verificationWindowRestart)),
-      await sqlState(db.delete(verificationWindowClose)),
-    ]).toEqual([RESTRICT_VIOLATION, RESTRICT_VIOLATION, RESTRICT_VIOLATION, RESTRICT_VIOLATION]);
+    const tables = [
+      verificationWindow,
+      verificationUsedMessage,
+      verificationWindowRestart,
+      verificationWindowClose,
+    ] as const;
+    const states: (string | null)[] = [];
+    for (const table of tables) {
+      states.push(await sqlState(db.update(table).set({ candidateId })));
+      states.push(await sqlState(db.delete(table)));
+    }
+    for (const name of [
+      "verification_window",
+      "verification_used_message",
+      "verification_window_restart",
+      "verification_window_close",
+    ]) {
+      states.push(await sqlState(db.execute(sql.raw(`truncate ${name} cascade`))));
+    }
+    expect(states).toEqual(Array(12).fill(RESTRICT_VIOLATION));
   });
+
+  // The row lock in restart and close (lockWindow) is reasoned about, not tested: PGlite runs
+  // every statement on one connection, so two transactions never interleave here.
 
   it("refuses a wildcard sender, a markup tenant and a window over 30 minutes", async () => {
     const store = dbWindowStore(db, candidateId);

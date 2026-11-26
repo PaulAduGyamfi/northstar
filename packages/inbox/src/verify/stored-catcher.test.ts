@@ -275,6 +275,28 @@ describe("createStoredCatcher", () => {
     });
   });
 
+  it("flags a pick that threw on its span, and hands Paul the step", async () => {
+    await catcher.open(SPEC);
+    const two = mail({ text: "Your code is 482913. Or use 771204." });
+    const result = await catcher.offerAssisted(two, async () => {
+      throw new Error("model down");
+    });
+    expect(result).toMatchObject({ status: "needs_human", reason: "ambiguous_content" });
+    const span = exporter.getFinishedSpans().find((s) => s.name === "verification.catch");
+    expect(span?.attributes).toMatchObject({
+      "verification.outcome": "ambiguous_content",
+      "verification.assisted": true,
+      "verification.pick_error": true,
+    });
+  });
+
+  it("refuses a tenant that isn't a plain label, storing nothing", async () => {
+    await expect(catcher.open({ ...SPEC, tenant: "Acme, Inc." })).rejects.toThrow(
+      'a stored verification window\'s tenant must be a plain label like "Acme"',
+    );
+    expect(store.rows.size).toBe(0);
+  });
+
   it("records ids and outcomes on its spans, never the code", async () => {
     await catcher.open(SPEC);
     await catcher.offer(mail());
