@@ -37,8 +37,8 @@ writing to the calendar goes through the Gate later.
    moves working hours with the clock.
 
 ## Acceptance criteria
-- [ ] With an empty calendar, two blocks land on the two days before, at the start of working
-      hours, and the warm-up an hour before the interview.
+- [ ] With an empty calendar, two blocks land on the two nearest days (the interview's own day
+      and the day before), at the start of working hours, and the warm-up an hour before.
 - [ ] A busy morning pushes a block to the first free 15-minute start after it.
 - [ ] A fully busy day moves its block to another day. With every day busy, `missingPrep: 2`.
 - [ ] Blocks respect the time zone. For example, 09:00 in Toronto is 14:00 UTC in winter.
@@ -63,3 +63,5 @@ None: pure functions with no caller. The caller (a later slice) emits `interview
 
 ## Decisions (ADR-0016)
 - **The planner lives in `packages/domain`**, as pure code like the growth planner.
+- **"The 3 days before" is the 72 hours before the interview's start**, so the interview's own
+  morning is the nearest day. The first acceptance criterion was worded to match after the build.
