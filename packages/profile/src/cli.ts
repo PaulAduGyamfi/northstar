@@ -550,7 +550,8 @@ async function importSiteCommand(deps: CliDeps, path: string): Promise<number> {
   const parsed = parseSiteText(await deps.readText(path));
   if (!parsed.ok) {
     deps.print(`Not imported: ${name} has lines to fix first. Nothing was written.`);
-    for (const p of parsed.error) deps.print(`  line ${p.line}: ${p.problem}`);
+    for (const p of parsed.error)
+      deps.print(p.line > 0 ? `  line ${p.line}: ${p.problem}` : `  ${p.problem}`);
     return 1;
   }
   const report = await deps.storeImport({

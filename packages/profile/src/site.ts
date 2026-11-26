@@ -14,6 +14,7 @@ import { err, ok, type Result } from "@northstar/domain";
 
 type Extract = ProfileImportInput["extract"];
 
+// `line` is the file's line, or 0 for a problem with the import as a whole.
 export type SiteProblem = { line: number; problem: string };
 
 const MAX_LINE = 500;
@@ -46,7 +47,16 @@ export function parseSiteText(
     if (trimmed === "") return;
     const heading = HEADING.exec(trimmed);
     if (heading) {
-      projects.push({ title: (heading[1] ?? "").trim(), line, link: null, atoms: [] });
+      const title = (heading[1] ?? "").trim();
+      if (title.length > 200 || CONTROL.test(title)) {
+        problems.push({ line, problem: "a project heading must be at most 200 characters" });
+      }
+      projects.push({ title, line, link: null, atoms: [] });
+      return;
+    }
+    // "#", "###" or a bare "##" isn't a project heading: say so rather than store it as a claim.
+    if (trimmed.startsWith("#")) {
+      problems.push({ line, problem: 'only "## " followed by a name starts a project' });
       return;
     }
     const current = projects.at(-1);
@@ -65,8 +75,12 @@ export function parseSiteText(
     }
     // A list marker isn't part of the claim; the rest of the line is, verbatim.
     const body = trimmed.replace(/^[-*]\s+/, "");
-    if (body.length > MAX_LINE || CONTROL.test(body)) {
+    if (body.length > MAX_LINE) {
       problems.push({ line, problem: `a line must be at most ${MAX_LINE} characters` });
+      return;
+    }
+    if (CONTROL.test(body)) {
+      problems.push({ line, problem: "a line can't hold a tab or other control character" });
       return;
     }
     current.atoms.push(body);

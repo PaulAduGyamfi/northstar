@@ -35,15 +35,21 @@ describe("parseSiteText", () => {
     ]);
   });
 
-  it("hashes the text, so the same file twice is the same import and a changed one isn't", () => {
+  it("hashes the text, so a changed file is a new import", () => {
     const sha = (text: string) => {
       const r = parseSiteText(text);
       return r.ok ? r.value.textSha256 : "refused";
     };
-    expect([
-      sha(FILE) === sha(FILE.split("\n").join("\n")),
-      sha(FILE) === sha(`${FILE}\n- One more line`),
-    ]).toEqual([true, false]);
+    expect(sha(FILE) === sha(`${FILE}\n- One more line`)).toBe(false);
+  });
+
+  it("refuses other heading levels and a tab inside a line, with their own messages", () => {
+    const r = parseSiteText("# My site\n## X\n### Sub\n- a\tb\n- fine");
+    expect(r.ok ? [] : r.error).toEqual([
+      { line: 1, problem: 'only "## " followed by a name starts a project' },
+      { line: 3, problem: 'only "## " followed by a name starts a project' },
+      { line: 4, problem: "a line can't hold a tab or other control character" },
+    ]);
   });
 
   it("refuses the whole file and names each bad line", () => {

@@ -53,3 +53,6 @@ message.
   enough to paste from any site, and every atom is a verbatim line.
 - **Atoms have no role:** site projects aren't employment; `role_id` stays null.
 - **Schema change:** one migration widening the kind CHECK.
+- **A file outside the plan:** `packages/domain/src/feed.ts` gets a `site` branch for
+  `profile.imported`, so a site import reads "Imported your personal site" in the feed instead of
+  as a resume import (found in review).

@@ -255,7 +255,28 @@ describe("LinkedIn imports (NS-133)", () => {
 
 describe("personal site imports (NS-209)", () => {
   const site = (sha = SHA_C): ProfileImportInput => ({
-    ...importInput(sha, { ...extract(), roles: [], education: [], atoms: [] }),
+    ...importInput(sha, {
+      ...extract(),
+      roles: [],
+      education: [],
+      skills: [],
+      certifications: [],
+      // A site claim: no role, its project's link as evidence.
+      atoms: [
+        {
+          roleKey: null,
+          what: "Built a budgeting app used by 40 testers",
+          how: [],
+          impact: null,
+          scope: null,
+          startMonth: null,
+          endMonth: null,
+          sourceQuote: "Built a budgeting app used by 40 testers",
+          evidenceLink: "https://example.com/ledgerline",
+        },
+      ],
+      links: [{ label: "Ledgerline", url: "https://example.com/ledgerline" }],
+    }),
     kind: "site",
     fileName: "site.md",
     promptVersion: 0,
@@ -272,6 +293,32 @@ describe("personal site imports (NS-209)", () => {
       .from(profileSource)
       .where(isNull(profileSource.supersededAt));
     expect(current.map((c) => c.kind).sort()).toEqual(["linkedin", "resume", "site"]);
+  });
+
+  it("stores its claims with no role and the project's link, and the same file again stores nothing", async () => {
+    const first = await writeProfileImport(db, site());
+    const again = await writeProfileImport(db, site());
+    const atoms = await db
+      .select({ roleId: experienceAtom.roleId, link: experienceAtom.evidenceLink })
+      .from(experienceAtom);
+    expect([again, atoms]).toEqual([
+      { status: "unchanged", sourceId: first.sourceId },
+      [{ roleId: null, link: "https://example.com/ledgerline" }],
+    ]);
+  });
+
+  it("leaves the resume reader on the resume's atoms when both are imported", async () => {
+    await writeProfileImport(db, importInput());
+    await writeProfileImport(db, site());
+    const profile = await readProfile(db, candidateId);
+    const shown = [
+      ...(profile?.roles.flatMap((r) => r.atoms) ?? []),
+      ...(profile?.unassignedAtoms ?? []),
+    ];
+    expect([shown.includes("Built a budgeting app used by 40 testers"), shown.length]).toEqual([
+      false,
+      extract().atoms.length,
+    ]);
   });
 
   it("names the site in its event and keeps the resume reader on the resume", async () => {
