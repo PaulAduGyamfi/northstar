@@ -1,6 +1,17 @@
 // Public entry of @northstar/inbox (NS-113, ADR-0014): read-only Gmail access, the job-mail
 // pre-filter and the mail-classify route. Since NS-123 also the Verification Catcher's core.
 
+// The read-only Calendar client (NS-240, ADR-0026 Proposed): primary calendar events only.
+export { CalendarAccess } from "./calendar/access.js";
+export {
+  CALENDAR_DEPENDENCY,
+  type CalendarClient,
+  type CalendarDeps,
+  CalendarError,
+  createCalendarClient,
+  EVENT_FIELDS,
+  MAX_WINDOW_DAYS,
+} from "./calendar/client.js";
 export { classifyByRules, type RuleResult } from "./classify-rules.js";
 export { type GoogleConfig, loadGoogleConfig } from "./config.js";
 export {

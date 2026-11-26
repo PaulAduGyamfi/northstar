@@ -369,7 +369,18 @@ Exists now:
 
   ADR-0026 (Proposed) decides `calendar.events.readonly`, on its own consent, under ADR-0014's
   token model, with fields limited to what detection reads. Writes come later through the Gate.
-  No Calendar client, storage or confirm step yet.
+  Since NS-240 (slice 1) also the read-only client (`src/calendar/`):
+  - `createCalendarClient(...).listEvents({ timeMin, timeMax })` reads only the primary calendar's
+    `events.list`, in a window of at most 60 days, with `fields=` limited (`EVENT_FIELDS`), so
+    descriptions, locations and conference links are never fetched.
+  - It maps each timed event to `detectInterview`'s `CalendarEvent`, skipping all-day and
+    incomplete items.
+  - Every read goes through the `calendar` breaker, with the Gmail client's retry rules.
+  - Its token is its own type, `CalendarAccess`, which never stands in for a Gmail token (a type
+    test). A boundary scan of `src/calendar/` refuses writes, other endpoints and calendars, and
+    the excluded fields.
+
+  No consent flow until Paul accepts ADR-0026, and no storage or confirm step yet (#271).
 - Interview prep (NS-170, CAL-003/004), slice 1, plain code in `packages/domain`
   (`interview-prep.ts`): `planPrepBlocks` proposes CAL-003's default prep for one interview, two
   45-minute blocks in the 3 days before (one per day where it can, nearest days first, earliest
