@@ -46,5 +46,6 @@ Rules that apply: ADR-0016, `.claude/rules/gateways.md` (job sources), `.claude/
 - [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Out of scope (rest of #235)
-- The caller that assembles and files a package (slice 2), resume file storage (slice 3), reading
-  the form during `jobs add` and polling, and the compliance and demographic questions.
+- Resume file storage (slice 2, `slice-2.md`), the caller that assembles and files a package
+  (slice 3), reading the form during `jobs add` and polling, and the compliance and demographic
+  questions.

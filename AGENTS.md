@@ -156,7 +156,11 @@ Exists now:
   `--drop` toggles (added skills only), validates, scores on the PDF and diffs, then stores a
   version per job in append-only `tailored_resume` (`tailor-write.ts`: `saveTailoredResume`,
   `readTailoredResumes`; the same content stores nothing). Its `resume.tailored` event carries
-  ids, counts and flags only. No files stored yet (NS-161).
+  ids, counts and flags only. Since NS-227 (slice 2) each new version also stores the PDF it
+  scored in append-only `stored_file` (`packages/db`, `file-write.ts`: one row per candidate and
+  SHA-256, the database checks the hash is the bytes' own, PDF only, at most 5 MiB) and names it
+  in `tailored_resume.pdf_sha256`; an unchanged save keeps the first PDF. `readStoredFile` is the
+  Apply Gateway's `readFile` port, for the worker to bind (#230).
   Since NS-159 also the resume audit (`audit/`, AUD-001/002), plain code with no model or
   database yet:
   - `auditResume(master, targets)` scores impact, verbs, ATS re-parse, length, keyword coverage
