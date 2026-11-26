@@ -50,7 +50,7 @@ function recordingGuard() {
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers });
 
-function getWith(steps: Step[], guard?: CallGuard) {
+function getWith(steps: Step[], guard?: CallGuard, check?: (url: string) => Error | null) {
   const sleeps: number[] = [];
   const { fetch, calls } = scripted(steps);
   const get = createGoogleGet(
@@ -60,6 +60,7 @@ function getWith(steps: Step[], guard?: CallGuard) {
       attrPrefix: "example",
       errorName: "ExampleError",
       makeError: (message, status) => new ExampleError(message, status),
+      ...(check ? { check } : {}),
     },
     {
       authorization: () => "Bearer ya29.test-access-token",
@@ -120,6 +121,14 @@ describe("the shared Google GET", () => {
       new ExampleError("Example answered 503 after 5 retries", 503),
     );
     expect(down.reports).toEqual([{ ok: false, error: "ExampleError" }]);
+  });
+
+  it("sends nothing when the client's check refuses the URL, and reports it as an answer", async () => {
+    const { guard, reports } = recordingGuard();
+    const refused = new ExampleError("refused: not the allowed read", 0);
+    const { run, calls } = getWith([json(200, {})], guard, () => refused);
+    await expect(run()).rejects.toBe(refused);
+    expect([calls.length, reports]).toEqual([0, [{ ok: true }]]);
   });
 
   it("prefers Google's ErrorInfo reason over the legacy reason and the status word", async () => {
