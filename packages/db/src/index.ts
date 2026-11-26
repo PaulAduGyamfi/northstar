@@ -319,7 +319,7 @@ export {
   type StageCounts,
 } from "./origin-write.js";
 // A package's inputs and the needs-you event (NS-227).
-export { type PackageInputs, readPackageInputs } from "./package-read.js";
+export { type PackageInputs, readPackageInputs, readPackageRounds } from "./package-read.js";
 export { type PackageNeedsHumanRefusal, recordPackageNeedsHuman } from "./package-write.js";
 export * as passkeySchema from "./passkey-schema.js";
 // Paul's passkeys (NS-178, ADR-0022).

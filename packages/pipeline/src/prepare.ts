@@ -3,6 +3,7 @@ import {
   type Db,
   type PackageInputs,
   readPackageInputs,
+  readPackageRounds,
   recordPackageNeedsHuman,
   transitionApplication,
 } from "@northstar/db";
@@ -23,22 +24,27 @@ export type PrepareResult =
       kind: "filed";
       packageId: string;
       requestId: string;
-      // A policy Paul set approved it on filing (APPLY-004); otherwise it waits in his queue.
+      // A policy Paul set approved it as it was filed (APPLY-004); otherwise it waits in his queue.
       autoApproved: boolean;
+      // A rerun after a crash found the request already decided: Paul's own approval or rejection.
+      decision: "approved" | "rejected" | null;
       replayed: boolean;
     }
-  // The Gate refused the request, or a status move was refused: the error's kind only.
+  // The Gate refused the request, or a status move was refused: the error's kind only. The caller
+  // (the worker, #230) turns these into a dead letter, so they are never silently dropped.
   | { kind: "file_refused" | "move_refused"; reason: string };
 
-// A version 4 UUID that stands in for the package id while the content hash is taken.
+// The package's hash covers its own id, so the id can't come from a hash that contains it: the
+// content is hashed once under this fixed stand-in (a version 4 UUID), and the id derived from that.
 const PLACEHOLDER_ID = "00000000-0000-4000-8000-000000000000";
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
 
-// The package's id from its application and content: a version 8 (custom) UUID from the hash, so
-// the same inputs always give the same id and a rerun replays the first Gate request.
-export function packageIdFor(applicationId: string, contentSha256: string): string {
-  const hex = sha256(`${applicationId}:${contentSha256}`).slice(0, 32).split("");
+// The package's id from its application, its round and its content: a version 8 (custom) UUID from
+// the hash, so the same inputs in the same round give the same id and a rerun replays the first
+// Gate request. A new round (after Paul rejected a package) gets a new id even for the same content.
+export function packageIdFor(applicationId: string, round: number, contentSha256: string): string {
+  const hex = sha256(`${applicationId}:${round}:${contentSha256}`).slice(0, 32).split("");
   hex[12] = "8";
   // RFC 9562 variant: the top two bits of this digit are 10.
   hex[16] = ((Number.parseInt(hex[16] ?? "0", 16) & 0x3) | 0x8).toString(16);
@@ -51,11 +57,16 @@ export function resumeFileName(contact: { firstName: string; lastName: string })
   const part = (s: string) =>
     s
       .normalize("NFKD")
+      // Accents split off by NFKD go first, so "Renée" reads "Renee", not "Rene-e".
+      .replace(/\p{M}/gu, "")
       .replace(/[^A-Za-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
+      .replace(/^-+|-+$/g, "")
+      // Each part is cut, never the "-resume.pdf" ending.
+      .slice(0, 80)
+      .replace(/-+$/, "");
   const first = part(contact.firstName);
   const last = part(contact.lastName);
-  return first && last ? `${first}-${last}-resume.pdf`.slice(0, 200) : "resume.pdf";
+  return first && last ? `${first}-${last}-resume.pdf` : "resume.pdf";
 }
 
 // Statuses the caller works from: queued, or package_ready left by a run that crashed after filing.
@@ -76,7 +87,7 @@ export async function preparePackage(
   };
 
   // Only Greenhouse has stored forms (slice 1), so the package goes through its Greenhouse source.
-  const source = inputs.sources.find((s) => s.ats === "greenhouse" && s.postingId !== null);
+  const source = inputs.sources.find((s) => s.ats === "greenhouse" && Boolean(s.postingId));
   const form = inputs.form?.ats === "greenhouse" ? inputs.form : null;
   const contact = inputs.contact;
   const pdf = inputs.resume?.pdfSha256 ?? null;
@@ -116,7 +127,7 @@ export async function preparePackage(
     if (draft.error.kind === "NeedsHuman") for (const u of draft.error.unanswered) add(u.reason);
     else add("invalid_package", Math.max(1, draft.error.fields.length));
   }
-  if (Object.keys(reasons).length > 0 || !draft?.ok) {
+  const needsYou = async (): Promise<PrepareResult> => {
     const recorded = await recordPackageNeedsHuman(db, {
       candidateId: input.candidateId,
       applicationId: inputs.application.id,
@@ -125,25 +136,32 @@ export async function preparePackage(
     });
     if (!recorded.ok) throw new Error("package needs-human event refused");
     return { kind: "needs_human", reasons, recorded: recorded.value.recorded };
+  };
+  if (!draft?.ok) {
+    // Only an unbuilt input can leave no draft, and each one added its reason above.
+    if (Object.keys(reasons).length === 0) add("invalid_package");
+    return needsYou();
   }
+  if (Object.keys(reasons).length > 0) return needsYou();
 
-  // The same package under its own id: the content is unchanged, so this can't fail.
-  const packageId = packageIdFor(inputs.application.id, draft.value.sha256);
-  const finalInput = build(packageId);
-  const assembled = finalInput ? assemblePackage(finalInput) : null;
-  if (!assembled?.ok) throw new Error("package changed between its two builds");
-  const filed = await filePackage(db, input.candidateId, assembled.value);
-  if (!filed.ok) return { kind: "file_refused", reason: filed.error.kind };
-
-  const moves: [ApplicationStatus, ApplicationStatus][] =
-    inputs.application.status === "queued"
-      ? [
-          ["queued", "package_ready"],
-          ["package_ready", "awaiting_approval"],
-        ]
-      : [["package_ready", "awaiting_approval"]];
-  for (const [from, to] of moves) {
-    const moved = await transitionApplication(db, {
+  // Each round starts with its queued -> package_ready move, made before filing and keyed by the
+  // package id, so a run that crashed after it resumes with that round's id.
+  const rounds = await readPackageRounds(db, input.candidateId, inputs.application.id);
+  const resuming = inputs.application.status === "package_ready";
+  if (resuming && rounds.lastPackageId === null) return { kind: "refused", reason: "not_queued" };
+  const packageId = packageIdFor(
+    inputs.application.id,
+    resuming ? rounds.rounds - 1 : rounds.rounds,
+    draft.value.sha256,
+  );
+  // A crashed round whose inputs changed since: its package id is fixed (package_ready only moves
+  // on), so a second package is never filed beside the first. Paul withdraws or restores inputs.
+  if (resuming && packageId !== rounds.lastPackageId) {
+    add("inputs_changed");
+    return needsYou();
+  }
+  const move = (from: ApplicationStatus, to: ApplicationStatus) =>
+    transitionApplication(db, {
       candidateId: input.candidateId,
       applicationId: ApplicationId.parse(inputs.application.id),
       from,
@@ -154,13 +172,30 @@ export async function preparePackage(
       links: [],
       idempotencyKey: `application:${inputs.application.id}:package:${packageId}:${to}`,
     });
-    if (!moved.ok) return { kind: "move_refused", reason: moved.error.kind };
+  if (!resuming) {
+    const opened = await move("queued", "package_ready");
+    if (!opened.ok) return { kind: "move_refused", reason: opened.error.kind };
   }
+
+  // The same package under its own id: the content is unchanged, so this can't fail.
+  const finalInput = build(packageId);
+  const assembled = finalInput ? assemblePackage(finalInput) : null;
+  if (!assembled?.ok) throw new Error("package changed between its two builds");
+  const filed = await filePackage(db, input.candidateId, assembled.value);
+  if (!filed.ok) return { kind: "file_refused", reason: filed.error.kind };
+
+  const moved = await move("package_ready", "awaiting_approval");
+  if (!moved.ok) return { kind: "move_refused", reason: moved.error.kind };
+  const decision = filed.value.decision;
   return {
     kind: "filed",
     packageId,
     requestId: filed.value.requestId,
-    autoApproved: filed.value.decision !== null,
+    // Only a policy's approval made as this request was filed; a replay's decision is reported
+    // as it is (Paul may have approved or rejected it while the run was down).
+    autoApproved:
+      !filed.value.replayed && decision?.decidedBy === "policy" && decision.decision === "approved",
+    decision: decision?.decision ?? null,
     replayed: filed.value.replayed,
   };
 }

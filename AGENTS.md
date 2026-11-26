@@ -666,10 +666,13 @@ Exists now:
   `queued` application (or one a crashed run left at `package_ready`) it reads
   `readPackageInputs`, takes its Greenhouse source and form, stops on `no_ats_source`, `no_form`,
   `no_contact`, `no_resume_file`, `no_phone`, `file_upload` or an unanswered question's reason
-  (`recordPackageNeedsHuman`, once per SHA-256 of its inputs), and otherwise files the package
-  (`packageIdFor`: a v8 UUID from the application and the package's hash, so a rerun replays the
-  same Gate request) and moves it `queued → package_ready → awaiting_approval`. The resume goes as
-  `<first>-<last>-resume.pdf`. Nothing calls it yet (the worker, #230).
+  (`recordPackageNeedsHuman`, once per SHA-256 of its inputs). Otherwise it opens a round
+  (`queued → package_ready`), files the package and moves it to `awaiting_approval`. The id
+  (`packageIdFor`) is a v8 UUID from the application, the round (`readPackageRounds` in
+  `packages/db`, from its own events) and the package's hash, so a crashed round replays the same
+  Gate request and a round after a rejection gets a new one; a crashed round whose inputs changed
+  files nothing (`inputs_changed`). `autoApproved` only for a policy's approval at filing. The
+  resume goes as `<first>-<last>-resume.pdf`. Nothing calls it yet (the worker, #230).
 - `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
   (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
   decision as an `approval` signal (or `withdrawn`), then runs the `submitApplication` activity

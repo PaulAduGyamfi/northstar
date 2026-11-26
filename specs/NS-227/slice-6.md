@@ -29,13 +29,21 @@ code with no model or network:
    Any reason makes it `needs_human`: `recordPackageNeedsHuman` writes the feed line, with a basis
    that is the SHA-256 of what it assembled from (form, resume file, contact, settings, banked
    answer versions and the reasons). Unchanged inputs don't repeat the line. Nothing is filed.
-3. Otherwise it files the package with `filePackage` and moves the application
-   `queued → package_ready → awaiting_approval` with `transitionApplication`, keyed
-   `application:<id>:package:<packageId>:<status>`.
-   - **`packageId`** is derived from the application id and the SHA-256 of the package built with
-     a placeholder id (a version 8 UUID from the hash). The same inputs give the same id, so a
-     rerun replays the first Gate request (`package:<packageId>`) instead of filing a second.
-     Changed inputs give a new id, but only while the application is still `queued`.
+3. Otherwise it opens a round by moving the application `queued → package_ready`, files the
+   package with `filePackage`, then moves it `package_ready → awaiting_approval`, each move keyed
+   `application:<id>:package:<packageId>:<status>` (`transitionApplication`).
+   - **`packageId`** is derived from the application id, the round (how many rounds the
+     application had before, `readPackageRounds`) and the SHA-256 of the package built with a
+     placeholder id (a version 8 UUID from the hash). In one round the same inputs give the same
+     id, so a rerun after a crash replays the first Gate request (`package:<packageId>`) instead
+     of filing a second. After Paul rejects a package and the application goes back to `queued`,
+     the next round gets a new id even for the same content.
+   - A run that crashed at `package_ready` resumes with that round's id. If the inputs changed
+     since, it files nothing and records `inputs_changed`, so no second package sits beside the
+     first.
+   - `autoApproved` is true only for a policy's approval made as the request was filed. A
+     replayed request reports its decision as it is (`approved`, `rejected` or none).
+   - `file_refused` and `move_refused` come back as values: the caller (#230) dead-letters them.
    - The resume goes as `<first>-<last>-resume.pdf` (letters, digits and hyphens only), else
      `resume.pdf`.
    - `fit` and `formSeenBefore` come from the stored rows only, never from a model or the
@@ -43,23 +51,26 @@ code with no model or network:
 
 ## Plan and tasks
 1. `packageIdFor` and `resumeFileName`, with unit tests.
-2. `preparePackage`, with PGlite tests: each refusal, each needs-human reason (`no_phone` and
-   `file_upload` each stop it before filing), once per basis, a filed package and its status
-   moves, and a rerun replaying the same request.
+2. `readPackageRounds` (`packages/db`) and `preparePackage`, with PGlite tests: each refusal,
+   each needs-human reason (`no_phone` and `file_upload` each stop it before filing), once per
+   basis, a filed package and its status moves, a crash after filing replaying the same request,
+   a rejected replay, changed inputs after a crash, and a new round after a rejection.
 3. Export; AGENTS.md.
 
 ## Acceptance criteria
-- [ ] A complete application is filed once with the Gate and reaches `awaiting_approval`; a rerun
+- [x] A complete application is filed once with the Gate and reaches `awaiting_approval`; a rerun
       files nothing new.
-- [ ] A required phone with none stored, and a required upload, each stop it before filing, with a
+- [x] A required phone with none stored, and a required upload, each stop it before filing, with a
       feed line.
-- [ ] Missing inputs and unanswered questions are reason codes in the feed line, recorded once per
+- [x] Missing inputs and unanswered questions are reason codes in the feed line, recorded once per
       basis.
-- [ ] `pnpm turbo run lint typecheck test build` passes.
+- [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Decisions made without Paul (ADR-0016)
-- How `packageId` is chosen (above), as #235 asks.
-- An application left at `package_ready` by a crashed run is finished on the next run.
+- How `packageId` is chosen (above), as #235 asks, with the round in it (from the reviews).
+- An application left at `package_ready` by a crashed run is finished on the next run; with
+  changed inputs it becomes `inputs_changed` for Paul.
+- `readPackageRounds` reads rounds from the application's own events (no schema change).
 
 ## Out of scope
 - What calls `preparePackage` (the worker, #230), recording banked-answer reuse when a package

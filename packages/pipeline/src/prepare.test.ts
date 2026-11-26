@@ -1,5 +1,6 @@
 import {
   type Db,
+  decideApprovals,
   type JobFormQuestion,
   listPendingApprovals,
   profileSchema,
@@ -137,22 +138,48 @@ const needsYou = async () =>
     (e) => e.event.type === "package.needs_human",
   );
 
+// A run that filed its package and then died before awaiting_approval: a trigger refuses that one
+// move, the run throws, and the trigger is dropped again.
+async function crashBeforeAwaitingApproval(): Promise<void> {
+  const pg = (db as unknown as { $client: { exec(q: string): Promise<unknown> } }).$client;
+  await pg.exec(`
+    create function test_crash() returns trigger language plpgsql as $$
+    begin raise exception 'test crash'; end $$;
+    create trigger test_crash before update on application for each row
+      when (new.status = 'awaiting_approval') execute function test_crash();`);
+  const crashed = await prepare().then(
+    () => false,
+    () => true,
+  );
+  await pg.exec("drop trigger test_crash on application; drop function test_crash();");
+  if (!crashed || (await status()) !== "package_ready") throw new Error("the crash didn't happen");
+}
+
 describe("packageIdFor and resumeFileName", () => {
-  it("gives the same version 8 id for the same application and content, and another for other content", () => {
-    const a = packageIdFor(applicationId, "a".repeat(64));
+  it("gives the same version 8 id for the same application, round and content, and another otherwise", () => {
+    const a = packageIdFor(applicationId, 0, "a".repeat(64));
     expect([
-      a === packageIdFor(applicationId, "a".repeat(64)),
-      a === packageIdFor(applicationId, "b".repeat(64)),
+      a === packageIdFor(applicationId, 0, "a".repeat(64)),
+      a === packageIdFor(applicationId, 0, "b".repeat(64)),
+      a === packageIdFor(applicationId, 1, "a".repeat(64)),
       /^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(a),
-    ]).toEqual([true, false, true]);
+    ]).toEqual([true, false, false, true]);
   });
 
   it("names the resume after Paul in plain characters, or plainly when the name has none", () => {
     expect([
       resumeFileName({ firstName: "Test", lastName: "Person" }),
       resumeFileName({ firstName: "José Luis", lastName: "O'Brien" }),
+      resumeFileName({ firstName: "Renée", lastName: "Müller" }),
       resumeFileName({ firstName: "李", lastName: "明" }),
-    ]).toEqual(["Test-Person-resume.pdf", "Jose-Luis-O-Brien-resume.pdf", "resume.pdf"]);
+      resumeFileName({ firstName: "A".repeat(150), lastName: "B" }).endsWith("-B-resume.pdf"),
+    ]).toEqual([
+      "Test-Person-resume.pdf",
+      "Jose-Luis-O-Brien-resume.pdf",
+      "Renee-Muller-resume.pdf",
+      "resume.pdf",
+      true,
+    ]);
   });
 });
 
@@ -177,27 +204,76 @@ describe("preparePackage", () => {
     ]);
   });
 
-  it("finishes an application a crashed run left at package_ready", async () => {
+  it("finishes a run that crashed after filing, replaying the same Gate request", async () => {
     await complete();
-    // A run that moved to package_ready and then stopped before awaiting_approval.
-    const moved = await transitionApplication(db, {
+    await crashBeforeAwaitingApproval();
+    const result = await prepare();
+    expect([
+      result.kind === "filed" && [result.replayed, result.autoApproved, result.decision],
+      await status(),
+      (await listPendingApprovals(db, candidateId)).length,
+    ]).toEqual([[true, false, null], "awaiting_approval", 1]);
+  });
+
+  it("reports a crashed round's request Paul rejected meanwhile as rejected, never auto-approved", async () => {
+    await complete();
+    await crashBeforeAwaitingApproval();
+    const [pending] = await listPendingApprovals(db, candidateId);
+    await decideApprovals(db, {
+      candidateId,
+      requestIds: [pending?.requestId ?? ""],
+      decision: "reject",
+      reason: "not this one",
+    });
+    const result = await prepare();
+    expect(
+      result.kind === "filed" && [result.replayed, result.autoApproved, result.decision],
+    ).toEqual([true, false, "rejected"]);
+  });
+
+  it("files nothing beside a crashed round's package when the inputs changed since", async () => {
+    await complete();
+    await crashBeforeAwaitingApproval();
+    await setProfileSetting(db, { candidateId, field: "needs_sponsorship", value: "yes" });
+    expect([
+      await prepare(),
+      await status(),
+      (await listPendingApprovals(db, candidateId)).length,
+    ]).toEqual([
+      { kind: "needs_human", reasons: { inputs_changed: 1 }, recorded: true },
+      "package_ready",
+      1,
+    ]);
+  });
+
+  it("files a new package in the next round after a rejection, even for the same content", async () => {
+    await complete();
+    const first = await prepare();
+    const [pending] = await listPendingApprovals(db, candidateId);
+    await decideApprovals(db, {
+      candidateId,
+      requestIds: [pending?.requestId ?? ""],
+      decision: "reject",
+      reason: "not this one",
+    });
+    await transitionApplication(db, {
       candidateId,
       applicationId: ApplicationId.parse(applicationId),
-      from: "queued",
-      to: "package_ready",
+      from: "awaiting_approval",
+      to: "queued",
       actor: "system",
       reason: "",
       inputsSummary: "",
       links: [],
-      idempotencyKey: `application:${applicationId}:test:package_ready`,
+      idempotencyKey: `application:${applicationId}:test:requeued`,
     });
-    const result = await prepare();
+    const second = await prepare();
     expect([
-      moved.ok,
-      result.kind,
+      second.kind === "filed" && [second.replayed, second.decision],
+      first.kind === "filed" && second.kind === "filed" && first.packageId !== second.packageId,
       await status(),
       (await listPendingApprovals(db, candidateId)).length,
-    ]).toEqual([true, "filed", "awaiting_approval", 1]);
+    ]).toEqual([[false, null], true, "awaiting_approval", 1]);
   });
 
   it("refuses an unknown application and one that isn't queued", async () => {
