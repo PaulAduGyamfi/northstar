@@ -1,6 +1,6 @@
 # NS-250: share one Google GET helper between the Gmail and Calendar clients
 
-Status: building (autonomous lane, ADR-0016)
+Status: built (autonomous lane, ADR-0016)
 Requirements: RES-002, RES-003 (ADR-0007), ADR-0014, ADR-0026
 Issue #306 (Parent: #271).
 
@@ -26,8 +26,8 @@ One helper can't drift.
   The Calendar boundary scan still lists only `access.ts` and `client.ts`.
 
 ## Acceptance criteria
-- [ ] The helper is tested directly: `Retry-After`, a rate-limit 403, a dropped connection, and a
+- [x] The helper is tested directly: `Retry-After`, a rate-limit 403, a dropped connection, and a
       404 that is reported to the breaker as an answer (`ok: true`).
-- [ ] Both clients use it; neither holds its own retry loop, `errorReason` or breaker wrapper.
-- [ ] Every existing Gmail and Calendar test passes unchanged.
-- [ ] `pnpm turbo run lint typecheck test build --filter=@northstar/inbox` passes.
+- [x] Both clients use it; neither holds its own retry loop, `errorReason` or breaker wrapper.
+- [x] Every existing Gmail and Calendar test passes unchanged.
+- [x] `pnpm turbo run lint typecheck test build --filter=@northstar/inbox` passes.
