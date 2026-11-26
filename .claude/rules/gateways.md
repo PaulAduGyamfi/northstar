@@ -21,7 +21,9 @@ GitHub) don't exist yet: if you are about to create one outside its ticket, stop
   breaker, a page the ATS served is it working, and a browser crash isn't reported. A live claim
   is never touched (`InProgress`). A claim older than 15 minutes becomes
   `needs_human` (`outcome_unknown`) and is never retried; `closeStaleClaim` (`stale.ts`) does
-  that for both a repeated call and `sweepStaleClaims` (NS-143). Status moves use the
+  that for both a repeated call and `sweepStaleClaims` (NS-143). The sweep also finishes the
+  move of a claim the ledger closed but whose application never followed (NS-177,
+  `listHalfClosedClaims`), with the same keys. Status moves use the
   `application:<id>:apply:<submissionId>:<to>` key namespace (`applyMoveKey`). Pacing limits
   are an `ApplyLimits` from `loadApplyLimits`, given to `dbPorts`; never per call.
 

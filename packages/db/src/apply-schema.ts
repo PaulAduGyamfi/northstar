@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import {
   check,
   customType,
+  foreignKey,
   jsonb,
   pgTable,
   text,
@@ -61,6 +62,13 @@ export const applySubmission = pgTable(
     // Never the same requisition twice, whatever source or job it came through (APPLY-009).
     unique("apply_submission_requisition_unique").on(t.candidateId, t.requisitionKey),
     unique("apply_submission_application_unique").on(t.candidateId, t.applicationId),
+    // The application belongs to the same candidate (NS-177, Q-02): the single-column reference
+    // above alone would accept another candidate's application.
+    foreignKey({
+      name: "apply_submission_application_same_candidate_fk",
+      columns: [t.applicationId, t.candidateId],
+      foreignColumns: [application.id, application.candidateId],
+    }),
     // One submission at a time per ATS (APPLY-007).
     uniqueIndex("apply_submission_one_in_progress_per_ats")
       .on(t.candidateId, t.ats)

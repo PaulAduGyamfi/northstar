@@ -5,6 +5,7 @@ import {
   type Db,
   DEFAULT_APPLY_LIMITS,
   isSubsystemOn,
+  listHalfClosedClaims,
   listStaleClaims,
   openSealedSecret,
   recordCallOutcome,
@@ -82,11 +83,12 @@ export function dbPorts(
   };
 }
 
-// The sweep's ports on the real write paths: the ledger's stale-claim read, its needs_human
-// write and transitionApplication.
+// The sweep's ports on the real write paths: the ledger's stale and half-closed claim reads, its
+// needs_human write and transitionApplication.
 export function dbSweepPorts(db: Db): SweepPorts {
   return {
     listStaleClaims: (candidateId) => listStaleClaims(db, candidateId),
+    listHalfClosedClaims: (candidateId) => listHalfClosedClaims(db, candidateId),
     recordNeedsHuman: (c, s, r) => recordNeedsHuman(db, c, s, r),
     transitionApplication: (input) => transitionApplication(db, input),
   };
