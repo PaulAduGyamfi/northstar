@@ -1,0 +1,27 @@
+{
+  "requestSha256": "e42aee10a964c72098bf1c6eca2f965cff6bab6abfea5ea86dddcbff29999924",
+  "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval reply-draft --record.",
+  "response": {
+    "id": "msg_handwritten_5",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-5-5",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"sentences\":[{\"text\":\"Hi Dana, thanks for following up.\",\"cites\":[]},{\"text\":\"I'll send a link shortly.\",\"cites\":[]}],\"followUps\":[\"Which portfolio link or code samples should go to Initech?\"]}",
+        "citations": null
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  }
+}

@@ -2,7 +2,8 @@
 // guided story interview (NS-111), the employment-facts consistency check (NS-112, DX-011) and the
 // question canon for the answer bank (NS-118, ANS-001/002), answer reuse (GH-59, ANS-003),
 // resume tailoring (NS-117, TLR-001…004), answer drafting (NS-135, ANS-004), the voice profile
-// (NS-136, ANS-007/008) and the resume audit (NS-159, AUD-001/002).
+// (NS-136, ANS-007/008), the resume audit (NS-159, AUD-001/002) and reply drafting (NS-166,
+// RPL-001).
 
 export { type DraftRequest, type DraftResult, draftAnswer } from "./answer/draft.js";
 export {
@@ -112,6 +113,22 @@ export {
   questionConcepts,
   rankCanonical,
 } from "./question-match.js";
+export { draftReply, type ReplyRequest, type ReplyResult } from "./reply/draft.js";
+export {
+  EMAIL_LIMIT,
+  REPLY_DRAFT_VERSION,
+  type ReplyDraftInput,
+  replyDraftRoute,
+} from "./reply/route.js";
+export { ReplyDraft } from "./reply/schema.js";
+export {
+  MAX_FRAMING_SENTENCES,
+  MAX_FRAMING_WORDS,
+  type ReplyFailure,
+  type ReplyValidation,
+  replyText,
+  validateReplyDraft,
+} from "./reply/validate.js";
 export { PROFILE_EXTRACT_VERSION, profileExtractRoute } from "./route.js";
 export { ProfileExtract } from "./schema.js";
 export {
