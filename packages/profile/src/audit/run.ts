@@ -95,11 +95,21 @@ export async function acceptSuggestion(
   if (input.profileSourceId !== latest.profileSourceId) {
     return { kind: "refused", reason: "StaleAudit" };
   }
-  const applied = applySuggestion(input.master, stored as unknown as Suggestion, newLine);
+  // Only a suggestion about one atom's line takes a new line; the stored target is jsonb.
+  const atomId = typeof stored.target.atomId === "string" ? stored.target.atomId : null;
+  if (atomId === null) return { kind: "refused", reason: "not_a_line" };
+  const suggestion: Suggestion = {
+    id: stored.id,
+    kind: stored.kind as Suggestion["kind"],
+    dimension: stored.dimension as Suggestion["dimension"],
+    target: { atomId },
+    message: stored.message,
+  };
+  const applied = applySuggestion(input.master, suggestion, newLine);
   if (!applied.ok) return { kind: "refused", reason: applied.reason };
-  const atomId = "atomId" in stored.target ? stored.target.atomId : undefined;
   // The normalised line applySuggestion produced, so what is stored is what was checked.
-  const line = applied.master.atoms.find((a) => a.id === atomId)?.sourceQuote ?? newLine;
+  const line = applied.master.atoms.find((a) => a.id === atomId)?.sourceQuote;
+  if (line === undefined) return { kind: "refused", reason: "unknown_atom" };
   const r = await deps.decide({
     auditId: latest.auditId,
     key,

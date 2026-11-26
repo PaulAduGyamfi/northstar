@@ -1,6 +1,6 @@
 {
-  "id": "51218f5a-b93f-4786-87b2-0ca021c98e26",
-  "prevId": "195877bf-3dc2-4cb9-8eb6-59be87caf1e8",
+  "id": "580e6ed2-f6e1-4fae-9f23-df76e49e70c3",
+  "prevId": "117d5522-c03e-47d8-b19e-b0cb997f902d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -6872,6 +6872,10 @@
         "atom_line_edit_line_not_empty": {
           "name": "atom_line_edit_line_not_empty",
           "value": "length(trim(\"atom_line_edit\".\"line\")) > 0"
+        },
+        "atom_line_edit_one_line": {
+          "name": "atom_line_edit_one_line",
+          "value": "\"atom_line_edit\".\"line\" !~ '[[:cntrl:]]'"
         }
       },
       "isRLSEnabled": false
@@ -7105,6 +7109,10 @@
         "resume_audit_decision_valid": {
           "name": "resume_audit_decision_valid",
           "value": "(\"resume_audit_decision\".\"decision\" = 'accepted' and \"resume_audit_decision\".\"new_line\" is not null and length(trim(\"resume_audit_decision\".\"new_line\")) > 0)\n        or (\"resume_audit_decision\".\"decision\" = 'rejected' and \"resume_audit_decision\".\"new_line\" is null)"
+        },
+        "resume_audit_decision_one_line": {
+          "name": "resume_audit_decision_one_line",
+          "value": "\"resume_audit_decision\".\"new_line\" is null or \"resume_audit_decision\".\"new_line\" !~ '[[:cntrl:]]'"
         }
       },
       "isRLSEnabled": false

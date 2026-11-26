@@ -97,7 +97,6 @@ export {
   type AuditInput,
   type AuditView,
   decideSuggestion,
-  readAtomLineEdits,
   readAuditInput,
   readLatestAudit,
   rejectedKeys,

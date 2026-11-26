@@ -25,6 +25,7 @@ const REFUSED: Record<DecisionRefusal, string> = {
   empty: "The new line is empty.",
   unknown_atom: "That line is no longer in your resume. Run: profile audit",
   multi_line: "Write the new line as one line.",
+  MultiLine: "Write the new line as one line.",
   names_other_role:
     "The new line names another role's employer, title or years: keep it to this role.",
 };

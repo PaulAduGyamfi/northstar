@@ -1,5 +1,5 @@
 import type { CandidateId } from "@northstar/domain";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import {
   atomLineEdit,
   resumeAudit,
@@ -8,6 +8,7 @@ import {
 } from "./audit-schema.js";
 import type { Db } from "./db.js";
 import { searchPreference } from "./fit-schema.js";
+import { readClosedJobIds } from "./liveness-write.js";
 import { experienceAtom, profileSource } from "./profile-schema.js";
 import { appendEvent, inSpan } from "./resilience-event.js";
 import { job } from "./schema.js";
@@ -22,7 +23,7 @@ export type AuditInput = {
   profileSourceId: string;
   // Each atom's line is Paul's newest accepted edit, else the imported quote.
   master: TailorMaster;
-  // The newest search preference's titles, then every ready job's requirements, once each.
+  // The newest search preference's titles, then every open ready job's requirements, once each.
   targets: string[];
 };
 
@@ -36,12 +37,15 @@ export async function readAuditInput(db: Db, candidateId: CandidateId): Promise<
     .where(eq(searchPreference.candidateId, candidateId))
     .orderBy(desc(searchPreference.version))
     .limit(1);
-  const jobs = await db
-    .select({ requirements: job.requirements })
+  // Closed postings (NS-173) leave the targets, as they leave scoring.
+  const closed = await readClosedJobIds(db, candidateId);
+  const rows = await db
+    .select({ id: job.id, requirements: job.requirements })
     .from(job)
     .where(and(eq(job.candidateId, candidateId), eq(job.status, "ready")))
     // Oldest first, so the same jobs always give the same target order.
     .orderBy(job.createdAt, job.id);
+  const jobs = rows.filter((j) => !closed.has(j.id));
   const seen = new Set<string>();
   const targets: string[] = [];
   for (const t of [...(pref?.titles ?? []), ...jobs.flatMap((j) => j.requirements)]) {
@@ -233,18 +237,25 @@ export type AuditDecideError =
   | { kind: "StaleAudit" }
   // Only a suggestion about one atom's line can be accepted with a new line.
   | { kind: "NotALine" }
-  | { kind: "EmptyLine" };
+  | { kind: "EmptyLine" }
+  // A line break or control character (the CHECKs refuse it too).
+  | { kind: "MultiLine" };
 
 const UNIQUE_VIOLATION = "23505";
 
 // Stores Paul's decision on one suggestion of one run, once. An acceptance also stores his line
-// as the atom's newest edit, in the same transaction.
+// as the atom's newest edit, in the same transaction. Callers run packages/profile's
+// applySuggestion on the line first (CPG-004: no other role's employer, title or years); this
+// checks only what the database can: one non-empty line, of a suggestion about one atom.
 export async function decideSuggestion(
   db: Db,
   input: AuditDecideInput,
 ): Promise<{ ok: true; value: { decisionId: string } } | { ok: false; error: AuditDecideError }> {
   if (input.decision === "accepted" && input.newLine.trim() === "") {
     return { ok: false, error: { kind: "EmptyLine" } };
+  }
+  if (input.decision === "accepted" && /\p{Cc}/u.test(input.newLine)) {
+    return { ok: false, error: { kind: "MultiLine" } };
   }
   try {
     return await inSpan(
@@ -342,23 +353,4 @@ export async function decideSuggestion(
     // A fresh error with no cause: the driver's message lists the query's parameters (the line).
     throw new Error("resume.audit decision failed");
   }
-}
-
-// Every edit of the import's atoms, newest first, for showing where a line came from.
-export async function readAtomLineEdits(
-  db: Db,
-  candidateId: CandidateId,
-): Promise<{ atomId: string; line: string; decisionId: string; createdAt: Date }[]> {
-  return db
-    .select({
-      atomId: atomLineEdit.atomId,
-      line: atomLineEdit.line,
-      decisionId: atomLineEdit.decisionId,
-      createdAt: atomLineEdit.createdAt,
-    })
-    .from(atomLineEdit)
-    .innerJoin(experienceAtom, eq(experienceAtom.id, atomLineEdit.atomId))
-    .innerJoin(profileSource, eq(profileSource.id, experienceAtom.sourceId))
-    .where(and(eq(atomLineEdit.candidateId, candidateId), isNull(profileSource.supersededAt)))
-    .orderBy(desc(atomLineEdit.createdAt), desc(atomLineEdit.id));
 }

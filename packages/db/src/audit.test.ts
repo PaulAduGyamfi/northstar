@@ -12,6 +12,7 @@ import {
 } from "./audit-write.js";
 import type { Db } from "./db.js";
 import { PREFERENCE_DEFAULTS, savePreferences } from "./fit-write.js";
+import { recordPostingCheck } from "./liveness-write.js";
 import { experienceAtom } from "./profile-schema.js";
 import { writeProfileImport } from "./profile-write.js";
 import { domainEvent, job } from "./schema.js";
@@ -21,6 +22,7 @@ import { createTestDb, seedApplication, sqlState } from "./test/pglite.js";
 // Resume audits, decisions and edited lines (NS-190). Synthetic profile, job and lines only.
 
 const RESTRICT_VIOLATION = "23001";
+const CHECK_VIOLATION = "23514";
 
 let db: Db;
 let close: () => Promise<void>;
@@ -138,6 +140,19 @@ describe("readAuditInput", () => {
       "Go",
       "Kubernetes",
     ]);
+  });
+
+  it("leaves a closed posting's requirements out of the targets", async () => {
+    await importProfile(candidateId);
+    await db
+      .update(job)
+      .set({ requirements: ["Kubernetes"] })
+      .where(eq(job.id, jobId));
+    const open = (await input()).targets;
+    for (let i = 0; i < 2; i++) {
+      await recordPostingCheck(db, { candidateId, jobId, ats: "greenhouse", outcome: "closed" });
+    }
+    expect([open, (await input()).targets]).toEqual([["Kubernetes"], []]);
   });
 });
 
@@ -313,6 +328,29 @@ describe("decideSuggestion", () => {
       "EmptyLine",
       "StaleAudit",
     ]);
+  });
+
+  it("refuses a line with a line break, and the table refuses one written around it", async () => {
+    await importProfile(candidateId);
+    const { auditId, atomIds } = await audit();
+    const key = `missing_metric:${atomIds[0]}`;
+    const r = await decideSuggestion(db, {
+      candidateId,
+      auditId,
+      key,
+      decision: "accepted",
+      newLine: "First line.\nSKILLS: Rust",
+    });
+    const direct = await sqlState(
+      db.insert(resumeAuditDecision).values({
+        candidateId,
+        auditId,
+        key,
+        decision: "accepted",
+        newLine: "First line.\nSKILLS: Rust",
+      }),
+    );
+    expect([r, direct]).toEqual([{ ok: false, error: { kind: "MultiLine" } }, CHECK_VIOLATION]);
   });
 
   it("refuses another candidate's audit as unknown", async () => {

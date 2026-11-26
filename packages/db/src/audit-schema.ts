@@ -103,6 +103,11 @@ export const resumeAuditDecision = pgTable(
       sql`(${t.decision} = 'accepted' and ${t.newLine} is not null and length(trim(${t.newLine})) > 0)
         or (${t.decision} = 'rejected' and ${t.newLine} is null)`,
     ),
+    // One line: a line break or control character could start a fake header when rendered.
+    check(
+      "resume_audit_decision_one_line",
+      sql`${t.newLine} is null or ${t.newLine} !~ '[[:cntrl:]]'`,
+    ),
     foreignKey({
       name: "resume_audit_decision_audit_same_candidate_fk",
       columns: [t.auditId, t.candidateId],
@@ -134,6 +139,7 @@ export const atomLineEdit = pgTable(
     // One edit per decision.
     unique("atom_line_edit_decision_unique").on(t.decisionId),
     check("atom_line_edit_line_not_empty", sql`length(trim(${t.line})) > 0`),
+    check("atom_line_edit_one_line", sql`${t.line} !~ '[[:cntrl:]]'`),
     foreignKey({
       name: "atom_line_edit_atom_same_candidate_fk",
       columns: [t.atomId, t.candidateId],

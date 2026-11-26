@@ -6,7 +6,8 @@ CREATE TABLE "atom_line_edit" (
 	"line" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "atom_line_edit_decision_unique" UNIQUE("decision_id"),
-	CONSTRAINT "atom_line_edit_line_not_empty" CHECK (length(trim("atom_line_edit"."line")) > 0)
+	CONSTRAINT "atom_line_edit_line_not_empty" CHECK (length(trim("atom_line_edit"."line")) > 0),
+	CONSTRAINT "atom_line_edit_one_line" CHECK ("atom_line_edit"."line" !~ '[[:cntrl:]]')
 );
 --> statement-breakpoint
 CREATE TABLE "resume_audit" (
@@ -34,7 +35,8 @@ CREATE TABLE "resume_audit_decision" (
 	CONSTRAINT "resume_audit_decision_once" UNIQUE("audit_id","key"),
 	CONSTRAINT "resume_audit_decision_id_candidate_unique" UNIQUE("id","candidate_id"),
 	CONSTRAINT "resume_audit_decision_valid" CHECK (("resume_audit_decision"."decision" = 'accepted' and "resume_audit_decision"."new_line" is not null and length(trim("resume_audit_decision"."new_line")) > 0)
-        or ("resume_audit_decision"."decision" = 'rejected' and "resume_audit_decision"."new_line" is null))
+        or ("resume_audit_decision"."decision" = 'rejected' and "resume_audit_decision"."new_line" is null)),
+	CONSTRAINT "resume_audit_decision_one_line" CHECK ("resume_audit_decision"."new_line" is null or "resume_audit_decision"."new_line" !~ '[[:cntrl:]]')
 );
 --> statement-breakpoint
 CREATE TABLE "resume_audit_suggestion" (

@@ -90,3 +90,10 @@ and fixed words only. Spans `resume.audit` and `resume.audit_decide`.
   leaves the imported quote untouched for provenance.
 - **`what` and `how`:** kept as imported. They describe the work, not the wording, and re-deriving
   them would need the model.
+- **Edited lines are trusted like resume text.** An accepted line becomes the atom's line for
+  the tailor, so its validators (numbers, capitalised words and the terms an atom proves) treat
+  Paul's words as source text. Paul writes the line himself through his own CLI; no model text
+  reaches it. `applySuggestion` refuses another role's employer, title or years, but not, say,
+  a different title for the atom's own role. Tightening that rule would change NS-159's rule
+  and its tests, so it is left for Paul.
+- **Targets:** closed postings (NS-173) are left out, as they are from scoring.
