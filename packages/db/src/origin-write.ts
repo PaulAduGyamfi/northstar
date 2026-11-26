@@ -201,6 +201,22 @@ export async function readOrigin(
   return foldOrigin(await originRows(db, candidateId, `application:${applicationId}`));
 }
 
+// Every application's origin for one candidate, keyed by application id (NS-165: the inbox view's
+// badges). Applications with no origin events are left out.
+export async function readOrigins(db: Db, candidateId: CandidateId): Promise<Map<string, Origin>> {
+  const byApp = new Map<string, OriginRow[]>();
+  for (const r of await originRows(db, candidateId)) {
+    const list = byApp.get(r.aggregate) ?? [];
+    list.push(r);
+    byApp.set(r.aggregate, list);
+  }
+  const out = new Map<string, Origin>();
+  for (const [aggregate, rows] of byApp) {
+    out.set(aggregate.slice("application:".length), foldOrigin(rows));
+  }
+  return out;
+}
+
 export type StageCounts = {
   applications: number;
   submitted: number;

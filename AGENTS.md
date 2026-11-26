@@ -502,7 +502,11 @@ Exists now:
   reply rates by source, fit band and time from posting to applying, each with its count and a
   Wilson interval, or "not enough data yet" under 20 (`pipelineMetrics` in `packages/domain`,
   over `readApplicationHistories`; the API's `GET /pipeline/metrics`). `wilson` lives in
-  `packages/domain` (`stats.ts`); `packages/funnel` re-exports it. `/api/*` is rewritten to the API, and pages that need Paul go
+  `packages/domain` (`stats.ts`); `packages/funnel` re-exports it. Since NS-165 also the Inbox tab
+  (`/inbox`, INB-006): linked job-mail threads grouped by application with each one's origin badge
+  (INB-008), how each thread was linked, "sender not verified" and an "Open in Gmail" link, plus
+  a "Needs you to link it" group (`readInboxThreads` in `packages/db`, the API's `GET /inbox`,
+  `src/inbox.ts`). Classification shows "Not classified yet" until #224 stores it. `/api/*` is rewritten to the API, and pages that need Paul go
   through `readSession`/`todayView` or `readApi` (`src/session.ts`, `src/system.ts`), which forward
   his session cookie to the API. It holds no secret.
 - `packages/pipeline/` (NS-161, ADR-0023): plain-code pipeline steps, no model or network.
