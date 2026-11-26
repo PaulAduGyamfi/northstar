@@ -75,6 +75,10 @@ function deps(
     readGrowthSettings: async () => null,
     setGrowthSettings: async () => {},
     saveWeekPlan: async (input) => ({ ...input, status: "planned" }),
+    readSample: async () => "",
+    saveVoiceProfile: async () => ({ version: 1 }),
+    readNewestVoice: async () => null,
+    reviewVoiceProfile: async () => ({ ok: true, value: undefined }),
   };
   return { d, printed, interviewedAtoms };
 }
