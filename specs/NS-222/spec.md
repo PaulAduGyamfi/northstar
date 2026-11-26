@@ -1,6 +1,6 @@
 # NS-222: `profile voice` commands: measure samples, store the profile and review its phrases
 
-Status: building
+Status: built
 Requirements: ANS-007 (voice profile from Paul's writing, reviewed by him)
 Rules that apply: ADR-0016, `.claude/rules/db.md` (the voice profile), `.claude/rules/tests.md`.
 Parent: #144. Builds on NS-136 (`measureVoice`) and NS-185 (storage).
@@ -27,12 +27,12 @@ from a reviewed version. Nothing lets Paul make or review one, so the guide neve
   AGENTS.md's command table.
 
 ## Acceptance criteria
-- [ ] Preview stores nothing; `--save` stores once and prints counts and the guide; a
+- [x] Preview stores nothing; `--save` stores once and prints counts and the guide; a
       `measureVoice` problem stores nothing (CLI tests on fakes).
-- [ ] `review` lists, decides, and refuses an incomplete or unknown decision; an empty version is
+- [x] `review` lists, decides, and refuses an incomplete or unknown decision; an empty version is
       reviewed by `review` alone (CLI tests).
-- [ ] `readNewestVoice` returns null, then the newest version, reviewed or not (PGlite).
-- [ ] `pnpm turbo run lint typecheck test build` passes.
+- [x] `readNewestVoice` returns null, then the newest version, reviewed or not (PGlite).
+- [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Out of scope
 - Recording edits from approvals (`recordEdit` has no caller yet; that's the answer flow's).

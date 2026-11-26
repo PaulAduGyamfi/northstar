@@ -10,7 +10,8 @@ type Newest = { version: number; phrases: string[]; reviewed: boolean } | null;
 
 export type VoiceCliDeps = {
   print: (line: string) => void;
-  // A sample's text (fileToText). Its errors name the file, never its contents.
+  // A sample's text (fileToText). Its errors name the file (and its path when missing), never
+  // its contents.
   readSample: (path: string) => Promise<string>;
   saveVoiceProfile: (measures: VoiceMeasures) => Promise<{ version: number }>;
   readNewestVoice: () => Promise<Newest>;
@@ -50,7 +51,7 @@ async function measureCommand(deps: VoiceCliDeps, files: string[], save: boolean
   try {
     samples = await Promise.all(files.map((f) => deps.readSample(f)));
   } catch (error) {
-    // fileToText's message names the file only.
+    // fileToText's message names the file, never its contents.
     deps.print(
       `Nothing stored: ${error instanceof Error ? error.message : "a file can't be read"}`,
     );
@@ -62,13 +63,14 @@ async function measureCommand(deps: VoiceCliDeps, files: string[], save: boolean
     return 1;
   }
   const profile = measured.profile;
+  // The guide and phrases first, whether or not it is stored, so Paul sees what he keeps.
+  for (const line of renderVoiceGuide(profile).split("\n")) deps.print(line);
+  deps.print(
+    profile.phrases.length > 0
+      ? `Phrases to review: ${quoted(profile.phrases)}`
+      : "No repeated phrases to review.",
+  );
   if (!save) {
-    for (const line of renderVoiceGuide(profile).split("\n")) deps.print(line);
-    deps.print(
-      profile.phrases.length > 0
-        ? `Phrases to review: ${quoted(profile.phrases)}`
-        : "No repeated phrases to review.",
-    );
     deps.print("Nothing stored. To store it: profile voice --save <the same files>");
     return 0;
   }

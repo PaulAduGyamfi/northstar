@@ -63,10 +63,11 @@ describe("profile voice (measure)", () => {
   it("stores the measured version with --save and says to review it", async () => {
     const { d, printed, saved } = deps();
     const code = await voiceCommand(d, ["--save", ...FILES]);
-    expect([code, saved.length, printed.slice(-1)]).toEqual([
+    expect([code, saved.length, printed.slice(-1), printed[0]]).toEqual([
       0,
       1,
       ["Stored version 3 (5 samples, 1 phrase). Review its phrases: profile voice review"],
+      "Sentences: about 4 words.",
     ]);
   });
 
@@ -131,6 +132,40 @@ describe("profile voice review", () => {
     ]);
   });
 
+  it("stores nothing when a phrase is named twice", async () => {
+    const { d, printed, reviews } = deps({}, newest);
+    const code = await voiceCommand(d, [
+      "review",
+      "--keep",
+      "in practice,ship it",
+      "--drop",
+      "ship it",
+    ]);
+    expect([code, reviews.length, printed]).toEqual([
+      1,
+      0,
+      ['Nothing stored. Named twice: "ship it".'],
+    ]);
+  });
+
+  it("says a listed version is already reviewed and that a new decision replaces it", async () => {
+    const { d, printed } = deps({}, { ...newest, reviewed: true });
+    await voiceCommand(d, ["review"]);
+    expect(printed[0]).toBe("Version 4, reviewed (a new decision replaces it). Phrases to decide:");
+  });
+
+  it("stores nothing and says to list again when the store refuses the decision", async () => {
+    const { d, printed } = deps(
+      { reviewVoiceProfile: async () => ({ ok: false, error: { kind: "PhrasesMismatch" } }) },
+      newest,
+    );
+    const code = await voiceCommand(d, ["review", "--keep", "in practice", "--drop", "ship it"]);
+    expect([code, printed]).toEqual([
+      1,
+      ["Nothing stored: the newest version changed. Run: profile voice review"],
+    ]);
+  });
+
   it("reviews a version with no phrases by itself, since there is nothing to decide", async () => {
     const { d, printed, reviews } = deps({}, { version: 2, phrases: [], reviewed: false });
     const code = await voiceCommand(d, ["review"]);
@@ -156,7 +191,8 @@ describe("usage", () => {
     expect([
       await voiceCommand(d, []),
       await voiceCommand(d, ["review", "--keep"]),
+      await voiceCommand(d, ["review", "--keep", "--drop", "ship it"]),
       printed,
-    ]).toEqual([1, 1, [VOICE_USAGE, VOICE_USAGE]]);
+    ]).toEqual([1, 1, 1, [VOICE_USAGE, VOICE_USAGE, VOICE_USAGE]]);
   });
 });
