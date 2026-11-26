@@ -16,7 +16,12 @@ import { approvalRequest } from "./approval-schema.js";
 import { listPendingApprovals, requestApproval } from "./approval-write.js";
 import type { Db } from "./db.js";
 import { replyDraft } from "./reply-schema.js";
-import { fileReplyDraft, missingReplyDrafts, readReplyDraft } from "./reply-write.js";
+import {
+  fileReplyDraft,
+  missingReplyDrafts,
+  otherDomainReplies,
+  readReplyDraft,
+} from "./reply-write.js";
 import { candidate, domainEvent } from "./schema.js";
 import { createTestDb, sqlState } from "./test/pglite.js";
 
@@ -243,6 +248,22 @@ describe("fileReplyDraft", () => {
       await missingReplyDrafts(db, candidateId, ids),
       await missingReplyDrafts(db, other, ids),
       await missingReplyDrafts(db, candidateId, []),
+    ]).toEqual([[ids[1]], [], []]);
+  });
+
+  it("finds only the candidate's reply drafts that go to another domain than the sender's", async () => {
+    const plain = await file();
+    const flagged = await file({
+      ...REPLY,
+      gmailMessageId: "18c3f0a2b4d6e8ff",
+      replyToOtherDomain: true,
+    });
+    const ids = [plain, flagged].map((r) => (r.ok ? r.value.requestId : ""));
+    const other = await newCandidate();
+    expect([
+      await otherDomainReplies(db, candidateId, ids),
+      await otherDomainReplies(db, other, ids),
+      await otherDomainReplies(db, candidateId, []),
     ]).toEqual([[ids[1]], [], []]);
   });
 });

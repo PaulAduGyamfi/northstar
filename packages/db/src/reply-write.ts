@@ -127,3 +127,25 @@ export async function missingReplyDrafts(
     );
   return rows.map((r) => r.id);
 }
+
+// The ids among requestIds whose stored reply draft goes to another domain than the sender's
+// (NS-237 slice 2): the queue approves one of these only on its own, never in a batch, so Paul has
+// it in front of him with its warning.
+export async function otherDomainReplies(
+  db: Db,
+  candidateId: CandidateId,
+  requestIds: readonly string[],
+): Promise<string[]> {
+  if (requestIds.length === 0) return [];
+  const rows = await db
+    .select({ id: replyDraft.requestId })
+    .from(replyDraft)
+    .where(
+      and(
+        eq(replyDraft.candidateId, candidateId),
+        eq(replyDraft.replyToOtherDomain, true),
+        inArray(replyDraft.requestId, [...requestIds]),
+      ),
+    );
+  return rows.map((r) => r.id);
+}

@@ -372,6 +372,7 @@ export {
   type FiledReply,
   fileReplyDraft,
   missingReplyDrafts,
+  otherDomainReplies,
   readReplyDraft,
 } from "./reply-write.js";
 export * as resilienceSchema from "./resilience-schema.js";

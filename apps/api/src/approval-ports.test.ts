@@ -84,9 +84,10 @@ describe("dbApprovalPorts", () => {
     const replyId = filed.ok ? filed.value.requestId : "";
     const other = await pending("answer");
     expect([
-      await ports.readReply?.(replyId),
-      await ports.readReply?.(other),
-      await ports.missingReplies?.([replyId, other]),
+      await ports.readReply(replyId),
+      await ports.readReply(other),
+      await ports.missingReplies([replyId, other]),
+      await ports.otherDomainReplies([replyId, other]),
     ]).toEqual([
       {
         to: "jo@acme.example",
@@ -97,6 +98,7 @@ describe("dbApprovalPorts", () => {
         followUps: [],
       },
       null,
+      [],
       [],
     ]);
   });

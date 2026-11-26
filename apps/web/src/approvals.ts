@@ -48,7 +48,8 @@ export const Outcome = z.union([
   z.object({
     requestId: z.string(),
     // missing_draft: an email reply with nothing stored behind it is never approved (NS-237).
-    outcome: z.enum(["not_found", "already_decided", "missing_draft"]),
+    // approve_alone: a reply to another domain than the sender's is approved only on its own.
+    outcome: z.enum(["not_found", "already_decided", "missing_draft", "approve_alone"]),
   }),
 ]);
 export type Outcome = z.infer<typeof Outcome>;
@@ -109,6 +110,7 @@ export function summarizeOutcomes(outcomes: Outcome[]): string {
   const already = outcomes.filter((o) => o.outcome === "already_decided").length;
   const gone = outcomes.filter((o) => o.outcome === "not_found").length;
   const empty = outcomes.filter((o) => o.outcome === "missing_draft").length;
+  const alone = outcomes.filter((o) => o.outcome === "approve_alone").length;
   const parts: string[] = [];
   if (approved > 0) parts.push(`Approved ${approved}.`);
   if (rejected > 0) parts.push(`Rejected ${rejected}.`);
@@ -117,6 +119,11 @@ export function summarizeOutcomes(outcomes: Outcome[]): string {
   if (empty > 0) {
     parts.push(
       `${empty} ${empty === 1 ? "reply has" : "replies have"} no draft to show, so ${empty === 1 ? "it wasn't" : "they weren't"} approved.`,
+    );
+  }
+  if (alone > 0) {
+    parts.push(
+      `${alone} ${alone === 1 ? "reply goes" : "replies go"} to another domain than the sender's: show ${alone === 1 ? "it" : "each"} and approve ${alone === 1 ? "it" : "each"} on its own.`,
     );
   }
   return parts.length > 0 ? parts.join(" ") : "Nothing was decided.";

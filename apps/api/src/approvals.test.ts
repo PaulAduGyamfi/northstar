@@ -71,6 +71,10 @@ beforeEach(async () => {
       if (decisionId === D1) return { ok: true, value: { requestId: R1 } };
       return { ok: false, error: { kind: "UndoWindowClosed" } };
     },
+    // NS-237: no reply drafts unless a test sets them; these record nothing.
+    readReply: async () => null,
+    missingReplies: async () => [],
+    otherDomainReplies: async () => [],
   };
   const sessions = createSessions(() => 0);
   cookie = `ns_session=${sessions.open().token}`;
@@ -87,9 +91,9 @@ beforeEach(async () => {
         list: (k) => ports.list(k),
         decide: (i) => ports.decide(i),
         undo: (d) => ports.undo(d),
-        // NS-237: absent from the fakes above unless a test sets them, which records nothing.
-        readReply: (id) => ports.readReply?.(id) ?? Promise.resolve(null),
-        missingReplies: (ids) => ports.missingReplies?.(ids) ?? Promise.resolve([]),
+        readReply: (id) => ports.readReply(id),
+        missingReplies: (ids) => ports.missingReplies(ids),
+        otherDomainReplies: (ids) => ports.otherDomainReplies(ids),
       }),
     }),
   );
@@ -344,6 +348,33 @@ describe("reply drafts in the queue (NS-237)", () => {
       200,
       false,
       "rejected",
+    ]);
+  });
+
+  it("approves a reply to another domain only on its own, never in a batch", async () => {
+    ports.otherDomainReplies = async (ids) => ids.filter((id) => id === R2);
+    const batch = await post("/approvals/decide", { requestIds: [R1, R2], decision: "approve" });
+    const alone = await post("/approvals/decide", { requestIds: [R2], decision: "approve" });
+    const pick = (body: string) =>
+      JSON.parse(body).outcomes.map((o: { requestId: string; outcome: string }) => [
+        o.requestId,
+        o.outcome,
+      ]);
+    // On its own it reaches the Gate (the fake answers already_decided for R2).
+    expect([
+      pick(batch.body),
+      pick(alone.body),
+      calls.flatMap((c) => (Array.isArray(c) && c[0] === "decide" ? [c[1]] : [])),
+    ]).toEqual([
+      [
+        [R2, "approve_alone"],
+        [R1, "approved"],
+      ],
+      [[R2, "already_decided"]],
+      [
+        { requestIds: [R1], decision: "approve" },
+        { requestIds: [R2], decision: "approve" },
+      ],
     ]);
   });
 });

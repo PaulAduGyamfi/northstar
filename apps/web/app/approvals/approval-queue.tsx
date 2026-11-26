@@ -290,8 +290,11 @@ function ReplyPreview({ requestId }: { requestId: string }) {
       <div className="muted">
         {lines.map((line, i) => (
           // Lines are in a fixed order and never reorder, so the index is a stable key.
+          // pre-wrap keeps the body's line breaks, so Paul reads it laid out as it will be written.
           // biome-ignore lint/suspicious/noArrayIndexKey: fixed order, see above
-          <p key={i}>{line}</p>
+          <p key={i} style={{ whiteSpace: "pre-wrap" }}>
+            {line}
+          </p>
         ))}
         <button type="button" className="secondary" onClick={() => setLines(null)}>
           Hide the reply

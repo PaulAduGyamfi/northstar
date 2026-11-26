@@ -156,4 +156,10 @@ describe("reply drafts (NS-237)", () => {
       ]),
     ).toBe("2 replies have no draft to show, so they weren't approved.");
   });
+
+  it("says when a reply to another domain must be approved on its own", () => {
+    expect(summarizeOutcomes([{ requestId: "a", outcome: "approve_alone" }])).toBe(
+      "1 reply goes to another domain than the sender's: show it and approve it on its own.",
+    );
+  });
 });

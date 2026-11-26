@@ -1,4 +1,4 @@
-# NS-237 (slice 2): Show a reply draft in the approval queue, and approve only what is shown
+# NS-237 (slice 2): Show a reply draft in the approval queue, and never approve an empty one
 
 Status: done
 Requirements: RPL-002, APR-001…003 · ADR-0002
@@ -20,7 +20,8 @@ it.
     the request isn't the candidate's.
   - In `POST /approvals/decide`, an approve of an `email_reply` request with no stored draft is
     never decided: its outcome is `missing_draft`. A reject still goes through, so Paul can clear
-    one.
+    one. A reply whose draft goes to another domain than the sender's (`otherDomainReplies`) is
+    approved only when it is the only id in the call; in a batch its outcome is `approve_alone`.
 - **Web** (`/approvals`): each "Email reply" item has a "Show the reply" button. It fetches the draft
   and shows:
   - `To:` with the address;
@@ -40,6 +41,14 @@ it.
 
 ## Decisions made without Paul (ADR-0016)
 - A reject of an empty reply request stays allowed, so it can be cleared from the queue.
+- Approving a reply doesn't require opening "Show the reply": the shown draft is the approved
+  content because `reply_draft` is append-only, one per request, and its foreign key pins the
+  request's kind and `content_sha256`. The exception is a reply to another domain than the
+  sender's, which is approved only on its own (`approve_alone`), never in a batch.
+- The guards live in the API, the only caller of `decideApprovals`, not in the Gate. The Gmail
+  writer must still treat "no `reply_draft` row" as nothing to write.
+- The diff is about 450 lines of code and tests, over the ~300 line guide: one view, its guards and
+  their tests belong together.
 
 ## Out of scope
 - The Gmail draft writer (ADR-0025), recomputing the envelope from stored headers, follow-up nudges.

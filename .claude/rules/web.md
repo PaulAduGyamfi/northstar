@@ -48,7 +48,8 @@ are CSS variables in `apps/web/app/globals.css`.
 - An "Email reply" in the Queue (NS-237) shows its stored draft only when Paul asks ("Show the
   reply", the API's `GET /approvals/reply`), as plain text through `replyLines`: the recipient
   first, with the other-domain warning under it. An approve of a reply with no draft comes back
-  `missing_draft` and stays in the queue.
+  `missing_draft` and stays in the queue; one to another domain is approved only on its own
+  (`approve_alone` in a batch).
 - The run inspector (NS-154) fetches a feed line's run (`GET /feed/run`) only when Paul asks, and
   shows it as plain text through `src/run.ts` (`callLine`, `totalsLine`).
 - Pipeline filters (NS-207) live in the URL (`parseFilters`, `filterQuery` in `src/pipeline.ts`)

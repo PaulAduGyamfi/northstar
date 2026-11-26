@@ -3,6 +3,7 @@ import {
   decideApprovals,
   listPendingApprovals,
   missingReplyDrafts,
+  otherDomainReplies,
   readReplyDraft,
   undoDecision,
 } from "@northstar/db";
@@ -31,5 +32,7 @@ export function dbApprovalPorts(db: Db, candidateId: () => Promise<CandidateId>)
           };
     },
     missingReplies: async (requestIds) => missingReplyDrafts(db, await candidateId(), requestIds),
+    otherDomainReplies: async (requestIds) =>
+      otherDomainReplies(db, await candidateId(), requestIds),
   };
 }
