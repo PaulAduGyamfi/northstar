@@ -48,6 +48,7 @@ export default async function InboxPage() {
         {inbox.kind === "ok" && inbox.body.queued.length > 0 ? (
           <section className="card" aria-labelledby="needs-link">
             <h2 id="needs-link">Needs you to link it</h2>
+            <p className="muted">Linking these from the app comes later. For now they wait here.</p>
             <ul>
               {queuedRows(inbox.body.queued, now).map((q) => (
                 <li key={q.key}>
@@ -78,7 +79,7 @@ export default async function InboxPage() {
                   {threadRows(a, now).map((t) => (
                     <li key={t.key}>
                       {t.kind} · {t.messages}, {t.received} · {t.linked}
-                      {t.unverified ? " · sender not verified" : ""}
+                      {t.unverified ? ` · ${t.unverified}` : ""}
                       {t.href ? (
                         <>
                           {" · "}

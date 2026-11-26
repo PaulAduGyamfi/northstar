@@ -39,6 +39,8 @@ export type QueuedThread = {
   reason: (typeof QUEUE_REASONS)[number];
 };
 
+// A thread with some messages linked and others queued shows up in both groups, each counting
+// only its own messages: a later mail in a linked thread can still fail to match on its own.
 export type Inbox = { applications: InboxApplication[]; queued: QueuedThread[] };
 
 // More threads than this are cut, newest kept: far above a year of job mail.

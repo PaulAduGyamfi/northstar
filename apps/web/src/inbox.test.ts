@@ -50,7 +50,7 @@ describe("threadRows", () => {
         messages: "2 messages",
         received: "last one 2 h ago",
         linked: "Linked by its tagged address",
-        unverified: true,
+        unverified: "sender not verified",
         kind: "Not classified yet",
       },
       {
@@ -60,7 +60,7 @@ describe("threadRows", () => {
         messages: "1 message",
         received: "last one just now",
         linked: "Linked by the company's domain",
-        unverified: false,
+        unverified: "",
         kind: "interview request",
       },
     ]);

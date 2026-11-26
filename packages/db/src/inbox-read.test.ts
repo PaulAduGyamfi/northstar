@@ -80,17 +80,19 @@ describe("readInboxThreads", () => {
   it("groups linked threads by application, newest first, with counts, steps and origin", async () => {
     const globex = await newApplication(candidateId, "Globex", "Platform Engineer", "northstar");
     const initech = await newApplication(candidateId, "Initech", "Data Engineer", "outside");
+    // The older message's sender was verified, the newest one's wasn't: the thread still counts
+    // as verified (any message), while its step is the newest message's.
     await link(candidateId, "a1", "aa01", 1, {
       kind: "linked",
       applicationId: globex,
-      step: "tag",
-      senderVerified: false,
+      step: "sender",
+      senderVerified: true,
     });
     await link(candidateId, "a2", "aa01", 5, {
       kind: "linked",
       applicationId: globex,
       step: "thread",
-      senderVerified: true,
+      senderVerified: false,
     });
     await link(candidateId, "b1", "bb01", 9, {
       kind: "linked",

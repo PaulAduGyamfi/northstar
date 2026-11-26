@@ -17,7 +17,7 @@ const Thread = z.object({
 });
 
 const Application = z.object({
-  applicationId: z.string(),
+  applicationId: z.uuid(),
   jobTitle: z.string().nullable(),
   company: z.string().nullable(),
   status: z.enum(APPLICATION_STATUSES),
@@ -71,8 +71,8 @@ export type ThreadRow = {
   messages: string;
   received: string;
   linked: string;
-  // Shown only when no message's sender was verified (INB-011).
-  unverified: boolean;
+  // "sender not verified" when no message's sender was verified (INB-011), else "".
+  unverified: string;
   kind: string;
 };
 
@@ -94,7 +94,7 @@ export function threadRows(a: InboxApplicationView, nowMs: number): ThreadRow[] 
     messages: messages(t.messages),
     received: received(t.lastReceivedAt, nowMs),
     linked: `Linked ${STEP_WORDS[t.step]}`,
-    unverified: !t.senderVerified,
+    unverified: t.senderVerified ? "" : "sender not verified",
     // Classification arrives with the mail-link loop (#224).
     kind: t.kind === null ? "Not classified yet" : t.kind.replaceAll("_", " "),
   }));

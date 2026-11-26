@@ -3,7 +3,7 @@
 Status: autonomous (ADR-0016; agent-planned, not reviewed by Paul before the build)
 Requirements: INB-006 (unified job inbox view), INB-008 (origin badge in the app) · ADR-0018.
 GitHub issue #116. Blockers #107 (NS-156) and #115 (NS-164) are closed.
-Rules that apply: `.claude/rules/db.md`, `web.md`, `api.md`, `tests.md`.
+Rules that apply: `.claude/rules/db.md`, `web.md`, `tests.md`.
 
 ## Why
 Linked job mail is stored (`mail_link`, NS-158), but Paul can't see it anywhere. INB-006 asks for one
@@ -47,6 +47,10 @@ back without opening Gmail.
 - [ ] `pnpm turbo run lint typecheck test build --force` exits 0, and `checks` is green.
 
 ## Out of scope
+- **The next action per thread (INB-006).** It depends on the stored classification (#224), so it
+  comes with or after it.
+- **Linking a queued thread from the app.** There's no endpoint for the confirm queue yet; the
+  group says so.
 - Storing classifications, the mail loop and status proposals (#224).
 - Gmail labels (#238).
 - Opening a thread's text in the app: bodies are never stored (NFR-SEC-005).

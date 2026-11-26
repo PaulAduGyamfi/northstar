@@ -25,7 +25,8 @@ const Thread = z.object({
 });
 
 const Application = z.object({
-  applicationId: z.string(),
+  // A database id, checked because the page puts it into a link to the application.
+  applicationId: z.uuid(),
   jobTitle: z.string().nullable(),
   company: z.string().nullable(),
   status: z.enum(APPLICATION_STATUSES),
