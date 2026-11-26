@@ -34,13 +34,13 @@ traceable to something he approved, and never a guess.
   actor `system`, idempotency key `package:<packageId>`. It never submits.
 
 ## Acceptance criteria
-- [ ] A synthetic job, contact, resume, settings and bank yield a package that passes
+- [x] A synthetic job, contact, resume, settings and bank yield a package that passes
       `parsePackage`, with each answer's source (unit tests).
-- [ ] Unanswerable required questions, a required cover letter without one, a too-long answer
+- [x] Unanswerable required questions, a required cover letter without one, a too-long answer
       and a choice mismatch each give `NeedsHuman` with the field and reason; nothing is guessed.
-- [ ] `filePackage` lands the package in the Gate as pending (`listPendingApprovals`), and filing
+- [x] `filePackage` lands the package in the Gate as pending (`listPendingApprovals`), and filing
       it again replays rather than duplicating (PGlite test).
-- [ ] `pnpm turbo run lint typecheck test build` passes.
+- [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Failure modes
 - Database down while filing: `requestApproval` throws; the caller retries with the same
