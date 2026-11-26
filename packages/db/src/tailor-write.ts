@@ -3,6 +3,7 @@ import type { CandidateId } from "@northstar/domain";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { atomLineEdit } from "./audit-schema.js";
 import type { Db } from "./db.js";
+import { storeFileIn } from "./file-write.js";
 import { education, experienceAtom, profileSource, role, skill } from "./profile-schema.js";
 import { appendEvent, inSpan } from "./resilience-event.js";
 import { job } from "./schema.js";
@@ -196,6 +197,8 @@ export type SaveTailoredInput = {
   score: Record<string, unknown>;
   droppedSkills: string[];
   summary: TailorSummary;
+  // The rendered PDF this version sends (NS-227), stored with a new version only.
+  pdf: Uint8Array;
 };
 
 // Stable JSON (sorted keys) so the same content always hashes the same.
@@ -210,8 +213,9 @@ function stable(value: unknown): string {
   return JSON.stringify(value);
 }
 
-// Stores a new version for the job, or nothing when the newest version holds the same import,
-// resume and toggles.
+// Stores a new version for the job with its PDF, or nothing when the newest version holds the
+// same import, resume, toggles and score. The PDF isn't part of that comparison: pdf-lib stamps a
+// creation time, so every render's bytes differ, and an unchanged version keeps its first PDF.
 export async function saveTailoredResume(
   db: Db,
   input: SaveTailoredInput,
@@ -246,6 +250,11 @@ export async function saveTailoredResume(
           }
           // Two saves racing for one version: the unique key fails one, nothing doubles.
           const version = (latest?.version ?? 0) + 1;
+          const pdf = await storeFileIn(tx, {
+            candidateId: input.candidateId,
+            bytes: input.pdf,
+            contentType: "application/pdf",
+          });
           const [row] = await tx
             .insert(tailoredResume)
             .values({
@@ -258,6 +267,7 @@ export async function saveTailoredResume(
               score: input.score,
               droppedSkills: dropped,
               contentSha256,
+              pdfSha256: pdf.sha256,
             })
             .returning({ id: tailoredResume.id, createdAt: tailoredResume.createdAt });
           if (!row) throw new Error("tailored_resume insert returned no row");
@@ -275,6 +285,9 @@ export async function saveTailoredResume(
               profileSourceId: input.profileSourceId,
               version,
               ...s,
+              // A hash and a size: never the bytes.
+              pdfSha256: pdf.sha256,
+              pdfBytes: pdf.byteSize,
             },
             idempotencyKey: `tailored_resume:${row.id}`,
             at: row.createdAt,
@@ -296,6 +309,8 @@ export type TailoredVersion = {
   validation: Record<string, unknown>;
   score: Record<string, unknown>;
   droppedSkills: string[];
+  // The version's stored PDF (readStoredFile), or null for versions made before NS-227.
+  pdfSha256: string | null;
   createdAt: Date;
 };
 
@@ -314,6 +329,7 @@ export async function readTailoredResumes(
       validation: tailoredResume.validation,
       score: tailoredResume.score,
       droppedSkills: tailoredResume.droppedSkills,
+      pdfSha256: tailoredResume.pdfSha256,
       createdAt: tailoredResume.createdAt,
     })
     .from(tailoredResume)

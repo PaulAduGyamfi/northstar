@@ -1,7 +1,10 @@
+import { createHash } from "node:crypto";
 import { CandidateId } from "@northstar/domain";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "./db.js";
+import { storedFile } from "./file-schema.js";
+import { readStoredFile } from "./file-write.js";
 import { writeProfileImport } from "./profile-write.js";
 import { domainEvent, job } from "./schema.js";
 import { tailoredResume } from "./tailor-schema.js";
@@ -17,6 +20,7 @@ import { createTestDb, seedApplication, sqlState } from "./test/pglite.js";
 // Tailored resumes (NS-146). Synthetic profile and job only.
 
 const RESTRICT_VIOLATION = "23001";
+const CHECK_VIOLATION = "23514";
 
 let db: Db;
 let close: () => Promise<void>;
@@ -87,6 +91,11 @@ const summary: TailorSummary = {
   failures: 0,
 };
 
+// Synthetic bytes standing in for a rendered PDF: the database never parses them.
+const PDF_A = new TextEncoder().encode("%PDF-1.7 synthetic render A");
+const PDF_B = new TextEncoder().encode("%PDF-1.7 synthetic render B");
+const sha = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+
 const save = (over: Partial<SaveTailoredInput> = {}, sourceId = "") =>
   saveTailoredResume(db, {
     candidateId,
@@ -97,6 +106,7 @@ const save = (over: Partial<SaveTailoredInput> = {}, sourceId = "") =>
     score: { title: "partial" },
     droppedSkills: [],
     summary,
+    pdf: PDF_A,
     ...over,
   });
 
@@ -213,6 +223,106 @@ describe("saveTailoredResume", () => {
       await sqlState(db.update(tailoredResume).set({ version: 9 })),
       await sqlState(db.delete(tailoredResume)),
       await sqlState(db.execute(sql`truncate tailored_resume`)),
+    ]).toEqual([RESTRICT_VIOLATION, RESTRICT_VIOLATION, RESTRICT_VIOLATION]);
+  });
+});
+
+describe("the tailored resume's PDF (NS-227)", () => {
+  it("stores a new version's PDF and names it, and an unchanged save keeps the first PDF", async () => {
+    await importProfile(candidateId);
+    const source = await sourceId();
+    await save({}, source);
+    // Same content, a new render with other bytes (pdf-lib stamps a creation time).
+    const again = await save({ pdf: PDF_B }, source);
+    const [newest] = await readTailoredResumes(db, candidateId, jobId);
+    expect([
+      again,
+      newest?.pdfSha256,
+      await readStoredFile(db, candidateId, sha(PDF_A)),
+      await readStoredFile(db, candidateId, sha(PDF_B)),
+    ]).toEqual([{ version: 1, saved: false }, sha(PDF_A), PDF_A, null]);
+  });
+
+  it("stores the same PDF bytes once when two versions send them", async () => {
+    await importProfile(candidateId);
+    const source = await sourceId();
+    await save({}, source);
+    await save({ droppedSkills: ["Kubernetes"] }, source);
+    const versions = await readTailoredResumes(db, candidateId, jobId);
+    expect([
+      versions.map((v) => v.pdfSha256),
+      (await db.select({ id: storedFile.id }).from(storedFile)).length,
+    ]).toEqual([[sha(PDF_A), sha(PDF_A)], 1]);
+  });
+
+  it("puts the PDF's hash and size in the event, never its bytes", async () => {
+    await importProfile(candidateId);
+    await save({}, await sourceId());
+    const [event] = await db
+      .select({ payload: domainEvent.payload })
+      .from(domainEvent)
+      .where(eq(domainEvent.type, "resume.tailored"));
+    const payload = event?.payload as Record<string, unknown> | undefined;
+    expect([
+      payload?.pdfSha256,
+      payload?.pdfBytes,
+      JSON.stringify(event).includes("synthetic render"),
+    ]).toEqual([sha(PDF_A), PDF_A.byteLength, false]);
+  });
+
+  it("reads nothing for another candidate, an unknown hash or a malformed one", async () => {
+    await importProfile(candidateId);
+    await save({}, await sourceId());
+    const other = await seedApplication(db, "discovered");
+    expect([
+      await readStoredFile(db, CandidateId.parse(other.candidateId), sha(PDF_A)),
+      await readStoredFile(db, candidateId, "0".repeat(64)),
+      await readStoredFile(db, candidateId, "not-a-hash"),
+    ]).toEqual([null, null, null]);
+  });
+
+  it("stores nothing for an empty or oversize PDF", async () => {
+    await importProfile(candidateId);
+    const source = await sourceId();
+    const empty = save({ pdf: new Uint8Array(0) }, source).catch((e: Error) => e.message);
+    const big = save({ pdf: new Uint8Array(5 * 1024 * 1024 + 1) }, source).catch(
+      (e: Error) => e.message,
+    );
+    expect([
+      await empty,
+      await big,
+      await readTailoredResumes(db, candidateId, jobId),
+      (await db.select({ id: storedFile.id }).from(storedFile)).length,
+    ]).toEqual(["resume.tailor save failed", "resume.tailor save failed", [], 0]);
+  });
+
+  it("refuses a hash that isn't the bytes' own, another content type and over 5 MiB", async () => {
+    const row = (over: Partial<typeof storedFile.$inferInsert>) =>
+      db.insert(storedFile).values({
+        candidateId,
+        sha256: sha(PDF_A),
+        contentType: "application/pdf",
+        byteSize: PDF_A.byteLength,
+        bytes: PDF_A,
+        ...over,
+      });
+    const big = new Uint8Array(5 * 1024 * 1024 + 1);
+    expect([
+      await sqlState(row({ sha256: sha(PDF_B) })),
+      await sqlState(row({ contentType: "text/html" })),
+      await sqlState(row({ byteSize: PDF_A.byteLength + 1 })),
+      await sqlState(row({ sha256: sha(big), byteSize: big.byteLength, bytes: big })),
+    ]).toEqual([CHECK_VIOLATION, CHECK_VIOLATION, CHECK_VIOLATION, CHECK_VIOLATION]);
+  });
+
+  it("refuses UPDATE, DELETE and TRUNCATE on stored files", async () => {
+    await importProfile(candidateId);
+    await save({}, await sourceId());
+    expect([
+      await sqlState(db.update(storedFile).set({ contentType: "application/pdf" })),
+      await sqlState(db.delete(storedFile)),
+      // CASCADE: a plain TRUNCATE is already refused by tailored_resume's foreign key (0A000).
+      await sqlState(db.execute(sql`truncate stored_file cascade`)),
     ]).toEqual([RESTRICT_VIOLATION, RESTRICT_VIOLATION, RESTRICT_VIOLATION]);
   });
 });
