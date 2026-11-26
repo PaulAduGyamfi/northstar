@@ -71,37 +71,49 @@ export function pollWindow(
       try {
         while (deps.now().getTime() < window.expiresAt.getTime()) {
           ticks++;
-          try {
-            const ids = await deps.gmail.listIds(windowQuery(window));
-            const fresh = ids.filter((m) => !seen.has(m.id)).slice(0, MAX_PER_TICK);
-            for (const { id } of fresh) {
-              const full = await deps.gmail.getFull(id);
-              // Seen only once fetched: a fetch that fails is tried again next tick, so a failed
-              // read can't hide the code mail for the rest of the window.
-              seen.add(id);
-              offered++;
-              // The body is untrusted text: the catcher only extracts from it.
-              const msg = {
-                messageId: full.id,
-                senderDomain: full.senderDomain,
-                authenticationResults: full.authenticationResults,
-                receivedAt: full.receivedAt,
-                text: full.body,
-                html: null,
-              };
-              const result = deps.pick
-                ? await deps.catcher.offerAssisted(msg, deps.pick)
-                : deps.catcher.offer(msg);
-              if (result.status === "verified" || result.status === "needs_human") {
-                return finish(result);
-              }
+          // Only the two Gmail calls are guarded: a failed read (Gmail down, the gmail breaker
+          // open) never ends the wait, and the next tick retries. A bug in the catcher still
+          // throws, so it isn't mistaken for Gmail trouble and retried until the window ends.
+          const gmailCall = async <T>(call: () => Promise<T>): Promise<T | undefined> => {
+            try {
+              return await call();
+            } catch (error) {
+              // Named only: a message could quote the request.
+              lastError = error instanceof Error ? error.name : "Error";
+              return undefined;
             }
-          } catch (error) {
-            // A failed tick (Gmail down, the gmail breaker open) never ends the wait: the next
-            // tick retries. Named only: a message could quote the request.
-            lastError = error instanceof Error ? error.name : "Error";
+          };
+          const ids = await gmailCall(() => deps.gmail.listIds(windowQuery(window)));
+          const fresh = (ids ?? []).filter((m) => !seen.has(m.id)).slice(0, MAX_PER_TICK);
+          for (const { id } of fresh) {
+            const full = await gmailCall(() => deps.gmail.getFull(id));
+            // Not seen until fetched: a failed fetch is tried again next tick, so one failed
+            // read can't hide the code mail for the rest of the window.
+            if (full === undefined) break;
+            seen.add(id);
+            offered++;
+            // The body is untrusted text: the catcher only extracts from it. Known gap: getFull
+            // gives the text part (or text made from the HTML, without its links), not the raw
+            // HTML, so a magic link that exists only as an HTML button isn't seen. That mail
+            // ends as no_code_or_link and the window waits, then resends (fail safe).
+            const msg = {
+              messageId: full.id,
+              senderDomain: full.senderDomain,
+              authenticationResults: full.authenticationResults,
+              receivedAt: full.receivedAt,
+              text: full.body,
+              html: null,
+            };
+            const result = deps.pick
+              ? await deps.catcher.offerAssisted(msg, deps.pick)
+              : deps.catcher.offer(msg);
+            if (result.status === "verified" || result.status === "needs_human") {
+              return finish(result);
+            }
           }
-          // Never sleep past the window's end.
+          // Never sleep past the window's end. Known gap: one Gmail call can itself take minutes
+          // (the client's retries and Retry-After), so the result can come after expiresAt. A
+          // deadline for the client is for the gateway session that wires this (NS-151).
           const left = window.expiresAt.getTime() - deps.now().getTime();
           if (left <= 0) break;
           await deps.sleep(Math.min(interval, left));

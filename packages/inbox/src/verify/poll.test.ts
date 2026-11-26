@@ -1,8 +1,27 @@
 import { HeldBack } from "@northstar/llm";
-import { describe, expect, it } from "vitest";
+import { trace } from "@opentelemetry/api";
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FullMessage } from "../gmail.js";
 import { createCatcher, type WindowSpec } from "./catcher.js";
 import { type PollGmail, pollWindow } from "./poll.js";
+
+const exporter = new InMemorySpanExporter();
+beforeAll(() => {
+  trace.setGlobalTracerProvider(
+    new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] }),
+  );
+});
+afterAll(() => {
+  trace.disable();
+});
+beforeEach(() => {
+  exporter.reset();
+});
 
 // Synthetic tenant and mail only (the repo is public). A fake Gmail and a fake clock: sleeping
 // moves the clock, so no test waits.
@@ -120,7 +139,8 @@ describe("pollWindow", () => {
       tick === 1 ? new HeldBack("breaker", "gmail", new Date(T0.getTime() + 30_000)) : [],
     );
     const result = await pollWindow(deps, window, { intervalMs: 20_000 });
-    expect(queries.length).toBeGreaterThan(1);
+    // Ticks at 0 s, 20 s and 40 s of the 60 s window.
+    expect(queries).toHaveLength(3);
     expect(result).toEqual({ status: "timed_out", windowId: "w-1", lastError: "HeldBack" });
   });
 
@@ -153,5 +173,46 @@ describe("pollWindow", () => {
     // Ten on the first tick, the last two on the next.
     expect(fetched).toEqual(many.map((m) => m.id));
     expect(fetchTicks).toEqual([...Array(10).fill(1), 2, 2]);
+  });
+
+  it("puts an ambiguous mail to the pick when one is given", async () => {
+    const two = message("m-1", 1_000, "Your code is 482913. Or use 771204.");
+    const { deps, window } = setup(() => [two]);
+    const result = await pollWindow({ ...deps, pick: async () => 1 }, window);
+    expect(result.status).toBe("verified");
+    if (result.status === "verified") expect(result.secret.reveal()).toBe("771204");
+  });
+
+  it("names a catcher bug instead of retrying it as Gmail trouble", async () => {
+    const { deps, window, queries } = setup(() => [message("m-1", 1_000)]);
+    const broken = {
+      ...deps,
+      catcher: {
+        offer: () => {
+          throw new TypeError("catcher bug");
+        },
+        offerAssisted: async () => {
+          throw new TypeError("catcher bug");
+        },
+      },
+    };
+    await expect(pollWindow(broken, window)).rejects.toThrow("catcher bug");
+    expect(queries).toHaveLength(1);
+  });
+
+  it("records ids and counts on its span, never the query or a sender", async () => {
+    const { deps, window } = setup((tick) =>
+      tick === 1 ? new Error("socket hang up") : [message("m-1", 6_000)],
+    );
+    await pollWindow(deps, window);
+    const span = exporter.getFinishedSpans().find((s) => s.name === "verification.poll");
+    expect(span?.attributes).toEqual({
+      "verification.window_id": "w-1",
+      "verification.poll.ticks": 2,
+      "verification.poll.offered": 1,
+      "verification.poll.outcome": "verified",
+      "verification.poll.last_error": "Error",
+    });
+    expect(JSON.stringify(span?.attributes)).not.toContain("myworkday.com");
   });
 });

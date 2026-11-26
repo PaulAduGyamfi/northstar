@@ -30,7 +30,8 @@ neither.
 3. **What it ignores:** `not_verification`, `ambiguous_window` and `no_code_or_link` leave the
    window waiting.
 4. **Interval:** 5 s by default, the sleep injected. It never sleeps past the window's expiry.
-5. **A Gmail error never ends the wait early.**
+5. **A Gmail error never ends the wait early.** Only the two Gmail calls are guarded. A bug in
+   the catcher still throws, and a message whose fetch failed isn't marked seen.
    - The error can be a failed call, or `HeldBack` from the `gmail` breaker (NS-174).
    - The tick is skipped and the next one retries.
    - A timeout result carries the last error's name, never its message.
@@ -48,6 +49,18 @@ neither.
 - [ ] A Gmail error on one tick doesn't stop the loop, and the timeout names it.
 - [ ] `needs_human` from the catcher ends the loop with that result.
 - [ ] `pnpm turbo run lint typecheck test build --force` exits 0, and `checks` is green.
+
+## Known gaps (recorded as decisions)
+- **Magic links that exist only as HTML buttons aren't seen.** `getFull` returns the text part,
+  or text made from the HTML without its links. Such a mail ends as `no_code_or_link`, then the
+  window resends (fail safe). Passing the raw HTML part needs a `gmail.ts` change, which is
+  outside this plan.
+- **A result can come late.** One Gmail call can take minutes (the client's retries and
+  Retry-After), so `timed_out` can come after `expiresAt`. Tying a deadline or an AbortSignal
+  to the window is for the caller, the gateway session (NS-151).
+- **Spam and trash aren't searched.** `messages.list` leaves them out by default.
+- **A resend means a new call.** The caller calls `pollWindow` again with the renewed window.
+  Ids already seen are fetched once more, and the catcher refuses them.
 
 ## Out of scope
 - Who calls it: the gateway session (NS-151) wires the catcher, the poller and the timeout.
