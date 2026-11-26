@@ -55,8 +55,13 @@ For every gateway (the Apply Gateway now, the others when they land):
 - A gateway calls `verifyApproval` (NS-119) at the moment it acts, never when it enqueues, and
   passes the SHA-256 of exactly what it is about to send. One approval, one send: the Apply
   Gateway keys each submission `application:<id>:submit` and refuses a second one for the same
-  requisition. A `ContentChanged` or `UndoWindowOpen` refusal becomes a
-  visible `needs_human` item or a scheduled retry at `effective_at` (ADR-0007), never a silent drop.
+  requisition. An `UndoWindowOpen` refusal becomes a scheduled retry at `effective_at`
+  (ADR-0007), never a silent drop. Since NS-211 the Apply Gateway answers the Gate's
+  `ContentChanged` (and nothing else, never its own transient `FileChanged`) by withdrawing the
+  approval: `requestOfDecision`, then `withdrawApproval({ by: "gateway", newContentSha256 })`,
+  then it still throws. It writes no ledger row (that would block the resubmission); the
+  `approval.withdrawn` feed line is the visible item, and a refused withdrawal is on the span
+  only, so the caller must surface the thrown `NotApprovedError`.
 - A gateway call without a verified `approvalId` or `policyDecisionId` throws. Look the approval
   up server-side; never trust an ID the caller merely asserts. Test the refusal.
 - Every side effect has an idempotency key (`application:{id}:submit`, `email:{draftId}:send`).

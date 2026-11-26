@@ -1,4 +1,4 @@
-import { CandidateId } from "@northstar/domain";
+import { CandidateId, packageSha256 } from "@northstar/domain";
 import { trace } from "@opentelemetry/api";
 import {
   BasicTracerProvider,
@@ -88,6 +88,68 @@ describe("approval", () => {
     );
     expect([world.submissions.length, world.driverCalls.open]).toEqual([0, 0]);
   });
+});
+
+describe("withdrawing an approval whose package changed (NS-211)", () => {
+  const edited = makePackage("greenhouse", { fields: { ...pkg.fields, question_1001: "No" } });
+  const withdrawSpan = () =>
+    exporter.getFinishedSpans().find((s) => s.name === "apply.submit")?.attributes[
+      "northstar.apply.withdraw"
+    ];
+
+  it("withdraws the approval with the edited package's hash, and still throws ContentChanged", async () => {
+    const world = fakeWorld({ open: form, submit: confirmed });
+    const decisionId = world.approve(pkg);
+    await expect(run(world, decisionId, edited)).rejects.toEqual(
+      new NotApprovedError("ContentChanged"),
+    );
+    expect([
+      world.withdrawals.map((w) => w.newContentSha256),
+      world.submissions.length,
+      world.driverCalls.open,
+      withdrawSpan(),
+    ]).toEqual([[packageSha256(edited)], 0, 0, "withdrawn"]);
+  });
+
+  it("refuses the old decision id afterwards, even for the original package", async () => {
+    const world = fakeWorld({ open: form, submit: confirmed });
+    const decisionId = world.approve(pkg);
+    await expect(run(world, decisionId, edited)).rejects.toThrow(NotApprovedError);
+    await expect(run(world, decisionId, pkg)).rejects.toEqual(new NotApprovedError("Withdrawn"));
+    expect(world.withdrawals.length).toBe(1);
+  });
+
+  it("withdraws nothing when the resume bytes changed under an unchanged package", async () => {
+    const world = fakeWorld({ open: form, submit: confirmed });
+    const other = makePackage("greenhouse", {
+      resume: { fileName: "resume.pdf", sha256: "f".repeat(64) },
+    });
+    const result = await run(world, world.approve(other), other);
+    expect([result, world.withdrawals]).toEqual([
+      { ok: false, error: { kind: "FileChanged", file: "resume" } },
+      [],
+    ]);
+  });
+
+  it.each(["Rejected", "Undone", "UndoWindowOpen"] as const)(
+    "withdraws nothing when the Gate says %s",
+    async (refusal) => {
+      const world = fakeWorld({ open: form, submit: confirmed });
+      await expect(run(world, world.approve(pkg, refusal))).rejects.toThrow(NotApprovedError);
+      expect(world.withdrawals).toEqual([]);
+    },
+  );
+
+  it.each(["NotApproved", "UndoWindowOpen", "AlreadyClosed"] as const)(
+    "records a %s withdrawal refusal on the span and still throws ContentChanged",
+    async (withdrawRefusal) => {
+      const world = fakeWorld({ open: form, submit: confirmed, withdrawRefusal });
+      await expect(run(world, world.approve(pkg), edited)).rejects.toEqual(
+        new NotApprovedError("ContentChanged"),
+      );
+      expect([world.withdrawals.length, withdrawSpan()]).toEqual([1, withdrawRefusal]);
+    },
+  );
 });
 
 describe("refusals before anything is claimed", () => {

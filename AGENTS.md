@@ -317,7 +317,9 @@ Exists now:
   closes an approval whose content changed (it passes the new hash, which must differ). A
   withdrawn request (`approval_withdrawal`, append-only) is neither pending nor approved:
   `verifyApproval` returns `Withdrawn`, the vault won't open under it, and its subject may be
-  requested again (after Paul's withdrawal, always waiting for him). No caller yet.
+  requested again (after Paul's withdrawal, always waiting for him). Since NS-211 the Apply
+  Gateway is its gateway caller, through `requestOfDecision` (read-only: a decision id to its
+  request, scoped by candidate).
   Since NS-139 the queue is in the app: the API's `GET /approvals`, `POST /approvals/decide`
   (one or up to 100 at once, reject with a reason) and `POST /approvals/undo`, session only and
   the only callers of `decideApprovals`/`undoDecision` (`approvals.ts`, `approval-ports.ts`), and
@@ -397,6 +399,11 @@ Exists now:
   are in `packages/domain` (`apply-package.ts`). Its tests run on fakes and, through `dbPorts`,
   on the real write paths: `@northstar/db/testing` exports `createTestDb` and friends for that. There is no real browser driver yet, so
   nothing can be submitted until the Playwright driver lands.
+  Since NS-211 a Gate `ContentChanged` (the package changed after approval) also withdraws that
+  approval (`requestOfDecision`, then `withdrawApproval` by `gateway` with the new package hash),
+  then still throws `NotApprovedError("ContentChanged")`, so the subject can be requested again.
+  The gateway's own `FileChanged` withdraws nothing, and no ledger row is written: the visible
+  item is the `approval.withdrawn` feed line; a refused withdrawal is on the span only.
   Since NS-121 a challenge (`captcha`, `login`, `mfa`, `account`) also opens a human handoff:
   `recordNeedsHuman` stores `apply_handoff` (the apply URL, https only) in the same transaction,
   `listOpenHandoffs` and `resolveHandoff` (`handoff-write.ts`, append-only) serve the API's

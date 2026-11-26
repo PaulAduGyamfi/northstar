@@ -11,9 +11,11 @@ import {
   recordCallOutcome,
   recordNeedsHuman,
   recordSubmitted,
+  requestOfDecision,
   storeSealedSecret,
   transitionApplication,
   verifyApproval,
+  withdrawApproval,
 } from "@northstar/db";
 import type { CallDecision, CallOutcome, CandidateId } from "@northstar/domain";
 import type { OpenPorts } from "../vault/open.js";
@@ -23,11 +25,20 @@ import type { SweepPorts } from "./stale.js";
 
 // Everything the Apply Gateway touches, so tests can pass fakes and production passes the
 // database (dbPorts). The database functions are the real write paths: the Gate's
-// verifyApproval, the submission ledger and transitionApplication.
+// verifyApproval, requestOfDecision and withdrawApproval, the submission ledger and
+// transitionApplication.
 export type ApplyPorts = {
   verifyApproval: (
     input: Parameters<typeof verifyApproval>[1],
   ) => ReturnType<typeof verifyApproval>;
+  // The request a decision id belongs to, and the gateway's withdrawal of an approval whose
+  // package changed for good (NS-211): used only after verifyApproval said ContentChanged.
+  requestOfDecision: (
+    input: Parameters<typeof requestOfDecision>[1],
+  ) => ReturnType<typeof requestOfDecision>;
+  withdrawApproval: (
+    input: Parameters<typeof withdrawApproval>[1],
+  ) => ReturnType<typeof withdrawApproval>;
   claimSubmission: (
     input: Parameters<typeof claimSubmission>[1],
   ) => ReturnType<typeof claimSubmission>;
@@ -70,6 +81,8 @@ export function dbPorts(
 ): ApplyPorts {
   return {
     verifyApproval: (input) => verifyApproval(db, input),
+    requestOfDecision: (input) => requestOfDecision(db, input),
+    withdrawApproval: (input) => withdrawApproval(db, input),
     claimSubmission: (input) => claimSubmission(db, input, limits),
     recordSubmitted: (c, s, p) => recordSubmitted(db, c, s, p),
     recordNeedsHuman: (c, s, r, url) => recordNeedsHuman(db, c, s, r, url),
