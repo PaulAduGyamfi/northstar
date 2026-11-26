@@ -51,8 +51,12 @@ Exists now:
   `parseCheckIn` (track, time, minutes, optional percent; no free text), `applyCheckIns` (moves
   each track's last touch forward, which feeds the next `planWeek`), `trackDashboard` (minutes
   against plan, days since touched, at risk, a week streak that never resets mid-week, percent per
-  week still needed) and `weeklyReview` (moved, not reached, a neutral log; UX-032). No storage,
-  auto-detected progress or page yet.
+  week still needed) and `weeklyReview` (moved, not reached, a neutral log; UX-032). Since NS-214
+  stored (`packages/db`: append-only `growth_check_in`, one per client idempotency key, and
+  `growth_review`, one per week; a check-in also moves the track's last touch for the planner)
+  and in the app: the API's `GET /growth`, `POST /growth/check-ins` and `POST /growth/review`
+  (session only, `apps/api/src/growth.ts`) and the web app's Grow tab (`/grow`). `weekStartOf`
+  lives here now. No auto-detected progress or heatmap yet.
   Since NS-164 also `mailStatusChange` (`mail-status.ts`, INB-004/011): a linked email's kind
   gives a target status (confirmation → `confirmed`; assessment, interview request, scheduling →
   `in_process`; offer; rejection), taken only as a `nextStatus` move. It applies by itself only on

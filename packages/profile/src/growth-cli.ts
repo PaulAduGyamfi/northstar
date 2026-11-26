@@ -12,6 +12,7 @@ import {
   parsePlanSettings,
   planWeek,
   type WeekPlan,
+  weekStartOf,
 } from "@northstar/domain";
 import { parseGrowthTracks } from "./growth-file.js";
 
@@ -52,14 +53,8 @@ const SETTING_FIELDS = [
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
 
-// The Monday (UTC) of the week `now` is in, as YYYY-MM-DD.
-export function weekStartOf(now: Date): string {
-  const day = (now.getUTCDay() + 6) % 7;
-  const monday = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - day),
-  );
-  return monday.toISOString().slice(0, 10);
-}
+// The Monday (UTC) of the week: lives in packages/domain since NS-214, so the API shares it.
+export { weekStartOf };
 
 export async function growthCommand(deps: GrowthCliDeps, args: string[]): Promise<number> {
   const [sub, a, b, c, ...rest] = args;

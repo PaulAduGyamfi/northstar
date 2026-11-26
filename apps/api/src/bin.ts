@@ -13,12 +13,15 @@ import {
   loadDbConfig,
   readApplicationHistories,
   readApplicationTimeline,
+  readCheckIns,
   readConsentPolicy,
   readConsentText,
   readDedupeCandidates,
   readFeed,
   readFeedAfter,
   readFeedNames,
+  readGrowthSettings,
+  readGrowthTracks,
   readInboxThreads,
   readPasskey,
   readPreferences,
@@ -27,12 +30,16 @@ import {
   readScoreKeys,
   readScoringProfile,
   readSystemHealth,
+  readWeekPlan,
+  readWeekReview,
   recordCallOutcome,
+  recordCheckIn,
   recordPasskeyUse,
   resolveHandoff,
   saveFitScore,
   saveIngestedJob,
   savePasskey,
+  saveWeekReview,
   setConsentPolicy,
   setKillSwitch,
   soleCandidate,
@@ -59,6 +66,7 @@ import { approvalEndpoints } from "./approvals.js";
 import { captureEndpoint } from "./capture.js";
 import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
 import { consentEndpoints } from "./consent.js";
+import { growthEndpoints } from "./growth.js";
 import { markHandoffSubmitted } from "./handoff-ports.js";
 import { handoffEndpoints } from "./handoffs.js";
 import { inboxEndpoints } from "./inbox.js";
@@ -202,6 +210,19 @@ try {
   });
   // The unified job inbox (NS-165), read-only.
   const inbox = inboxEndpoints({ read: async () => readInboxThreads(db, await candidateId()) });
+  // The Grow tab (NS-214): check-ins, the dashboard and the weekly review, on packages/db's
+  // growth write path.
+  const growth = growthEndpoints({
+    now: () => new Date(),
+    tracks: async () => readGrowthTracks(db, await candidateId()),
+    settings: async () => readGrowthSettings(db, await candidateId()),
+    plan: async (weekStart) => readWeekPlan(db, await candidateId(), weekStart),
+    checkIns: async (since) => readCheckIns(db, await candidateId(), since),
+    review: async (weekStart) => readWeekReview(db, await candidateId(), weekStart),
+    recordCheckIn: async (input) =>
+      recordCheckIn(db, { candidateId: await candidateId(), ...input }),
+    saveReview: async (input) => saveWeekReview(db, { candidateId: await candidateId(), ...input }),
+  });
   // One set of sessions for the sign-in key and passkeys, so both open the same kind of session
   // and their failures count toward one throttle (ADR-0022).
   const sessions = createSessions(Date.now);
@@ -232,6 +253,7 @@ try {
       ...approvals,
       ...pipeline,
       ...inbox,
+      ...growth,
       ...passkeys,
     ],
   });

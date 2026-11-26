@@ -49,6 +49,10 @@ are CSS variables in `apps/web/app/globals.css`.
   the same lists their pages show; one that can't be read says so, never 0.
 - Pipeline metrics (NS-208, `/pipeline/metrics`, `src/metrics.ts`): every rate shows its count,
   and one with too few data points reads "not enough data yet", never a percentage (DX-003).
+- The Grow tab (NS-214, `/grow`, `src/grow.ts`) shows each track's figures through `trackCard`
+  and a review through `reviewLines`, every status in words and no guilt copy (UX-032: never
+  "missed", "behind" or a broken streak). A check-in form keeps one idempotency key until a save
+  succeeds, so a double submit stores one.
 - The Inbox (NS-165, `/inbox`, `src/inbox.ts`) shows Gmail ids, counts, steps and flags only:
   subjects, senders and bodies are never stored, so never fetch or show them. A thread's link is
   shown only when `safeHref` passes and it points at `https://mail.google.com/`.

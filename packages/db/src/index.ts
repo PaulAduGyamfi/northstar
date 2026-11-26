@@ -203,14 +203,22 @@ export {
 } from "./funnel-write.js";
 export * as growthSchema from "./growth-schema.js";
 export {
+  type CheckInInput,
   type GrowthSettingsInput,
   type GrowthTrackInput,
   type GrowthTrackView,
+  readCheckIns,
   readGrowthSettings,
   readGrowthTracks,
+  readWeekPlan,
+  readWeekReview,
+  recordCheckIn,
   recordGrowthTouch,
+  type StoredCheckIn,
   type StoredPlan,
+  type StoredReview,
   saveWeekPlan,
+  saveWeekReview,
   setGrowthSettings,
   setGrowthTracks,
 } from "./growth-write.js";

@@ -170,6 +170,12 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   week), append-only (triggers), written only through `growth-write.ts`. Track keys, names and
   next actions are Paul's words: `growth.tracks_set`, `growth.touched` and `growth.planned` carry
   versions, counts, row ids and the week only.
+  Since NS-214 also `growth_check_in` (one per candidate and client idempotency key; minutes and
+  an optional percent, never free text) and `growth_review` (one per Monday-start week, track keys
+  and minutes), append-only, through `growth-write.ts` (`recordCheckIn`, `readCheckIns`,
+  `saveWeekReview`, `readWeekReview`, `readWeekPlan`). A track's last touch is its newest touch or
+  check-in. `growth.checked_in` carries the row id and minutes, `growth.reviewed` the id, week and
+  two counts.
 - Mail tags and links (NS-158) are `mail_tag` (one tag per application or tenant, never reused)
   and `mail_link` (one decision per Gmail message: linked by a step, or queued with a reason),
   append-only, written only through `mail-link-write.ts`. They hold Gmail ids, tags, steps and
