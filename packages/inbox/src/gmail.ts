@@ -10,6 +10,7 @@ import { GMAIL_AUTHSERV } from "./prefilter.js";
 
 const BASE = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
 const THREADS = "https://gmail.googleapis.com/gmail/v1/users/me/threads";
+const PROFILE = "https://gmail.googleapis.com/gmail/v1/users/me/profile";
 // A Retry-After longer than this is capped: the in-memory token expires after about an hour.
 const MAX_RETRY_AFTER_S = 60;
 // Headers the pre-filter and INB-011 need; nothing else is fetched before the pre-filter decides.
@@ -40,6 +41,10 @@ export type MessageHeaders = {
   authenticationResults: string | null;
   // Gmail's own receive time (internalDate), not the forgeable Date header.
   receivedAt: Date;
+  // Gmail's labels on the message (SENT, DRAFT, INBOX, …), set by Gmail, never by the sender.
+  // Absent only where a caller built the headers itself; the mail-link step then skips the
+  // message, since it can't tell whether Gmail delivered it (#224).
+  labelIds?: readonly string[];
 };
 
 export type FullMessage = MessageHeaders & { body: string };
@@ -61,6 +66,9 @@ export type GmailClient = {
   // Every message id in a thread. A search lists matching messages, not whole threads, so this is
   // how a reply titled "Intro call" in a confirmation's thread is found at all.
   threadMessageIds: (threadId: string) => Promise<{ id: string; threadId: string }[]>;
+  // The mailbox's own address (users.getProfile), for telling mail Gmail delivered to Paul from
+  // mail whose Delivered-To someone else wrote (#224, INB-011).
+  profileAddress: () => Promise<string>;
 };
 
 type GmailPayload = {
@@ -69,7 +77,13 @@ type GmailPayload = {
   body?: { data?: string };
   parts?: GmailPayload[];
 };
-type GmailMessage = { id: string; threadId: string; internalDate: string; payload?: GmailPayload };
+type GmailMessage = {
+  id: string;
+  threadId: string;
+  internalDate: string;
+  labelIds?: string[];
+  payload?: GmailPayload;
+};
 
 // Errors that are Gmail's own trouble (no answer, or a 429, 5xx or rate limit that outlasted the
 // retries), as opposed to Gmail answering that our request is wrong (401, 404, other 403s). Only
@@ -224,6 +238,15 @@ export function createGmailClient(deps: GmailDeps): GmailClient {
       const m = await message(id, "full");
       return { ...headersOf(m), body: bodyOf(m.payload) };
     },
+    profileAddress: () =>
+      inSpan("gmail.profile", {}, async (span) => {
+        const profile = (await get(PROFILE, span)) as { emailAddress?: unknown };
+        // Never on the span: it is Paul's address.
+        if (typeof profile.emailAddress !== "string" || !profile.emailAddress.includes("@")) {
+          throw new GmailError("Gmail's profile had no email address", 200);
+        }
+        return profile.emailAddress;
+      }),
   };
 }
 
@@ -261,6 +284,10 @@ function headersOf(m: GmailMessage): MessageHeaders {
     deliveredTo: deliveredTo(m),
     authenticationResults: authenticationResults(m),
     receivedAt: new Date(Number(m.internalDate)),
+    // Only strings: anything else in the array is dropped rather than trusted.
+    ...(Array.isArray(m.labelIds)
+      ? { labelIds: m.labelIds.filter((l): l is string => typeof l === "string") }
+      : {}),
   };
 }
 

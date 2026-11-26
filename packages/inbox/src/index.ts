@@ -41,6 +41,19 @@ export {
   type QueueReason,
   type TagRow,
 } from "./link/match.js";
+// The mail-link step for one new message (#224).
+export {
+  ATS_SENDER_DOMAINS,
+  type CandidateRow,
+  isStampedDelivery,
+  type LinkDecision,
+  type LinkStepDeps,
+  linkNewMessage,
+  mailboxKey,
+  type SkipReason,
+  type StepResult,
+  toLinkCandidate,
+} from "./link/step.js";
 export {
   type DeliveredTag,
   generateTag,

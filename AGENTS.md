@@ -295,8 +295,17 @@ Exists now:
   (`mail-link-schema.ts`, `mail-link-write.ts`: `assignTag`, `readTags`, `readLinkedThreads`,
   `recordMailLink`, `listConfirmQueue`; append-only). Links never change a status (P1). On mail Gmail
   received, the client reads only the top `Delivered-To`, the one Gmail adds (NS-188); mail it
-  never stamped (Sent, drafts, inserted) must be skipped by the loop. No mail loop or gateway use yet
-  (#224).
+  never stamped (Sent, drafts, inserted) must be skipped by the loop.
+  Since NS-223 (slice 1) also `linkNewMessage` (`src/link/step.ts`), the step for one new message.
+  It reads headers only, never a body:
+  - It skips mail Gmail didn't deliver to Paul (`isStampedDelivery`: labels known, not `SENT` or
+    `DRAFT`, and the top `Delivered-To` is his own address from `GmailClient.profileAddress`).
+  - It skips mail an open verification window is waiting for, and verification mail.
+  - It then runs `matchMail` and records the result once.
+
+  Its candidates come from `readLinkCandidates` (`packages/db`): open applications and their ATS
+  names. No company domains or tenant keys are stored yet, so the sender step never links. No
+  producer (poller) or gateway use yet (#224).
   Since NS-164 also `classifyLinkedMail` (`src/triage.ts`, INB-003/012): one linked message to
   its classification by the backfill's rules (verified senders only) or the `mail-classify`
   route, with the provenance check. Verification mail from any sender (a verification subject
