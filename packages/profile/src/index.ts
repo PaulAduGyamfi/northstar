@@ -90,6 +90,18 @@ export {
   type QuestionKind,
 } from "./question-canon.js";
 export {
+  CONFIRM_FLOOR,
+  type ConfirmedMatch,
+  confirmCandidates,
+  confirmQuestion,
+  MAX_CONFIRM_CANDIDATES,
+  QUESTION_CONFIRM_VERSION,
+  QuestionChoice,
+  type QuestionConfirmInput,
+  questionConfirmRoute,
+  renderQuestionCandidates,
+} from "./question-confirm.js";
+export {
   AMBIGUITY_MARGIN,
   classifyQuestion,
   FACTUAL_THRESHOLD,
@@ -98,6 +110,7 @@ export {
   type QuestionClassification,
   type QuestionMatch,
   questionConcepts,
+  rankCanonical,
 } from "./question-match.js";
 export { PROFILE_EXTRACT_VERSION, profileExtractRoute } from "./route.js";
 export { ProfileExtract } from "./schema.js";

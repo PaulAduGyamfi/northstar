@@ -21,7 +21,7 @@ decide anything code can.
 - `confirmCandidates(question)` (`question-confirm.ts`): the canonical questions the model may
   choose from: narrative or company-specific only (never factual: a factual match fills an answer
   from settings without drafting, so it stays with code's stricter 0.75 threshold), lexical score
-  at least `CONFIRM_FLOOR` (0.4), at most `MAX_CANDIDATES` (3), best first.
+  at least `CONFIRM_FLOOR` (0.4), at most `MAX_CONFIRM_CANDIDATES` (3), best first.
 - The `question-confirm` route: the form question as an untrusted block, the candidates (catalog
   text, trusted) with their index. Output `{ choice: int | null }`: an index, never text. Effort
   low, 300 tokens, 30 s, priority `normal`.
@@ -30,6 +30,8 @@ decide anything code can.
     with no call.
   - Only `new` with reason `below_threshold` or `ambiguous` and at least one candidate calls the
     route, and only when `enabled` is true (off by default: the fixtures are hand-written).
+  - A question whose nearest canonical question is factual is returned as is: it is never offered
+    narrative stand-ins ("Are you authorized to work here and do you need sponsorship?").
   - A choice that is an index into the candidates becomes
     `{ status: "matched", canonical, confidence }` (the lexical score) with `by: "model"`. Null,
     an index out of range, a refusal, a truncated or invalid output leaves the lexical result
@@ -40,7 +42,7 @@ decide anything code can.
 ## Acceptance criteria
 - [ ] `matchQuestion`'s existing tests pass unchanged.
 - [ ] Tests: off by default makes no call; a lexical match makes no call; factual-only
-      candidates make no call; a valid choice matches by model; null, out of range and a refusal
+      candidates make no call; a question nearest a factual one makes no call; a valid choice matches by model; null, out of range and a refusal
       keep the rules result; a transport error throws; the question goes in an untrusted block.
 - [ ] `eval --all` in CI replays `question-confirm` at or above its baseline.
 - [ ] The prompt is locked in `prompts.lock.json`.
