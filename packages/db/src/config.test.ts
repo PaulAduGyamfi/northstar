@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadDbConfig } from "./config.js";
+import { loadDbConfig, loadMigrationConfig } from "./config.js";
 
 describe("loadDbConfig", () => {
   it("reads a postgres DATABASE_URL", () => {
@@ -26,6 +26,28 @@ describe("loadDbConfig", () => {
     }
     expect(message).toBe(
       "DATABASE_URL is missing or is not a postgres:// URL (percent-encode # / ? @ % in the password)",
+    );
+  });
+});
+
+describe("loadMigrationConfig", () => {
+  it("reads the owner's DATABASE_MIGRATION_URL, not the app's DATABASE_URL", () => {
+    const config = loadMigrationConfig({
+      DATABASE_URL: "postgres://northstar_app:test-key@127.0.0.1:5432/northstar_test",
+      DATABASE_MIGRATION_URL: "postgres://northstar:test-key@127.0.0.1:5432/northstar_test",
+    });
+    expect(config).toEqual({
+      databaseUrl: "postgres://northstar:test-key@127.0.0.1:5432/northstar_test",
+    });
+  });
+
+  it("names DATABASE_MIGRATION_URL when it is missing, even with DATABASE_URL set", () => {
+    expect(() =>
+      loadMigrationConfig({
+        DATABASE_URL: "postgres://northstar_app:test-key@127.0.0.1:5432/northstar_test",
+      }),
+    ).toThrow(
+      "DATABASE_MIGRATION_URL is missing or is not a postgres:// URL (percent-encode # / ? @ % in the password)",
     );
   });
 });
