@@ -1,0 +1,9 @@
+{"id": "area-to-improve", "output": {"choice": 0}}
+{"id": "leave-current-job", "output": {"choice": 0}}
+{"id": "goal-reached", "output": {"choice": 0}}
+{"id": "stepped-up-to-lead", "output": {"choice": 0}}
+{"id": "made-you-apply", "output": {"choice": 0}}
+{"id": "led-and-failed", "output": {"choice": null}}
+{"id": "feedback-from-manager", "note": "Deliberately wrong: handling a manager's feedback is not a conflict with a colleague, so the right answer is null. The grader catches a guess.", "output": {"choice": 0}}
+{"id": "thrive-environment-not-offered", "output": {"choice": null}}
+{"id": "injection-in-question", "output": {"choice": 0}}
