@@ -16,6 +16,7 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
+    "@northstar/db": "workspace:*",
     "@northstar/domain": "workspace:*",
     "@northstar/gateways": "workspace:*",
     "@temporalio/common": "1.25.0",

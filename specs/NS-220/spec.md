@@ -25,13 +25,13 @@ again, which holds its ATS lane. `sweepStaleClaims` (NS-143, NS-177) closes such
 - Which candidates to sweep, and the interval, are workflow input.
 
 ## Acceptance criteria
-- [ ] The sweep activity returns the closed count and lets a failure through for the retry
+- [x] The sweep activity returns the closed count and lets a failure through for the retry
       policy (unit tests with fake ports).
-- [ ] The failure activity records one dead letter with the right shape, and recording it twice
+- [x] The failure activity records one dead letter with the right shape, and recording it twice
       stores one (PGlite test).
-- [ ] The workflow bundles for Temporal's sandbox (the existing bundle test, now with both
+- [x] The workflow bundles for Temporal's sandbox (the existing bundle test, now with both
       workflows).
-- [ ] `pnpm turbo run lint typecheck test build` passes.
+- [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Failure modes
 - Database down: the pass fails, is retried 3 times, then becomes a dead letter; if even that
