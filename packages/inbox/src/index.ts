@@ -56,6 +56,13 @@ export {
 } from "./prefilter.js";
 export { checkMailProvenance, type ProvenanceFailure } from "./provenance.js";
 export {
+  classifyLinkedMail,
+  type ReviewReason as TriageReviewReason,
+  type TriageDeps,
+  type TriageResult,
+  type TriageStamp,
+} from "./triage.js";
+export {
   type CandidatePick,
   type Catcher,
   createCatcher,
