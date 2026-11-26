@@ -61,6 +61,55 @@ describe("profile tailor", () => {
     ]);
   });
 
+  it("lists each independent-work entry the resume adds, by title, with its line count", async () => {
+    const resume = {
+      summary: [],
+      sections: [],
+      skills: [],
+      notClaimed: [],
+      independentWork: {
+        version: 1,
+        entries: [
+          {
+            entry: 1,
+            title: "Ledger reconciliation tool",
+            start: "2025-07",
+            end: null,
+            lines: [
+              { line: 0, text: "Built a reconciliation CLI." },
+              { line: 1, text: "Added property tests." },
+            ],
+          },
+          {
+            entry: 0,
+            title: "Open-source rate limiter",
+            start: "2025-01",
+            end: "2025-06",
+            lines: [{ line: 0, text: "Wrote a token-bucket limiter." }],
+          },
+        ],
+      },
+    };
+    const base = tailored();
+    const diff = base.kind === "tailored" ? base.diff : { atoms: [], skills: [] };
+    const run = tailored({
+      resume,
+      diff: {
+        ...diff,
+        work: [
+          { entry: 1, lines: 2 },
+          { entry: 0, lines: 1 },
+        ],
+      },
+    });
+    const { deps, printed } = fake(run);
+    await tailorCommand(deps, "job-1", []);
+    expect(printed.filter((l) => l.includes("independent work"))).toEqual([
+      "  independent work added: Ledger reconciliation tool (2 lines)",
+      "  independent work added: Open-source rate limiter (1 line)",
+    ]);
+  });
+
   it("says when nothing changed since the last version", async () => {
     const { deps, printed } = fake(tailored({ saved: false }));
     await tailorCommand(deps, "job-1", []);

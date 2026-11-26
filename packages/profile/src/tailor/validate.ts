@@ -170,11 +170,15 @@ function workFailures(resume: TailoredResume, master: MasterResume): TailorFailu
     if (e.title !== stored.title || e.start !== stored.start || e.end !== stored.end) {
       failures.push({ item, problem: "title or dates aren't the stored entry's" });
     }
+    const lines = new Set<number>();
     e.lines.forEach((l, j) => {
       const at = `${item} line ${j}`;
       if (!Number.isInteger(l.line) || stored.lines[l.line] !== l.text) {
         failures.push({ item: at, problem: "isn't the stored line it cites" });
       }
+      // A stored line shown twice states one claim twice, like an atom on two lines.
+      if (lines.has(l.line)) failures.push({ item: at, problem: "repeats a stored line" });
+      lines.add(l.line);
     });
   });
   return failures;

@@ -1,6 +1,6 @@
 # NS-231: The independent-work section in tailored resumes (slice 1)
 
-Status: draft (autonomous lane, ADR-0016)
+Status: built (autonomous lane, ADR-0016)
 Requirements: DX-010, DX-009, TLR-001, TLR-002, TLR-005
 Rules that apply: ADR-0004 (no fabrication), ADR-0020 (PDF and DOCX), `.claude/rules/tests.md`.
 Issue #245 (Parent: #167).
@@ -48,16 +48,23 @@ unexplained on exactly the documents that go out.
   is put back on a model resume that passed its checks.
 - **The whole section is kept.** Atom lines give way to the page budget; Paul's work lines don't.
   A resume that can't fit even then still reports its page count, as before.
+- **A third kind of citation.** TLR-002 and ADR-0004 say every line cites an experience atom
+  or a story. Independent work has no resume line to quote, so NS-196 made Paul's own stored file
+  its provenance. Here each work line cites its stored entry and line instead, checked verbatim by
+  plain code. Paul may want ADR-0004 to name "stored independent-work line" as a citation.
+- **Defence in depth on the model path.** Any section on a model resume fails validation (it has
+  no stored work behind it), so the deterministic resume is used. A section on the model's output
+  is also dropped before the deterministic one goes back on.
 - **No migration.** `tailored_resume.resume` is JSON, and the section is stored inside it.
 
 ## Acceptance criteria
-- [ ] A tailored resume for a job includes the section, and its lines match the stored entries
+- [x] A tailored resume for a job includes the section, and its lines match the stored entries
       exactly.
-- [ ] The validator refuses a section line that isn't in the stored entries.
-- [ ] The page-budget test still passes with the section included, and the section's lines are
+- [x] The validator refuses a section line that isn't in the stored entries.
+- [x] The page-budget test still passes with the section included, and the section's lines are
       in the PDF's text.
-- [ ] The model route never sees or writes the section. Its eval replays at baseline.
-- [ ] AGENTS.md says where the section appears.
+- [x] The model route never sees or writes the section. Its eval replays at baseline.
+- [x] AGENTS.md says where the section appears.
 
 ## Out of scope
 - LinkedIn "Projects" copy.

@@ -190,11 +190,13 @@ export async function tailorWithModel(
     case "Ok": {
       const failures = checkModelResume(outcome.output, master, job, base);
       if (failures.length > 0) return fallback("provenance", failures, outcome.record);
-      // The deterministic section goes back on as it was (the model never saw or wrote it).
+      // Any section on the model's output is dropped here, not only by the schema's parse (which
+      // could change), and the deterministic one goes back on as it was.
+      const { independentWork: _fromModel, ...reworded } = outcome.output;
       const resume: TailoredResume =
         base.independentWork === undefined
-          ? outcome.output
-          : { ...outcome.output, independentWork: base.independentWork };
+          ? reworded
+          : { ...reworded, independentWork: base.independentWork };
       return { kind: "model", resume, record: outcome.record };
     }
   }

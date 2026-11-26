@@ -1,7 +1,9 @@
 import type { CallRecord, LlmGateway, LlmOutcome } from "@northstar/llm";
+import mammoth from "mammoth";
 import { describe, expect, it } from "vitest";
 import { pdfToText } from "../text.js";
 import { diffResume } from "./diff.js";
+import { renderResumeDocx } from "./docx.js";
 import { tailorToPages } from "./fit.js";
 import { resumeTailorInput, tailorWithModel } from "./model-tailor.js";
 import { renderResumeText } from "./render.js";
@@ -118,6 +120,17 @@ describe("validating the independent-work section", () => {
     });
   });
 
+  it("refuses a stored line shown twice in one entry", () => {
+    const resume = tailored();
+    const entry = resume.independentWork?.entries[0];
+    const first = entry?.lines[0];
+    if (entry && first) entry.lines.push({ ...first });
+    expect(validateTailoredResume(resume, withWork(), job)).toEqual({
+      ok: false,
+      failures: [{ item: "independent work entry 0 line 2", problem: "repeats a stored line" }],
+    });
+  });
+
   it("refuses an entry whose title or dates changed, or that cites no stored entry", () => {
     const resume = tailored();
     const [first, second] = resume.independentWork?.entries ?? [];
@@ -176,6 +189,17 @@ describe("the page budget with independent work", () => {
   });
 });
 
+describe("the DOCX with independent work", () => {
+  it("writes each entry's heading and lines as plain paragraphs", async () => {
+    const buffer = await renderResumeDocx(tailorResume(withWork(), job), withWork());
+    const lines = (await mammoth.extractRawText({ buffer })).value
+      .split("\n")
+      .filter((l) => l.trim() !== "");
+    expect(lines).toContain("Ledger reconciliation tool · Jul 2025 – Present");
+    for (const line of WORK.entries.flatMap((e) => e.lines)) expect(lines).toContain(`- ${line}`);
+  });
+});
+
 describe("the diff with independent work", () => {
   it("lists each added entry by stored position and line count", () => {
     expect(diffResume(withWork(), tailorResume(withWork(), job)).work).toEqual([
@@ -220,6 +244,26 @@ describe("the model route and independent work", () => {
     const result = await tailorWithModel({ gateway, enabled: true }, withWork(), job);
     expect(result.kind).toBe("model");
     expect(result.resume.independentWork).toEqual(base.independentWork);
+  });
+
+  it("never uses a model resume carrying a section, even if the parse let one through", async () => {
+    const forged = {
+      ...tailorResume(sampleMaster(), job),
+      independentWork: {
+        version: 1,
+        entries: [{ entry: 0, title: "Invented", start: "2025-01", end: null, lines: [] }],
+      },
+    };
+    const gateway: LlmGateway = {
+      async call<I, O>(_route: unknown, _input: I): Promise<LlmOutcome<O>> {
+        return { kind: "Ok", output: forged, record } as unknown as LlmOutcome<O>;
+      },
+    };
+    const result = await tailorWithModel({ gateway, enabled: true }, sampleMaster(), job);
+    // The validator finds a section with no stored work behind it, so the deterministic resume
+    // is used instead; and it has no section, since this master has no work.
+    expect(result.kind === "deterministic" && result.reason).toBe("provenance");
+    expect("independentWork" in result.resume).toBe(false);
   });
 
   it("drops a section the model writes into its own output", () => {
