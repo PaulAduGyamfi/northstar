@@ -14,6 +14,7 @@ const KINDS = [
   "profile_fix",
   "growth_plan",
   "prep_plan",
+  "vault_reveal",
 ] as const;
 export type ApprovalKind = (typeof KINDS)[number];
 
@@ -25,6 +26,7 @@ export const KIND_WORDS: Record<ApprovalKind, string> = {
   profile_fix: "Profile fix",
   growth_plan: "Growth plan",
   prep_plan: "Prep plan",
+  vault_reveal: "Password reveal",
 };
 
 const Item = z.object({

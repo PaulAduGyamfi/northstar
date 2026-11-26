@@ -100,7 +100,11 @@ export const vaultAccess = pgTable(
       columns: [t.decisionId, t.candidateId],
       foreignColumns: [approvalDecision.id, approvalDecision.candidateId],
     }),
-    check("vault_access_actor_valid", sql`${t.actor} ~ '^agent:[a-z0-9-]+$'`),
+    // An agent for its own purposes, or Paul only to reveal his own password (NS-182, ADR-0024).
+    check(
+      "vault_access_actor_valid",
+      sql`(${t.actor} ~ '^agent:[a-z0-9-]+$' and ${t.purpose} <> 'reveal_to_user') or (${t.actor} = 'user' and ${t.purpose} = 'reveal_to_user')`,
+    ),
     check("vault_access_purpose_valid", sql`${t.purpose} ~ '^[a-z]+(_[a-z]+)*$'`),
   ],
 );

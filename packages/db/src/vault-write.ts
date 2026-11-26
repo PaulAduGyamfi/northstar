@@ -1,8 +1,20 @@
 import { randomUUID } from "node:crypto";
-import { type CandidateId, err, ok, parseDomainEvent, type Result } from "@northstar/domain";
+import {
+  type CandidateId,
+  err,
+  ok,
+  parseDomainEvent,
+  type Result,
+  revealContentSha256,
+} from "@northstar/domain";
 import { isSpanContextValid, type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { approvalDecision, approvalUndo, approvalWithdrawal } from "./approval-schema.js";
+import {
+  approvalDecision,
+  approvalRequest,
+  approvalUndo,
+  approvalWithdrawal,
+} from "./approval-schema.js";
 import type { Db } from "./db.js";
 import { currentState } from "./kill-switch-write.js";
 import { domainEvent } from "./schema.js";
@@ -20,6 +32,10 @@ export const VAULT_SUBSYSTEM = "vault";
 const TENANT_KEY = new RegExp(TENANT_KEY_PATTERN);
 const ACTOR = /^agent:[a-z0-9-]+$/;
 const PURPOSE = /^[a-z]+(_[a-z]+)*$/;
+// Paul reveals one of his own passwords (NS-182, ADR-0024): the only purpose actor `user` may
+// use, and the only purpose a `vault_reveal` approval opens anything for.
+export const REVEAL_PURPOSE = "reveal_to_user";
+export const REVEAL_ACTOR = "user";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // What packages/gateways seals: an envelope, never the secret.
@@ -153,7 +169,7 @@ export async function storeSealedSecret(
 export type OpenInput = {
   candidateId: CandidateId;
   tenantKey: string;
-  // `agent:<name>`: the code asking.
+  // `agent:<name>`: the code asking; or `user` for Paul's own reveal (purpose `reveal_to_user`).
   actor: string;
   // A fixed code such as `sign_in` or `create_account`.
   purpose: string;
@@ -197,6 +213,53 @@ async function liveApproval(
   return row !== undefined;
 }
 
+// Does this decision authorize this opening? An agent's purpose needs any live approval but a
+// reveal's; a reveal needs Paul's approval of a `vault_reveal` request for this very tenant that
+// has opened nothing before (ADR-0024: one passkey check, one tenant, one use). Runs after
+// liveApproval, which holds the decision's row lock, so two reveals can't both pass.
+async function fitsPurpose(tx: Tx, input: OpenInput): Promise<boolean> {
+  const [row] = await tx
+    .select({
+      kind: approvalRequest.kind,
+      contentSha256: approvalRequest.contentSha256,
+      decidedBy: approvalDecision.decidedBy,
+    })
+    .from(approvalDecision)
+    .innerJoin(approvalRequest, eq(approvalRequest.id, approvalDecision.requestId))
+    .where(
+      and(
+        eq(approvalDecision.id, input.decisionId),
+        eq(approvalDecision.candidateId, input.candidateId),
+      ),
+    );
+  if (!row) return false;
+  const isReveal = input.purpose === REVEAL_PURPOSE;
+  // A reveal approval never opens anything for an agent, and an agent's approval never reveals.
+  if ((row.kind === "vault_reveal") !== isReveal) return false;
+  if (!isReveal) return true;
+  if (row.decidedBy !== "user") return false;
+  if (row.contentSha256 !== revealContentSha256(input.tenantKey)) return false;
+  const [used] = await tx
+    .select({ id: vaultAccess.id })
+    .from(vaultAccess)
+    .where(
+      and(
+        eq(vaultAccess.candidateId, input.candidateId),
+        eq(vaultAccess.decisionId, input.decisionId),
+      ),
+    )
+    .limit(1);
+  return used === undefined;
+}
+
+// Who may ask for which purpose: an agent for its own fixed codes, Paul only to reveal.
+function validActorPurpose(input: OpenInput): string | null {
+  if (!PURPOSE.test(input.purpose)) return "purpose";
+  if (input.actor === REVEAL_ACTOR) return input.purpose === REVEAL_PURPOSE ? null : "purpose";
+  if (!ACTOR.test(input.actor)) return "actor";
+  return input.purpose === REVEAL_PURPOSE ? "actor" : null;
+}
+
 // Hands out the newest sealed version of a tenant's secret for decryption in the Apply Gateway,
 // recording the access first, in the same transaction (CRD-003). Refused while the vault is
 // locked (CRD-005), before anything is read.
@@ -207,8 +270,8 @@ export async function openSealedSecret(
   if (!TENANT_KEY.test(input.tenantKey)) {
     return err({ kind: "InvalidVaultInput", field: "tenantKey" });
   }
-  if (!ACTOR.test(input.actor)) return err({ kind: "InvalidVaultInput", field: "actor" });
-  if (!PURPOSE.test(input.purpose)) return err({ kind: "InvalidVaultInput", field: "purpose" });
+  const bad = validActorPurpose(input);
+  if (bad !== null) return err({ kind: "InvalidVaultInput", field: bad });
   return inSpan(
     "db.vault.open",
     input.tenantKey,
@@ -225,6 +288,7 @@ export async function openSealedSecret(
         if (!(await liveApproval(tx, input.candidateId, input.decisionId))) {
           return err({ kind: "NotApproved" as const });
         }
+        if (!(await fitsPurpose(tx, input))) return err({ kind: "NotApproved" as const });
         const [row] = await tx
           .select()
           .from(vaultSecret)

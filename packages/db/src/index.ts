@@ -383,6 +383,8 @@ export {
   type NotApproved,
   type OpenInput,
   openSealedSecret,
+  REVEAL_ACTOR,
+  REVEAL_PURPOSE,
   type SealedSecret,
   type SealedVersion,
   type SecretNotFound,
