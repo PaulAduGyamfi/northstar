@@ -91,10 +91,22 @@ function phraseParts(phrase: string): string[] {
 // one deleted as often is reported once, as the longer one ("leverage our" over "leverage" when
 // both were cut three times). Order: most drafts first, then longer, then alphabetical.
 export function avoidedPhrases(edits: readonly Edit[], threshold = AVOID_AFTER): string[] {
+  return avoidedFromDeleted(
+    edits.map((e) => deletedPhrases(e.draft, e.approved)),
+    threshold,
+  );
+}
+
+// The same, over each draft's deleted phrases as stored (NS-185: only the deleted phrases are
+// kept, never the draft or the approved text).
+export function avoidedFromDeleted(
+  deletedPerDraft: readonly (readonly string[])[],
+  threshold = AVOID_AFTER,
+): string[] {
   const counts = new Map<string, number>();
-  for (const e of edits) {
+  for (const deleted of deletedPerDraft) {
     // A set per draft: deleting a phrase twice in one draft counts once.
-    const parts = new Set(deletedPhrases(e.draft, e.approved).flatMap(phraseParts));
+    const parts = new Set(deleted.flatMap(phraseParts));
     for (const p of parts) counts.set(p, (counts.get(p) ?? 0) + 1);
   }
   const kept = [...counts].filter(([, c]) => c >= threshold);
