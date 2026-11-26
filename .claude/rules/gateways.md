@@ -11,6 +11,9 @@ paths:
 `terms.ts`). The Apply Gateway is `packages/gateways` (NS-120); its ATS adapters live in
 `src/apply/adapters/`, not a separate `packages/ats-adapters`. Other gateways (mail, calendar,
 GitHub) don't exist yet: if you are about to create one outside its ticket, stop and ask Paul.
+The Gmail label writer (NS-229, `packages/inbox/src/labels/`, ADR-0027 Proposed) only adds
+Northstar's fixed labels: never widen it to send, trash, remove or draft (its boundary test),
+and never hand its `gmail.modify` token to code that reads mail.
 
 - Every submission goes through `submitApplication`: the apply URL's host must be the ATS's own
   and the posting id must match the one in the URL, then the Gate check (throws
