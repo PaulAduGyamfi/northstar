@@ -175,6 +175,16 @@ describe("feedLine: applications and approvals", () => {
     );
   });
 
+  it("describes a withdrawal by Paul or by a gateway (NS-140)", () => {
+    expect([
+      feedLine(ev("approval.withdrawn", { withdrawnBy: "user" }, { actor: "user" })),
+      feedLine(ev("approval.withdrawn", { withdrawnBy: "gateway" })),
+    ]).toEqual([
+      "You withdrew a request; it can be asked for again",
+      "An approval was withdrawn because its content changed; it can be asked for again",
+    ]);
+  });
+
   it("describes approval requests, decisions, undo and policies", () => {
     expect(feedLine(ev("approval.requested", { kind: "application_package" }))).toBe(
       "Waiting for your approval: application package",
@@ -266,6 +276,7 @@ describe("feedLine: fallbacks and bad payloads", () => {
       "approval.policies_set",
       "approval.requested",
       "approval.undone",
+      "approval.withdrawn",
       "breaker.closed",
       "breaker.opened",
       "breaker.probing",
