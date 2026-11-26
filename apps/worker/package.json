@@ -1,0 +1,28 @@
+{
+  "name": "@northstar/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "lint": "biome check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@northstar/db": "workspace:*",
+    "@northstar/domain": "workspace:*",
+    "@northstar/gateways": "workspace:*",
+    "@temporalio/common": "1.25.0",
+    "@temporalio/workflow": "1.25.0"
+  },
+  "devDependencies": {
+    "@temporalio/worker": "1.25.0"
+  }
+}

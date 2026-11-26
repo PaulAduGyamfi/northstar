@@ -4,6 +4,29 @@ import { FEED_TYPES, type FeedEvent, feedLine } from "./feed.js";
 const ev = (type: string, payload: Record<string, unknown> = {}, over: Partial<FeedEvent> = {}) =>
   ({ type, actor: "system", reason: "", payload, ...over }) satisfies FeedEvent;
 
+describe("feedLine: verification windows (NS-151)", () => {
+  const p = { tenant: "Acme", ats: "Workday", purpose: "sign_up" };
+
+  it("names the tenant and ATS for each outcome", () => {
+    expect(feedLine(ev("verification.verified", p))).toBe("Verified email for Acme (Workday)");
+    expect(feedLine(ev("verification.resend", p))).toBe(
+      "Sent the email code again for Acme (Workday)",
+    );
+    expect(feedLine(ev("verification.needs_human", p))).toBe(
+      "Couldn't verify email for Acme (Workday): needs your hands",
+    );
+  });
+
+  it("never shows a tenant that isn't a plain name", () => {
+    expect(feedLine(ev("verification.verified", { ...p, tenant: "<img src=x>" }))).toBe(
+      "Verified email for an employer account",
+    );
+    expect(feedLine(ev("verification.verified", { ...p, ats: "482913 is your code: x" }))).toBe(
+      "Verified email for Acme",
+    );
+  });
+});
+
 describe("feedLine: human handoffs (NS-121)", () => {
   it("says which kind of form needs Paul's hands, and why", () => {
     expect(feedLine(ev("handoff.opened", { ats: "greenhouse", reason: "captcha" }))).toBe(
@@ -250,6 +273,12 @@ describe("feedLine: profile", () => {
     );
   });
 
+  it("names a personal site import (NS-209)", () => {
+    expect(feedLine(ev("profile.imported", { kind: "site" }))).toBe(
+      "Imported your personal site into the profile graph",
+    );
+  });
+
   it("describes resume import, locked-fact edits and the employment-facts check", () => {
     expect(feedLine(ev("profile.imported"))).toBe("Imported your resume into the profile graph");
     expect(feedLine(ev("profile.locked_fact_edited", { table: "role" }, { actor: "user" }))).toBe(
@@ -343,6 +372,9 @@ describe("feedLine: fallbacks and bad payloads", () => {
       "tenant.registered",
       "vault.opened",
       "vault_secret.stored",
+      "verification.needs_human",
+      "verification.resend",
+      "verification.verified",
     ]);
   });
 });

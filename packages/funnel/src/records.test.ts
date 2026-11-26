@@ -1,4 +1,5 @@
 import { type FunnelMessageRow, funnelSchema, type ManualRowInput } from "@northstar/db";
+import { MAIL_STATUS_KINDS } from "@northstar/domain";
 import { MAIL_KINDS, STAGE_SIGNALS } from "@northstar/inbox";
 import { describe, expect, it } from "vitest";
 import { gmailRecords, mergeRecords, nameKey, placeMessage } from "./records.js";
@@ -33,6 +34,10 @@ describe("message kinds", () => {
   it("the inbox route and the database agree on every kind and stage", () => {
     expect([...MAIL_KINDS]).toEqual([...funnelSchema.MAIL_KINDS]);
     expect([...STAGE_SIGNALS]).toEqual([...funnelSchema.STAGE_SIGNALS]);
+  });
+
+  it("the domain's status rules know exactly the inbox route's kinds", () => {
+    expect([...MAIL_STATUS_KINDS].sort()).toEqual([...MAIL_KINDS].sort());
   });
 });
 

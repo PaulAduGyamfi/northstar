@@ -9,9 +9,10 @@ Lives in `packages/db` since NS-105. The event log design and PGlite tests are A
 profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
 `src/story-schema.ts`.
 
-- `profile_source.kind` is `resume` or (NS-133) `linkedin`, each with its own current source.
+- `profile_source.kind` is `resume`, (NS-133) `linkedin` or (NS-209) `site`, each with its own
+  current source.
   Every reader that means "Paul's resume" filters `kind = 'resume'` as well as "not superseded";
-  a new reader must too, or LinkedIn rows leak into scoring, stories and the thesis.
+  a new reader must too, or LinkedIn or site rows leak into scoring, stories and the thesis.
 - Locked facts (CPG-004): `role` employer/title/dates/is_current and `education` school/degree/field/dates
   are guarded by a trigger. Change them only through `editLockedFact` (Paul's own edits); never
   set `northstar.locked_edit` anywhere else.
@@ -37,6 +38,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
 - Tests only touch databases whose name ends in `_test`. Unit tests use `createTestDb()` (in-process
   PGlite with every migration applied), never a server.
 - Application status changes go through `transitionApplication` only, so each one writes its event.
+  A move to `submitted` must pass `submittedVia` (INB-007, NS-188); new applications are created
+  only through `createApplication`, which records `startedBy`. Origin lives in those events:
+  email matching never writes either.
 - Jobs (NS-114) are written through `job-write.ts` only: `saveIngestedJob` (create, merge as a new
   `job_source`, or unchanged) and `setJobField` (Paul's edits). A job missing a title or company is
   a `draft`; a check refuses a `ready` one without them. Job events carry ids, counts and methods,
@@ -89,6 +93,16 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   trigger), written only through `tailor-write.ts`; `readTailorInput` reads the current resume
   import (`kind = 'resume'`) and a ready job. The stored resume, validation and score hold Paul's
   lines and the job's requirements: `resume.tailored` carries ids, counts and flags only.
+- Resume audits (NS-190) are `resume_audit`, `resume_audit_suggestion`, `resume_audit_decision`
+  (one per suggestion of a run; accepted with a line or rejected) and `atom_line_edit` (Paul's
+  line for an atom, from an accepted decision; the newest is the atom's current line),
+  append-only (triggers), written only through `audit-write.ts`. `experience_atom.source_quote`
+  never changes: `readResumeMaster` (the tailor's and the audit's reader) puts the newest edit in
+  its place. Callers run `applySuggestion` (`packages/profile`, CPG-004: no other role's
+  employer, title or years) before `decideSuggestion`, which checks only one non-empty line (a
+  CHECK refuses control characters). Lines, messages and targets stay in the tables:
+  `resume.audited` and `resume.suggestion_decided` carry ids, counts, the kind and the decision
+  only.
 - Posting liveness (NS-173) is `posting_check`, append-only (a trigger), written only through
   `liveness-write.ts`: one row per attempt (`open`, `closed` or `unavailable`). A job is closed
   only when its two newest answers (unavailable skipped) are `closed`; `readScorableJobs` leaves
@@ -105,6 +119,12 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   the event's `reason`. So keep `reason` a plain sentence with no names, ids, URLs or secrets, and
   give a new event type a template in `feed.ts`, or (like the fresh-job alerts, NS-163) a
   `reason` built only from numbers and fixed words.
+  Names (NS-189) are read at display time only: `readFeedNames` maps `job:<id>` and
+  `application:<id>` aggregates to the candidate's own job title and company. Never copy them
+  into an event, a `reason` or a span (its span carries a count only).
+  The run inspector (NS-154) is `readRun` (`run-read.ts`), read-only: one candidate's events
+  with the same `traceId`, lines from `feedLine`, and `payload.call` copied field by field
+  (`pickCall`), never spread. Write an LLM call into an event only as the gateway's `CallRecord`.
 - The submission ledger (NS-120) is `apply_submission` and `submission_proof`, written only
   through `apply-write.ts`. A trigger lets a submission row finish only once, and proof is
   append-only. `listStaleClaims` reads the claims in progress past `CLAIM_STALE_AFTER_MS` by the
@@ -120,17 +140,40 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `vault` kill switch and that the decision is a live approval, and records the access, in the
   same transaction before handing a row out. Only `vaultAccess` is exported; sealed rows never
   leave `vault-write.ts`.
+  Since NS-182 (ADR-0024) Paul's reveal is `revealSealedSecret` only: one transaction that
+  files a `vault_reveal` (by `system`), approves it for Paul (effective at once, migration 0057)
+  and records one access by `user` for `reveal_to_user`. Never request, list or decide a
+  `vault_reveal` anywhere else; `openSealedSecret` refuses that actor, purpose and kind, and the
+  database pairs `user` with `reveal_to_user` only and lets a reveal decision open once.
 - The positioning thesis (NS-127, stored since NS-155) is `positioning_thesis` and
   `positioning_thesis_atom`, append-only (a trigger), each version citing at least one atom (a
   deferred trigger), written only through `thesis-write.ts`, which also requires the atoms to be
   from the current resume import (in code, not in the database). The text
   is Paul's words: its `thesis.approved` event carries the version and atom count only, never the
   text. Callers run `checkThesis` (`packages/profile`) before saving.
+- Independent work (NS-196, DX-010) is `independent_work_set` (a version per stored file, with
+  its SHA-256), `independent_work_entry` and `independent_work_line`, append-only (triggers),
+  written only through `independent-work-write.ts`; the newest version is current and the same
+  content stores nothing. Titles, lines and links are Paul's words: `independent_work.set`
+  carries the version and counts only.
+- Growth (NS-210, GRW-001…004) is `growth_track_set` and `growth_track` (a version per tracks
+  file), `growth_touch`, `growth_settings` (newest wins) and `growth_plan` (one per Monday-start
+  week), append-only (triggers), written only through `growth-write.ts`. Track keys, names and
+  next actions are Paul's words: `growth.tracks_set`, `growth.touched` and `growth.planned` carry
+  versions, counts, row ids and the week only.
 - Mail tags and links (NS-158) are `mail_tag` (one tag per application or tenant, never reused)
   and `mail_link` (one decision per Gmail message: linked by a step, or queued with a reason),
   append-only, written only through `mail-link-write.ts`. They hold Gmail ids, tags, steps and
   reasons: never an address, subject, sender or body. A link never changes an application's
   status; `sender_verified` is what a later automatic change must require (INB-011).
+- Verification windows (NS-151) are `verification_window`, `verification_window_restart` (one
+  per window), `verification_window_close` (one per window) and `verification_used_message` (one
+  per candidate and Gmail id), append-only (triggers), written only through
+  `verification-write.ts`. Every race is a unique constraint, and restart and close lock the
+  window row first; a close refuses when the window was restarted after the caller read it
+  (`seenResent`). They hold names, domains, hosts, times and Gmail ids: never a code, link,
+  subject, body or sender address. Their events carry the window id, tenant, ATS, purpose and
+  outcome only.
 - Human handoffs (NS-121) are `apply_handoff` (one per submission a challenge stopped, with its
   https apply URL) and `apply_handoff_done` (one outcome per handoff, `submitted` or `gave_up`),
   append-only (triggers), written only through `handoff-write.ts`: `openHandoff` inside
@@ -148,7 +191,17 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   increase (0 may repeat, for platform passkeys); a unique index stops two uses claiming one
   non-zero count. Credential ids and public keys never go into events, spans or logs:
   `passkey.registered` carries the row id only.
+- The voice profile (NS-185, ANS-007/008) is `voice_profile` (one row per version),
+  `voice_review` (Paul's keep/drop per version; the newest counts) and `voice_edit` (an approved
+  answer's deleted phrases only, one row per approval `subject`), append-only (triggers), written only through `voice-write.ts`.
+  Never store a sample, draft or approved text. Phrases are from Paul's writing: `voice.measured`
+  and `voice.reviewed` carry versions and counts only.
 - The pipeline reads (NS-168, `pipeline-read.ts`) are read-only: `listApplications` and
   `readApplicationTimeline`. A timeline is the application's own events plus events whose payload
   names it (`applicationId`); its lines come only from `feedLine`. So an event about an
   application should carry `applicationId` in its payload.
+  Since NS-207 `listApplications` takes an optional filter (company part, fit band, the job's
+  ATS or `other`, creation days), applied as SQL parameters, and gives each row its job's newest
+  fit score and band.
+  `readApplicationHistories` (NS-208) gives each application's creation time, source, newest fit
+  band, posting time and status moves (`application.*` events with a `to`), never names or text.

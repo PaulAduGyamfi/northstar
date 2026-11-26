@@ -260,13 +260,13 @@ describe("validateAnswerDraft", () => {
     const item: EvidenceItem = {
       id: "atom-2",
       kind: "atom",
-      text: "Shipped the iOS app for ex-Globex users at 3M.",
+      text: "Shipped the iOS app for ex-Globex users at 5G.",
     };
     const draft: AnswerDraft = {
       sentences: [
         {
-          text: "I shipped the iOS app for ex-Globex users at 3M.",
-          cites: [{ id: "atom-2", quote: "Shipped the iOS app for ex-Globex users at 3M." }],
+          text: "I shipped the iOS app for ex-Globex users at 5G.",
+          cites: [{ id: "atom-2", quote: "Shipped the iOS app for ex-Globex users at 5G." }],
         },
       ],
       followUps: [],
@@ -313,6 +313,38 @@ describe("validateAnswerDraft", () => {
     expect(validateAnswerDraft(draft, [item], null)).toEqual({
       ok: false,
       failures: [{ sentence: 0, problem: "name at word 0 is not in its cited items" }],
+    });
+  });
+
+  it("takes a number with a capital unit as a number, not a name (NS-216)", () => {
+    const item: EvidenceItem = { id: "atom-5", kind: "atom", text: "We served 1 million users." };
+    const draft = (text: string): AnswerDraft => ({
+      sentences: [{ text, cites: [{ id: "atom-5", quote: "We served 1 million users." }] }],
+      followUps: [],
+    });
+    expect([
+      validateAnswerDraft(draft("We served 1M users."), [item], null),
+      validateAnswerDraft(draft("We served 7M users."), [item], null),
+    ]).toEqual([
+      { ok: true },
+      { ok: false, failures: [{ sentence: 0, problem: "number at word 2 is not in its quotes" }] },
+    ]);
+  });
+
+  it("refuses a unit whose scale the quotes don't state (NS-216)", () => {
+    const item: EvidenceItem = { id: "atom-6", kind: "atom", text: "We grew to 5 thousand users." };
+    const draft: AnswerDraft = {
+      sentences: [
+        {
+          text: "We grew to 5B users.",
+          cites: [{ id: "atom-6", quote: "We grew to 5 thousand users." }],
+        },
+      ],
+      followUps: [],
+    };
+    expect(validateAnswerDraft(draft, [item], null)).toEqual({
+      ok: false,
+      failures: [{ sentence: 0, problem: "unit at word 3 is not in its quotes" }],
     });
   });
 

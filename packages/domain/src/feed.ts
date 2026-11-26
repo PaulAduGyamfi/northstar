@@ -29,6 +29,23 @@ function count(p: Payload, key: string): number | undefined {
   return typeof v === "number" && Number.isSafeInteger(v) && v >= 0 ? v : undefined;
 }
 
+// A tenant or ATS name as a verification window stores it ("Acme", "Workday"): letters, digits,
+// spaces and a few marks, never markup (the same CHECK as verification_window in packages/db).
+const LABEL = /^[A-Za-z0-9][A-Za-z0-9 .&'-]{0,63}$/;
+
+function label(p: Payload, key: string): string | undefined {
+  const v = p[key];
+  return typeof v === "string" && LABEL.test(v) ? v : undefined;
+}
+
+// "Acme (Workday)", or "an employer account" when the names are missing or malformed.
+function tenantAts(p: Payload): string {
+  const tenant = label(p, "tenant");
+  if (!tenant) return "an employer account";
+  const ats = label(p, "ats");
+  return ats ? `${tenant} (${ats})` : tenant;
+}
+
 const words = (s: string) => s.replaceAll("_", " ");
 const capitalize = (s: string) => (s === "" ? s : s[0]?.toUpperCase() + s.slice(1));
 const who = (actor: string) => (actor === "user" ? "You" : "Northstar");
@@ -91,6 +108,10 @@ const TEMPLATES: Record<string, Template> = {
     const purpose = name(p, "purpose");
     return `Used the saved password for ${tenant}${purpose ? ` to ${words(purpose)}` : ""}`;
   },
+  // Verification windows (NS-151, VER-005): the tenant and ATS only, never a code or link.
+  "verification.verified": (p) => `Verified email for ${tenantAts(p)}`,
+  "verification.resend": (p) => `Sent the email code again for ${tenantAts(p)}`,
+  "verification.needs_human": (p) => `Couldn't verify email for ${tenantAts(p)}: needs your hands`,
   // Mail links (NS-158): the step or reason only, never an address, subject or sender.
   "mail.linked": (p) => {
     const by: Record<string, string> = {
@@ -260,11 +281,14 @@ const TEMPLATES: Record<string, Template> = {
     return `${who(e.actor)} set ${what}${v ? ` (version ${v})` : ""}`;
   },
 
-  // A LinkedIn export (NS-133) says so; a resume event carries no kind.
-  "profile.imported": (p) =>
-    name(p, "kind") === "linkedin"
-      ? "Imported your LinkedIn export into the profile graph"
-      : "Imported your resume into the profile graph",
+  // A LinkedIn export (NS-133) or the personal site (NS-209) says so; a resume event carries no
+  // kind.
+  "profile.imported": (p) => {
+    const kind = name(p, "kind");
+    if (kind === "linkedin") return "Imported your LinkedIn export into the profile graph";
+    if (kind === "site") return "Imported your personal site into the profile graph";
+    return "Imported your resume into the profile graph";
+  },
   "profile.locked_fact_edited": (p, e) => {
     const table = name(p, "table");
     return `${who(e.actor)} edited a locked fact${table ? ` (${words(table)})` : ""}`;

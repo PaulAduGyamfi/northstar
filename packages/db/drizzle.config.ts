@@ -23,6 +23,11 @@ export default defineConfig({
     "./src/tailor-schema.ts",
     "./src/liveness-schema.ts",
     "./src/passkey-schema.ts",
+    "./src/voice-schema.ts",
+    "./src/audit-schema.ts",
+    "./src/independent-work-schema.ts",
+    "./src/growth-schema.ts",
+    "./src/verification-schema.ts",
   ],
   out: "./migrations",
 });

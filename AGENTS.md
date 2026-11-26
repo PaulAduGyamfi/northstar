@@ -43,16 +43,31 @@ Exists now:
   Since NS-171 also the weekly growth planner (`growth.ts`, GRW-001…004): `planWeek` puts at-risk
   tracks first, then priority, target date and id; the first `wipLimit` (default 3) are in focus
   with at least two blocks each, the rest get one maintenance block, and the week never exceeds
-  `weeklyMinutes` (default 480, Q-09). No storage, settings page or calendar blocks yet.
+  `weeklyMinutes` (default 480, Q-09). Since NS-210 stored in `packages/db` (`growth-schema.ts`,
+  `growth-write.ts`: tracks from Paul's file, touches, settings and one plan per week, all
+  append-only) and run by `profile growth plan`. No milestones, settings page or calendar blocks
+  yet.
   Since NS-172 also growth check-ins and the weekly review (`growth-progress.ts`, GRW-005…007):
   `parseCheckIn` (track, time, minutes, optional percent; no free text), `applyCheckIns` (moves
   each track's last touch forward, which feeds the next `planWeek`), `trackDashboard` (minutes
   against plan, days since touched, at risk, a week streak that never resets mid-week, percent per
   week still needed) and `weeklyReview` (moved, not reached, a neutral log; UX-032). No storage,
   auto-detected progress or page yet.
+  Since NS-164 also `mailStatusChange` (`mail-status.ts`, INB-004/011): a linked email's kind
+  gives a target status (confirmation → `confirmed`; assessment, interview request, scheduling →
+  `in_process`; offer; rejection), taken only as a `nextStatus` move. It applies by itself only on
+  a `matchMail` link with `senderVerified`; otherwise it is a proposal for Paul's confirm queue.
+  No caller yet (#224).
 - `packages/db/` (NS-105): Drizzle schema, committed migrations (`migrations/`), the one write
   path for status changes (`transitionApplication`: status + event in one transaction) and
   `readEventsAfter`. `domain_event` is append-only (ADR-0012). Tests run on in-process PGlite.
+  Since NS-188 also application origin (INB-007), stored in events: `createApplication`
+  (`origin-write.ts`) writes the row and `application.created` with `startedBy` in one
+  transaction; a move to `submitted` must carry `submittedVia` (`auto` or `approved` from the
+  Apply Gateway by the Gate's `decidedBy`, `handoff` from "I submitted it"), stored in that
+  move's event. `readOrigin` and `readCreditReport` (INB-010: submitted, in process and offer
+  per origin bucket; screen and interview wait for NS-164). Nothing calls `createApplication`
+  yet.
 - `packages/llm/` (NS-106): the LLM gateway, the only importer of `@anthropic-ai/sdk`. Typed
   routes, structured output, caching order, refusal fallback, call records and the `llm.call`
   span. Plus `untrustedBlock` and the request-keyed replay/recording fixtures (ADR-0013).
@@ -75,13 +90,20 @@ Exists now:
   `profile_source` of kind `linkedin` beside the resume (it supersedes only an earlier export).
   Resume readers ignore it; `profile facts check` compares its positions with the official
   record too.
+  Since NS-209 also Paul's personal site, from a file he saves himself (`site.ts`, plain code, no
+  fetch): `## Project` headings, an optional `Link: https://…` line, and one atom per other line,
+  verbatim, with no role and the link as evidence, stored as its own `profile_source` of kind
+  `site`. Resume readers ignore it too. No GitHub import or reconciling across sources yet.
   Since NS-111 also the guided story interview: a fixed STAR script per atom, the `story-draft`
   route, and a provenance check that every story part quotes Paul's answers verbatim (whole words
   and whole numbers, `quotedIn`, NS-184/NS-200), with its numbers, number words and capitalised
   names backed by its quotes, the answers or the resume line. Since NS-202 the name rule
   (`names.ts`, shared with answer drafting) also catches mixed-case, digit-start and joined names
-  ("iOS", "3M", "ex-Globex", "l'Oréal"); a capitalised word is still backed whole. All-lowercase
-  names are not caught. Stories
+  ("iOS", "2FA", "ex-Globex", "l'Oréal"); a capitalised word is still backed whole. All-lowercase
+  names are not caught. Since NS-216 a number with a listed unit ("1M", "5GB", "200kW") is a
+  quantity, not a name; its digits face the number rule and its scale must be in the same quotes
+  ("5 thousand" doesn't back "5B"). Since NS-201 only quotes that pass back a part's
+  digit numbers. Stories
   are stored only when Paul approves them, then locked by a trigger (`packages/db`,
   `story-schema.ts`).
   Since NS-112 also the employment-facts check (DX-011): Paul's official HR record
@@ -91,6 +113,12 @@ Exists now:
   questions (`question-canon.ts`) and `matchQuestion`/`classifyQuestion`, plain code that maps a
   form question to one of them with a confidence score (factual, reusable narrative or
   company-specific), or to "new". No model, no database yet; the answer bank builds on it.
+  Since NS-137 also `confirmQuestion` (`question-confirm.ts`), with no embedding provider
+  (decided on #62): for a question the matcher left new because it scored low or tied, the
+  `question-confirm` route picks one of up to three close narrative or company-specific catalog
+  questions by index, or none, and code checks the index. Never for factual or negated questions.
+  Its matches carry `confirmedBy: "model"` and must never count as reuse for the Gate's policy.
+  Off by default (hand-written fixtures); no caller yet.
   Since GH-59 also answer reuse (ANS-003): `adaptAnswer` fills a banked answer's `{company}`
   slot and picks the variant that fits the form's limit (never cuts it), `reuseNote` and
   `narrativeKindOf`.
@@ -128,6 +156,12 @@ Exists now:
     points to `profile facts`, because dates are locked.
   - `applySuggestion` swaps in Paul's own new line for that one atom. It refuses anything else:
     a role, a term, a multi-line text, or another role's employer, title or year.
+  Since NS-190 also storage and a command (AUD-002): `runAudit`, `acceptSuggestion` and
+  `rejectSuggestion` (`audit/run.ts`) over append-only `resume_audit`, its suggestions, Paul's
+  decisions and `atom_line_edit` (`packages/db`, `audit-write.ts`). A rejected suggestion stays
+  out of later runs on the same import. An accepted line is checked by `applySuggestion`, then
+  becomes the atom's newest edit: `readTailorInput` and the audit use it, the atom's imported
+  quote never changes, and scoring, stories and the thesis still cite the imported quote.
 - The answer bank (GH-59, ANS-005/006) in `packages/db` (`answer-schema.ts`, `answer-write.ts`):
   append-only `bank_answer` (versioned per canonical question), `bank_answer_citation` and
   `bank_answer_use`. `saveApprovedAnswer` stores an answer only with a live Gate approval by Paul
@@ -143,6 +177,14 @@ Exists now:
   `positioning-thesis` route drafts up to three theses citing atoms, and `draftTheses` keeps only
   those `thesisProblems` passes (`checkThesis` plus unknown atom ids). Off by default
   (hand-written fixtures); nothing is saved until Paul runs `profile thesis set`.
+- Gap-to-proof (NS-196, DX-010), plain code, no model: Paul's independent work since his last role
+  from his own file (`independent-work.ts`: `parseIndependentWork`, one `Title | YYYY-MM | YYYY-MM
+  or present [| https link]` header and 1–6 `- ` lines per entry; any bad line stores nothing),
+  `independentWorkSection` (the "Projects / Independent work" lines, verbatim) and
+  `twentySecondAnswer` (at most 55 words from the entries and the official record's last employer,
+  with its sources). Stored in `packages/db` (`independent-work-schema.ts`,
+  `independent-work-write.ts`: `setIndependentWork`, `readIndependentWork`; append-only, a
+  version per file). Not yet in tailored resumes, the PDF or LinkedIn.
 - Answer drafting (NS-135, ANS-004) in `packages/profile/src/answer/`:
   - `selectEvidence` picks Paul's stories and atoms by the question's words (plain code).
   - The `answer-draft` route drafts from them.
@@ -173,7 +215,12 @@ Exists now:
   - `draftAnswer` takes an `avoid` list: it tells the model, and a draft that still has one of
     those phrases becomes `needs_human` (`voice`).
 
-  No storage, review flow or CLI yet.
+  Since NS-185 also storage (`packages/db`, `voice-schema.ts`, `voice-write.ts`, append-only):
+  versioned `voice_profile` (measurements and phrases, never sample text), Paul's keep/drop
+  `voice_review` (every phrase decided; the newest reviewed version counts) and `voice_edit` (only
+  the phrases he deleted from a draft, once per approval `subject`). `loadVoice` (`voice/store.ts`)
+  gives `draftAnswer` its guide and avoid list, `recordEdit` stores an edit's deleted phrases, and
+  `avoidedFromDeleted` learns from them. No CLI (#220) or caller yet.
 - `packages/inbox/` (NS-113): read-only Gmail (ADR-0014: `gmail.readonly`, desktop OAuth with
   PKCE, token in memory for one run, never stored), the job-mail pre-filter (headers only; ATS
   senders, job phrases, same-thread follow-ups), confirmation rules, and the `mail-classify` route
@@ -186,6 +233,17 @@ Exists now:
   codes, or several links) to a pick before it becomes `needs_human`; `modelPick` backs it with the
   `verification-extract` route, which only returns the index of a candidate plain code found
   (never a code or link), and a chosen link still passes `checkLink`. Off by default.
+  Since NS-148 also `pollWindow` (`src/verify/poll.ts`): while a window is open it lists the
+  window's sender domains since it opened every 5 s (read-only, in-memory token; no Gmail push,
+  decided on #89), offers only new messages to the catcher (10 a tick) and stops on `verified`,
+  `needs_human` or the window's end (`timed_out`, then `catcher.timeout`). A failed tick, or an
+  open `gmail` breaker, just waits for the next. No caller yet (the gateway session, NS-151).
+  Since NS-151 also `createStoredCatcher` (`src/verify/stored-catcher.ts`): the same rules, async
+  over a `WindowStore`, so the mail reader and the gateway share windows and survive a restart.
+  The store settles every race: a message is claimed before it is read, and a result is handed out
+  only by the call whose close won (a close loses if the window was resent since it was read).
+  `createCatcher` shares the pure rules (`windowMatches`, `buildWindow`, `examineMessage`).
+  `@northstar/db`'s `dbWindowStore` is the store; no caller yet (the gateway session, NS-142).
   Since NS-150 also `isVerificationMail` (headers) and `hasVerificationCode` (body), which the
   funnel backfill uses to drop ATS verification mail before it is classified, sent to the model
   or stored (VER-005).
@@ -197,8 +255,15 @@ Exists now:
   a DKIM pass aligned with From covers the application's domains (INB-011); shared ATS and
   freemail domains never pick an application. Tags and links are stored in `packages/db`
   (`mail-link-schema.ts`, `mail-link-write.ts`: `assignTag`, `readTags`, `readLinkedThreads`,
-  `recordMailLink`, `listConfirmQueue`; append-only). Links never change a status (P1). No mail
-  loop, origin fields or gateway use yet.
+  `recordMailLink`, `listConfirmQueue`; append-only). Links never change a status (P1). On mail Gmail
+  received, the client reads only the top `Delivered-To`, the one Gmail adds (NS-188); mail it
+  never stamped (Sent, drafts, inserted) must be skipped by the loop. No mail loop or gateway use yet
+  (#224).
+  Since NS-164 also `classifyLinkedMail` (`src/triage.ts`, INB-003/012): one linked message to
+  its classification by the backfill's rules (verified senders only) or the `mail-classify`
+  route, with the provenance check. Verification mail from any sender (a verification subject
+  or a code) is skipped before either; a refusal, invalid output, missing employer or failed
+  provenance check goes to review, and a held-back call is thrown for a retry. No storage, Gmail labels (no `gmail.modify`) or caller yet (#224).
 - `packages/funnel/` (NS-113): the 9-month backfill, funnel records derived by plain code from
   `funnel_message` and `funnel_manual_row` (`packages/db`, `funnel-schema.ts`), the tracker CSV
   import, the funnel report (Wilson intervals, rejection latency) and the hypothesis board.
@@ -304,7 +369,14 @@ Exists now:
   Since NS-153 they're in the app: the API's `GET /system/health`, `GET /feed` and
   `POST /system/kill-switches` (session only; a flip is Paul's, ADR-0002), the web app's
   `/health` page with kill-switch toggles, the nav's health dot, and a feed on Today that polls
-  every 3 s (no pushed stream yet).
+  every 3 s (no pushed stream yet). Since NS-189 each `GET /feed` item also carries `jobTitle`
+  and `company` (or `null`), read per page by `readFeedNames` from Paul's own job rows for
+  `job:<id>` and `application:<id>` aggregates; never stored in events or put in the line text.
+  The web feed shows them after the line as plain text (`feedSubject`).
+  Since NS-154 also the run inspector (OBS-003): `readRun` (`run-read.ts`) gathers the events
+  with the same `traceId` as a feed line, oldest first (at most 200), each with its feed line, its
+  offset and its LLM call record copied field by field, plus totals; the API's `GET /feed/run`
+  serves it, and each feed line on Today has a "Show the run" button. No Temporal history yet.
 - `packages/gateways/` (NS-120): the Apply Gateway, the only code that submits an application
   (ADR-0002). `submitApplication` checks the approval with the Gate at the moment it acts (no
   verified approval throws `NotApprovedError`), re-hashes the package and its files, claims the
@@ -338,6 +410,13 @@ Exists now:
   `GET /handoffs` and `POST /handoffs/resolve`, and Today shows a "Needs your hands" card. Paul's
   "I submitted it" moves the application `needs_human` → `submitted` once
   (`application:<id>:handoff:<handoffId>:submitted`). No pre-fill through the extension yet.
+- Verification windows (NS-151, VER-001…006) in `packages/db` (`verification-schema.ts`,
+  `verification-write.ts`, append-only): `verification_window`, one `verification_window_restart`
+  and one `verification_window_close` per window, and `verification_used_message` (one window per
+  Gmail id). `dbWindowStore(db, candidateId)` serves `createStoredCatcher`. Closes and the resend
+  write `verification.verified`, `verification.needs_human` or `verification.resend` (window id,
+  tenant, ATS, purpose and outcome only; feed "Verified email for Acme (Workday)"). Never a code,
+  link, subject, body or address.
 - The tenant registry and consent policy (NS-124, ACC-001/006/008) in `packages/db`
   (`tenant-schema.ts`, `tenant-write.ts`, `consent-schema.ts`, `consent-write.ts`; append-only):
   - `employer_tenant`: one row per employer tenant (the vault's `<ats>:<tenant>` key, https URL,
@@ -348,6 +427,11 @@ Exists now:
   - The consent policy (`auto` by default, or `ask_per_tenant`; `decideConsent` always declines
     marketing) and `consent_record`, every accepted notice with its text and SHA-256.
   - The API's `GET /accounts` lists tenants and statuses, never the email or URL.
+  - Since NS-198 also Settings → Accounts in the app (`/settings/accounts`, linked from Today):
+    each tenant's status in words, the consent policy (`GET`/`POST /settings/consent-policy`,
+    session only, Paul's change), and the accepted notices (`GET /accounts/consents`, never the
+    text; `GET /accounts/consents/text` gives one notice's text on request). `listConsentRecords`
+    and `readConsentText` in `packages/db` read them.
 
   No account creation, sign-in or Workday adapter yet: they need the browser driver (NS-142).
 - The credential vault (NS-122, ADR-0010, CRD-001/002/003/005): append-only `vault_secret`
@@ -360,6 +444,12 @@ Exists now:
   never exported; a boundary test fails if anything outside `packages/gateways/src` imports it.
   Secrets come back as `VaultSecret`, which prints `[redacted]`. No caller yet (NS-124), and no
   password-manager mirror yet (CRD-004, Q-16).
+  Since NS-182 (slice 1, ADR-0024, Proposed) also Paul's own reveal: `revealSealedSecret`
+  (`packages/db`) files a `vault_reveal` approval (effective at once, naming the tenant by
+  `revealContentSha256`), approves it for Paul and uses it once, in one transaction; the Gate
+  refuses that kind everywhere else. `revealTenantPassword` is the one opening
+  `@northstar/gateways` exports, and the boundary test allows only the vault's files to name it.
+  No API route or page yet (slice 2).
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write
@@ -398,9 +488,41 @@ Exists now:
   Today, since NS-153 `/health`, since NS-139 the Queue (`/approvals`), and since NS-168 the
   Pipeline (`/pipeline`: a board by status in UX-020's words, and `/pipeline/<id>`, an
   application's timeline from `listApplications` and `readApplicationTimeline` in `packages/db`,
-  served by the API's `GET /applications` and `GET /applications/timeline`). Read-only. `/api/*` is rewritten to the API, and pages that need Paul go
+  served by the API's `GET /applications` and `GET /applications/timeline`). Read-only. Since NS-207 the
+  Pipeline also filters by company, fit band, source (the job's ATS, or `other`) and creation day,
+  applied in `listApplications`' SQL and kept in the URL, has a table view, and Today shows counts
+  of approvals waiting and needs-your-hands items (`src/today.ts`), with interviews, follow-ups
+  and growth blocks marked not set up yet. Since NS-208 also `/pipeline/metrics`: the funnel (found →
+  applied → heard back → interviewing → offer), median days to apply and to the first reply, and
+  reply rates by source, fit band and time from posting to applying, each with its count and a
+  Wilson interval, or "not enough data yet" under 20 (`pipelineMetrics` in `packages/domain`,
+  over `readApplicationHistories`; the API's `GET /pipeline/metrics`). `wilson` lives in
+  `packages/domain` (`stats.ts`); `packages/funnel` re-exports it. `/api/*` is rewritten to the API, and pages that need Paul go
   through `readSession`/`todayView` or `readApi` (`src/session.ts`, `src/system.ts`), which forward
   his session cookie to the API. It holds no secret.
+- `packages/pipeline/` (NS-161, ADR-0023): plain-code pipeline steps, no model or network.
+  `assemblePackage` builds an application package for a job: each form question is answered from
+  a factual setting (`answerFactual`) or a banked answer (`adaptAnswer`), with every answer's
+  source. A required question it can't answer (no setting, no banked answer, too long, not one of
+  the choices), or a required cover letter, makes it `NeedsHuman`; an optional one stays blank.
+  It also gives the Gate's policy facts (factual settings count as `new`, never reuse).
+  `filePackage` files the package with the Gate (`requestApproval`, actor `system`, key
+  `package:<packageId>`); it never submits. No caller, form questions from the ATS or stored
+  resume files yet.
+- `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
+  (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
+  decision as an `approval` signal (or `withdrawn`), then runs the `submitApplication` activity
+  on `apply-browser` (10-minute start-to-close, 5 attempts with backoff; `NotApproved` is never
+  retried). The activity calls the Apply Gateway and returns plain data; `decide` (plain code)
+  finishes, or waits on a durable timer for `InProgress`, `AtsBusy`, `Paced`, `DailyCapReached`
+  and `HeldBack` (at most 20 waits, then `gave_up`). Tests run without a server: `decide`, the
+  activity on a fake gateway, and Temporal's workflow bundler. No worker process, client or
+  restart test yet (the test server download is extra network).
+  Since NS-220 also `staleClaimSweepWorkflow` (on `pipeline`): every 5 minutes (input) it runs the
+  `sweepStaleClaims` activity per candidate (the gateway's sweep with `dbSweepPorts`; 1 minute,
+  3 attempts), continuing as new after 100 passes. A pass that fails all its attempts becomes a
+  dead letter (`recordSweepFailure`: kind `apply.stale_sweep`, reason `sweep_failed`, keyed by
+  run and pass) and the next pass tries again. Nothing starts it until the worker process (#230).
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 
@@ -408,7 +530,6 @@ Planned (`docs/architecture/system-design.md` §7). **Don't create these early:*
 with the ticket that needs it.
 
 ```
-apps/worker
 packages/agents  ats-adapters  ui
 ops/  docs/runbooks/
 ```
@@ -434,6 +555,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/prompts lock` | add new prompt versions to `prompts.lock.json` (never rewrites an existing hash) |
 | repo root | `pnpm --filter @northstar/profile profile import-resume data/<file> [--reimport]` | import Paul's resume into the profile graph (`--reimport` redoes it even when the file is unchanged) (Paul only: real data, needs `DATABASE_URL` and `ANTHROPIC_API_KEY`; prints counts only) |
 | repo root | `pnpm --filter @northstar/profile profile import-linkedin data/<folder>` | import Paul's unzipped LinkedIn data export (`Positions.csv` required; `Education.csv`, `Skills.csv` optional) as its own source; an unchanged export is a no-op. Paul only: real data, needs `DATABASE_URL`; prints counts only; agents never run it |
+| repo root | `pnpm --filter @northstar/profile profile import-site data/<file>` | import Paul's personal site from a file he saved (`## Project` headings, an optional `Link: https://…` line, one claim per line) as its own source; a file with any bad line stores nothing; an unchanged file is a no-op. Paul only: real data, needs `DATABASE_URL`; prints counts only; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile show` | read the imported profile back (roles, atoms, skills). Paul only: it prints his real profile; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile interview [--atom <id>]` | guided story interview about the next atom with no story; answers are saved as you go, rerun to resume (Paul only: his real answers, needs `DATABASE_URL` and `ANTHROPIC_API_KEY`; agents never run it) |
 | repo root | `pnpm --filter @northstar/profile profile stories` | list approved stories and the competencies with none yet. Paul only: it prints his real stories; agents never run it |
@@ -441,7 +563,10 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/profile profile facts check` | compare the imported resume's roles with the official record and list every mismatch (exits 1 on any). Paul only: it prints his real employment facts; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile thesis draft` | up to three positioning theses that pass the deterministic check, with the atoms each cites; says so while drafting is off. Paul only: it reads his real profile; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile thesis set "<text>" --atoms <id,id>` / `profile thesis show` | check a thesis against the cited atoms, roles and skills and save it as a new version (a failure saves nothing) / print the current one. Paul only: needs `DATABASE_URL`; agents never run them |
+| repo root | `pnpm --filter @northstar/profile profile work set data/<file>` / `profile work show` | store Paul's independent work since his last role as a new version (`Title \| YYYY-MM \| YYYY-MM or present [\| https link]`, then 1–6 `- ` lines per entry; a file with any bad line stores nothing; unchanged stores nothing) / print the "Projects / Independent work" section and the 20-second answer with its sources. Paul only: his real data, needs `DATABASE_URL`; agents never run them |
+| repo root | `pnpm --filter @northstar/profile profile growth tracks set data/<file>` / `growth tracks` / `growth touch <key>` / `growth settings [set <field> <value>]` / `growth plan` | store Paul's growth tracks from a file, one per line (`key \| name \| type \| status \| priority [\| target YYYY-MM-DD] [\| untouched <days>] [\| next <minutes> <title>]`; any bad line stores nothing) / list them with their last touch / note he worked on one / show or change the planner's settings / plan this week once (Monday, UTC) and print focus, maintenance, at risk and needs-a-next-action. Paul only: his data, needs `DATABASE_URL`; agents never run them |
 | repo root | `pnpm --filter @northstar/profile profile tailor <job-id> [--drop <skill,skill>]` | tailor the resume to a ready job (plain code, no model): prints the diff, what it doesn't claim, the pre-send score and the validator result, and stores a new version (unchanged content stores nothing); `--drop` turns off skills the tailor added. Paul only: it prints his real profile, needs `DATABASE_URL`; agents never run it |
+| repo root | `pnpm --filter @northstar/profile profile audit` / `profile audit accept <key> "<new line>"` / `profile audit reject <key>` | audit the current resume against the search preferences' titles and ready jobs' requirements and store the run (leaving out suggestions rejected on this import) / accept one line suggestion with Paul's own line (checked like `applySuggestion`; the tailor uses it from then on) / reject one. Paul only: it prints his real resume, needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile settings set <field> <value> [--for <qualifier>]` / `profile settings show` | store an answer to a factual question (`work_authorization --for <country>`, `years_of_experience --for <skill>`, `previously_employed --for <company>`; yes/no, whole years, `YYYY-MM-DD`, `remote\|hybrid\|onsite`, https links, short text) / list the current ones. Paul only: his real data, needs `DATABASE_URL`; agents never run them |
 | repo root | `pnpm --filter @northstar/profile profile answer "<question>"` | answer a form question from the settings: prints the answer, the canonical question and the setting used, or why it can't. Paul only: needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel backfill [--since YYYY-MM-DD] [--max-messages N]` | sign in to Gmail read-only (browser consent every run), rebuild the funnel from job mail since `--since` (default 2026-02-01); prints the model-call count and estimated cost first and stops at `--max-messages` (default 500). Safe to rerun. Paul only: his real mail, needs `DATABASE_URL`, `GOOGLE_OAUTH_CLIENT_*` and `ANTHROPIC_API_KEY`; agents never run it |

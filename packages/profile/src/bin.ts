@@ -7,12 +7,18 @@ import {
   connectDb,
   currentResumeHash,
   dbSpendMeter,
+  decideSuggestion,
   isSubsystemOn,
   loadDbConfig,
   nextAtomForInterview,
+  readAuditInput,
   readCurrentThesis,
   readEmploymentFacts,
+  readGrowthSettings,
+  readGrowthTracks,
+  readIndependentWork,
   readInterviewAnswers,
+  readLatestAudit,
   readProfile,
   readProfileSettings,
   readSourceRoles,
@@ -24,10 +30,17 @@ import {
   recordDraftOutcome,
   recordFactsCheck,
   recordFactualAnswer,
+  recordGrowthTouch,
+  rejectedKeys,
   saveApprovedStory,
   saveApprovedThesis,
+  saveResumeAudit,
   saveTailoredResume,
+  saveWeekPlan,
   setEmploymentFacts,
+  setGrowthSettings,
+  setGrowthTracks,
+  setIndependentWork,
   setProfileSetting,
   soleCandidate,
   startInterview,
@@ -42,6 +55,7 @@ import {
   type SpendMeter,
 } from "@northstar/llm";
 import { sql } from "drizzle-orm";
+import { type AuditRunDeps, acceptSuggestion, rejectSuggestion, runAudit } from "./audit/run.js";
 import { main, safeErrorSummary } from "./cli.js";
 import { importResume } from "./import.js";
 import { type Choice, runInterview, type Terminal } from "./interview.js";
@@ -92,6 +106,14 @@ try {
       guard,
       dbSpendMeter(db, () => candidateId),
     );
+  // The resume audit's storage (NS-190), on packages/db's one write path for it.
+  const auditDeps: AuditRunDeps = {
+    readInput: () => readAuditInput(db, candidateId),
+    rejected: (sourceId) => rejectedKeys(db, candidateId, sourceId),
+    save: (input) => saveResumeAudit(db, { ...input, candidateId }),
+    readLatest: () => readLatestAudit(db, candidateId),
+    decide: (input) => decideSuggestion(db, { ...input, candidateId }),
+  };
   const exitCode = await main({
     argv: process.argv.slice(2),
     print: (line) => console.log(printable(line)),
@@ -149,6 +171,17 @@ try {
     readStories: () => readStories(db, candidateId),
     setFacts: (positions) => setEmploymentFacts(db, { candidateId, positions }),
     readFacts: () => readEmploymentFacts(db, candidateId),
+    // Independent work (NS-196): Paul's own file, stored as a new version.
+    setIndependentWork: (entries) => setIndependentWork(db, { candidateId, entries }),
+    readIndependentWork: () => readIndependentWork(db, candidateId),
+    // Growth tracks and the week's plan (NS-210).
+    now: () => new Date(),
+    setGrowthTracks: (tracks) => setGrowthTracks(db, { candidateId, tracks }),
+    readGrowthTracks: () => readGrowthTracks(db, candidateId),
+    recordGrowthTouch: (key) => recordGrowthTouch(db, { candidateId, key }),
+    readGrowthSettings: () => readGrowthSettings(db, candidateId),
+    setGrowthSettings: (settings) => setGrowthSettings(db, { candidateId, settings }),
+    saveWeekPlan: (input) => saveWeekPlan(db, { candidateId, ...input }),
     recordCheck: (claims, mismatches) => recordFactsCheck(db, { candidateId, claims, mismatches }),
     readThesisProfile: () => readThesisProfile(db, candidateId),
     // Off until Paul records real fixtures and sets the baseline (ADR-0016 item 8); with it off,
@@ -193,6 +226,9 @@ try {
         jobId,
         drop,
       ),
+    runAudit: () => runAudit(auditDeps),
+    acceptSuggestion: (key, line) => acceptSuggestion(auditDeps, key, line),
+    rejectSuggestion: (key) => rejectSuggestion(auditDeps, key),
     recordFactualUse: (use) => recordFactualAnswer(db, { candidateId, kind: "factual", ...use }),
   });
   process.exitCode = exitCode;

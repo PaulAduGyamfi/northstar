@@ -6,16 +6,22 @@ import {
   dbSpendMeter,
   isSubsystemOn,
   listApplications,
+  listConsentRecords,
   listOpenHandoffs,
   listPasskeys,
   listTenants,
   loadDbConfig,
+  readApplicationHistories,
   readApplicationTimeline,
+  readConsentPolicy,
+  readConsentText,
   readDedupeCandidates,
   readFeed,
   readFeedAfter,
+  readFeedNames,
   readPasskey,
   readPreferences,
+  readRun,
   readScorableJobs,
   readScoreKeys,
   readScoringProfile,
@@ -26,11 +32,11 @@ import {
   saveFitScore,
   saveIngestedJob,
   savePasskey,
+  setConsentPolicy,
   setKillSwitch,
   soleCandidate,
-  transitionApplication,
 } from "@northstar/db";
-import { ApplicationId } from "@northstar/domain";
+import { pipelineMetrics } from "@northstar/domain";
 import {
   type CallGuard,
   createAnthropicClient,
@@ -51,9 +57,12 @@ import { dbApprovalPorts } from "./approval-ports.js";
 import { approvalEndpoints } from "./approvals.js";
 import { captureEndpoint } from "./capture.js";
 import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
+import { consentEndpoints } from "./consent.js";
+import { markHandoffSubmitted } from "./handoff-ports.js";
 import { handoffEndpoints } from "./handoffs.js";
 import { passkeyEndpoints } from "./passkeys.js";
 import { pipelineEndpoints } from "./pipeline.js";
+import { runEndpoints } from "./run.js";
 import { createApi } from "./server.js";
 import { createSessions } from "./sessions.js";
 import { systemEndpoints } from "./system.js";
@@ -148,8 +157,14 @@ try {
     health: async () => readSystemHealth(db, await candidateId()),
     feedBefore: async (before, limit) => readFeed(db, await candidateId(), { before, limit }),
     feedAfter: async (after, limit) => readFeedAfter(db, await candidateId(), { after, limit }),
+    // Names from Paul's own job rows only, read per page and never stored (NS-189).
+    feedNames: async (aggregates) => readFeedNames(db, await candidateId(), aggregates),
     // system.ts sets the actor to Paul; the candidate is always the server's own.
     setSwitch: async (input) => setKillSwitch(db, { ...input, candidateId: await candidateId() }),
+  });
+  // The run behind a feed line (NS-154), read-only from the event log.
+  const run = runEndpoints({
+    readRun: async (position) => readRun(db, await candidateId(), position),
   });
   // "Needs your hands" (NS-121) on packages/db's handoff paths. Paul's "I submitted it" moves
   // the application through transitionApplication, the one write path for status changes.
@@ -157,32 +172,31 @@ try {
     listOpen: async () => listOpenHandoffs(db, await candidateId()),
     resolve: async (handoffId, outcome) =>
       resolveHandoff(db, { candidateId: await candidateId(), handoffId, outcome }),
-    markSubmitted: async (applicationId, idempotencyKey) => {
-      const moved = await transitionApplication(db, {
-        candidateId: await candidateId(),
-        applicationId: ApplicationId.parse(applicationId),
-        from: "needs_human",
-        to: "submitted",
-        actor: "user",
-        reason: "",
-        inputsSummary: "",
-        links: [],
-        idempotencyKey,
-      });
-      return { ok: moved.ok };
-    },
+    markSubmitted: async (applicationId, idempotencyKey) =>
+      markHandoffSubmitted(db, await candidateId(), applicationId, idempotencyKey),
   });
   // Employer accounts (NS-124), read-only from the tenant registry.
   const accounts = accountsEndpoints({
     listTenants: async () => listTenants(db, await candidateId()),
+  });
+  // The consent policy and accepted notices (NS-198): a policy change is Paul's (actor `user`).
+  const consent = consentEndpoints({
+    readPolicy: async () => readConsentPolicy(db, await candidateId()),
+    setPolicy: async (policy) => {
+      await setConsentPolicy(db, { candidateId: await candidateId(), policy });
+    },
+    listConsents: async () => listConsentRecords(db, await candidateId()),
+    readConsentText: async (recordId) => readConsentText(db, await candidateId(), recordId),
   });
   // The approval queue (NS-139): the only path to decideApprovals and undoDecision, behind
   // Paul's session, so every decision is his (ADR-0002).
   const approvals = approvalEndpoints(dbApprovalPorts(db, candidateId));
   // The pipeline board and application timeline (NS-168), read-only.
   const pipeline = pipelineEndpoints({
-    list: async () => listApplications(db, await candidateId()),
+    list: async (filter) => listApplications(db, await candidateId(), filter),
     timeline: async (id) => readApplicationTimeline(db, await candidateId(), id),
+    // The funnel and breakdowns (NS-208): plain code over the status histories.
+    metrics: async () => pipelineMetrics(await readApplicationHistories(db, await candidateId())),
   });
   // One set of sessions for the sign-in key and passkeys, so both open the same kind of session
   // and their failures count toward one throttle (ADR-0022).
@@ -204,7 +218,17 @@ try {
     config,
     sessions,
     extensionTokenSha256,
-    extra: [capture, ...system, ...handoffs, ...accounts, ...approvals, ...pipeline, ...passkeys],
+    extra: [
+      capture,
+      ...system,
+      ...run,
+      ...handoffs,
+      ...accounts,
+      ...consent,
+      ...approvals,
+      ...pipeline,
+      ...passkeys,
+    ],
   });
   const server = createServer(handler);
   server.listen(config.port, "127.0.0.1", () => {

@@ -54,7 +54,23 @@ export {
   parseOfficialRecord,
   type RecordLineError,
 } from "./facts.js";
+// Factual answers from Paul's settings (NS-141), used by package assembly (NS-161).
+export { answerFactual, type FactualAnswer, type Setting } from "./factual.js";
 export { type ImportDeps, type ImportResult, importResume } from "./import.js";
+// Gap-to-proof (NS-196, DX-010): Paul's independent work, its resume section and the 20-second
+// answer, plain code over his own file.
+export {
+  type AnswerSource,
+  independentWorkSection,
+  MAX_ANSWER_WORDS,
+  parseIndependentWork,
+  type Since,
+  sinceFromFacts,
+  type TwentySecondAnswer,
+  twentySecondAnswer,
+  type WorkEntry,
+  type WorkProblem,
+} from "./independent-work.js";
 export {
   type Choice,
   type InterviewDeps,
@@ -74,6 +90,18 @@ export {
   type QuestionKind,
 } from "./question-canon.js";
 export {
+  CONFIRM_FLOOR,
+  type ConfirmedMatch,
+  confirmCandidates,
+  confirmQuestion,
+  MAX_CONFIRM_CANDIDATES,
+  QUESTION_CONFIRM_VERSION,
+  QuestionChoice,
+  type QuestionConfirmInput,
+  questionConfirmRoute,
+  renderQuestionCandidates,
+} from "./question-confirm.js";
+export {
   AMBIGUITY_MARGIN,
   classifyQuestion,
   FACTUAL_THRESHOLD,
@@ -82,6 +110,7 @@ export {
   type QuestionClassification,
   type QuestionMatch,
   questionConcepts,
+  rankCanonical,
 } from "./question-match.js";
 export { PROFILE_EXTRACT_VERSION, profileExtractRoute } from "./route.js";
 export { ProfileExtract } from "./schema.js";
@@ -166,6 +195,7 @@ export {
 export { normalize, type ProvenanceFailure, validateProvenance } from "./validate.js";
 export {
   AVOID_AFTER,
+  avoidedFromDeleted,
   avoidedPhrases,
   deletedPhrases,
   type Edit,
@@ -180,3 +210,4 @@ export {
   renderVoiceGuide,
   type VoiceProfile,
 } from "./voice/measure.js";
+export { loadVoice, recordEdit, type StoredVoice } from "./voice/store.js";

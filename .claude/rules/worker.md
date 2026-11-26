@@ -6,9 +6,14 @@ paths:
 
 # Temporal workers and the domain (ADR-0001, ADR-0007)
 
-These don't exist yet. If you are about to create one outside its ticket, stop and ask Paul.
+`apps/worker` exists since NS-157: the `pipeline` and `apply-browser` queues (`src/queues.ts`),
+`submissionWorkflow` and its plain `decide` step (`src/workflows/`), and the Apply Gateway
+activity (`src/activities/apply.ts`); since NS-220 the stale-claim sweep (`src/workflows/sweep.ts`,
+`src/activities/sweep.ts`). Workflow code may import only `@temporalio/workflow`, plain
+code and type-only imports: the bundle test (`bundleWorkflowCode`) fails otherwise. No worker
+process, client or heartbeats yet (NS-225); other domains' workflows arrive with their tickets.
 
-When they land:
+Rules:
 
 - Workflow code is deterministic: no `Date.now()`, `Math.random()`, network, file or database
   access in workflows. Use Temporal APIs (`sleep`, `condition`, signals) and do I/O in activities.

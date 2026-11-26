@@ -32,6 +32,8 @@ export type FakeWorld = {
   checks: string[];
   // Every withdrawal the gateway asked the Gate for (NS-211).
   withdrawals: { requestId: string; newContentSha256: string }[];
+  // How each move to submitted said it went out (INB-007).
+  submittedVia: string[];
   // A decision id for this package; with a refusal, the Gate refuses it that way.
   approve: (pkg: ApplicationPackage, refusal?: "Rejected" | "Undone" | "UndoWindowOpen") => string;
 };
@@ -49,7 +51,10 @@ export function fakeWorld(script: {
   breaker?: (dependency: string) => Promise<CallDecision>;
   // How the Gate refuses a withdrawal (it accepts one by default).
   withdrawRefusal?: "NotApproved" | "UndoWindowOpen" | "AlreadyClosed";
+  // Who the Gate says decided: Paul ("user", the default) or an auto-approve policy.
+  decidedBy?: "user" | "policy";
 }): FakeWorld {
+  const submittedVia: string[] = [];
   let status: ApplicationStatus = script.initialStatus ?? "awaiting_approval";
   type GateRefusal = "Rejected" | "Undone" | "UndoWindowOpen";
   type Approval = {
@@ -113,7 +118,7 @@ export function fakeWorld(script: {
       return ok({
         decisionId: input.decisionId,
         requestId: a.requestId,
-        decidedBy: "user" as const,
+        decidedBy: script.decidedBy ?? "user",
         effectiveAt: new Date(0),
       });
     },
@@ -183,6 +188,7 @@ export function fakeWorld(script: {
       return s ? ok({ ...s }) : err({ kind: "NotInProgress" as const });
     },
     transitionApplication: async (input) => {
+      if (input.to === "submitted") submittedVia.push(input.submittedVia ?? "missing");
       if (input.from !== status) {
         return err({
           kind: "StaleStatus" as const,
@@ -221,6 +227,7 @@ export function fakeWorld(script: {
     reports,
     checks,
     withdrawals,
+    submittedVia,
     approve: (pkg, refusal) => {
       const id = randomUUID();
       const record = {

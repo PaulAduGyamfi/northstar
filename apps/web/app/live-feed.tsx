@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "../src/client-fetch";
-import { FeedBody, type FeedLine, mergeFeed } from "../src/system";
+import { FeedBody, type FeedLine, feedSubject, mergeFeed } from "../src/system";
+import { RunDetails } from "./run-details";
 
 // The activity feed (OBS-002): the lines the page was rendered with, then what's new every 3 s
 // (GET /feed?after=), which keeps new items within the requirement's 5 s. A failed poll keeps the
@@ -46,14 +47,21 @@ export function LiveFeed({ initial }: { initial: FeedLine[] }) {
   if (lines.length === 0) return <p className="muted">Nothing has happened yet.</p>;
   return (
     <ol className="feed" aria-live="polite">
-      {lines.map((l) => (
-        <li key={l.position}>
-          <time dateTime={l.occurredAt} className="muted">
-            {new Date(l.occurredAt).toLocaleTimeString()}
-          </time>{" "}
-          {l.line}
-        </li>
-      ))}
+      {lines.map((l) => {
+        const subject = feedSubject(l);
+        return (
+          <li key={l.position}>
+            <time dateTime={l.occurredAt} className="muted">
+              {new Date(l.occurredAt).toLocaleTimeString()}
+            </time>{" "}
+            {l.line}
+            {/* The job's name as plain text next to the line, never inside it (NS-189). */}
+            {subject && <span className="muted"> · {subject}</span>}
+            {/* The steps and model calls behind the line, on request (NS-154). */}
+            <RunDetails position={l.position} />
+          </li>
+        );
+      })}
     </ol>
   );
 }

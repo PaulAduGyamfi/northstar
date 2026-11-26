@@ -33,6 +33,9 @@ GitHub) don't exist yet: if you are about to create one outside its ticket, stop
   (`keyBytes`) and `vault_secret`). Call `useTenantPassword` only after `verifyApproval` for
   the action it serves, keep the result a `VaultSecret`, and `reveal()` it only where the browser
   types it.
+  Paul's own reveal (NS-182, ADR-0024) goes only through `revealTenantPassword`, the one opening
+  the package exports. It makes its own approval, so its caller must be the API after a fresh
+  passkey check; the boundary test lists the only files that may name it.
 
 - Employer accounts (NS-124): before creating an account on a tenant, register it
   (`registerTenant`) and call `beginAccountCreation`. Only the caller it returns `creating` to may

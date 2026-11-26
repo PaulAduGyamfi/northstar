@@ -237,6 +237,8 @@ async function submit(
       inputsSummary: "",
       links: [],
       idempotencyKey: applyMoveKey(applicationId, id, to),
+      // How it went out (INB-007): the policy's decision is "auto", Paul's is "approved".
+      submittedVia: verified.value.decidedBy === "policy" ? "auto" : "approved",
     });
   const mustMove = async (from: ApplicationStatus, to: ApplicationStatus) => {
     const moved = await move(from, to);

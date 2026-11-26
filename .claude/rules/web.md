@@ -7,7 +7,8 @@ paths:
 # Web app and UI kit (ADR-0009: B · Momentum)
 
 `apps/web` exists since NS-156 (a Next.js shell; Today, `/health` since NS-153, the Queue,
-`/approvals`, since NS-139, and the Pipeline, `/pipeline`, since NS-168). `packages/ui` doesn't exist yet: if
+`/approvals`, since NS-139, the Pipeline, `/pipeline`, since NS-168, and Settings → Accounts,
+`/settings/accounts`, since NS-198, linked from Today because the nav's five tabs are fixed). `packages/ui` doesn't exist yet: if
 you are about to create it outside its ticket, stop and ask Paul. Until it lands, the color tokens
 are CSS variables in `apps/web/app/globals.css`.
 
@@ -38,3 +39,13 @@ are CSS variables in `apps/web/app/globals.css`.
 - Browser calls to the app's own API (`/api/*`) go through `apiFetch` (`src/client-fetch.ts`,
   NS-176): a 15 s limit. A POST that timed out may still have been applied, so its message is
   `TIMED_OUT_MESSAGE` ("may have gone through"), never "nothing was done".
+- Settings → Accounts (NS-198) never shows an account email or password: rows are built field by
+  field (`accountRows`, `noticeRows` in `src/accounts.ts`), and a notice's text is fetched only
+  when Paul asks for it.
+- The run inspector (NS-154) fetches a feed line's run (`GET /feed/run`) only when Paul asks, and
+  shows it as plain text through `src/run.ts` (`callLine`, `totalsLine`).
+- Pipeline filters (NS-207) live in the URL (`parseFilters`, `filterQuery` in `src/pipeline.ts`)
+  and are applied by the API, never only in the browser. Today's counts (`src/today.ts`) come from
+  the same lists their pages show; one that can't be read says so, never 0.
+- Pipeline metrics (NS-208, `/pipeline/metrics`, `src/metrics.ts`): every rate shows its count,
+  and one with too few data points reads "not enough data yet", never a percentage (DX-003).

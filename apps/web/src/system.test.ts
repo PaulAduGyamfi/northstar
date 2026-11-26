@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   dotStatus,
+  FeedBody,
   type FeedLine,
+  feedSubject,
   HealthBody,
   type HealthView,
   mergeFeed,
@@ -175,6 +177,8 @@ describe("mergeFeed", () => {
     type: "kill_switch.set",
     actor: "user",
     line: `line ${position}`,
+    jobTitle: null,
+    company: null,
   });
 
   it("puts new lines on top, newest first", () => {
@@ -195,5 +199,43 @@ describe("mergeFeed", () => {
       "3",
       "2",
     ]);
+  });
+});
+
+describe("FeedBody", () => {
+  it("keeps the job title and company the API sends with a line", () => {
+    const body = FeedBody.parse({
+      items: [
+        {
+          position: "1",
+          occurredAt: "2026-11-25T12:00:00.000Z",
+          type: "job.scored",
+          actor: "agent:fit",
+          line: "Scored a job 91",
+          jobTitle: "Backend Engineer",
+          company: "Example Corp",
+        },
+      ],
+    });
+    expect(body.items.map((i) => [i.jobTitle, i.company])).toEqual([
+      ["Backend Engineer", "Example Corp"],
+    ]);
+  });
+});
+
+describe("feedSubject", () => {
+  it("shows the title at the company when both are known", () => {
+    expect(feedSubject({ jobTitle: "Backend Engineer", company: "Example Corp" })).toBe(
+      "Backend Engineer at Example Corp",
+    );
+  });
+
+  it("shows whichever one is known when the other is missing", () => {
+    expect(feedSubject({ jobTitle: "Backend Engineer", company: null })).toBe("Backend Engineer");
+    expect(feedSubject({ jobTitle: null, company: "Example Corp" })).toBe("Example Corp");
+  });
+
+  it("shows nothing when the line names no job", () => {
+    expect(feedSubject({ jobTitle: null, company: null })).toBeNull();
   });
 });

@@ -56,6 +56,13 @@ export {
 } from "./prefilter.js";
 export { checkMailProvenance, type ProvenanceFailure } from "./provenance.js";
 export {
+  classifyLinkedMail,
+  type ReviewReason as TriageReviewReason,
+  type TriageDeps,
+  type TriageResult,
+  type TriageStamp,
+} from "./triage.js";
+export {
   type CandidatePick,
   type Catcher,
   createCatcher,
@@ -84,4 +91,20 @@ export {
   type VerificationExtractInput,
   verificationExtractRoute,
 } from "./verify/model-pick.js";
+export {
+  MAX_PER_TICK,
+  POLL_INTERVAL_MS,
+  type PollDeps,
+  type PollGmail,
+  type PollResult,
+  pollWindow,
+  windowQuery,
+} from "./verify/poll.js";
 export { VerificationSecret } from "./verify/secret.js";
+export {
+  type CloseReason,
+  createStoredCatcher,
+  type StoredCatcher,
+  type StoredWindow,
+  type WindowStore,
+} from "./verify/stored-catcher.js";

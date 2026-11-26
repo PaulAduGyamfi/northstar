@@ -90,6 +90,21 @@ export {
   type WithdrawResult,
   withdrawApproval,
 } from "./approval-write.js";
+export * as auditSchema from "./audit-schema.js";
+// Resume audits, Paul's decisions and his edited lines (NS-190, AUD-001/002).
+export {
+  type AuditDecideError,
+  type AuditDecideInput,
+  type AuditInput,
+  type AuditView,
+  decideSuggestion,
+  readAuditInput,
+  readLatestAudit,
+  rejectedKeys,
+  type SaveAuditInput,
+  type StoredSuggestion,
+  saveResumeAudit,
+} from "./audit-write.js";
 export {
   acquireCall,
   type BreakerView,
@@ -103,7 +118,10 @@ export { connectDb } from "./connect.js";
 // accepted notice kept with its text (ACC-008).
 export {
   type ConsentError,
+  type ConsentRecordView,
+  listConsentRecords,
   readConsentPolicy,
+  readConsentText,
   recordConsent,
   setConsentPolicy,
 } from "./consent-write.js";
@@ -126,7 +144,14 @@ export {
   type SetFactsResult,
   setEmploymentFacts,
 } from "./facts-write.js";
-export { type FeedItem, MAX_FEED_PAGE, readFeed, readFeedAfter } from "./feed-read.js";
+export {
+  type FeedItem,
+  type FeedNames,
+  MAX_FEED_PAGE,
+  readFeed,
+  readFeedAfter,
+  readFeedNames,
+} from "./feed-read.js";
 export * as fitSchema from "./fit-schema.js";
 export {
   FIT_METHODS,
@@ -175,6 +200,19 @@ export {
   saveFunnelMessages,
   setManualRows,
 } from "./funnel-write.js";
+export * as growthSchema from "./growth-schema.js";
+export {
+  type GrowthSettingsInput,
+  type GrowthTrackInput,
+  type GrowthTrackView,
+  readGrowthSettings,
+  readGrowthTracks,
+  recordGrowthTouch,
+  type StoredPlan,
+  saveWeekPlan,
+  setGrowthSettings,
+  setGrowthTracks,
+} from "./growth-write.js";
 export { HANDOFF_OUTCOMES, type HandoffOutcome } from "./handoff-schema.js";
 export {
   CHALLENGE_REASONS,
@@ -185,6 +223,14 @@ export {
   resolveHandoff,
 } from "./handoff-write.js";
 export { readSystemHealth } from "./health-read.js";
+export * as independentWorkSchema from "./independent-work-schema.js";
+export {
+  type IndependentWorkInput,
+  type IndependentWorkView,
+  readIndependentWork,
+  type SetIndependentWorkResult,
+  setIndependentWork,
+} from "./independent-work-write.js";
 export {
   type Ats,
   type DedupeCandidate,
@@ -230,6 +276,15 @@ export {
   type TagTarget,
   type TagView,
 } from "./mail-link-write.js";
+// Application origin and the credit report (NS-188, INB-007, INB-010).
+export {
+  type CreditReport,
+  createApplication,
+  type Origin,
+  readCreditReport,
+  readOrigin,
+  type StageCounts,
+} from "./origin-write.js";
 export * as passkeySchema from "./passkey-schema.js";
 // Paul's passkeys (NS-178, ADR-0022).
 export {
@@ -242,9 +297,11 @@ export {
 } from "./passkey-write.js";
 // The pipeline board and application timeline (NS-168), read-only.
 export {
+  type ApplicationFilter,
   type ApplicationRow,
   listApplications,
   MAX_APPLICATIONS,
+  readApplicationHistories,
   readApplicationTimeline,
   type TimelineItem,
 } from "./pipeline-read.js";
@@ -270,6 +327,14 @@ export {
 } from "./profile-write.js";
 export { readEventsAfter } from "./read-events.js";
 export * as resilienceSchema from "./resilience-schema.js";
+export {
+  MAX_RUN_STEPS,
+  type RunCall,
+  type RunStep,
+  type RunTotals,
+  type RunView,
+  readRun,
+} from "./run-read.js";
 export * as schema from "./schema.js";
 // Profile settings for factual questions (NS-141, ANS-001).
 export {
@@ -304,6 +369,7 @@ export {
 export * as tailorSchema from "./tailor-schema.js";
 // Tailored resumes (NS-146, TLR-001/003/005).
 export {
+  readResumeMaster,
   readTailoredResumes,
   readTailorInput,
   type SaveTailoredInput,
@@ -349,6 +415,9 @@ export {
   type NotApproved,
   type OpenInput,
   openSealedSecret,
+  REVEAL_ACTOR,
+  REVEAL_PURPOSE,
+  revealSealedSecret,
   type SealedSecret,
   type SealedVersion,
   type SecretNotFound,
@@ -356,6 +425,31 @@ export {
   VAULT_SUBSYSTEM,
   type VaultLocked,
 } from "./vault-write.js";
+export * as verificationSchema from "./verification-schema.js";
+// Verification windows shared by the mail reader and the gateway (NS-151).
+export {
+  claimVerificationMessage,
+  closeVerificationWindow,
+  dbWindowStore,
+  isMessageUsed,
+  openVerificationWindow,
+  readOpenWindows,
+  readVerificationWindow,
+  restartVerificationWindow,
+  type StoredWindowRow,
+  type WindowCloseReason,
+  type WindowPurpose,
+} from "./verification-write.js";
+export * as voiceSchema from "./voice-schema.js";
+// Paul's voice profile, its review and his draft edits (NS-185).
+export {
+  readReviewedVoice,
+  readVoiceEdits,
+  recordVoiceEdit,
+  reviewVoiceProfile,
+  saveVoiceProfile,
+  type VoiceMeasures,
+} from "./voice-write.js";
 export {
   addWatch,
   dueWatches,

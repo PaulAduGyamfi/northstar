@@ -249,7 +249,8 @@ describe("runInterview", () => {
     expect(term.printed.join("\n")).not.toContain("90%");
     expect(mem.events.at(-1)).toEqual({
       type: "story.rejected",
-      payload: { round: 1, reason: "provenance", failureCount: 1, call: { ...record } },
+      // The invented quote fails, and so does the 90 it would have backed (NS-201).
+      payload: { round: 1, reason: "provenance", failureCount: 2, call: { ...record } },
     });
   });
 

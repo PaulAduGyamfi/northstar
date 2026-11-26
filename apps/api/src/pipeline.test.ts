@@ -1,5 +1,6 @@
 import { createServer, type Server } from "node:http";
 import type { ApplicationRow } from "@northstar/db";
+import { pipelineMetrics } from "@northstar/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ApiConfig } from "./config.js";
 import { type PipelinePorts, pipelineEndpoints } from "./pipeline.js";
@@ -23,6 +24,8 @@ const ROW: ApplicationRow = {
   jobTitle: "Backend Engineer",
   company: "Example Corp",
   ats: "greenhouse",
+  fitScore: 88,
+  fitBand: "queue",
   createdAt: T,
   updatedAt: T,
 };
@@ -35,9 +38,13 @@ let calls: unknown[];
 beforeEach(async () => {
   calls = [];
   ports = {
-    list: async () => {
-      calls.push("list");
+    list: async (filter) => {
+      calls.push(["list", filter]);
       return [ROW];
+    },
+    metrics: async () => {
+      calls.push("metrics");
+      return pipelineMetrics([]);
     },
     timeline: async (id) => {
       calls.push(["timeline", id]);
@@ -66,7 +73,11 @@ beforeEach(async () => {
       config,
       sessions,
       extensionTokenSha256: EXT_HASH,
-      extra: pipelineEndpoints({ list: () => ports.list(), timeline: (id) => ports.timeline(id) }),
+      extra: pipelineEndpoints({
+        list: (filter) => ports.list(filter),
+        timeline: (id) => ports.timeline(id),
+        metrics: () => ports.metrics(),
+      }),
     }),
   );
 });
@@ -84,6 +95,8 @@ const APP_JSON = {
   jobTitle: "Backend Engineer",
   company: "Example Corp",
   ats: "greenhouse",
+  fitScore: 88,
+  fitBand: "queue",
   createdAt: "2026-11-25T12:00:00.000Z",
   updatedAt: "2026-11-25T12:00:00.000Z",
 };
@@ -110,6 +123,42 @@ describe("GET /applications", () => {
   it("lists applications with times as ISO text", async () => {
     const res = await get("/applications");
     expect([res.status, JSON.parse(res.body)]).toEqual([200, { items: [APP_JSON] }]);
+  });
+
+  it("passes each filter to the read, and only those fields", async () => {
+    const res = await get(
+      "/applications?company=Globex&band=queue&source=other&from=2026-11-01&to=2026-11-30&x=1",
+    );
+    expect([res.status, calls]).toEqual([
+      200,
+      [
+        [
+          "list",
+          {
+            company: "Globex",
+            band: "queue",
+            source: "other",
+            from: "2026-11-01",
+            to: "2026-11-30",
+          },
+        ],
+      ],
+    ]);
+  });
+
+  it("refuses a bad band, source, date or range with 400, before reading", async () => {
+    const statuses = [];
+    for (const q of [
+      "band=great",
+      "source=Green%20house",
+      "from=2026-13-01",
+      "to=2026-02-30",
+      "from=2026-11-02&to=2026-11-01",
+      `company=${"x".repeat(101)}`,
+    ]) {
+      statuses.push((await get(`/applications?${q}`)).status);
+    }
+    expect([statuses, calls]).toEqual([[400, 400, 400, 400, 400, 400], []]);
   });
 
   it("answers 503 when the pipeline can't be read", async () => {
@@ -155,5 +204,33 @@ describe("GET /applications/timeline", () => {
       throw new Error("database down");
     };
     expect((await get(`/applications/timeline?id=${A1}`)).status).toBe(503);
+  });
+});
+
+describe("GET /pipeline/metrics (NS-208)", () => {
+  it("refuses without a session and computes nothing", async () => {
+    expect([(await get("/pipeline/metrics", false)).status, calls]).toEqual([401, []]);
+  });
+
+  it("returns the funnel and breakdowns", async () => {
+    const res = await get("/pipeline/metrics");
+    const body = JSON.parse(res.body);
+    expect([
+      res.status,
+      body.funnel.map((f: { stage: string }) => f.stage),
+      body.responseBy,
+    ]).toEqual([
+      200,
+      ["discovered", "applied", "responded", "interviewing", "offer"],
+      { source: [], band: [], timeToApply: [] },
+    ]);
+  });
+
+  it("answers 503 when the histories can't be read", async () => {
+    ports.metrics = async () => {
+      throw new Error("database down");
+    };
+    const res = await get("/pipeline/metrics");
+    expect([res.status, JSON.parse(res.body)]).toEqual([503, { error: "unavailable" }]);
   });
 });

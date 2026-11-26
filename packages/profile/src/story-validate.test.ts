@@ -74,9 +74,14 @@ describe("validateStoryDraft", () => {
         quotes: ["2% to 3% in the first month."],
       },
     });
+    // The rejected quote backs none of its numbers either (NS-201).
     expect(validateStoryDraft(d, { atom, answers })).toEqual({
       ok: false,
-      failures: [{ item: "result", problem: "quote 0 is not in the answers" }],
+      failures: [
+        { item: "result", problem: "quote 0 is not in the answers" },
+        { item: "result", problem: "number 2 is not in its quotes or the atom" },
+        { item: "result", problem: "number 3 is not in its quotes or the atom" },
+      ],
     });
   });
 
@@ -91,6 +96,9 @@ describe("validateStoryDraft", () => {
     const result = validateStoryDraft(d, { atom, answers: [...answers, ...decimal] });
     expect(result.ok ? [] : result.failures.filter((f) => f.item === "result")).toEqual([
       { item: "result", problem: "quote 0 is not in the answers" },
+      // The rejected quote backs none of its numbers either (NS-201).
+      { item: "result", problem: "number 5 is not in its quotes or the atom" },
+      { item: "result", problem: "number 3 is not in its quotes or the atom" },
     ]);
   });
 
@@ -201,8 +209,9 @@ describe("validateStoryDraft", () => {
     expect(result).toEqual({
       ok: false,
       failures: [
-        // The 9 sits in the invented quote, which already fails the draft.
+        // The 9 sits in the invented quote, which fails, so it backs nothing (NS-201).
         { item: "task", problem: "quote 0 is not in the answers" },
+        { item: "task", problem: "number 9 is not in its quotes or the atom" },
         { item: "atomIds", problem: "atom 0 is not the interview's atom" },
         { item: "atomIds", problem: "the interview's atom is not cited" },
       ],
@@ -255,10 +264,10 @@ describe("names in story text", () => {
   });
 
   it("checks mixed-case names, joined names and names that start with a digit", () => {
-    // Positions: iOS at 3, ex-Globex at 6, planner/Initech at 8, 3M at 11.
+    // Positions: iOS at 3, ex-Globex at 6, planner/Initech at 8, 5G at 11.
     expect(
       unbackedNames(
-        "We shipped the iOS app for ex-Globex and planner/Initech users at 3M.",
+        "We shipped the iOS app for ex-Globex and planner/Initech users at 5G.",
         "we shipped the app",
         "",
       ),
@@ -268,8 +277,8 @@ describe("names in story text", () => {
   it("passes the same names when the answers or the atom hold them", () => {
     expect(
       unbackedNames(
-        "We shipped the iOS app for ex-Globex users at 3M.",
-        "the iOS app at Globex, then 3M",
+        "We shipped the iOS app for ex-Globex users at 5G.",
+        "the iOS app at Globex, then 5G",
         "",
       ),
     ).toEqual([]);
@@ -295,12 +304,47 @@ describe("names in story text", () => {
     ).toEqual([2]);
   });
 
-  it("needs a unit written with a capital to appear as written", () => {
-    // "1M" counts as a name-shaped word: "1 million" in the sources doesn't back it (fail safe).
+  it("takes a number with a capital unit as a number, not a name (NS-216)", () => {
+    // Paul approved this change on #203: "1M" needn't appear as written; its digit is still
+    // checked by the number rule.
     expect([
       unbackedNames("We served 1M users.", "we served 1 million users", ""),
       unbackedNames("We served 1M users.", "we served 1M users", ""),
-    ]).toEqual([[2], []]);
+    ]).toEqual([[], []]);
+  });
+
+  it("still needs a unit's number from the part's quotes or the atom", () => {
+    const d = draft({
+      result: {
+        text: "We served 7M users after the fix.",
+        quotes: ["Late deliveries went from 12% to 3% in the first month."],
+      },
+    });
+    const result = validateStoryDraft(d, { atom, answers });
+    expect(result).toMatchObject({ ok: false });
+    if (!result.ok) {
+      expect(result.failures).toContainEqual({
+        item: "result",
+        problem: "number 7 is not in its quotes or the atom",
+      });
+    }
+  });
+
+  it("refuses a unit whose scale the part's quotes and the atom don't state", () => {
+    const d = draft({
+      result: {
+        text: "Late deliveries went from 12% to 3% for 2B parcels.",
+        quotes: ["Late deliveries went from 12% to 3% in the first month."],
+      },
+    });
+    const result = validateStoryDraft(d, { atom, answers });
+    expect(result).toMatchObject({ ok: false });
+    if (!result.ok) {
+      expect(result.failures).toContainEqual({
+        item: "result",
+        problem: "unit at word 8 is not in its quotes or the atom",
+      });
+    }
   });
 
   it("reads a possessive as its name", () => {
