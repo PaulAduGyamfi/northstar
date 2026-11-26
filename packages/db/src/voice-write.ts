@@ -26,11 +26,28 @@ export type PhrasesMismatch = { kind: "PhrasesMismatch" };
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
+// A phrase is 1–4 words and short: anything longer would be a sentence of Paul's writing, which
+// these tables must never hold. Checked here, before any insert, so a database CHECK (whose error
+// quotes the row) never has to refuse one.
+const MAX_PHRASE_CHARS = 80;
+export const isPhrase = (p: string): boolean => {
+  const n = p.trim().split(/\s+/).filter(Boolean).length;
+  return n >= 1 && n <= 4 && p.length <= MAX_PHRASE_CHARS;
+};
+// The most a version (measureVoice keeps 10) or an edit may hold, matching the tables' CHECKs.
+const MAX_PROFILE_PHRASES = 50;
+const MAX_EDIT_PHRASES = 200;
+
 // Stores a new measured version, numbered after the candidate's newest.
 export async function saveVoiceProfile(
   db: Db,
   input: { candidateId: CandidateId; measures: VoiceMeasures },
 ): Promise<{ version: number }> {
+  const phrases = input.measures.phrases;
+  if (phrases.length > MAX_PROFILE_PHRASES || !phrases.every(isPhrase)) {
+    // A caller bug (measureVoice never does this); the message names no phrase.
+    throw new Error("saveVoiceProfile: phrases must be at most 50 short phrases");
+  }
   return inSpan("db.voice.save", {}, (span) =>
     db.transaction(async (tx) => {
       const [last] = await tx
@@ -86,14 +103,12 @@ export async function reviewVoiceProfile(
         new Set(decided).size === decided.length &&
         decided.every((p) => profile.phrases.includes(p));
       if (!exact) return err({ kind: "PhrasesMismatch" });
+      // Stored in the measured order (most common first), whatever order Paul gave them in.
+      const kept = profile.phrases.filter((p) => input.keep.includes(p));
+      const dropped = profile.phrases.filter((p) => input.drop.includes(p));
       const [row] = await tx
         .insert(voiceReview)
-        .values({
-          candidateId: input.candidateId,
-          profileId: profile.id,
-          kept: input.keep,
-          dropped: input.drop,
-        })
+        .values({ candidateId: input.candidateId, profileId: profile.id, kept, dropped })
         .returning({ id: voiceReview.id, createdAt: voiceReview.createdAt });
       if (!row) throw new Error("voice_review insert returned no row");
       await appendEvent(tx, span, {
@@ -147,14 +162,26 @@ export async function readReviewedVoice(
   };
 }
 
-// Stores the phrases Paul deleted from one draft before approving it (ANS-008). An edit that
-// deleted nothing teaches nothing and stores nothing.
+// Stores the phrases Paul deleted from one draft before approving it (ANS-008), once per
+// `subject` (what was approved, e.g. `answer:<id>`): a retried approval stores nothing new.
+// Only phrase-shaped entries are kept, at most MAX_EDIT_PHRASES (a heavy rewrite can produce
+// more; the first ones are plenty to learn from). An edit that deleted nothing stores nothing.
+// Returns whether a row was stored.
 export async function recordVoiceEdit(
   db: Db,
-  input: { candidateId: CandidateId; deleted: string[] },
-): Promise<void> {
-  if (input.deleted.length === 0) return;
-  await db.insert(voiceEdit).values({ candidateId: input.candidateId, deleted: input.deleted });
+  input: { candidateId: CandidateId; subject: string; deleted: string[] },
+): Promise<boolean> {
+  const deleted = input.deleted.filter(isPhrase).slice(0, MAX_EDIT_PHRASES);
+  return inSpan("db.voice.edit", { "northstar.voice.deleted": deleted.length }, async (span) => {
+    if (deleted.length === 0) return false;
+    const stored = await db
+      .insert(voiceEdit)
+      .values({ candidateId: input.candidateId, subject: input.subject, deleted })
+      .onConflictDoNothing({ target: [voiceEdit.candidateId, voiceEdit.subject] })
+      .returning({ id: voiceEdit.id });
+    span.setAttribute("northstar.voice.stored", stored.length > 0);
+    return stored.length > 0;
+  });
 }
 
 // Every stored edit's deleted phrases, oldest first, for avoidedFromDeleted.
@@ -163,6 +190,7 @@ export async function readVoiceEdits(db: Db, candidateId: CandidateId): Promise<
     .select({ deleted: voiceEdit.deleted })
     .from(voiceEdit)
     .where(eq(voiceEdit.candidateId, candidateId))
-    .orderBy(voiceEdit.createdAt);
+    // Order doesn't change what's learned; the id makes it stable within one instant.
+    .orderBy(voiceEdit.createdAt, voiceEdit.id);
   return rows.map((r) => r.deleted);
 }

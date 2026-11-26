@@ -1,6 +1,6 @@
 {
-  "id": "27e23524-2a1a-4f8d-b4aa-a9ff74648d3c",
-  "prevId": "5795e462-5e62-4d1c-b3a7-088e508e9c9b",
+  "id": "56bdf118-f8fe-46b1-acb4-7684f7ca616c",
+  "prevId": "67eb154b-a52c-4abf-8952-d91b26ff7f37",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -6489,6 +6489,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "subject": {
+          "name": "subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "deleted": {
           "name": "deleted",
           "type": "text[]",
@@ -6520,9 +6526,22 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "voice_edit_subject_unique": {
+          "name": "voice_edit_subject_unique",
+          "columns": [
+            "candidate_id",
+            "subject"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
       "policies": {},
       "checkConstraints": {
+        "voice_edit_subject_shape": {
+          "name": "voice_edit_subject_shape",
+          "value": "\"voice_edit\".\"subject\" ~ '^[a-z_]+:[A-Za-z0-9_-]+$' and char_length(\"voice_edit\".\"subject\") <= 160"
+        },
         "voice_edit_deleted_count": {
           "name": "voice_edit_deleted_count",
           "value": "coalesce(array_length(\"voice_edit\".\"deleted\", 1), 0) between 1 and 200"

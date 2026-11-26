@@ -63,6 +63,15 @@ describe("saveVoiceProfile", () => {
   });
 });
 
+describe("saveVoiceProfile's phrases", () => {
+  it("refuses a phrase longer than four words", async () => {
+    const bad = { ...MEASURES, phrases: ["one two three four five"] };
+    await expect(saveVoiceProfile(db, { candidateId, measures: bad })).rejects.toThrow(
+      "saveVoiceProfile: phrases must be at most 50 short phrases",
+    );
+  });
+});
+
 describe("reviewVoiceProfile and readReviewedVoice", () => {
   it("serves nothing until a version is reviewed", async () => {
     await saveVoiceProfile(db, { candidateId, measures: MEASURES });
@@ -74,9 +83,10 @@ describe("reviewVoiceProfile and readReviewedVoice", () => {
     await reviewVoiceProfile(db, {
       candidateId,
       version: 1,
-      keep: ["ship it", "the hard part"],
+      keep: ["the hard part", "ship it"],
       drop: ["in practice"],
     });
+    // Kept in the measured order, not the order Paul gave them in.
     expect(await readReviewedVoice(db, candidateId)).toEqual({
       version: 1,
       measures: { ...MEASURES, phrases: ["ship it", "the hard part"] },
@@ -155,8 +165,12 @@ describe("reviewVoiceProfile and readReviewedVoice", () => {
 
 describe("recordVoiceEdit and readVoiceEdits", () => {
   it("stores each edit's deleted phrases and reads them back oldest first", async () => {
-    await recordVoiceEdit(db, { candidateId, deleted: ["leverage our"] });
-    await recordVoiceEdit(db, { candidateId, deleted: ["very", "leverage our"] });
+    await recordVoiceEdit(db, { candidateId, subject: "answer:a1", deleted: ["leverage our"] });
+    await recordVoiceEdit(db, {
+      candidateId,
+      subject: "answer:a2",
+      deleted: ["very", "leverage our"],
+    });
     expect(await readVoiceEdits(db, candidateId)).toEqual([
       ["leverage our"],
       ["very", "leverage our"],
@@ -164,12 +178,36 @@ describe("recordVoiceEdit and readVoiceEdits", () => {
   });
 
   it("stores nothing for an edit that deleted nothing", async () => {
-    await recordVoiceEdit(db, { candidateId, deleted: [] });
+    await recordVoiceEdit(db, { candidateId, subject: "answer:a1", deleted: [] });
     expect(await db.select().from(voiceEdit)).toEqual([]);
   });
 
+  it("stores one approval once, however often it is recorded", async () => {
+    const edit = { candidateId, subject: "answer:a1", deleted: ["leverage our"] };
+    const results = [await recordVoiceEdit(db, edit), await recordVoiceEdit(db, edit)];
+    expect([results, await readVoiceEdits(db, candidateId)]).toEqual([
+      [true, false],
+      [["leverage our"]],
+    ]);
+  });
+
+  it("keeps only phrase-shaped entries, never a sentence", async () => {
+    await recordVoiceEdit(db, {
+      candidateId,
+      subject: "answer:a1",
+      deleted: ["very", "we always ship small changes early here"],
+    });
+    expect(await readVoiceEdits(db, candidateId)).toEqual([["very"]]);
+  });
+
+  it("keeps at most 200 phrases from one heavy rewrite instead of failing", async () => {
+    const many = Array.from({ length: 250 }, (_, i) => `phrase${i}`);
+    await recordVoiceEdit(db, { candidateId, subject: "answer:a1", deleted: many });
+    expect((await readVoiceEdits(db, candidateId))[0]?.length).toBe(200);
+  });
+
   it("reads only the given candidate's edits", async () => {
-    await recordVoiceEdit(db, { candidateId, deleted: ["very"] });
+    await recordVoiceEdit(db, { candidateId, subject: "answer:a1", deleted: ["very"] });
     expect(await readVoiceEdits(db, await newCandidate())).toEqual([]);
   });
 });
@@ -178,7 +216,7 @@ describe("database guards", () => {
   it("refuses changing or deleting any voice row", async () => {
     await saveVoiceProfile(db, { candidateId, measures: MEASURES });
     await reviewVoiceProfile(db, { candidateId, version: 1, keep: MEASURES.phrases, drop: [] });
-    await recordVoiceEdit(db, { candidateId, deleted: ["very"] });
+    await recordVoiceEdit(db, { candidateId, subject: "answer:a1", deleted: ["very"] });
     expect([
       await sqlState(db.update(voiceProfile).set({ samples: 9 })),
       await sqlState(db.delete(voiceReview)),

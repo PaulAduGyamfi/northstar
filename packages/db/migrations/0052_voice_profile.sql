@@ -1,8 +1,11 @@
 CREATE TABLE "voice_edit" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"candidate_id" uuid NOT NULL,
+	"subject" text NOT NULL,
 	"deleted" text[] NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "voice_edit_subject_unique" UNIQUE("candidate_id","subject"),
+	CONSTRAINT "voice_edit_subject_shape" CHECK ("voice_edit"."subject" ~ '^[a-z_]+:[A-Za-z0-9_-]+$' and char_length("voice_edit"."subject") <= 160),
 	CONSTRAINT "voice_edit_deleted_count" CHECK (coalesce(array_length("voice_edit"."deleted", 1), 0) between 1 and 200)
 );
 --> statement-breakpoint

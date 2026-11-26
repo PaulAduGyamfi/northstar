@@ -79,10 +79,18 @@ export const voiceEdit = pgTable(
     candidateId: uuid("candidate_id")
       .notNull()
       .references(() => candidate.id),
+    // What was approved, e.g. `answer:<id>`: one row per approval, so a retried approval can't
+    // count one draft twice toward the avoid list (RES-006).
+    subject: text("subject").notNull(),
     deleted: text("deleted").array().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    unique("voice_edit_subject_unique").on(t.candidateId, t.subject),
+    check(
+      "voice_edit_subject_shape",
+      sql`${t.subject} ~ '^[a-z_]+:[A-Za-z0-9_-]+$' and char_length(${t.subject}) <= 160`,
+    ),
     check(
       "voice_edit_deleted_count",
       sql`coalesce(array_length(${t.deleted}, 1), 0) between 1 and 200`,

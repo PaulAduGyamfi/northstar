@@ -1,8 +1,8 @@
-import { type Db, reviewVoiceProfile, saveVoiceProfile, schema } from "@northstar/db";
+import { type Db, reviewVoiceProfile, saveVoiceProfile, schema, voiceSchema } from "@northstar/db";
 import { createTestDb } from "@northstar/db/testing";
 import { CandidateId } from "@northstar/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { avoidedFromDeleted, avoidedPhrases, deletedPhrases } from "./edits.js";
+import { avoidedFromDeleted, deletedPhrases } from "./edits.js";
 import { measureVoice } from "./measure.js";
 import { loadVoice, recordEdit } from "./store.js";
 
@@ -70,20 +70,31 @@ describe("recordEdit and the avoid list", () => {
       ["I leverage our tools well.", "I use tools well."],
       ["They leverage our process.", "They follow the process."],
     ] as const;
-    for (const [draft, approved] of edits) await recordEdit(db, candidateId, draft, approved);
+    for (const [i, [draft, approved]] of edits.entries()) {
+      await recordEdit(db, candidateId, `answer:a${i}`, { draft, approved });
+    }
     // "our" is a common word, so the learner keeps the habit itself.
     expect((await loadVoice(db, candidateId)).avoid).toEqual(["leverage"]);
   });
 
   it("two edits aren't enough", async () => {
-    await recordEdit(db, candidateId, "We leverage our data.", "We use data.");
-    await recordEdit(db, candidateId, "I leverage our tools.", "I use tools.");
+    await recordEdit(db, candidateId, "answer:a1", {
+      draft: "We leverage our data.",
+      approved: "We use data.",
+    });
+    await recordEdit(db, candidateId, "answer:a2", {
+      draft: "I leverage our tools.",
+      approved: "I use tools.",
+    });
     expect((await loadVoice(db, candidateId)).avoid).toEqual([]);
   });
 
   it("stores only the deleted phrases, never the draft or the approved text", async () => {
-    await recordEdit(db, candidateId, "We leverage our data daily.", "We use data daily.");
-    const rows = await db.select().from((await import("@northstar/db")).voiceSchema.voiceEdit);
+    await recordEdit(db, candidateId, "answer:a1", {
+      draft: "We leverage our data daily.",
+      approved: "We use data daily.",
+    });
+    const rows = await db.select().from(voiceSchema.voiceEdit);
     expect(rows.map((r) => r.deleted)).toEqual([
       deletedPhrases("We leverage our data daily.", "We use data daily."),
     ]);
@@ -91,14 +102,16 @@ describe("recordEdit and the avoid list", () => {
 });
 
 describe("avoidedFromDeleted", () => {
-  it("agrees with avoidedPhrases on the same edits", () => {
-    const edits = [
-      { draft: "We leverage the data.", approved: "We use the data." },
-      { draft: "Leverage it now.", approved: "Do it now." },
-      { draft: "They leverage our process.", approved: "They follow our process." },
-    ];
-    expect(avoidedFromDeleted(edits.map((e) => deletedPhrases(e.draft, e.approved)))).toEqual(
-      avoidedPhrases(edits),
-    );
+  it("counts a phrase deleted twice in one draft once", () => {
+    expect([
+      avoidedFromDeleted([["leverage"], ["leverage", "leverage"]]),
+      avoidedFromDeleted([["leverage"], ["leverage"], ["leverage"]]),
+    ]).toEqual([[], ["leverage"]]);
+  });
+
+  it("one approval recorded three times doesn't make a phrase to avoid", async () => {
+    const edit = { draft: "We leverage our data.", approved: "We use data." };
+    for (let i = 0; i < 3; i++) await recordEdit(db, candidateId, "answer:a1", edit);
+    expect((await loadVoice(db, candidateId)).avoid).toEqual([]);
   });
 });

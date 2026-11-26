@@ -176,9 +176,9 @@ Exists now:
   Since NS-185 also storage (`packages/db`, `voice-schema.ts`, `voice-write.ts`, append-only):
   versioned `voice_profile` (measurements and phrases, never sample text), Paul's keep/drop
   `voice_review` (every phrase decided; the newest reviewed version counts) and `voice_edit` (only
-  the phrases he deleted from a draft). `loadVoice` (`voice/store.ts`) gives `draftAnswer` its
-  guide and avoid list, `recordEdit` stores an edit's deleted phrases, and `avoidedFromDeleted`
-  learns from them. No CLI or caller yet.
+  the phrases he deleted from a draft, once per approval `subject`). `loadVoice` (`voice/store.ts`)
+  gives `draftAnswer` its guide and avoid list, `recordEdit` stores an edit's deleted phrases, and
+  `avoidedFromDeleted` learns from them. No CLI (#220) or caller yet.
 - `packages/inbox/` (NS-113): read-only Gmail (ADR-0014: `gmail.readonly`, desktop OAuth with
   PKCE, token in memory for one run, never stored), the job-mail pre-filter (headers only; ATS
   senders, job phrases, same-thread follow-ups), confirmation rules, and the `mail-classify` route

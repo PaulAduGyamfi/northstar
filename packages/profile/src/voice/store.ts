@@ -25,11 +25,16 @@ export async function loadVoice(db: Db, candidateId: CandidateId): Promise<Store
 }
 
 // Paul approved an answer that may differ from its draft: keep only what he deleted (ANS-008).
+// `subject` names the approval (e.g. `answer:<id>`), so recording it again stores nothing new.
 export async function recordEdit(
   db: Db,
   candidateId: CandidateId,
-  draft: string,
-  approved: string,
-): Promise<void> {
-  await recordVoiceEdit(db, { candidateId, deleted: deletedPhrases(draft, approved) });
+  subject: string,
+  edit: { draft: string; approved: string },
+): Promise<boolean> {
+  return recordVoiceEdit(db, {
+    candidateId,
+    subject,
+    deleted: deletedPhrases(edit.draft, edit.approved),
+  });
 }
