@@ -172,7 +172,7 @@ const MAX_HISTORIES = 5000;
 const STATUS_SET: ReadonlySet<string> = new Set(APPLICATION_STATUSES);
 
 // Each application's history for the pipeline metrics (NS-208, DSH-002/004): when it was created,
-// its job's ATS, newest fit band and posting time (or first seen), and its status moves from the
+// its job's ATS, newest fit band and posting time (null when unknown), and its status moves from the
 // `application.*` events, oldest first. Ids, times, statuses and bands only: never a title,
 // company or text.
 export async function readApplicationHistories(
@@ -186,9 +186,9 @@ export async function readApplicationHistories(
         createdAt: application.createdAt,
         source: job.ats,
         fitBand: sql<string | null>`${latestFit("band")}`,
-        postedAt: sql<Date>`coalesce(${job.postedAt}, ${job.firstSeenAt})`.mapWith(
-          (v: string | Date) => new Date(v),
-        ),
+        // The posting time only: when Northstar first saw a job is near when Paul applied, and
+        // would make every undated job look applied-within-a-day. Unknown stays unknown.
+        postedAt: job.postedAt,
       })
       .from(application)
       .innerJoin(job, eq(job.id, application.jobId))
@@ -212,7 +212,8 @@ export async function readApplicationHistories(
       .orderBy(asc(domainEvent.position));
     const byApp = new Map<string, { to: ApplicationStatus; at: Date }[]>();
     for (const m of moves) {
-      // Only status moves carry a `to`; anything else (application.created) is skipped.
+      // Status moves and `application.created` (its entry status, or `submitted` for one Paul
+      // sent by hand) carry a `to`; any other application event is skipped.
       if (m.to === null || !STATUS_SET.has(m.to)) continue;
       const id = m.aggregate.slice("application:".length);
       const list = byApp.get(id) ?? [];

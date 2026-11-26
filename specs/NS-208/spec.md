@@ -57,3 +57,9 @@ A `db.pipeline.histories` span with the application count; `api.request` per cal
 - **Stages from the status machine**, not mail, so the numbers match the Pipeline board.
 - **`wilson` moves to `packages/domain`** so the API needn't depend on `packages/funnel` (a new
   workspace dependency and lock-file change) while keeping one method.
+- **Time to apply uses the posting time only**; a job without one is "unknown", never timed from
+  when Northstar first saw it (which is about when Paul applied).
+- **An offer counts as interviewing** even without a recorded interview, so each step's rate
+  stays at or below 1.
+- **Diff size:** about 880 lines (about 500 not tests), over the ~300 guide, across domain, db,
+  API and web, which DSH-002 and DSH-004 span.

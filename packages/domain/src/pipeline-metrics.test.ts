@@ -74,6 +74,11 @@ describe("pipelineMetrics", () => {
     ]);
   });
 
+  it("counts an offer as interviewing even without a recorded interview, but a rejection as not", () => {
+    const m = pipelineMetrics([repliedIn(1, 9, "offer"), repliedIn(1, 3, "rejected")]);
+    expect(m.funnel.map((f) => f.count)).toEqual([2, 2, 2, 1, 1]);
+  });
+
   it("gives the median days to apply and to the first reply", () => {
     const m = pipelineMetrics([repliedIn(1, 5), repliedIn(3, 4), applied(2)]);
     expect(m.timeInStage).toEqual({

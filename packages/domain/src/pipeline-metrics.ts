@@ -51,6 +51,8 @@ export type PipelineMetrics = {
 const DAY_MS = 24 * 60 * 60 * 1000;
 // A reply from the employer, good or bad. Ghosted and withdrawn are not replies.
 const RESPONSES: ReadonlySet<ApplicationStatus> = new Set(["in_process", "offer", "rejected"]);
+// An offer counts as interviewing too, even without a recorded `in_process`: so offer ⊆
+// interviewing ⊆ responded, and no step's rate can go above 1.
 const INTERVIEWING: ReadonlySet<ApplicationStatus> = new Set(["in_process", "offer"]);
 
 export function rate(k: number, n: number): Rate {

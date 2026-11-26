@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { ApplicationId, type ApplicationStatus, CandidateId } from "@northstar/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "./db.js";
+import { createApplication } from "./origin-write.js";
 import { readApplicationHistories } from "./pipeline-read.js";
-import { domainEvent } from "./schema.js";
+import { domainEvent, job } from "./schema.js";
 import { createTestDb, seedApplication } from "./test/pglite.js";
 import { transitionApplication } from "./transition-application.js";
 
@@ -63,26 +64,56 @@ describe("readApplicationHistories", () => {
       h?.moves.at(-1)?.at.toISOString(),
       h?.source,
       h?.fitBand,
-      h?.postedAt instanceof Date,
+      h?.postedAt,
     ]).toEqual([
       ["package_ready", "awaiting_approval", "submitting", "submitted"],
       "2026-11-05T00:00:00.000Z",
       null,
       null,
-      true,
+      null,
     ]);
   });
 
-  it("skips application events that aren't status moves", async () => {
+  it("counts an application Paul sent by hand as applied from its creation, with its posting time", async () => {
+    const [j] = await db
+      .insert(job)
+      .values({
+        candidateId,
+        title: "Engineer",
+        url: "https://jobs.example.com/by-hand",
+        // A draft: a ready job needs a company, and this test needs none.
+        status: "draft",
+        missingFields: ["company"],
+        postedAt: new Date("2026-10-30T00:00:00Z"),
+      })
+      .returning();
+    const created = await createApplication(db, {
+      candidateId,
+      jobId: j?.id ?? "",
+      status: "submitted",
+      submittedVia: "by_hand",
+      startedBy: "outside",
+      idempotencyKey: randomUUID(),
+    });
+    if (!created.ok) throw new Error(created.error.kind);
+    const histories = await readApplicationHistories(db, candidateId);
+    const byHand = histories.find((h) => h.moves.some((m) => m.to === "submitted"));
+    expect([byHand?.moves.map((m) => m.to), byHand?.postedAt?.toISOString()]).toEqual([
+      ["submitted"],
+      "2026-10-30T00:00:00.000Z",
+    ]);
+  });
+
+  it("skips an application event without a status", async () => {
     await db.insert(domainEvent).values({
       id: randomUUID(),
       candidateId,
       aggregate: `application:${applicationId}`,
-      type: "application.created",
+      type: "application.noted",
       actor: "agent:pipeline",
       reason: "",
       inputsSummary: "",
-      payload: { startedBy: "agent" },
+      payload: { note: "count" },
       links: [],
       traceId: null,
       idempotencyKey: randomUUID(),
