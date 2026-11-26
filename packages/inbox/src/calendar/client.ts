@@ -1,5 +1,6 @@
-import { admit, type CallGuard, type GuardOutcome } from "@northstar/llm";
-import { type Span, SpanStatusCode, trace } from "@opentelemetry/api";
+import type { CallGuard } from "@northstar/llm";
+import { SpanStatusCode, trace } from "@opentelemetry/api";
+import { createGoogleGet } from "../google-get.js";
 import type { CalendarEvent } from "../interview/detect.js";
 import type { CalendarAccess } from "./access.js";
 
@@ -19,16 +20,6 @@ export const CALENDAR_DEPENDENCY = "calendar";
 const PAGE_SIZE = 250;
 // A runaway paging loop stops here (60 days of a busy calendar is well under 10 pages).
 const MAX_PAGES = 20;
-const MAX_RETRIES = 5;
-// Google's Retry-After is honoured up to this many seconds (the Gmail client's rule).
-const MAX_RETRY_AFTER_S = 60;
-const RETRYABLE = new Set([429, 500, 502, 503, 504]);
-const RATE_LIMIT_REASONS = new Set([
-  "rateLimitExceeded",
-  "userRateLimitExceeded",
-  "RATE_LIMIT_EXCEEDED",
-  "RESOURCE_EXHAUSTED",
-]);
 const STATUSES = new Set(["confirmed", "tentative", "cancelled"]);
 const DAY_MS = 86_400_000;
 
@@ -52,43 +43,9 @@ export class CalendarError extends Error {
   }
 }
 
-// Calendar's own trouble (no answer, or a 429, 5xx or rate limit that outlasted the retries), as
-// opposed to Calendar answering that the request is wrong. Only these count against the breaker.
-const FAULTS = new WeakSet<CalendarError>();
-const fault = (e: CalendarError) => {
-  FAULTS.add(e);
-  return e;
-};
-
 export type CalendarClient = {
   listEvents: (window: { timeMin: Date; timeMax: Date }) => Promise<CalendarEvent[]>;
 };
-
-// Google's fixed reason code for an error, never its message text (which can echo the request).
-const REASON_WORD = /^[A-Za-z_]{1,64}$/;
-async function errorReason(res: Response): Promise<string | null> {
-  let body: unknown;
-  try {
-    body = await res.json();
-  } catch {
-    return null;
-  }
-  const error = (body as { error?: Record<string, unknown> } | null)?.error;
-  if (!error || typeof error !== "object") return null;
-  const details = Array.isArray(error.details) ? error.details : [];
-  const info = details.find(
-    (d: { "@type"?: unknown }) =>
-      typeof d?.["@type"] === "string" && d["@type"].endsWith("google.rpc.ErrorInfo"),
-  ) as { reason?: unknown } | undefined;
-  const legacy = Array.isArray(error.errors)
-    ? (error.errors[0] as { reason?: unknown } | undefined)
-    : undefined;
-  // Most specific first: ErrorInfo's reason, then the legacy reason, then the status word.
-  for (const candidate of [info?.reason, legacy?.reason, error.status]) {
-    if (typeof candidate === "string" && REASON_WORD.test(candidate)) return candidate;
-  }
-  return null;
-}
 
 // One item as detectInterview's event, or null when it can't be read without guessing: no id, an
 // all-day event (an interview has a time), a time that isn't one, or an unknown status.
@@ -152,91 +109,30 @@ export function requestAllowed(url: string): boolean {
 
 export function createCalendarClient(deps: CalendarDeps): CalendarClient {
   const tracer = trace.getTracer("@northstar/inbox");
-  const backoff = (attempt: number) => 500 * 2 ** attempt + Math.floor(deps.random() * 250);
-  const rateBackoff = (attempt: number) => 2000 * 2 ** attempt + Math.floor(deps.random() * 250);
-
-  // One GET with retries. Records the final status and retry count on the span.
-  async function send(url: string, span: Span): Promise<unknown> {
-    // A runtime check beside the boundary scan: only the primary calendar's events, with exactly
-    // the limited fields, ever go out.
-    if (!requestAllowed(url)) throw new CalendarError("refused: not the primary events read", 0);
-    for (let attempt = 0; ; attempt++) {
-      let res: Response;
-      try {
-        res = await deps.fetch(url, {
-          method: "GET",
-          headers: { authorization: deps.access.authorization() },
-          signal: AbortSignal.timeout(30_000),
-        });
-      } catch (e) {
-        // A dropped connection or timeout is retried like a 503.
-        if (attempt < MAX_RETRIES) {
-          await deps.sleep(backoff(attempt));
-          continue;
-        }
-        throw fault(new CalendarError(`Calendar didn't answer (${(e as Error).name})`, 0));
-      }
-      span.setAttribute("http.response.status_code", res.status);
-      span.setAttribute("calendar.retries", attempt);
-      if (res.ok) {
-        try {
-          return await res.json();
-        } catch {
-          // The parse error can quote the body (event titles): never pass it on.
-          throw new CalendarError("Calendar answered 200 with a body that isn't JSON", 200);
-        }
-      }
-      const reason = await errorReason(res);
-      const said = `Calendar answered ${res.status}${reason ? ` (${reason})` : ""}`;
-      // Google sends rate limits as 403 too; those are retried, other 403s aren't.
-      const rateLimited =
-        (res.status === 403 || res.status === 429) &&
-        reason !== null &&
-        RATE_LIMIT_REASONS.has(reason);
-      if (!RETRYABLE.has(res.status) && !rateLimited) throw new CalendarError(said, res.status);
-      if (attempt >= MAX_RETRIES) {
-        throw fault(new CalendarError(`${said} after ${MAX_RETRIES} retries`, res.status));
-      }
-      const retryAfter = Number(res.headers.get("retry-after"));
-      await deps.sleep(
-        Number.isFinite(retryAfter) && retryAfter > 0
-          ? Math.min(retryAfter, MAX_RETRY_AFTER_S) * 1000
-          : rateLimited
-            ? rateBackoff(attempt)
-            : backoff(attempt),
-      );
-    }
-  }
-
-  // One read through the `calendar` breaker: held back (HeldBack, nothing sent) while it is open,
-  // and reported after the retries, as Calendar's failure only when it is Calendar's.
-  async function get(url: string, span: Span): Promise<unknown> {
-    const guard = deps.guard;
-    if (!guard) return send(url, span);
-    const admission = await admit(guard, { subsystem: null, dependency: CALENDAR_DEPENDENCY });
-    if (!admission.ok) {
-      span.setAttribute("calendar.held_by", admission.held.by);
-      if (admission.errorName !== null)
-        span.setAttribute("calendar.guard_error", admission.errorName);
-      throw admission.held;
-    }
-    const report = async (outcome: GuardOutcome) => {
-      try {
-        await guard.report(CALENDAR_DEPENDENCY, outcome, admission.probeToken);
-      } catch {
-        span.setAttribute("calendar.breaker_report_failed", true);
-      }
-    };
-    try {
-      const body = await send(url, span);
-      await report({ ok: true });
-      return body;
-    } catch (e) {
-      const isFault = e instanceof CalendarError && FAULTS.has(e);
-      await report(isFault ? { ok: false, error: "CalendarError" } : { ok: true });
-      throw e;
-    }
-  }
+  // Retries, Google's reason code and the `calendar` breaker: the shared Google GET (NS-250).
+  const get = createGoogleGet(
+    {
+      label: "Calendar",
+      dependency: CALENDAR_DEPENDENCY,
+      attrPrefix: "calendar",
+      errorName: "CalendarError",
+      makeError: (message, status) => new CalendarError(message, status),
+      method: "GET",
+      // A runtime check beside the boundary scan: only the primary calendar's events, with exactly
+      // the limited fields, ever go out.
+      check: (url) =>
+        requestAllowed(url) ? null : new CalendarError("refused: not the primary events read", 0),
+      // The parse error can quote the body (event titles): never pass it on.
+      notJson: () => new CalendarError("Calendar answered 200 with a body that isn't JSON", 200),
+    },
+    {
+      authorization: () => deps.access.authorization(),
+      fetch: deps.fetch,
+      sleep: deps.sleep,
+      random: deps.random,
+      ...(deps.guard ? { guard: deps.guard } : {}),
+    },
+  );
 
   return {
     listEvents: ({ timeMin, timeMax }) =>
