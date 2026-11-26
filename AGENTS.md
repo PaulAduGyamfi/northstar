@@ -294,8 +294,9 @@ Exists now:
   so the ATS lane frees up; nothing schedules it until the worker exists. The pacing limits come
   only from `loadApplyLimits` (`packages/db`, `apply-config.ts`: `APPLY_DAILY_CAP`,
   `APPLY_MIN_GAP_SECONDS`, which may lower APPLY-007's 25 a day and 90 s but never raise them),
-  passed to `dbPorts`. Greenhouse, Lever and Ashby adapters map the
-  package onto the form and recognize the confirmation page. The package schema and its hash
+  passed to `dbPorts`. Greenhouse, Lever, Ashby and (NS-173)
+  SmartRecruiters adapters map the package onto the form and recognize the confirmation page
+  (hand-written markers until NS-142 records real pages). The package schema and its hash
   are in `packages/domain` (`apply-package.ts`). Its tests run on fakes and, through `dbPorts`,
   on the real write paths: `@northstar/db/testing` exports `createTestDb` and friends for that. There is no real browser driver yet, so
   nothing can be submitted until the Playwright driver lands.

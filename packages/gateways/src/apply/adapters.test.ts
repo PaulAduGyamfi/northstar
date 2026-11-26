@@ -112,6 +112,46 @@ describe("mapPackage", () => {
     ]);
   });
 
+  it("fills SmartRecruiters' standard fields and its phone only when given (NS-173)", () => {
+    const sr = adapterFor("smartrecruiters");
+    const pkg = makePackage("smartrecruiters", {
+      contact: {
+        firstName: "Ada",
+        lastName: "Example",
+        email: "ada@example.com",
+        phone: "+1 555 0100",
+      },
+    });
+    const result = mapPackage(sr, FORMS.smartrecruiters, pkg);
+    expect(result.ok && result.value.fills).toEqual([
+      { field: "firstName", value: "Ada" },
+      { field: "lastName", value: "Example" },
+      { field: "email", value: "ada@example.com" },
+      { field: "phoneNumber", value: "+1 555 0100" },
+      { field: "screening[q1]", value: "Yes" },
+    ]);
+  });
+
+  it("reads a SmartRecruiters posting id with or without its title slug", () => {
+    const sr = adapterFor("smartrecruiters");
+    expect([
+      sr.postingIdOf("/ExampleCorp/7440001234567"),
+      sr.postingIdOf("/ExampleCorp/7440001234567-backend-engineer"),
+      sr.postingIdOf("/ExampleCorp/backend-engineer"),
+      sr.postingIdOf("/ExampleCorp/07440001234567"),
+    ]).toEqual(["7440001234567", "7440001234567", null, null]);
+  });
+
+  it("doesn't take a SmartRecruiters job page whose description thanks applicants for a confirmation", () => {
+    const sr = adapterFor("smartrecruiters");
+    expect(
+      sr.isConfirmation({
+        url: "https://jobs.smartrecruiters.com/ExampleCorp/7440001234567-backend-engineer",
+        html: "<html><body><p>About the role. Thank you for applying!</p><form></form></body></html>",
+      }),
+    ).toBe(false);
+  });
+
   it("calls the form changed when a cover letter has nowhere to go", () => {
     const pkg = makePackage("lever", {
       coverLetter: { fileName: "cover.pdf", sha256: sha(COVER) },

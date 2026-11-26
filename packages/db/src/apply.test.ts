@@ -107,6 +107,20 @@ const proof = {
   resumeSha256: "a".repeat(64),
 };
 
+describe("claimSubmission's ATS (NS-173)", () => {
+  it("claims a SmartRecruiters submission", async () => {
+    const result = await claimSubmission(db, await claimInput({ ats: "smartrecruiters" }));
+    expect(result.ok && result.value.claimed && result.value.submission.ats).toBe(
+      "smartrecruiters",
+    );
+  });
+
+  it("still refuses an ATS the gateway has no adapter for, in the database", async () => {
+    const input = await claimInput({ ats: "workday" as ClaimInput["ats"] });
+    expect(await sqlState(claimSubmission(db, input))).toBe("23514");
+  });
+});
+
 describe("claimSubmission", () => {
   it("claims an approved application as in progress", async () => {
     const result = await claimSubmission(db, await claimInput());

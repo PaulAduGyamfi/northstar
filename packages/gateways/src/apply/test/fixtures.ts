@@ -41,24 +41,36 @@ export const FORMS: Record<ApplyAts, FormField[]> = {
       options: ["New York", "Remote"],
     },
   ],
+  smartrecruiters: [
+    { name: "firstName", type: "text", required: true },
+    { name: "lastName", type: "text", required: true },
+    { name: "email", type: "email", required: true },
+    { name: "phoneNumber", type: "tel", required: false },
+    { name: "resume", type: "file", required: true },
+    { name: "coverLetter", type: "file", required: false },
+    { name: "screening[q1]", type: "radio", required: true, options: ["Yes", "No"] },
+  ],
 };
 
 export const FIELDS: Record<ApplyAts, ApplicationPackage["fields"]> = {
   greenhouse: { question_1001: "Yes", question_1002: "Synthetic answer for a test." },
   lever: { "urls[LinkedIn]": "https://www.example.com/in/ada", "cards[aaaa][field0]": "Yes" },
   ashby: { "5f0c1e2a-0000-4000-8000-000000000001": ["Remote"] },
+  smartrecruiters: { "screening[q1]": "Yes" },
 };
 
 export const APPLY_URLS: Record<ApplyAts, string> = {
   greenhouse: "https://boards.greenhouse.io/examplecorp/jobs/4001",
   lever: "https://jobs.lever.co/examplecorp/0a0a0a0a-0000-4000-8000-000000000002/apply",
   ashby: "https://jobs.ashbyhq.com/examplecorp/0b0b0b0b-0000-4000-8000-000000000003/application",
+  smartrecruiters: "https://jobs.smartrecruiters.com/ExampleCorp/7440001234567-backend-engineer",
 };
 
 export const POSTING_IDS: Record<ApplyAts, string> = {
   greenhouse: "4001",
   lever: "0a0a0a0a-0000-4000-8000-000000000002",
   ashby: "0b0b0b0b-0000-4000-8000-000000000003",
+  smartrecruiters: "7440001234567",
 };
 
 export const CONFIRMATIONS: Record<ApplyAts, { url: string; html: string }> = {
@@ -73,6 +85,10 @@ export const CONFIRMATIONS: Record<ApplyAts, { url: string; html: string }> = {
   ashby: {
     url: "https://jobs.ashbyhq.com/examplecorp/0b0b0b0b-0000-4000-8000-000000000003/application",
     html: "<html><body><p>Your application was successfully submitted.</p></body></html>",
+  },
+  smartrecruiters: {
+    url: "https://jobs.smartrecruiters.com/ExampleCorp/7440001234567-backend-engineer/success",
+    html: "<html><body><h1>Thank you for applying!</h1></body></html>",
   },
 };
 

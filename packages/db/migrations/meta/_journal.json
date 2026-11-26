@@ -309,6 +309,13 @@
       "when": 1795654952046,
       "tag": "0043_tailored_resume_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1795657814244,
+      "tag": "0044_apply_ats_smartrecruiters",
+      "breakpoints": true
     }
   ]
 }
