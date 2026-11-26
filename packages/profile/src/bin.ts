@@ -3,8 +3,10 @@ import { basename, join, resolve } from "node:path";
 import { createInterface, type Interface } from "node:readline/promises";
 import {
   abandonInterview,
+  acquireCall,
   connectDb,
   currentResumeHash,
+  isSubsystemOn,
   loadDbConfig,
   nextAtomForInterview,
   readCurrentThesis,
@@ -17,6 +19,7 @@ import {
   readTailorInput,
   readThesisProfile,
   recordAnswer,
+  recordCallOutcome,
   recordDraftOutcome,
   recordFactsCheck,
   recordFactualAnswer,
@@ -29,7 +32,12 @@ import {
   startInterview,
   writeProfileImport,
 } from "@northstar/db";
-import { createAnthropicClient, createLlmGateway, loadLlmConfig } from "@northstar/llm";
+import {
+  type CallGuard,
+  createAnthropicClient,
+  createLlmGateway,
+  loadLlmConfig,
+} from "@northstar/llm";
 import { sql } from "drizzle-orm";
 import { main, safeErrorSummary } from "./cli.js";
 import { importResume } from "./import.js";
@@ -43,13 +51,16 @@ import { draftTheses } from "./thesis-draft.js";
 // Entry point for `pnpm --filter @northstar/profile profile …`. The only place in this package
 // that reads process.env (DATABASE_URL, ANTHROPIC_API_KEY from .env).
 const { db, close } = connectDb(loadDbConfig(process.env));
-// The model gateway, built only by commands that call the model.
-const gateway = () =>
+// The model gateway, built only by commands that call the model, behind the stored kill
+// switches and breakers (NS-206): agent:<route> and the anthropic breaker, read from Postgres on
+// every call, so a switch flipped in the app holds the next call.
+const gatewayWith = (guard: CallGuard) =>
   createLlmGateway({
     client: createAnthropicClient(
       loadLlmConfig({ ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }),
     ),
     now: () => performance.now(),
+    guard,
   });
 // Paul's keyboard, opened only for `interview` (an open readline keeps the process waiting).
 let rl: Interface | undefined;
@@ -58,6 +69,14 @@ try {
   // can't be saved.
   await db.execute(sql`select 1`);
   const candidateId = await soleCandidate(db);
+  const guard: CallGuard = {
+    isOn: (subsystem) => isSubsystemOn(db, candidateId, subsystem),
+    acquire: (dependency) => acquireCall(db, { candidateId, dependency }),
+    report: async (dependency, outcome, probeToken) => {
+      await recordCallOutcome(db, { candidateId, dependency, outcome, probeToken });
+    },
+  };
+  const gateway = () => gatewayWith(guard);
   const exitCode = await main({
     argv: process.argv.slice(2),
     print: (line) => console.log(printable(line)),

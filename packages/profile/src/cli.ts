@@ -12,7 +12,7 @@ import {
   type ThesisProfile,
   type ThesisView,
 } from "@northstar/db";
-import { LlmTransportError } from "@northstar/llm";
+import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
 import { type Claim, checkEmploymentFacts, type Mismatch, parseOfficialRecord } from "./facts.js";
 import type { ImportResult } from "./import.js";
 import type { InterviewOutcome } from "./interview.js";
@@ -266,6 +266,8 @@ async function importCommand(deps: CliDeps, path: string, reimport: boolean): Pr
 // terminal, but never put this summary in an event, span or log.
 export function safeErrorSummary(error: unknown): string {
   if (!(error instanceof Error)) return "an unknown error";
+  // A kill switch or breaker held the model call back (NS-206): name it, from its fixed fields.
+  if (error instanceof HeldBack) return `held back (${describeHeldBack(error)})`;
   // Drizzle wraps driver errors (DrizzleQueryError, named plain "Error", with the query and its
   // parameters in the message): describe the pg error it carries instead, the same safe way.
   const cause = (error as { cause?: unknown }).cause;

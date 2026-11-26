@@ -1,4 +1,5 @@
 import { createServer, type Server } from "node:http";
+import { HeldBack } from "@northstar/llm";
 import type { IngestResult } from "@northstar/sources";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type CapturePorts, captureEndpoint } from "./capture.js";
@@ -224,6 +225,28 @@ describe("POST /jobs/capture: what it stores", () => {
       reason: null,
     });
     expect(calls).toEqual([`url ${URL_LINK}`]);
+  });
+
+  it("answers 503 naming the switch when the model call is held back, never a 500", async () => {
+    byText = async () => {
+      throw new HeldBack("kill_switch", "agent:job-extract");
+    };
+    const res = await capture({ ...page, url: OWN_SITE });
+    expect([res.status, JSON.parse(res.body)]).toEqual([
+      503,
+      { error: "held back (agent:job-extract is switched off)" },
+    ]);
+  });
+
+  it("answers 503 with the breaker's retry time when the Claude API breaker is open", async () => {
+    byText = async () => {
+      throw new HeldBack("breaker", "anthropic", new Date("2026-11-26T02:00:00Z"));
+    };
+    const res = await capture({ ...page, url: OWN_SITE });
+    expect([res.status, JSON.parse(res.body)]).toEqual([
+      503,
+      { error: "held back (the anthropic breaker is open until 2026-11-26T02:00:00.000Z)" },
+    ]);
   });
 
   it("passes a refusal from the text path back with its reason", async () => {
