@@ -22,7 +22,15 @@ again, which holds its ATS lane. `sweepStaleClaims` (NS-143, NS-177) closes such
   `apply.stale_sweep`, subject `candidate:<id>`, reason `sweep_failed`, attempts 3, keyed by the
   workflow run and pass), and the next pass tries again. The gateway's `apply.sweep` span already
   marks the failure.
-- Which candidates to sweep, and the interval, are workflow input.
+- Which candidates to sweep, and the interval, are workflow input, checked once at start by plain
+  code (`planSweep`): uuids only, deduplicated, a whole number of minutes from 1 to 1440. Bad
+  input stops the workflow before its first pass, so one bad id can't stop every candidate
+  mid-run, and a zero interval can't loop on the database.
+- Writing the dead letter is retried until the database is back (at most 5 minutes apart), so an
+  outage can't end the sweep with the failure unrecorded. Cancelling the workflow is not a failed
+  pass and writes no letter.
+- It runs on `pipeline`, not `apply-browser`: a pass is database work only, and the browser pool
+  may be down exactly when its claims need closing.
 
 ## Acceptance criteria
 - [x] The sweep activity returns the closed count and lets a failure through for the retry
@@ -34,8 +42,9 @@ again, which holds its ATS lane. `sweepStaleClaims` (NS-143, NS-177) closes such
 - [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Failure modes
-- Database down: the pass fails, is retried 3 times, then becomes a dead letter; if even that
-  fails, the workflow fails visibly in Temporal.
+- Database down: the pass fails, is retried 3 times, then its dead letter waits for the database
+  and lands once it is back; the next pass sweeps again. A long outage leaves one letter per
+  candidate per pass that failed (12 an hour at the default interval).
 - A slow pass: the 1-minute limit stops it, and its retry is safe.
 
 ## Observability

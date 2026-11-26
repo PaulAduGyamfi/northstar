@@ -14,4 +14,5 @@ export { APPLY_BROWSER_QUEUE, PIPELINE_QUEUE } from "./queues.js";
 export { type Decision, decide, MAX_WAITS, WAIT_REFUSALS } from "./workflows/decide.js";
 export type { SubmissionInput } from "./workflows/submission.js";
 export type { SweepInput } from "./workflows/sweep.js";
+export { failureKey, planSweep, type SweepPlan } from "./workflows/sweep-plan.js";
 export { NOT_APPROVED, type SubmissionResult, type SubmitStep } from "./workflows/types.js";
