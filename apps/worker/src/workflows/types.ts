@@ -46,3 +46,7 @@ export const UNDO_WINDOW_OPEN = "UndoWindowOpen";
 
 // Attempts a sweep pass gets before it becomes a dead letter (NS-220).
 export const SWEEP_ATTEMPTS = 3;
+
+// Attempts the submitApplication activity gets before the workflow fails (and, since NS-226,
+// records an activity_failed dead letter).
+export const SUBMIT_ATTEMPTS = 5;

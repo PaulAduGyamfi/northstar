@@ -618,6 +618,16 @@ Exists now:
   3 attempts), continuing as new after 100 passes. A pass that fails all its attempts becomes a
   dead letter (`recordSweepFailure`: kind `apply.stale_sweep`, reason `sweep_failed`, keyed by
   run and pass) and the next pass tries again. Nothing starts it until the worker process (#230).
+  Since NS-226 (slice 1) `submissionWorkflow` takes an `applicationId` and ends visibly: a
+  `refused`, `gave_up` or `not_approved` result, or the activity failing all 5 attempts, records
+  one dead letter through the `recordSubmissionEnding` activity on `pipeline` (kind
+  `apply.submission`, reason `refused_<kind>` / `gave_up_<kind>` / `not_approved_<reason>` /
+  `activity_failed` from plain `endingLetter`, the Gate's reasons allowlisted; keyed per run,
+  `application:<id>:submit:<runId>`), whose
+  `dead_letter.recorded` event is its feed line; the failure is still rethrown. An
+  `applicationId` that isn't the package's own is refused at the start. Submitted,
+  needs-human and withdrawn endings are already visible and record nothing. The package still
+  travels in the workflow's input (#231's item 2).
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 
