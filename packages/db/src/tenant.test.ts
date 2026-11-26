@@ -2,7 +2,13 @@ import { CandidateId } from "@northstar/domain";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { consentPolicy, consentRecord } from "./consent-schema.js";
-import { readConsentPolicy, recordConsent, setConsentPolicy } from "./consent-write.js";
+import {
+  listConsentRecords,
+  readConsentPolicy,
+  readConsentText,
+  recordConsent,
+  setConsentPolicy,
+} from "./consent-write.js";
 import type { Db } from "./db.js";
 import { domainEvent } from "./schema.js";
 import { employerTenant, tenantAccountStatus } from "./tenant-schema.js";
@@ -323,6 +329,38 @@ describe("recordConsent (ACC-008)", () => {
         }),
       ),
     ).toBe(CHECK_VIOLATION);
+  });
+});
+
+describe("listConsentRecords and readConsentText (NS-198)", () => {
+  it("lists each accepted notice with its tenant, kind, link and time, never its text", async () => {
+    await register();
+    const r = await recordConsent(db, { candidateId, ...NOTICE });
+    if (!r.ok) throw new Error(r.error.kind);
+    const list = await listConsentRecords(db, candidateId);
+    expect(list).toEqual([
+      {
+        recordId: r.value.recordId,
+        tenantKey: "workday:globex",
+        kind: "privacy",
+        noticeUrl: NOTICE.noticeUrl,
+        acceptedAt: NOW,
+      },
+    ]);
+    expect(JSON.stringify(list)).not.toContain("Candidate Privacy Notice");
+  });
+
+  it("reads one notice's text for its candidate only", async () => {
+    await register();
+    const r = await recordConsent(db, { candidateId, ...NOTICE });
+    if (!r.ok) throw new Error(r.error.kind);
+    const other = CandidateId.parse((await seedApplication(db, "queued")).candidateId);
+    expect([
+      await readConsentText(db, candidateId, r.value.recordId),
+      await readConsentText(db, other, r.value.recordId),
+      await readConsentText(db, candidateId, "not-an-id"),
+      await listConsentRecords(db, other),
+    ]).toEqual([NOTICE.text, null, null, []]);
   });
 });
 

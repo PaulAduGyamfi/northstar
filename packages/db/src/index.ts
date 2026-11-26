@@ -117,7 +117,10 @@ export { connectDb } from "./connect.js";
 // accepted notice kept with its text (ACC-008).
 export {
   type ConsentError,
+  type ConsentRecordView,
+  listConsentRecords,
   readConsentPolicy,
+  readConsentText,
   recordConsent,
   setConsentPolicy,
 } from "./consent-write.js";

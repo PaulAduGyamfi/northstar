@@ -7,7 +7,8 @@ paths:
 # Web app and UI kit (ADR-0009: B · Momentum)
 
 `apps/web` exists since NS-156 (a Next.js shell; Today, `/health` since NS-153, the Queue,
-`/approvals`, since NS-139, and the Pipeline, `/pipeline`, since NS-168). `packages/ui` doesn't exist yet: if
+`/approvals`, since NS-139, the Pipeline, `/pipeline`, since NS-168, and Settings → Accounts,
+`/settings/accounts`, since NS-198, linked from Today because the nav's five tabs are fixed). `packages/ui` doesn't exist yet: if
 you are about to create it outside its ticket, stop and ask Paul. Until it lands, the color tokens
 are CSS variables in `apps/web/app/globals.css`.
 
@@ -38,3 +39,6 @@ are CSS variables in `apps/web/app/globals.css`.
 - Browser calls to the app's own API (`/api/*`) go through `apiFetch` (`src/client-fetch.ts`,
   NS-176): a 15 s limit. A POST that timed out may still have been applied, so its message is
   `TIMED_OUT_MESSAGE` ("may have gone through"), never "nothing was done".
+- Settings → Accounts (NS-198) never shows an account email or password: rows are built field by
+  field (`accountRows`, `noticeRows` in `src/accounts.ts`), and a notice's text is fetched only
+  when Paul asks for it.

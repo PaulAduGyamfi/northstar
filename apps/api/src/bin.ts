@@ -6,11 +6,14 @@ import {
   dbSpendMeter,
   isSubsystemOn,
   listApplications,
+  listConsentRecords,
   listOpenHandoffs,
   listPasskeys,
   listTenants,
   loadDbConfig,
   readApplicationTimeline,
+  readConsentPolicy,
+  readConsentText,
   readDedupeCandidates,
   readFeed,
   readFeedAfter,
@@ -27,6 +30,7 @@ import {
   saveFitScore,
   saveIngestedJob,
   savePasskey,
+  setConsentPolicy,
   setKillSwitch,
   soleCandidate,
 } from "@northstar/db";
@@ -50,6 +54,7 @@ import { dbApprovalPorts } from "./approval-ports.js";
 import { approvalEndpoints } from "./approvals.js";
 import { captureEndpoint } from "./capture.js";
 import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
+import { consentEndpoints } from "./consent.js";
 import { markHandoffSubmitted } from "./handoff-ports.js";
 import { handoffEndpoints } from "./handoffs.js";
 import { passkeyEndpoints } from "./passkeys.js";
@@ -166,6 +171,15 @@ try {
   const accounts = accountsEndpoints({
     listTenants: async () => listTenants(db, await candidateId()),
   });
+  // The consent policy and accepted notices (NS-198): a policy change is Paul's (actor `user`).
+  const consent = consentEndpoints({
+    readPolicy: async () => readConsentPolicy(db, await candidateId()),
+    setPolicy: async (policy) => {
+      await setConsentPolicy(db, { candidateId: await candidateId(), policy });
+    },
+    listConsents: async () => listConsentRecords(db, await candidateId()),
+    readConsentText: async (recordId) => readConsentText(db, await candidateId(), recordId),
+  });
   // The approval queue (NS-139): the only path to decideApprovals and undoDecision, behind
   // Paul's session, so every decision is his (ADR-0002).
   const approvals = approvalEndpoints(dbApprovalPorts(db, candidateId));
@@ -194,7 +208,16 @@ try {
     config,
     sessions,
     extensionTokenSha256,
-    extra: [capture, ...system, ...handoffs, ...accounts, ...approvals, ...pipeline, ...passkeys],
+    extra: [
+      capture,
+      ...system,
+      ...handoffs,
+      ...accounts,
+      ...consent,
+      ...approvals,
+      ...pipeline,
+      ...passkeys,
+    ],
   });
   const server = createServer(handler);
   server.listen(config.port, "127.0.0.1", () => {
