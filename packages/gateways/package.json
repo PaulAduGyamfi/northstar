@@ -18,7 +18,8 @@
   "dependencies": {
     "@northstar/db": "workspace:*",
     "@northstar/domain": "workspace:*",
-    "@opentelemetry/api": "1.9.1"
+    "@opentelemetry/api": "1.9.1",
+    "playwright-core": "1.63.0"
   },
   "devDependencies": {
     "@opentelemetry/sdk-trace-base": "2.12.1"

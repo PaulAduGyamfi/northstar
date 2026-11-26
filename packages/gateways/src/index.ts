@@ -1,6 +1,18 @@
 // Public entry of @northstar/gateways (NS-120): the Apply Gateway, its ATS adapters and the
 // browser driver contract. The only package that may act under Paul's name (ADR-0002).
 export { type AtsAdapter, adapterFor, hostAllowed } from "./apply/adapters/index.js";
+// The Playwright form driver (NS-142, ADR-0028): the worker starts one per submission.
+export {
+  createPlaywrightDriver,
+  DriverError,
+  type DriverOptions,
+  type DriverPage,
+} from "./apply/browser/driver.js";
+export {
+  type BrowserLauncher,
+  type LaunchOptions,
+  launchFormDriver,
+} from "./apply/browser/launch.js";
 export type { Challenge, Fill, FormDriver, FormField, PageState, Upload } from "./apply/driver.js";
 export { type FieldPlan, type MapError, mapPackage } from "./apply/map.js";
 export { type ApplyPorts, dbPorts, dbSweepPorts, dbVaultPorts } from "./apply/ports.js";

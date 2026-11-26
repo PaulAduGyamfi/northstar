@@ -575,8 +575,23 @@ Exists now:
   SmartRecruiters adapters map the package onto the form and recognize the confirmation page
   (hand-written markers until NS-142 records real pages). The package schema and its hash
   are in `packages/domain` (`apply-package.ts`). Its tests run on fakes and, through `dbPorts`,
-  on the real write paths: `@northstar/db/testing` exports `createTestDb` and friends for that. There is no real browser driver yet, so
-  nothing can be submitted until the Playwright driver lands.
+  on the real write paths: `@northstar/db/testing` exports `createTestDb` and friends for that.
+  Since NS-142 (slice 1, ADR-0028, Proposed) also the browser driver, `src/apply/browser/`:
+  - `launchFormDriver({ hosts, executablePath? })` starts headless Chromium through
+    `playwright-core@1.63.0` (it downloads no browser) in a fresh context: no downloads, no
+    service workers, no stealth.
+  - `createPlaywrightDriver` implements `FormDriver` and reads the page's largest form with
+    `collectPage`, a self-contained in-page function.
+  - It reports a visible CAPTCHA, sign-in, one-time code or account wall as a challenge
+    (`challengeOf`; invisible reCAPTCHA isn't one).
+  - It fills by field name, picks options by label, and refuses unknown, hidden or out-of-option
+    values. It presses the form's one submit button or refuses to guess.
+  - It refuses an off-host apply URL, aborts main-frame navigation off the adapter's hosts, and
+    after `close()` takes no further browser action.
+
+  Its tests use a fake page and a stand-in DOM, with no browser. Its markers are hand-written
+  until recorded pages confirm them (Paul, #76). Nothing starts it until the worker process
+  (#230), so nothing can be submitted yet.
   Since NS-211 a Gate `ContentChanged` (the package changed after approval) also withdraws that
   approval (`requestOfDecision`, then `withdrawApproval` by `gateway` with the new package hash),
   then still throws `NotApprovedError("ContentChanged")`, so the subject can be requested again.
