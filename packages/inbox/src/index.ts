@@ -52,6 +52,15 @@ export {
   type QueueReason,
   type TagRow,
 } from "./link/match.js";
+// The mail poller that feeds the step (NS-247).
+export {
+  MAX_PER_POLL,
+  type MailPollDeps,
+  type MailPollReport,
+  newMailQuery,
+  POLL_OVERLAP_MS,
+  pollNewMail,
+} from "./link/poll.js";
 // The mail-link step for one new message (#224).
 export {
   ATS_SENDER_DOMAINS,
