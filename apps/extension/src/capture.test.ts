@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { captureRequest, pageCapture, resultMessage } from "./capture.js";
+import { describe, expect, it, vi } from "vitest";
+import { CAPTURE_TIMEOUT_MS, captureRequest, pageCapture, resultMessage } from "./capture.js";
 import { checkSettings } from "./settings.js";
 
 // The extension's plain logic. Synthetic pages and tokens only; nothing calls the network.
@@ -51,6 +51,22 @@ describe("captureRequest", () => {
       authorization: "Bearer test-extension-token",
     });
     expect(JSON.parse(String(init.body))).toEqual(capture);
+  });
+
+  it("gives up on the API after CAPTURE_TIMEOUT_MS (NS-176)", async () => {
+    vi.useFakeTimers();
+    try {
+      const { init } = captureRequest(SETTINGS, {
+        url: "https://jobs.example.com/1",
+        title: "Engineer",
+        text: "Hiring",
+      });
+      const before = init.signal?.aborted;
+      await vi.advanceTimersByTimeAsync(CAPTURE_TIMEOUT_MS);
+      expect([before, init.signal?.aborted]).toEqual([false, true]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

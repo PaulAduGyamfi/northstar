@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
+import { apiFetch } from "../../src/client-fetch";
 
 // What each API answer means for Paul, in plain words.
 const MESSAGES: Record<number, string> = {
@@ -23,7 +24,7 @@ export function SignInForm() {
     setError(null);
     try {
       // Same origin: Next rewrites /api/* to the API, which sets the session cookie.
-      const res = await fetch("/api/auth/sign-in", {
+      const res = await apiFetch("/api/auth/sign-in", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ key }),

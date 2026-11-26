@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { apiFetch } from "../src/client-fetch";
 import type { HandoffCard } from "../src/handoffs";
 
 type Outcome = "submitted" | "gave_up";
@@ -18,7 +19,7 @@ export function NeedsYourHands({ cards }: { cards: HandoffCard[] }) {
     setBusy(handoffId);
     setError(null);
     try {
-      const res = await fetch("/api/handoffs/resolve", {
+      const res = await apiFetch("/api/handoffs/resolve", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ handoffId, outcome }),

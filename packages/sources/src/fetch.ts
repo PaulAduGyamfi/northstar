@@ -16,6 +16,9 @@ export const MAX_REDIRECTS = 5;
 export const TIMEOUT_MS = 15_000;
 // A whole company board in one response (NS-115) can pass 2 MB; it gets this larger cap.
 export const BOARD_MAX_BYTES = 10 * 1024 * 1024;
+// A host lookup runs before each hop's request, outside its abort signal, so it has its own limit
+// (RES-005, NS-176): a resolver that never answers can't hold a fetch forever.
+export const DNS_TIMEOUT_MS = 5_000;
 
 export type FetchOptions = { maxBytes?: number };
 
@@ -121,10 +124,18 @@ async function checkTarget(deps: FetchDeps, raw: string): Promise<void> {
   const host = u.hostname.replace(/^\[|\]$/g, "");
   if (isIP(host) !== 0) throw new FetchRefused("links to an IP address are not fetched");
   let addresses: string[];
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    addresses = await deps.resolve(host);
+    addresses = await Promise.race([
+      deps.resolve(host),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("dns timeout")), DNS_TIMEOUT_MS);
+      }),
+    ]);
   } catch {
     throw new FetchRefused(`${host} can't be found`);
+  } finally {
+    clearTimeout(timer);
   }
   if (addresses.length === 0 || !addresses.every(isPublicAddress)) {
     throw new FetchRefused(`${host} resolves to a private or local address`);

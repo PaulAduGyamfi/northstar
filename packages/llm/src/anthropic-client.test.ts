@@ -22,6 +22,10 @@ describe("anthropic client options", () => {
     expect(anthropicClientOptions({ apiKey: "test-key" }).maxRetries).toBe(2);
   });
 
+  it("gives every call a default timeout as a backstop (NS-176)", () => {
+    expect(anthropicClientOptions({ apiKey: "test-key" }).timeout).toBe(180_000);
+  });
+
   it("keeps SDK logging at warn even when the environment asks for debug", () => {
     // Debug logging prints request and response bodies (resumes, emails).
     process.env[LOG_ENV] = "debug";

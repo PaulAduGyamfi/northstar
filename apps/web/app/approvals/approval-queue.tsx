@@ -14,6 +14,7 @@ import {
   undoErrorWords,
   waitedFor,
 } from "../../src/approvals";
+import { apiFetch } from "../../src/client-fetch";
 
 // One click's decisions: undone together, inside their shared window.
 type Batch = {
@@ -65,7 +66,7 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
       // "Approve all" over a long queue goes in batches the API accepts. On any failure it stops,
       // and what was already decided is still shown with its undo.
       for (let i = 0; i < ids.length; i += MAX_BATCH) {
-        const res = await fetch("/api/approvals/decide", {
+        const res = await apiFetch("/api/approvals/decide", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -125,7 +126,7 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
     const left: string[] = [];
     try {
       for (const decisionId of batch.decisionIds) {
-        const res = await fetch("/api/approvals/undo", {
+        const res = await apiFetch("/api/approvals/undo", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ decisionId }),

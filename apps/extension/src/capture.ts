@@ -11,6 +11,10 @@ const MAX_URL = 2048;
 
 export type Page = { url: string; title: string; text: string };
 
+// How long the popup waits for the API (RES-005, NS-176): the server's worst case is a page fetch,
+// extraction with retries and a scoring pass. Past it, Paul sees the "couldn't reach" message.
+export const CAPTURE_TIMEOUT_MS = 5 * 60_000;
+
 // What is sent for the page, or null when there is nothing to send: only http(s) pages with
 // text (never the browser's own chrome:// pages).
 export function pageCapture(page: Page): Page | null {
@@ -19,6 +23,14 @@ export function pageCapture(page: Page): Page | null {
   if (text.length === 0) return null;
   const title = page.title.trim();
   return { url: page.url, title: title.length <= MAX_TITLE ? title : "", text };
+}
+
+// A signal that aborts after `ms`. Plain setTimeout (not AbortSignal.timeout) so tests can drive
+// it with fake timers; the popup closes with the request either way.
+function timeoutSignal(ms: number): AbortSignal {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(new DOMException("timed out", "TimeoutError")), ms);
+  return controller.signal;
 }
 
 // The request: JSON to the local API with the extension's own token, nothing else.
@@ -32,6 +44,7 @@ export function captureRequest(settings: Settings, page: Page): { url: string; i
         authorization: `Bearer ${settings.token}`,
       },
       body: JSON.stringify(page),
+      signal: timeoutSignal(CAPTURE_TIMEOUT_MS),
     },
   };
 }

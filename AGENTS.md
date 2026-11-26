@@ -278,6 +278,11 @@ Exists now:
   Apply Gateway checks `auto_apply`, `adapter:<ats>` and the `ats:<ats>` breaker before it claims
   (held back: the `HeldBack` refusal, nothing claimed). Only a step timeout counts against the
   ATS's breaker.
+  Since NS-176 every external call has a time limit (RES-005): `safeFetch`'s host lookup (5 s,
+  `DNS_TIMEOUT_MS`), the Anthropic client's default (180 s, the slowest route; each route still
+  passes its own), Postgres in `connectDb` (10 s connect, 60 s per statement; migrations use their
+  own pool), the extension's capture request (5 min) and the web app's browser calls through
+  `apiFetch` (15 s). The spend cap and per-pool concurrency (RES-009) are later slices.
   Since NS-175 also the dead-letter store (RES-007, `dead-letter-write.ts` in `packages/db`,
   append-only): `recordDeadLetter` keeps work that exhausted its retries (kind, subject id, reason
   code, attempts; one per idempotency key), `listOpenDeadLetters` shows what waits, and

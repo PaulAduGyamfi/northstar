@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
+import { apiFetch } from "../../src/client-fetch";
 import type { SwitchItem } from "../../src/system";
 
 // What each refusal from POST /system/kill-switches means, in plain words.
@@ -27,7 +28,7 @@ export function KillSwitches({ items }: { items: SwitchItem[] }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/system/kill-switches", {
+      const res = await apiFetch("/api/system/kill-switches", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ subsystem: item.subsystem, enabled: !item.on, reason }),
