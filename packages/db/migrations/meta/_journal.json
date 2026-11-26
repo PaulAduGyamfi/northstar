@@ -456,6 +456,13 @@
       "when": 1795691849063,
       "tag": "0064_verification_window_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1795694864547,
+      "tag": "0065_app_role",
+      "breakpoints": true
     }
   ]
 }

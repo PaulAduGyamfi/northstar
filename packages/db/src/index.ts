@@ -112,6 +112,7 @@ export {
   recordCallOutcome,
 } from "./breaker-write.js";
 export { soleCandidate } from "./candidate.js";
+// loadMigrationConfig (the owner's URL) is not exported: only src/migrate.ts reads it.
 export { type DbConfig, loadDbConfig } from "./config.js";
 export { connectDb } from "./connect.js";
 // The tenant registry and consent policy (NS-124): one account per tenant (ACC-006), and every
