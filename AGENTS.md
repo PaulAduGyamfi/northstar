@@ -240,7 +240,21 @@ Exists now:
   - `draftReply` is off by default (hand-written fixtures). A failing draft becomes
     `needs_human`.
 
-  No caller, storage, Gate filing or Gmail draft yet. ADR-0025 (Proposed) decides the
+  Since NS-237 (slice 1) a checked draft can be filed with the Gate (RPL-002):
+  - `replyEnvelope` (`packages/domain`, `reply-draft.ts`) sets the recipient (one plain address
+    from Reply-To, else From; a header naming two is refused), the `Re:` subject and the thread
+    headers from the incoming message's own headers, never the model. `replyToOtherDomain` flags a
+    Reply-To on another domain than From's.
+  - `replyPackage` (`reply/package.ts`, only from a `drafted` result) adds the checked body, its
+    cites and follow-ups.
+  - `fileReplyDraft` (`packages/db`, `reply-write.ts`) requests approval and stores the draft in
+    append-only `reply_draft`, in one transaction. The request is `email_reply`, with a subject
+    derived from the Gmail id, so one live reply per message. Its `replyContentSha256` covers the
+    message and thread ids, recipient, subject, thread headers and body. The table's foreign key
+    pins the request's kind and hash.
+
+  No caller, approval view of the draft (it must show the recipient and the flag before any writer)
+  or Gmail draft writer yet. ADR-0025 (Proposed) decides the
   `gmail.compose` scope for drafts, which are never sent.
 - Factual answers (NS-141, ANS-001) from Paul's profile settings, plain code, no model:
   `profile_setting` in `packages/db` (`settings-write.ts`: `setProfileSetting`,

@@ -214,6 +214,12 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `done_on`; the same-candidate foreign key), stored with the version in one transaction. The
   version's hash covers them only when given, so an older file isn't stored again. They are
   Paul's words: no event, span or error carries them.
+- Reply drafts (NS-237) are `reply_draft`, one per Gate request (`email_reply`), append-only (a
+  trigger), written only through `reply-write.ts` (`fileReplyDraft`: `requestApproval` and the
+  insert in one transaction; `readReplyDraft`). Its foreign key names the request's id, candidate,
+  kind and content hash (`approval_request_id_kind_content_unique`). It holds the recipient address, subject, thread headers
+  and body Paul approves (CHECKs refuse control characters in headers), plus cites and follow-ups.
+  The body and recipient never go into an event or span: `approval.requested` is the feed line.
 - Mail tags and links (NS-158) are `mail_tag` (one tag per application or tenant, never reused)
   and `mail_link` (one decision per Gmail message: linked by a step, or queued with a reason),
   append-only, written only through `mail-link-write.ts`. They hold Gmail ids, tags, steps and

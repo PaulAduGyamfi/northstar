@@ -47,6 +47,14 @@ export const approvalRequest = pgTable(
   },
   (t) => [
     unique("approval_request_id_candidate_unique").on(t.id, t.candidateId),
+    // For rows that must point at a request of one kind with one content hash, such as a stored
+    // reply draft (NS-237): their foreign key names all four.
+    unique("approval_request_id_kind_content_unique").on(
+      t.id,
+      t.candidateId,
+      t.kind,
+      t.contentSha256,
+    ),
     unique("approval_request_idempotency_unique").on(t.candidateId, t.idempotencyKey),
     check("approval_request_kind_valid", sql`${t.kind} in (${kindList})`),
     check("approval_request_content_sha256_format", sql`${t.contentSha256} ~ '^[0-9a-f]{64}$'`),

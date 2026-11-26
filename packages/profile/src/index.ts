@@ -114,6 +114,8 @@ export {
   rankCanonical,
 } from "./question-match.js";
 export { draftReply, type ReplyRequest, type ReplyResult } from "./reply/draft.js";
+// A checked draft as the package the Gate files (NS-237).
+export { replyPackage } from "./reply/package.js";
 export {
   EMAIL_LIMIT,
   REPLY_DRAFT_VERSION,
