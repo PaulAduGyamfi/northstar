@@ -3,6 +3,7 @@ import type { CandidateId } from "@northstar/domain";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "./db.js";
 import { type FIT_BANDS, fitScore, searchPreference } from "./fit-schema.js";
+import { readClosedJobIds } from "./liveness-write.js";
 import { experienceAtom, profileSource, skill } from "./profile-schema.js";
 import { domainEvent, job } from "./schema.js";
 
@@ -164,8 +165,10 @@ export type ScorableJob = {
   description: string | null;
 };
 
-// Every ready job (drafts lack a title or company and aren't scored), oldest first.
+// Every ready job (drafts lack a title or company and aren't scored) whose posting isn't known
+// to be closed (NS-173, SRC-010), oldest first.
 export async function readScorableJobs(db: Db, candidateId: CandidateId): Promise<ScorableJob[]> {
+  const closed = await readClosedJobIds(db, candidateId);
   const rows = await db
     .select({
       id: job.id,
@@ -184,11 +187,13 @@ export async function readScorableJobs(db: Db, candidateId: CandidateId): Promis
     .from(job)
     .where(and(eq(job.candidateId, candidateId), eq(job.status, "ready")))
     .orderBy(job.firstSeenAt);
-  return rows.map((r) => ({
-    ...r,
-    remote: r.remote as ScorableJob["remote"],
-    salaryPeriod: r.salaryPeriod as ScorableJob["salaryPeriod"],
-  }));
+  return rows
+    .filter((r) => !closed.has(r.id))
+    .map((r) => ({
+      ...r,
+      remote: r.remote as ScorableJob["remote"],
+      salaryPeriod: r.salaryPeriod as ScorableJob["salaryPeriod"],
+    }));
 }
 
 // `<jobId>:<fingerprint>` of every score already stored for this preference version and resume

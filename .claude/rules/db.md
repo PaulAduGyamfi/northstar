@@ -88,6 +88,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   trigger), written only through `tailor-write.ts`; `readTailorInput` reads the current resume
   import (`kind = 'resume'`) and a ready job. The stored resume, validation and score hold Paul's
   lines and the job's requirements: `resume.tailored` carries ids, counts and flags only.
+- Posting liveness (NS-173) is `posting_check`, append-only (a trigger), written only through
+  `liveness-write.ts`: one row per attempt (`open`, `closed` or `unavailable`). A job is closed
+  only when its two newest answers (unavailable skipped) are `closed`; `readScorableJobs` leaves
+  closed jobs out. `job.closed` / `job.reopened` carry the job id and ATS, never a URL or title.
 - One agent at a time changes this package's schema or migrations (ADR-0016): parallel agents
   renumbering migrations caused replacement PRs. Before adding a migration, merge the latest
   `main` and generate it then.

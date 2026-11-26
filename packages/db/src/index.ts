@@ -204,6 +204,17 @@ export {
   type SetKillSwitchResult,
   setKillSwitch,
 } from "./kill-switch-write.js";
+// Posting liveness (NS-173 slice 2, SRC-010).
+export * as livenessSchema from "./liveness-schema.js";
+export {
+  CHECKABLE_ATS,
+  type CheckableAts,
+  type JobToCheck,
+  type PostingOutcome,
+  readClosedJobIds,
+  readJobsToCheck,
+  recordPostingCheck,
+} from "./liveness-write.js";
 export * as mailLinkSchema from "./mail-link-schema.js";
 export {
   assignTag,

@@ -4,6 +4,7 @@ import type { Result } from "@northstar/domain";
 import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
 import { FIT_USAGE, type FitCliDeps, fitCommand, scoreAfter } from "./fit/cli.js";
 import type { IngestResult } from "./ingest.js";
+import type { CheckPassSummary } from "./liveness.js";
 import { ageHours, freshness, queueScore } from "./queue.js";
 import { type BoardCliDeps, pollCommand, runCommand, watchCommand } from "./watch-cli.js";
 
@@ -26,9 +27,11 @@ export type CliDeps = {
   ) => Promise<Result<{ status: "draft" | "ready"; missingFields: string[] }, SetFieldError>>;
   boards: BoardCliDeps;
   fit: FitCliDeps;
+  // One liveness pass over the jobs due a re-check (NS-173, SRC-010).
+  check: () => Promise<CheckPassSummary>;
 };
 
-const USAGE = `usage: jobs add <url> | jobs add --text <file> --url <url> | jobs list | jobs set <job-id> <field> <value>\n       jobs watch add <board-url> --tier 1|2|3 | jobs watch list | jobs watch remove|retry <id> | jobs poll | jobs run\n${FIT_USAGE}`;
+const USAGE = `usage: jobs add <url> | jobs add --text <file> --url <url> | jobs list | jobs set <job-id> <field> <value>\n       jobs watch add <board-url> --tier 1|2|3 | jobs watch list | jobs watch remove|retry <id> | jobs poll | jobs run\n       jobs check\n${FIT_USAGE}`;
 
 export async function main(deps: CliDeps): Promise<number> {
   const [command, ...rest] = deps.argv;
@@ -50,6 +53,7 @@ export async function main(deps: CliDeps): Promise<number> {
   }
   if (command === "poll" && rest.length === 0) return pollCommand(deps);
   if (command === "run" && rest.length === 0) return runCommand(deps);
+  if (command === "check" && rest.length === 0) return checkCommand(deps);
   if (command === "set" && rest.length >= 3) {
     const [id, field, ...value] = rest;
     if (id && field) return scored(deps, await setCommand(deps, id, field, value.join(" ")));
@@ -201,6 +205,15 @@ async function setCommand(
     r.value.status === "ready"
       ? `Saved. Job ${id} is ready.`
       : `Saved. Job ${id} still needs: ${r.value.missingFields.join(", ")}.`,
+  );
+  return 0;
+}
+
+// `jobs check`: re-check the postings of saved jobs not checked in a day (SRC-010). Counts only.
+async function checkCommand(deps: CliDeps): Promise<number> {
+  const s = await deps.check();
+  deps.print(
+    `Checked ${s.checked} posting${s.checked === 1 ? "" : "s"}: ${s.open} open, ${s.closed} closed, ${s.unavailable} couldn't be reached${s.heldBack > 0 ? `, ${s.heldBack} held back by a switch or breaker` : ""}${s.unchecked > 0 ? `, ${s.unchecked} with no API to ask` : ""}`,
   );
   return 0;
 }

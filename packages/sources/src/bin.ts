@@ -13,12 +13,14 @@ import {
   readAtomTexts,
   readDedupeCandidates,
   readFitScore,
+  readJobsToCheck,
   readPreferences,
   readScorableJobs,
   readScoreKeys,
   readScoringProfile,
   recordAlertHeld,
   recordFreshAlert,
+  recordPostingCheck,
   recordRescore,
   removeWatch,
   retryWatch,
@@ -41,8 +43,11 @@ import { main } from "./cli.js";
 import { scorePending } from "./fit/run.js";
 import { type IngestDeps, ingestText, ingestUrl } from "./ingest.js";
 import { jobExtractRoute } from "./job-extract-route.js";
+import { checkPass } from "./liveness.js";
 import { pollDue } from "./poll.js";
 import { dbPollGuard } from "./poll-guard.js";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Entry point for `pnpm --filter @northstar/sources jobs …`. The only place in this package that
 // reads process.env (DATABASE_URL, and ANTHROPIC_API_KEY only when a page needs the model).
@@ -123,6 +128,27 @@ try {
     readText: (path) => readFile(resolve(process.env.INIT_CWD ?? process.cwd(), path), "utf8"),
     list: () => listJobs(db, candidateId),
     set: (jobId, field, value) => setJobField(db, { candidateId, jobId, field, value }),
+    // Liveness (NS-173, SRC-010): jobs not tried in a day, at most 50 a pass.
+    check: () =>
+      checkPass(
+        {
+          resolve: deps.resolve,
+          fetch,
+          guard: dbPollGuard(db, candidateId),
+          store: {
+            due: (now) =>
+              readJobsToCheck(db, candidateId, {
+                checkedBefore: new Date(now.getTime() - DAY_MS),
+                // A closed job is re-checked weekly, so a wrong closure can come back.
+                closedCheckedBefore: new Date(now.getTime() - 7 * DAY_MS),
+                limit: 50,
+              }),
+            record: (job, outcome) =>
+              recordPostingCheck(db, { candidateId, jobId: job.jobId, ats: job.ats, outcome }),
+          },
+        },
+        new Date(),
+      ),
     boards: {
       add: (target, tier) =>
         addWatch(db, {
