@@ -109,6 +109,26 @@ describe("refusals before anything is claimed", () => {
     });
   });
 
+  it("refuses a SmartRecruiters posting id that isn't the one in the apply URL (NS-173)", async () => {
+    const world = fakeWorld({ open: form, submit: confirmed });
+    const other = makePackage("smartrecruiters", { postingId: "7440001234568" });
+    expect(await run(world, world.approve(other), other)).toEqual({
+      ok: false,
+      error: { kind: "PostingMismatch" },
+    });
+  });
+
+  it("refuses a SmartRecruiters apply URL on its careers host until it is rewritten", async () => {
+    const world = fakeWorld({ open: form, submit: confirmed });
+    const careers = makePackage("smartrecruiters", {
+      applyUrl: "https://careers.smartrecruiters.com/ExampleCorp/7440001234567-backend-engineer",
+    });
+    expect(await run(world, world.approve(careers), careers)).toEqual({
+      ok: false,
+      error: { kind: "HostNotAllowed" },
+    });
+  });
+
   it("refuses when the resume bytes no longer match the approved hash", async () => {
     const world = fakeWorld({ open: form, submit: confirmed });
     const other = makePackage("greenhouse", {

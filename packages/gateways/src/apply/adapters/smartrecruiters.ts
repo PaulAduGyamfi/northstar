@@ -5,6 +5,9 @@ import { type AtsAdapter, capture, pageText } from "./adapter.js";
 // pages (NS-142), like NS-120's adapters. Custom questions come from the package's field map.
 export const smartrecruiters: AtsAdapter = {
   ats: "smartrecruiters",
+  // careers.smartrecruiters.com links are refused (HostNotAllowed) until the package builder
+  // rewrites them to this host, as packages/sources' boards/detect.ts does; widening the list
+  // waits for a recorded page (NS-142).
   hosts: ["jobs.smartrecruiters.com"],
   standardFields: (c) => ({
     firstName: c.firstName,
