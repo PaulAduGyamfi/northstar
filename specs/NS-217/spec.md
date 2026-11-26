@@ -1,6 +1,6 @@
 # NS-217: Trust only Gmail's own Authentication-Results header
 
-Status: building
+Status: built
 Requirements: INB-011 (sender verification), VER-002 (catcher sender check)
 Rules that apply: ADR-0016, `.claude/rules/tests.md`. Parent: #205's parent chain (Paul's).
 
@@ -21,10 +21,10 @@ Gmail didn't stamp (or one read before Gmail's header) could make a forged domai
   assertion changes were approved in the delegated decision on #205.
 
 ## Acceptance criteria
-- [ ] A message with only a non-Google header reads `authenticationResults: null`.
-- [ ] `authenticatedDomains` and `isAuthenticatedSender` return nothing for a non-Google
+- [x] A message with only a non-Google header reads `authenticationResults: null`.
+- [x] `authenticatedDomains` and `isAuthenticatedSender` return nothing for a non-Google
       authserv-id, including a lookalike (`mx.google.com.evil.example`).
-- [ ] `pnpm turbo run lint typecheck test build` passes.
+- [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Out of scope
 - Any change to how the results are parsed after the authserv-id.
