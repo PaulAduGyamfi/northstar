@@ -253,6 +253,38 @@ describe("LinkedIn imports (NS-133)", () => {
   });
 });
 
+describe("personal site imports (NS-209)", () => {
+  const site = (sha = SHA_C): ProfileImportInput => ({
+    ...importInput(sha, { ...extract(), roles: [], education: [], atoms: [] }),
+    kind: "site",
+    fileName: "site.md",
+    promptVersion: 0,
+    model: "none",
+  });
+
+  it("keeps a site import beside the resume and LinkedIn, and supersedes only an earlier site", async () => {
+    await writeProfileImport(db, importInput());
+    await writeProfileImport(db, { ...importInput(SHA_B), kind: "linkedin", fileName: "li" });
+    await writeProfileImport(db, site());
+    await writeProfileImport(db, site("d".repeat(64)));
+    const current = await db
+      .select({ kind: profileSource.kind })
+      .from(profileSource)
+      .where(isNull(profileSource.supersededAt));
+    expect(current.map((c) => c.kind).sort()).toEqual(["linkedin", "resume", "site"]);
+  });
+
+  it("names the site in its event and keeps the resume reader on the resume", async () => {
+    await writeProfileImport(db, site());
+    const [event] = await db.select().from(domainEvent);
+    expect([
+      event?.reason,
+      (event?.payload as { kind?: string } | undefined)?.kind,
+      await readProfile(db, candidateId),
+    ]).toEqual(["Personal site imported into the profile graph", "site", null]);
+  });
+});
+
 describe("database guards for the profile", () => {
   it("every profile row needs a real candidate", async () => {
     await writeProfileImport(db, importInput());
