@@ -44,6 +44,9 @@ code with no model or network:
    - `autoApproved` is true only for a policy's approval made as the request was filed. A
      replayed request reports its decision as it is (`approved`, `rejected` or none).
    - `file_refused` and `move_refused` come back as values: the caller (#230) dead-letters them.
+   - A crashed round Paul rejected while the run was down still moves to `awaiting_approval` and
+     comes back `filed` with `decision: "rejected"`, like the normal rejection path: the caller
+     (#230) reads `decision`, not only `kind`.
    - The resume goes as `<first>-<last>-resume.pdf` (letters, digits and hyphens only), else
      `resume.pdf`.
    - `fit` and `formSeenBefore` come from the stored rows only, never from a model or the
