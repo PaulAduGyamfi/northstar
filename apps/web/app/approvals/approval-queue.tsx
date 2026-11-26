@@ -14,7 +14,7 @@ import {
   undoErrorWords,
   waitedFor,
 } from "../../src/approvals";
-import { apiFetch } from "../../src/client-fetch";
+import { apiFetch, isTimeout, TIMED_OUT_MESSAGE } from "../../src/client-fetch";
 
 // One click's decisions: undone together, inside their shared window.
 type Batch = {
@@ -90,8 +90,12 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
         }
         outcomes.push(...body.data.outcomes);
       }
-    } catch {
-      setError("Couldn't reach Northstar. Is the API running? Nothing more was decided.");
+    } catch (error) {
+      setError(
+        isTimeout(error)
+          ? TIMED_OUT_MESSAGE
+          : "Couldn't reach Northstar. Is the API running? Nothing more was decided.",
+      );
     } finally {
       const decided = outcomes.flatMap((o) =>
         o.outcome === "approved" || o.outcome === "rejected" ? [o] : [],
@@ -143,8 +147,10 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
           break;
         }
       }
-    } catch {
-      failure = "Couldn't reach Northstar. Is the API running?";
+    } catch (error) {
+      failure = isTimeout(error)
+        ? TIMED_OUT_MESSAGE
+        : "Couldn't reach Northstar. Is the API running?";
       left.push(...batch.decisionIds.slice(undone));
     } finally {
       setBatches((bs) =>

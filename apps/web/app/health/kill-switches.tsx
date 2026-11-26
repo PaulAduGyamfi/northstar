@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { apiFetch } from "../../src/client-fetch";
+import { apiFetch, isTimeout, TIMED_OUT_MESSAGE } from "../../src/client-fetch";
 import type { SwitchItem } from "../../src/system";
 
 // What each refusal from POST /system/kill-switches means, in plain words.
@@ -46,8 +46,10 @@ export function KillSwitches({ items }: { items: SwitchItem[] }) {
       }
       setEditing(null);
       router.refresh();
-    } catch {
-      setError("Couldn't reach Northstar. Is the API running?");
+    } catch (error) {
+      setError(
+        isTimeout(error) ? TIMED_OUT_MESSAGE : "Couldn't reach Northstar. Is the API running?",
+      );
     } finally {
       setBusy(false);
     }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiFetch, CLIENT_TIMEOUT_MS } from "./client-fetch";
+import { apiFetch, CLIENT_TIMEOUT_MS, isTimeout } from "./client-fetch";
 
 // The web app's browser calls (NS-176, RES-005). A fake fetch; no network.
 afterEach(() => {
@@ -24,8 +24,15 @@ describe("apiFetch", () => {
         init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
       })) as unknown as typeof fetch;
     const call = apiFetch("/api/feed", {}, hanging);
-    const result = expect(call).rejects.toThrow("timed out");
+    const result = call.catch((e: unknown) => e);
     await vi.advanceTimersByTimeAsync(CLIENT_TIMEOUT_MS);
-    await result;
+    expect(isTimeout(await result)).toBe(true);
+  });
+
+  it("tells a timeout from any other failure", () => {
+    expect([
+      isTimeout(new DOMException("timed out", "TimeoutError")),
+      isTimeout(new TypeError("Failed to fetch")),
+    ]).toEqual([true, false]);
   });
 });

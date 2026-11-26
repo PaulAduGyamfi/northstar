@@ -15,3 +15,11 @@ export function apiFetch(
   );
   return fetchFn(path, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
 }
+
+// A request that ran out of time may still have reached the API and done its work: say so, never
+// "nothing was done" (a decision Paul doesn't see would pass its undo window unseen).
+export const TIMED_OUT_MESSAGE =
+  "No answer in time. It may have gone through: reload the page to see where things stand.";
+
+export const isTimeout = (error: unknown): boolean =>
+  error instanceof DOMException && error.name === "TimeoutError";
