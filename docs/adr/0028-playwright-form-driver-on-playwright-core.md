@@ -34,11 +34,15 @@ Two things force the details:
   browser.
 - The driver stays on the adapter's hosts:
   - it refuses an off-host apply URL before navigating;
-  - it aborts any main-frame navigation off the hosts through `page.route`, using `fallback` so
-    other handlers still see the request;
+  - it aborts any main-frame navigation request off the hosts through `page.route`, using
+    `fallback` so other handlers still see the request;
+  - it refuses any snapshot whose page URL is off the hosts, since `page.route` doesn't see a
+    server's redirect hops;
   - it closes any popup.
 - After `close()` it takes no further browser action, so a timed-out submit never presses the
   button later.
+  - Every action has the step's time limit (`setDefaultTimeout`).
+  - `launchFormDriver`'s close shuts the whole browser at once.
 - It reports a visible CAPTCHA, a sign-in, a one-time code or an account wall as a challenge and
   never solves one (ADR-0003).
 
@@ -61,5 +65,14 @@ Two things force the details:
   1.63.0, and its path in the worker's settings.
 - An upgrade means a new exact version past the cooldown, a matching browser, and a by-hand run
   against the synthetic pages.
+- `page.evaluate` runs in the page's main world, beside the page's own script. The driver checks
+  the shape of what `collectPage` reports (`checkCollected`). A page whose own origin is hostile
+  could still make it read a different form or click a different option. That script could
+  rewrite the submitted payload anyway, so this adds no new power, but the check isn't made from
+  outside the page.
+- A popup is closed but never routed, so it may load another host before it closes. The main page
+  is what gets filled.
+- The worker must not set `DEBUG=pw:*`, `PWDEBUG` or tracing for this process: Playwright's API
+  logs and traces would record the values typed into fields.
 - Open question: whether real Greenhouse forms show a visible reCAPTCHA. If they do, every
   Greenhouse submission becomes a `captcha` handoff, as ADR-0003 intends.

@@ -587,7 +587,9 @@ Exists now:
   - It fills by field name, picks options by label, and refuses unknown, hidden or out-of-option
     values. It presses the form's one submit button or refuses to guess.
   - It refuses an off-host apply URL, aborts main-frame navigation off the adapter's hosts, and
-    after `close()` takes no further browser action.
+    refuses any page that ends up off them (server redirects included).
+  - It checks what the page reports (`checkCollected`), and after `close()` it takes no further
+    browser action.
 
   Its tests use a fake page and a stand-in DOM, with no browser. Its markers are hand-written
   until recorded pages confirm them (Paul, #76). Nothing starts it until the worker process

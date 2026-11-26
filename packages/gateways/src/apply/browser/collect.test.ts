@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { FORMS } from "../test/fixtures.js";
 import {
   type ChallengeSignals,
+  COLLECT_LIMITS,
   challengeOf,
+  checkCollected,
   chooseOptions,
   collectPage,
   pickForm,
@@ -146,5 +148,52 @@ describe("chooseOptions", () => {
 
   it("finds nothing in a form that isn't there", () => {
     expect(chooseOptions({ formIndex: 3, name: "loc", labels: ["Remote"] }, doc([]))).toBe(0);
+  });
+});
+
+describe("checkCollected", () => {
+  const good = () => collectPage(null, GREENHOUSE_PAGE());
+
+  it("passes what collectPage returns through unchanged", () => {
+    expect(checkCollected(good())).toEqual(good());
+  });
+
+  it.each([
+    ["no result", () => null],
+    [
+      "a name that isn't a string",
+      () => ({ ...good(), forms: [[{ ...good().forms[1]?.[0], name: 7 }]] }),
+    ],
+    [
+      "a string over the limit",
+      () => ({
+        ...good(),
+        forms: [[{ ...good().forms[1]?.[0], name: "x".repeat(COLLECT_LIMITS.chars + 1) }]],
+      }),
+    ],
+    [
+      "too many forms",
+      () => ({ ...good(), forms: Array.from({ length: COLLECT_LIMITS.forms + 1 }, () => []) }),
+    ],
+    [
+      "too many controls across forms",
+      () => ({
+        ...good(),
+        forms: [
+          Array.from({ length: COLLECT_LIMITS.controls }, () => good().forms[1]?.[0]),
+          [good().forms[1]?.[0]],
+        ],
+      }),
+    ],
+    [
+      "a flag that isn't a boolean",
+      () => ({ ...good(), signals: { ...good().signals, visibleCaptcha: "no" } }),
+    ],
+    [
+      "a negative password count",
+      () => ({ ...good(), signals: { ...good().signals, passwordFields: -1 } }),
+    ],
+  ])("refuses %s", (_name, make) => {
+    expect(() => checkCollected(make())).toThrow(/^the page reported /);
   });
 });

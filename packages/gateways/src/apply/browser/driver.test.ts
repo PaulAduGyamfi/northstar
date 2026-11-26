@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { ashby } from "../adapters/ashby.js";
 import { greenhouse } from "../adapters/greenhouse.js";
+import { lever } from "../adapters/lever.js";
 import { APPLY_URLS, CONFIRMATIONS, FORMS, RESUME } from "../test/fixtures.js";
 import { createPlaywrightDriver, DriverError, onHosts } from "./driver.js";
 import { ASHBY_PAGE, doc, el, GREENHOUSE_PAGE, LEVER_PAGE } from "./test/dom.js";
-import { fakePage, fakeRoute, MAIN_FRAME } from "./test/page.js";
+import { fakePage, fakeRoute } from "./test/page.js";
 
 // The Playwright form driver (NS-142) on a scripted page with synthetic forms. No browser.
 
@@ -28,7 +30,7 @@ function withCredentials(url: string): string {
   return u.toString();
 }
 
-const FORM = "form >> nth=1";
+const FORM = "xpath=//form >> nth=1";
 
 describe("open", () => {
   it("returns the page's form and the URL it is on", async () => {
@@ -63,6 +65,22 @@ describe("open", () => {
     expect(await driver.open(URL_GH)).toEqual({ kind: "challenge", challenge: "login" });
   });
 
+  it("refuses a page a server redirect moved off the hosts", async () => {
+    const away = "https://careers.example/jobs/4001";
+    const page = fakePage({ pages: { [away]: GREENHOUSE_PAGE }, redirects: { [URL_GH]: away } });
+    const driver = createPlaywrightDriver({ page, hosts: greenhouse.hosts });
+    await expect(driver.open(URL_GH)).rejects.toThrow(
+      new DriverError("the page left the adapter's hosts"),
+    );
+    expect(page.actions.some((a) => a.action === "evaluate")).toBe(false);
+  });
+
+  it("gives every browser action the step's time limit", () => {
+    const page = fakePage({ pages: {} });
+    createPlaywrightDriver({ page, hosts: greenhouse.hosts, stepTimeoutMs: 12_000 });
+    expect(page.defaultTimeout()).toBe(12_000);
+  });
+
   it("returns a page with no form as proof material", async () => {
     const { driver } = greenhouseDriver({ pages: { [URL_GH]: () => doc([], { text: "Closed" }) } });
     expect(await driver.open(URL_GH)).toEqual({
@@ -90,7 +108,6 @@ describe("keeping the page on the adapter's hosts", () => {
       { aborted: null, fellBack: true },
       { aborted: null, fellBack: true },
     ]);
-    expect(MAIN_FRAME).toBe(page.mainFrame());
   });
 
   it("closes a popup the page opens", async () => {
@@ -125,6 +142,7 @@ describe("fillAndSubmit", () => {
       [{ field: "resume", fileName: "ada-lovelace-resume.pdf", bytes: RESUME }],
     );
     expect(page.actions).toEqual([
+      { action: "count", selector: "xpath=//form" },
       { action: "fill", selector: `${FORM} >> [name="first_name"]`, value: "Ada" },
       { action: "fill", selector: `${FORM} >> [name="email"]`, value: "ada@example.com" },
       {
@@ -161,13 +179,13 @@ describe("fillAndSubmit", () => {
   });
 
   it("checks a radio and a checkbox group by label in the page", async () => {
-    const lever = APPLY_URLS.lever;
+    const leverUrl = APPLY_URLS.lever;
     const page = fakePage({
-      pages: { [lever]: LEVER_PAGE },
-      afterSubmit: { url: lever, page: confirmation },
+      pages: { [leverUrl]: LEVER_PAGE },
+      afterSubmit: { url: leverUrl, page: confirmation },
     });
-    const driver = createPlaywrightDriver({ page, hosts: ["jobs.lever.co"] });
-    await driver.open(lever);
+    const driver = createPlaywrightDriver({ page, hosts: lever.hosts });
+    await driver.open(leverUrl);
     await driver.fillAndSubmit([{ field: "cards[aaaa][field0]", value: "Yes" }], []);
     expect(page.actions.filter((a) => a.action === "evaluate").map((a) => a.value)).toEqual([
       "collectPage",
@@ -177,11 +195,11 @@ describe("fillAndSubmit", () => {
   });
 
   it("refuses a checkbox option the page has lost since it was read", async () => {
-    const ashby = APPLY_URLS.ashby;
+    const ashbyUrl = APPLY_URLS.ashby;
     const shared = ASHBY_PAGE();
-    const page = fakePage({ pages: { [ashby]: () => shared } });
-    const driver = createPlaywrightDriver({ page, hosts: ["jobs.ashbyhq.com"] });
-    await driver.open(ashby);
+    const page = fakePage({ pages: { [ashbyUrl]: () => shared } });
+    const driver = createPlaywrightDriver({ page, hosts: ashby.hosts });
+    await driver.open(ashbyUrl);
     // The page's script drops the "Remote" checkbox after the driver read the form.
     (shared.forms[0]?.elements as unknown[] | undefined)?.splice(4, 1);
     await expect(
@@ -235,6 +253,28 @@ describe("fillAndSubmit", () => {
     expect(page.actions.some((a) => a.action === "click")).toBe(false);
   });
 
+  it("refuses to type anything when the page's forms changed since they were read", async () => {
+    const shared = GREENHOUSE_PAGE();
+    const page = fakePage({ pages: { [URL_GH]: () => shared } });
+    const driver = createPlaywrightDriver({ page, hosts: greenhouse.hosts });
+    await driver.open(URL_GH);
+    // A widget's form appears ahead of the application form, which would shift its index.
+    (shared.forms as unknown[]).unshift({ elements: [] });
+    await expect(driver.fillAndSubmit([{ field: "first_name", value: "Ada" }], [])).rejects.toThrow(
+      "the page now has 3 forms, not 2",
+    );
+    expect(page.actions.some((a) => a.action === "fill")).toBe(false);
+  });
+
+  it("still returns the page after submit when it never goes quiet", async () => {
+    const { page, driver } = greenhouseDriver();
+    await driver.open(URL_GH);
+    page.before.set("waitForLoadState", () => {
+      throw Object.assign(new Error("Timeout 60000ms exceeded."), { name: "TimeoutError" });
+    });
+    expect(await driver.fillAndSubmit([], [])).toMatchObject({ kind: "page", url: DONE });
+  });
+
   it("refuses to submit when no form was opened", async () => {
     const { driver } = greenhouseDriver();
     await expect(driver.fillAndSubmit([], [])).rejects.toThrow("no form is open");
@@ -265,13 +305,22 @@ describe("fillAndSubmit", () => {
 
 describe("close", () => {
   it("stops a submit in flight before it presses the button", async () => {
-    const { page, driver } = greenhouseDriver();
+    // The page stays open after close, so only the driver's own check can stop the click.
+    const page = fakePage({ pages: { [URL_GH]: GREENHOUSE_PAGE } });
+    const driver = createPlaywrightDriver({
+      page,
+      hosts: greenhouse.hosts,
+      onClose: async () => {},
+    });
     await driver.open(URL_GH);
     // The gateway's time limit fires while the driver is counting submit buttons.
-    page.before.set("count", () => driver.close());
-    await expect(driver.fillAndSubmit([], [])).rejects.toThrow();
-    expect(page.actions.some((a) => a.action === "click")).toBe(false);
-    expect(page.closed()).toBe(true);
+    page.before.set("count", async () => {
+      if (page.actions.filter((a) => a.action === "count").length === 1) await driver.close();
+    });
+    await expect(driver.fillAndSubmit([], [])).rejects.toThrow(
+      new DriverError("the driver was closed"),
+    );
+    expect([page.actions.some((a) => a.action === "click"), page.closed()]).toEqual([false, false]);
   });
 
   it("refuses every step after close, and closing twice closes once", async () => {

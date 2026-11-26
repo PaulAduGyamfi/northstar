@@ -1,5 +1,5 @@
 import type { Fill, FormDriver, FormField, PageState, Upload } from "../driver.js";
-import { challengeOf, chooseOptions, collectPage, pickForm } from "./collect.js";
+import { challengeOf, checkCollected, chooseOptions, collectPage, pickForm } from "./collect.js";
 
 // The Playwright form driver (NS-142, APPLY-008): `FormDriver` over one browser page. It only
 // reports what it sees (ADR-0003): a CAPTCHA, sign-in, one-time code or account wall comes back
@@ -34,6 +34,8 @@ export interface DriverPage {
   waitForLoadState(state: "networkidle", options: { timeout: number }): Promise<void>;
   on(event: "popup", listener: (popup: { close(): Promise<void> }) => void): unknown;
   close(): Promise<void>;
+  // Every action's own limit, so a click waiting on a disabled button can't outlive the step.
+  setDefaultTimeout(timeout: number): void;
 }
 
 export type DriverOptions = {
@@ -53,6 +55,10 @@ export class DriverError extends Error {
 
 const DEFAULT_STEP_TIMEOUT_MS = 60_000;
 // The form's submit control. Exactly one must match, or the driver won't guess which to press.
+// The page's forms outside shadow roots, in document order: the same forms, in the same order, as
+// `document.forms` in `collectPage` (a CSS `form` selector would also count forms inside shadow
+// roots and shift the index onto another form).
+const FORMS = "xpath=//form";
 const SUBMIT_SELECTOR = 'button[type="submit"], input[type="submit"], button:not([type])';
 const TEXT_LIKE = new Set<FormField["type"]>(["text", "email", "tel", "textarea"]);
 const MIME: Readonly<Record<string, string>> = {
@@ -94,10 +100,12 @@ export function createPlaywrightDriver(options: DriverOptions): FormDriver {
   const { page, hosts } = options;
   if (hosts.length === 0) throw new DriverError("the driver needs the adapter's hosts");
   const timeout = options.stepTimeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
+  page.setDefaultTimeout(timeout);
   let closed = false;
   let routed = false;
   // The form `open` found: its index among the page's forms and its fields by name.
-  let form: { index: number; fields: Map<string, FormField> } | null = null;
+  // `count` is how many forms the page had then, checked again before anything is typed.
+  let form: { index: number; count: number; fields: Map<string, FormField> } | null = null;
 
   // Called before every browser action: after close, nothing more happens on the page.
   const guard = (): void => {
@@ -130,13 +138,21 @@ export function createPlaywrightDriver(options: DriverOptions): FormDriver {
   // proof material or a challenge, never a form to fill again.
   async function snapshot(formAllowed: boolean): Promise<PageState> {
     guard();
-    const collected = await page.evaluate(collectPage, null);
+    // `page.route` doesn't see a server's redirect hops, and some navigations (about:blank, an
+    // aborted load's error page) never make a request: so check where the page actually is.
+    if (!onHosts(hosts, page.url())) throw new DriverError("the page left the adapter's hosts");
+    // The page's own script runs alongside the reader, so its answer is checked, not trusted.
+    const collected = checkCollected(await page.evaluate(collectPage, null));
     const challenge = challengeOf(collected.signals);
     if (challenge !== null) return { kind: "challenge", challenge };
     if (formAllowed) {
       const picked = pickForm(collected.forms);
       if (picked !== null) {
-        form = { index: picked.index, fields: new Map(picked.fields.map((f) => [f.name, f])) };
+        form = {
+          index: picked.index,
+          count: collected.forms.length,
+          fields: new Map(picked.fields.map((f) => [f.name, f])),
+        };
         return { kind: "form", url: page.url(), fields: picked.fields };
       }
     }
@@ -149,7 +165,7 @@ export function createPlaywrightDriver(options: DriverOptions): FormDriver {
 
   async function fillOne(fill: Fill, index: number, field: FormField): Promise<void> {
     const values = typeof fill.value === "string" ? [fill.value] : [...fill.value];
-    const target = page.locator("form").nth(index).locator(byName(field.name));
+    const target = page.locator(FORMS).nth(index).locator(byName(field.name));
     if (TEXT_LIKE.has(field.type)) {
       if (typeof fill.value !== "string") throw new DriverError(`${field.name} takes one value`);
       guard();
@@ -195,7 +211,10 @@ export function createPlaywrightDriver(options: DriverOptions): FormDriver {
     async fillAndSubmit(fills: readonly Fill[], uploads: readonly Upload[]) {
       guard();
       if (form === null) throw new DriverError("no form is open");
-      const { index, fields } = form;
+      const { index, count, fields } = form;
+      guard();
+      const forms = await page.locator(FORMS).count();
+      if (forms !== count) throw new DriverError(`the page now has ${forms} forms, not ${count}`);
       for (const fill of fills) {
         const field = fields.get(fill.field);
         if (!field) throw new DriverError(`the form has no field ${fill.field}`);
@@ -207,7 +226,7 @@ export function createPlaywrightDriver(options: DriverOptions): FormDriver {
           throw new DriverError(`the form has no file field ${upload.field}`);
         guard();
         await page
-          .locator("form")
+          .locator(FORMS)
           .nth(index)
           .locator(byName(field.name))
           .setInputFiles([
@@ -218,7 +237,7 @@ export function createPlaywrightDriver(options: DriverOptions): FormDriver {
             },
           ]);
       }
-      const submit = page.locator("form").nth(index).locator(SUBMIT_SELECTOR);
+      const submit = page.locator(FORMS).nth(index).locator(SUBMIT_SELECTOR);
       guard();
       const buttons = await submit.count();
       if (buttons !== 1) throw new DriverError(`the form has ${buttons} submit buttons, not one`);
@@ -226,7 +245,11 @@ export function createPlaywrightDriver(options: DriverOptions): FormDriver {
       guard();
       await submit.click();
       form = null;
-      await page.waitForLoadState("networkidle", { timeout });
+      // The button is pressed, so a page that never goes quiet (beacons, long polls) still gets
+      // its snapshot: the gateway then decides from what is there, never from a timeout.
+      // Known gap: on a single-page form that was already idle this returns at once, before the
+      // confirmation renders (a `no_confirmation` handoff). Recorded pages decide the wait (#76).
+      await page.waitForLoadState("networkidle", { timeout }).catch(() => {});
       return snapshot(false);
     },
 

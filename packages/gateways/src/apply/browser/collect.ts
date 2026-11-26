@@ -149,6 +149,65 @@ export function chooseOptions(
   return found;
 }
 
+// Limits on what a page may report. Real application forms are far smaller; a page past them is
+// refused instead of filling the worker's memory.
+export const COLLECT_LIMITS = { forms: 50, controls: 500, options: 200, chars: 1000 } as const;
+
+class CollectedError extends Error {
+  override name = "DriverError";
+}
+
+// `collectPage` runs beside the page's own script, which can redefine the DOM members it reads,
+// so its answer is checked here in Node: the exact shape, strings and booleans only, and the
+// limits above. Anything else throws (a `driver_error` handoff in the gateway).
+export function checkCollected(value: unknown): CollectedPage {
+  const fail = (what: string): never => {
+    throw new CollectedError(`the page reported ${what}`);
+  };
+  const str = (v: unknown): string =>
+    typeof v === "string" && v.length <= COLLECT_LIMITS.chars ? v : fail("a bad string");
+  const bool = (v: unknown): boolean => (typeof v === "boolean" ? v : fail("a bad flag"));
+  const list = (v: unknown, max: number): unknown[] =>
+    Array.isArray(v) && v.length <= max ? v : fail("a bad list");
+  const obj = (v: unknown): Record<string, unknown> =>
+    typeof v === "object" && v !== null ? (v as Record<string, unknown>) : fail("a bad object");
+  const page = obj(value);
+  const signals = obj(page.signals);
+  const passwordFields = signals.passwordFields;
+  if (
+    typeof passwordFields !== "number" ||
+    !Number.isInteger(passwordFields) ||
+    passwordFields < 0
+  ) {
+    fail("a bad count");
+  }
+  let controls = 0;
+  const forms = list(page.forms, COLLECT_LIMITS.forms).map((form) =>
+    list(form, COLLECT_LIMITS.controls).map((raw): RawControl => {
+      controls++;
+      if (controls > COLLECT_LIMITS.controls) fail("too many controls");
+      const c = obj(raw);
+      return {
+        tag: str(c.tag),
+        type: str(c.type),
+        name: str(c.name),
+        required: bool(c.required),
+        options: list(c.options, COLLECT_LIMITS.options).map(str),
+      };
+    }),
+  );
+  return {
+    forms,
+    signals: {
+      visibleCaptcha: bool(signals.visibleCaptcha),
+      cloudflareInterstitial: bool(signals.cloudflareInterstitial),
+      passwordFields: passwordFields as number,
+      oneTimeCode: bool(signals.oneTimeCode),
+      signUpWords: bool(signals.signUpWords),
+    },
+  };
+}
+
 // Input types that read as plain text to the adapters.
 const TEXT_TYPES = new Set(["text", "url", "number", "date", "search", "month", "week", "time"]);
 const KEPT_TYPES = new Set(["email", "tel", "file", "hidden"]);

@@ -13,6 +13,7 @@ export type FakePage = DriverPage & {
   popups: { closed: boolean }[];
   firePopup: () => void;
   closed: () => boolean;
+  defaultTimeout: () => number | null;
   // Runs before the named action resolves (to close the driver mid-step, for instance).
   before: Map<string, () => Promise<void> | void>;
 };
@@ -22,6 +23,8 @@ export const MAIN_FRAME = { frame: "main" };
 export function fakePage(script: {
   pages: Record<string, () => DomDocument>;
   afterSubmit?: { url: string; page: () => DomDocument };
+  // A server-side redirect: loading the key ends on the value (page.route never sees the hop).
+  redirects?: Record<string, string>;
   submitButtons?: number;
 }): FakePage {
   const actions: Action[] = [];
@@ -32,6 +35,7 @@ export function fakePage(script: {
   let dom: DomDocument | null = null;
   let handler: ((route: DriverRoute) => Promise<void>) | null = null;
   let isClosed = false;
+  let timeoutMs: number | null = null;
 
   const step = async (action: string, selector?: string, value?: unknown) => {
     await before.get(action)?.();
@@ -48,6 +52,8 @@ export function fakePage(script: {
     locator: (inner) => locator(`${selector} >> ${inner}`),
     count: async () => {
       await step("count", selector);
+      // The page's forms, or the form's submit buttons.
+      if (selector === "xpath=//form") return dom?.forms.length ?? 0;
       return script.submitButtons ?? 1;
     },
     fill: async (value) => step("fill", selector, value),
@@ -76,6 +82,10 @@ export function fakePage(script: {
     popups,
     routeHandler: () => handler,
     closed: () => isClosed,
+    defaultTimeout: () => timeoutMs,
+    setDefaultTimeout: (ms) => {
+      timeoutMs = ms;
+    },
     firePopup: () => {
       const popup = { closed: false };
       popups.push(popup);
@@ -89,9 +99,10 @@ export function fakePage(script: {
     },
     goto: async (to) => {
       await step("goto", undefined, to);
-      const page = script.pages[to];
-      if (!page) throw new Error(`no synthetic page at ${to}`);
-      url = to;
+      const landed = script.redirects?.[to] ?? to;
+      const page = script.pages[landed];
+      if (!page) throw new Error(`no synthetic page at ${landed}`);
+      url = landed;
       dom = page();
       return null;
     },

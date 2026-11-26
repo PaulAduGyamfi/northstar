@@ -13,7 +13,6 @@ export type BrowserLauncher = {
   launch(options: { headless: boolean; executablePath?: string }): Promise<{
     newContext(options: { acceptDownloads: boolean; serviceWorkers: "block" }): Promise<{
       newPage(): Promise<DriverPage>;
-      close(): Promise<void>;
     }>;
     close(): Promise<void>;
   }>;
@@ -42,13 +41,9 @@ export async function launchFormDriver(
       page,
       hosts: options.hosts,
       ...(options.stepTimeoutMs === undefined ? {} : { stepTimeoutMs: options.stepTimeoutMs }),
-      onClose: async () => {
-        try {
-          await context.close();
-        } finally {
-          await browser.close();
-        }
-      },
+      // Closing the browser closes its context and every page at once: a context close that
+      // hangs can't keep a click waiting behind it.
+      onClose: () => browser.close(),
     });
   } catch (error) {
     // A browser that started but couldn't open a page must not be left running.

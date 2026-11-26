@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { greenhouse } from "../adapters/greenhouse.js";
 import { type BrowserLauncher, launchFormDriver } from "./launch.js";
@@ -21,9 +24,6 @@ function fakeLauncher(failNewPage = false) {
               calls.push("newPage");
               if (failNewPage) throw new Error("page crashed");
               return fakePage({ pages: {} });
-            },
-            close: async () => {
-              calls.push("context.close");
             },
           };
         },
@@ -58,11 +58,19 @@ describe("launchFormDriver", () => {
     expect(options[0]).toEqual({ headless: true });
   });
 
-  it("closes the context and then the browser when the driver closes", async () => {
+  it("closes the whole browser at once when the driver closes", async () => {
     const { launcher, calls } = fakeLauncher();
     const driver = await launchFormDriver({ hosts: greenhouse.hosts }, launcher);
     await driver.close();
-    expect(calls.slice(3)).toEqual(["context.close", "browser.close"]);
+    expect(calls.slice(3)).toEqual(["browser.close"]);
+  });
+
+  it("is the only file in the package that imports playwright-core", () => {
+    const root = fileURLToPath(new URL("../..", import.meta.url));
+    const importers = readdirSync(root, { recursive: true, encoding: "utf8" })
+      .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
+      .filter((f) => /from\s+["']playwright-core["']/.test(readFileSync(join(root, f), "utf8")));
+    expect(importers).toEqual([join("apply", "browser", "launch.ts")]);
   });
 
   it("closes the browser when it can't open a page", async () => {

@@ -29,8 +29,17 @@ Paul's own approval, so they stay with him.
     hidden field. It clicks the form's one submit button, refusing when there are none or several.
     Then it waits for the page to settle and returns a challenge or the page.
   - `close()` aborts the session. A step still running stops before its next browser action, so a
-    timed-out submit never presses the button later. It then closes the browser context.
-  - Every main-frame navigation off `hosts` is aborted (`page.route`); a popup is closed.
+    timed-out submit never presses the button later. `launchFormDriver`'s close then shuts the
+    whole browser at once. Every action also has the step's time limit (`setDefaultTimeout`).
+  - Every main-frame navigation request off `hosts` is aborted (`page.route`), and a popup is
+    closed. `page.route` doesn't see a server's redirect hops, so every snapshot also refuses a
+    page whose URL is off `hosts`.
+  - Forms are found again with `xpath=//form`, which counts the same forms in the same order as
+    `document.forms` (CSS would count forms in shadow roots too). Before typing anything, the form
+    count must still match the one read.
+  - What `collectPage` reports is checked in Node (`checkCollected`: shape, strings, limits),
+    since the page's own script runs beside it.
+  - After submit, a page that never goes quiet still gets its snapshot.
 - **Reading a page** (`src/apply/browser/collect.ts`) is one self-contained function run inside
   the page (`page.evaluate`). It is written against a small DOM shape, so its tests run in Node on
   plain objects:
@@ -72,8 +81,12 @@ Paul's own approval, so they stay with him.
 ## Failure modes
 - The browser crashes, times out or can't find the submit button: the driver throws. The gateway
   turns it into a `driver_error` handoff (it already does), and Paul checks the posting.
-- A redirect off the ATS's hosts: the navigation is aborted and `open` throws. That is also a
-  `driver_error` handoff, and the gateway's own host check stays.
+- A redirect off the ATS's hosts:
+  - a script's navigation is aborted;
+  - a server's 302 isn't seen by the route, but the snapshot refuses the page it lands on.
+
+  Either way `open` throws, which is a `driver_error` handoff, and the gateway's own host check
+  stays.
 - A wall the driver doesn't recognize: the gateway finds no confirmation (`no_confirmation`
   handoff), so the result is never a false "submitted".
 
@@ -88,6 +101,17 @@ outcomes. The driver logs nothing and never puts field values in an error.
 - Pre-fill through the extension (#161).
 
 ## Open questions
+- **Single-page forms.** `networkidle` returns at once when the page was already idle, so on a
+  single-page form (Ashby and Lever post over XHR) the snapshot may come before the confirmation
+  renders. That ends in a `no_confirmation` handoff, never a false "submitted". Recorded pages
+  decide the right wait (#76).
+- **The page's own script.** `collectPage` and `chooseOptions` run beside the page's script, which
+  could make them report a different form or click a different option. That needs script on the
+  ATS's own origin, which could rewrite the submitted payload anyway. The reported shape is
+  checked; the option clicked is not checked again from outside the page.
+- **Rails-style forms.** These pair a hidden `x` with a checkbox `x`. Today that reads as two
+  fields with one name, and the later one wins. Recorded Greenhouse pages will show whether this
+  happens.
 - Whether real Greenhouse forms show reCAPTCHA as a visible widget. If they do, every Greenhouse
   submission becomes a `captcha` handoff, which is ADR-0003's intended behavior. The recorded
   pages will tell.
