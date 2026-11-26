@@ -407,6 +407,20 @@
       "when": 1795683533099,
       "tag": "0057_vault_reveal_immediate",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1795684673637,
+      "tag": "0058_independent_work",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795684675236,
+      "tag": "0059_independent_work_append_only",
+      "breakpoints": true
     }
   ]
 }

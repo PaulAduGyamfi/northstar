@@ -149,6 +149,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   from the current resume import (in code, not in the database). The text
   is Paul's words: its `thesis.approved` event carries the version and atom count only, never the
   text. Callers run `checkThesis` (`packages/profile`) before saving.
+- Independent work (NS-196, DX-010) is `independent_work_set` (a version per stored file, with
+  its SHA-256), `independent_work_entry` and `independent_work_line`, append-only (triggers),
+  written only through `independent-work-write.ts`; the newest version is current and the same
+  content stores nothing. Titles, lines and links are Paul's words: `independent_work.set`
+  carries the version and counts only.
 - Mail tags and links (NS-158) are `mail_tag` (one tag per application or tenant, never reused)
   and `mail_link` (one decision per Gmail message: linked by a step, or queued with a reason),
   append-only, written only through `mail-link-write.ts`. They hold Gmail ids, tags, steps and

@@ -57,6 +57,20 @@ export {
 // Factual answers from Paul's settings (NS-141), used by package assembly (NS-161).
 export { answerFactual, type FactualAnswer, type Setting } from "./factual.js";
 export { type ImportDeps, type ImportResult, importResume } from "./import.js";
+// Gap-to-proof (NS-196, DX-010): Paul's independent work, its resume section and the 20-second
+// answer, plain code over his own file.
+export {
+  type AnswerSource,
+  independentWorkSection,
+  MAX_ANSWER_WORDS,
+  parseIndependentWork,
+  type Since,
+  sinceFromFacts,
+  type TwentySecondAnswer,
+  twentySecondAnswer,
+  type WorkEntry,
+  type WorkProblem,
+} from "./independent-work.js";
 export {
   type Choice,
   type InterviewDeps,

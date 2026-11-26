@@ -209,6 +209,14 @@ export {
   resolveHandoff,
 } from "./handoff-write.js";
 export { readSystemHealth } from "./health-read.js";
+export * as independentWorkSchema from "./independent-work-schema.js";
+export {
+  type IndependentWorkInput,
+  type IndependentWorkView,
+  readIndependentWork,
+  type SetIndependentWorkResult,
+  setIndependentWork,
+} from "./independent-work-write.js";
 export {
   type Ats,
   type DedupeCandidate,
