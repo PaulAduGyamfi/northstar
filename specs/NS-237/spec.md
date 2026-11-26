@@ -70,3 +70,7 @@ later writer puts in the draft: the recipient, subject, thread headers and body.
   the body and the cited stories and atoms. This must land before the Gmail writer, and Approve
   must be refused for a reply request with no stored draft.
 - A caller that runs this from the mail loop (#224 / NS-247).
+- Recomputing the recipient and `replyToOtherDomain` inside `fileReplyDraft` from stored inbound
+  headers (as NS-213 does for package facts). Today they come from the producer, `replyPackage`,
+  and are checked only for shape. The flag is display-only and not hashed, since it follows from
+  headers the hash already pins. The writer slice needs this first.
