@@ -5,12 +5,14 @@ import {
   type Db,
   decideApprovals,
   listOpenHandoffs,
+  readOrigin,
   requestApproval,
   schema,
   setKillSwitch,
 } from "@northstar/db";
 import { createTestDb, seedApplication, setGateClock } from "@northstar/db/testing";
 import {
+  ApplicationId,
   type ApplicationStatus,
   CandidateId,
   packageSha256,
@@ -115,6 +117,13 @@ describe("submitApplication on the real write paths", () => {
       await ledger(),
       proofs.length,
     ]).toEqual(["submitted", "submitted", [{ status: "submitted", reason: null }], 1]);
+  });
+
+  it("records that Paul's approval sent it out (INB-007)", async () => {
+    const decisionId = await approve();
+    await submitApplication(ports(), { candidateId, decisionId, package: pkg });
+    const origin = await readOrigin(db, candidateId, ApplicationId.parse(pkg.applicationId));
+    expect(origin.submittedVia).toBe("approved");
   });
 
   it("submitting twice sends one application", async () => {

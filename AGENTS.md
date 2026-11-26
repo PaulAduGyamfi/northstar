@@ -53,6 +53,13 @@ Exists now:
 - `packages/db/` (NS-105): Drizzle schema, committed migrations (`migrations/`), the one write
   path for status changes (`transitionApplication`: status + event in one transaction) and
   `readEventsAfter`. `domain_event` is append-only (ADR-0012). Tests run on in-process PGlite.
+  Since NS-188 also application origin (INB-007), stored in events: `createApplication`
+  (`origin-write.ts`) writes the row and `application.created` with `startedBy` in one
+  transaction; a move to `submitted` must carry `submittedVia` (`auto` or `approved` from the
+  Apply Gateway by the Gate's `decidedBy`, `handoff` from "I submitted it"), stored in that
+  move's event. `readOrigin` and `readCreditReport` (INB-010: submitted, in process and offer
+  per origin bucket; screen and interview wait for NS-164). Nothing calls `createApplication`
+  yet.
 - `packages/llm/` (NS-106): the LLM gateway, the only importer of `@anthropic-ai/sdk`. Typed
   routes, structured output, caching order, refusal fallback, call records and the `llm.call`
   span. Plus `untrustedBlock` and the request-keyed replay/recording fixtures (ADR-0013).

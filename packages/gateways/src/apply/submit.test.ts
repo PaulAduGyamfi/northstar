@@ -142,6 +142,14 @@ describe("refusals before anything is claimed", () => {
 });
 
 describe("submitting", () => {
+  it("says an application an auto-approve policy cleared went out as auto (INB-007)", async () => {
+    const auto = fakeWorld({ open: form, submit: confirmed, decidedBy: "policy" });
+    const paul = fakeWorld({ open: form, submit: confirmed });
+    await run(auto);
+    await run(paul);
+    expect([auto.submittedVia, paul.submittedVia]).toEqual([["auto"], ["approved"]]);
+  });
+
   it("submits, stores proof and moves the application to submitted", async () => {
     const world = fakeWorld({ open: form, submit: confirmed });
     const result = await run(world);

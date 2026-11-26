@@ -30,6 +30,8 @@ export type FakeWorld = {
   reports: { dependency: string; outcome: CallOutcome; probeToken: string | null }[];
   // The switches and breakers it asked about, in order.
   checks: string[];
+  // How each move to submitted said it went out (INB-007).
+  submittedVia: string[];
   // A decision id for this package; with a refusal, the Gate refuses it that way.
   approve: (pkg: ApplicationPackage, refusal?: "Rejected" | "Undone" | "UndoWindowOpen") => string;
 };
@@ -45,7 +47,10 @@ export function fakeWorld(script: {
   switchesOff?: string[];
   // The breaker's answer (allowed, no probe, by default); a throw stands for Postgres down.
   breaker?: (dependency: string) => Promise<CallDecision>;
+  // Who the Gate says decided: Paul ("user", the default) or an auto-approve policy.
+  decidedBy?: "user" | "policy";
 }): FakeWorld {
+  const submittedVia: string[] = [];
   let status: ApplicationStatus = script.initialStatus ?? "awaiting_approval";
   type GateRefusal = "Rejected" | "Undone" | "UndoWindowOpen";
   const approvals = new Map<string, { subject: string; hash: string; refusal?: GateRefusal }>();
@@ -100,7 +105,7 @@ export function fakeWorld(script: {
       return ok({
         decisionId: input.decisionId,
         requestId: randomUUID(),
-        decidedBy: "user" as const,
+        decidedBy: script.decidedBy ?? "user",
         effectiveAt: new Date(0),
       });
     },
@@ -151,6 +156,7 @@ export function fakeWorld(script: {
       return s ? ok({ ...s }) : err({ kind: "NotInProgress" as const });
     },
     transitionApplication: async (input) => {
+      if (input.to === "submitted") submittedVia.push(input.submittedVia ?? "missing");
       if (input.from !== status) {
         return err({
           kind: "StaleStatus" as const,
@@ -188,6 +194,7 @@ export function fakeWorld(script: {
     driverCalls,
     reports,
     checks,
+    submittedVia,
     approve: (pkg, refusal) => {
       const id = randomUUID();
       const record = { subject: packageSubject(pkg), hash: packageSha256(pkg) };

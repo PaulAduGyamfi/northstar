@@ -236,6 +236,15 @@ export {
   type TagTarget,
   type TagView,
 } from "./mail-link-write.js";
+// Application origin and the credit report (NS-188, INB-007, INB-010).
+export {
+  type CreditReport,
+  createApplication,
+  type Origin,
+  readCreditReport,
+  readOrigin,
+  type StageCounts,
+} from "./origin-write.js";
 export * as passkeySchema from "./passkey-schema.js";
 // Paul's passkeys (NS-178, ADR-0022).
 export {

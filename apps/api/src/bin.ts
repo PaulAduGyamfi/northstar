@@ -29,9 +29,7 @@ import {
   savePasskey,
   setKillSwitch,
   soleCandidate,
-  transitionApplication,
 } from "@northstar/db";
-import { ApplicationId } from "@northstar/domain";
 import {
   type CallGuard,
   createAnthropicClient,
@@ -52,6 +50,7 @@ import { dbApprovalPorts } from "./approval-ports.js";
 import { approvalEndpoints } from "./approvals.js";
 import { captureEndpoint } from "./capture.js";
 import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
+import { markHandoffSubmitted } from "./handoff-ports.js";
 import { handoffEndpoints } from "./handoffs.js";
 import { passkeyEndpoints } from "./passkeys.js";
 import { pipelineEndpoints } from "./pipeline.js";
@@ -160,20 +159,8 @@ try {
     listOpen: async () => listOpenHandoffs(db, await candidateId()),
     resolve: async (handoffId, outcome) =>
       resolveHandoff(db, { candidateId: await candidateId(), handoffId, outcome }),
-    markSubmitted: async (applicationId, idempotencyKey) => {
-      const moved = await transitionApplication(db, {
-        candidateId: await candidateId(),
-        applicationId: ApplicationId.parse(applicationId),
-        from: "needs_human",
-        to: "submitted",
-        actor: "user",
-        reason: "",
-        inputsSummary: "",
-        links: [],
-        idempotencyKey,
-      });
-      return { ok: moved.ok };
-    },
+    markSubmitted: async (applicationId, idempotencyKey) =>
+      markHandoffSubmitted(db, await candidateId(), applicationId, idempotencyKey),
   });
   // Employer accounts (NS-124), read-only from the tenant registry.
   const accounts = accountsEndpoints({

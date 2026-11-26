@@ -13,6 +13,7 @@ import {
   ok,
   parseDomainEvent,
   type Result,
+  type SubmittedVia,
 } from "@northstar/domain";
 import { isSpanContextValid, type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 import { and, eq } from "drizzle-orm";
@@ -34,6 +35,9 @@ export type TransitionInput = {
   // The key names one attempt, not one kind of move: a legal loop (queued → … → awaiting_approval
   // → queued) needs a fresh key each time round, or the second lap silently replays the first.
   idempotencyKey: string;
+  // How it went out (INB-007): required for a move to `submitted`, and stored in that move's
+  // event, so the origin is written in the same transaction as the move. Ignored otherwise.
+  submittedVia?: SubmittedVia;
   // Injected clock for tests; defaults to the current time.
   now?: Date;
 };
@@ -46,13 +50,16 @@ export type StaleStatus = {
 };
 export type NotFound = { kind: "NotFound"; applicationId: string };
 export type IdempotencyKeyReused = { kind: "IdempotencyKeyReused"; idempotencyKey: string };
+// A move to `submitted` that doesn't say how it went out (INB-007).
+export type MissingSubmittedVia = { kind: "MissingSubmittedVia" };
 
 export type TransitionError =
   | IllegalTransition
   | InvalidEvent
   | StaleStatus
   | NotFound
-  | IdempotencyKeyReused;
+  | IdempotencyKeyReused
+  | MissingSubmittedVia;
 
 export type TransitionResult = StoredEvent & { replayed: boolean };
 
@@ -102,6 +109,8 @@ async function transition(
   // 1. Plain code decides whether the move is legal (ADR-0007). No database work if it isn't.
   const legal = nextStatus(input.from, input.to);
   if (!legal.ok) return legal;
+  const submitted = input.to === "submitted";
+  if (submitted && input.submittedVia === undefined) return err({ kind: "MissingSubmittedVia" });
 
   // 2. Build and check the event before the transaction starts, so a bad one writes nothing.
   const spanContext = span.spanContext();
@@ -114,7 +123,11 @@ async function transition(
     actor: input.actor,
     reason: input.reason,
     inputsSummary: input.inputsSummary,
-    payload: { from: input.from, to: input.to },
+    payload: {
+      from: input.from,
+      to: input.to,
+      ...(submitted ? { submittedVia: input.submittedVia } : {}),
+    },
     links: input.links,
     // A no-op tracer (OpenTelemetry not set up) has an all-zero context: store null instead.
     traceId: isSpanContextValid(spanContext) ? spanContext.traceId : null,
@@ -181,7 +194,9 @@ async function findReplay(tx: Tx, event: DomainEvent): Promise<TransitionResult 
   const sameMove =
     row.aggregate === event.aggregate &&
     row.type === event.type &&
-    row.payload.from === event.payload.from;
+    row.payload.from === event.payload.from &&
+    // A repeat must say the same about how it went out (INB-007).
+    row.payload.submittedVia === event.payload.submittedVia;
   if (!sameMove) {
     throw new Rollback({ kind: "IdempotencyKeyReused", idempotencyKey: event.idempotencyKey });
   }
