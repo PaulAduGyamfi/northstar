@@ -29,6 +29,23 @@ function count(p: Payload, key: string): number | undefined {
   return typeof v === "number" && Number.isSafeInteger(v) && v >= 0 ? v : undefined;
 }
 
+// A tenant or ATS name as a verification window stores it ("Acme", "Workday"): letters, digits,
+// spaces and a few marks, never markup (the same CHECK as verification_window in packages/db).
+const LABEL = /^[A-Za-z0-9][A-Za-z0-9 .&'-]{0,63}$/;
+
+function label(p: Payload, key: string): string | undefined {
+  const v = p[key];
+  return typeof v === "string" && LABEL.test(v) ? v : undefined;
+}
+
+// "Acme (Workday)", or "an employer account" when the names are missing or malformed.
+function tenantAts(p: Payload): string {
+  const tenant = label(p, "tenant");
+  if (!tenant) return "an employer account";
+  const ats = label(p, "ats");
+  return ats ? `${tenant} (${ats})` : tenant;
+}
+
 const words = (s: string) => s.replaceAll("_", " ");
 const capitalize = (s: string) => (s === "" ? s : s[0]?.toUpperCase() + s.slice(1));
 const who = (actor: string) => (actor === "user" ? "You" : "Northstar");
@@ -91,6 +108,10 @@ const TEMPLATES: Record<string, Template> = {
     const purpose = name(p, "purpose");
     return `Used the saved password for ${tenant}${purpose ? ` to ${words(purpose)}` : ""}`;
   },
+  // Verification windows (NS-151, VER-005): the tenant and ATS only, never a code or link.
+  "verification.verified": (p) => `Verified email for ${tenantAts(p)}`,
+  "verification.resend": (p) => `Sent the email code again for ${tenantAts(p)}`,
+  "verification.needs_human": (p) => `Couldn't verify email for ${tenantAts(p)}: needs your hands`,
   // Mail links (NS-158): the step or reason only, never an address, subject or sender.
   "mail.linked": (p) => {
     const by: Record<string, string> = {

@@ -442,6 +442,20 @@
       "when": 1795689705586,
       "tag": "0062_growth_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1795691848092,
+      "tag": "0063_verification_window",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1795691849063,
+      "tag": "0064_verification_window_append_only",
+      "breakpoints": true
     }
   ]
 }

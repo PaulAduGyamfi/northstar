@@ -27,6 +27,7 @@ export default defineConfig({
     "./src/audit-schema.ts",
     "./src/independent-work-schema.ts",
     "./src/growth-schema.ts",
+    "./src/verification-schema.ts",
   ],
   out: "./migrations",
 });

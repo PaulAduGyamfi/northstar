@@ -424,6 +424,21 @@ export {
   VAULT_SUBSYSTEM,
   type VaultLocked,
 } from "./vault-write.js";
+export * as verificationSchema from "./verification-schema.js";
+// Verification windows shared by the mail reader and the gateway (NS-151).
+export {
+  claimVerificationMessage,
+  closeVerificationWindow,
+  dbWindowStore,
+  isMessageUsed,
+  openVerificationWindow,
+  readOpenWindows,
+  readVerificationWindow,
+  restartVerificationWindow,
+  type StoredWindowRow,
+  type WindowCloseReason,
+  type WindowPurpose,
+} from "./verification-write.js";
 export * as voiceSchema from "./voice-schema.js";
 // Paul's voice profile, its review and his draft edits (NS-185).
 export {
