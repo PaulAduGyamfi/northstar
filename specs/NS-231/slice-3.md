@@ -15,7 +15,12 @@ than people notice. They should be refused when the file is read, so nothing sto
 ## Behavior
 - **`parseIndependentWork`** refuses a title, a line or a link that holds any `\p{Cf}` character,
   with its own message ("… can't hold an invisible formatting character"), the same way as any
-  other bad line: the file returns every problem and nothing is stored.
+  other bad line: the file returns every problem and nothing is stored. After the security review
+  the same check also refuses line and paragraph separators (U+2028, U+2029: one stored line shown
+  as two in the LinkedIn copy) and the usual blank-looking characters that aren't formatting ones
+  (the Hangul fillers, the braille blank U+2800, the grapheme joiner U+034F, the variation
+  selectors). Accented and non-Latin text still reads. A zero-width joiner (U+200D, a `\p{Cf}`)
+  is refused too, so emoji joined sequences are.
 - **A byte-order mark at the very start of the file** (U+FEFF, which some editors save) is not
   refused: each line is already trimmed, and JavaScript's `trim()` drops U+FEFF at either end, so
   a saved file isn't refused on line 1. A U+FEFF inside a field is refused like any other

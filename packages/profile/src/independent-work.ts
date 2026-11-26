@@ -33,7 +33,11 @@ const CONTROL = /\p{Cc}/u;
 // read differently from what is stored, and a zero-width space or joiner hides inside a word.
 // `trim()` already drops one at either end of a line (an editor's byte-order mark), so only one
 // inside a field is refused.
-const FORMAT = /\p{Cf}/u;
+// Since its security review also line and paragraph separators (U+2028, U+2029: one stored line
+// shown as two) and the usual blank-looking characters that aren't formatting ones: the Hangul
+// fillers, the braille blank, the combining grapheme joiner and the variation selectors.
+// The joiner and the selectors are combining marks, so they sit outside the class.
+const FORMAT = /[\p{Cf}\p{Zl}\p{Zp}\u115f\u1160\u3164\uffa0\u2800]|\u034f|\p{Variation_Selector}/u;
 const formatProblem = (what: string) => `${what} can't hold an invisible formatting character`;
 
 // The database stores only links starting with exactly `https://` (case matters) and no control
