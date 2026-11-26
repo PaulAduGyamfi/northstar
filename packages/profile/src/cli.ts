@@ -24,6 +24,7 @@ import {
   settingsSetCommand,
   settingsShowCommand,
 } from "./settings-cli.js";
+import { parseSiteText } from "./site.js";
 import { parseDrop, type TailorCliDeps, tailorCommand } from "./tailor-cli.js";
 import { type ThesisDraftResult, thesisProblems } from "./thesis-draft.js";
 import { type WorkCliDeps, workCommand } from "./work-cli.js";
@@ -81,6 +82,10 @@ export async function main(deps: CliDeps): Promise<number> {
   if (command === "show") return showCommand(deps);
   if (command === "import-linkedin" && path && flags.length === 0) {
     return importLinkedinCommand(deps, path);
+  }
+  // Paul's personal site, from a file he saved (NS-209).
+  if (command === "import-site" && path && flags.length === 0) {
+    return importSiteCommand(deps, path);
   }
   if (command === "interview") {
     const rest = deps.argv.slice(1);
@@ -535,5 +540,37 @@ async function importLinkedinCommand(deps: CliDeps, folder: string): Promise<num
     `Imported your LinkedIn export: ${plural(c.roles, "position")}, ${c.education} education, ${plural(c.atoms, "atom")}, ${plural(c.skills, "skill")}.`,
   );
   deps.print("Run `profile facts check` to compare it with your official record.");
+  return 0;
+}
+
+// `profile import-site <file>` (NS-209): Paul's personal site, from a file he saved himself, as its
+// own source. Prints counts only. A file with any bad line stores nothing.
+async function importSiteCommand(deps: CliDeps, path: string): Promise<number> {
+  const name = basename(path);
+  const parsed = parseSiteText(await deps.readText(path));
+  if (!parsed.ok) {
+    deps.print(`Not imported: ${name} has lines to fix first. Nothing was written.`);
+    for (const p of parsed.error)
+      deps.print(p.line > 0 ? `  line ${p.line}: ${p.problem}` : `  ${p.problem}`);
+    return 1;
+  }
+  const report = await deps.storeImport({
+    kind: "site",
+    fileName: name,
+    textSha256: parsed.value.textSha256,
+    // No model: version 0 and "none" mark a deterministic import.
+    promptVersion: 0,
+    model: "none",
+    traceId: null,
+    call: {},
+    extract: parsed.value.extract,
+  });
+  if (report.status === "unchanged") {
+    deps.print("Your site file is unchanged since the last import. Nothing to do.");
+    return 0;
+  }
+  deps.print(
+    `Imported your site: ${plural(parsed.value.projects, "project")}, ${plural(report.counts.atoms, "atom")}, ${plural(report.counts.links, "link")}.`,
+  );
   return 0;
 }

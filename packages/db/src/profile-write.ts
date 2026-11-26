@@ -15,7 +15,8 @@ import { domainEvent } from "./schema.js";
 
 type Month = string | null;
 
-export const PROFILE_SOURCE_KINDS = ["resume", "linkedin"] as const;
+// The resume, Paul's LinkedIn export (NS-133) and his personal site (NS-209).
+export const PROFILE_SOURCE_KINDS = ["resume", "linkedin", "site"] as const;
 export type ProfileSourceKind = (typeof PROFILE_SOURCE_KINDS)[number];
 
 // A validated extraction ready to store. packages/profile builds it after the provenance check;
@@ -189,7 +190,9 @@ export async function writeProfileImport(db: Db, input: ProfileImportInput): Pro
       reason:
         kind === "linkedin"
           ? "LinkedIn export imported into the profile graph"
-          : "Resume imported into the profile graph",
+          : kind === "site"
+            ? "Personal site imported into the profile graph"
+            : "Resume imported into the profile graph",
       inputsSummary: `${kind} source ${source.id}`,
       payload: {
         // Only for a non-resume source, so a resume import's event is as it always was.
