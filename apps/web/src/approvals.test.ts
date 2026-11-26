@@ -3,6 +3,7 @@ import {
   batchUndoLabel,
   KIND_WORDS,
   QueueBody,
+  replyLines,
   secondsLeft,
   summarizeOutcomes,
   undoErrorWords,
@@ -114,5 +115,51 @@ describe("summarizeOutcomes", () => {
         { requestId: "a", outcome: "rejected", decisionId: "d1", effectiveAt: "x" },
       ]),
     ).toBe("Rejected 1.");
+  });
+});
+
+describe("reply drafts (NS-237)", () => {
+  const REPLY = {
+    to: "jo@acme.example",
+    replyToOtherDomain: false,
+    subject: "Re: Your application",
+    body: "Hi Jo, thank you.",
+    cites: ["atom-1", "story-2"],
+    followUps: ["Which week suits you?"],
+  };
+
+  it("shows who it goes to first, then the subject, body, questions and how much it cites", () => {
+    expect(replyLines(REPLY)).toEqual([
+      "To: jo@acme.example",
+      "Subject: Re: Your application",
+      "Hi Jo, thank you.",
+      "Question for you: Which week suits you?",
+      "It cites 2 of your stories or atoms.",
+    ]);
+  });
+
+  it("warns right under the address when the reply goes to another domain than the sender's", () => {
+    expect(replyLines({ ...REPLY, replyToOtherDomain: true, cites: [], followUps: [] })).toEqual([
+      "To: jo@acme.example",
+      "Check the address: the sender asked for replies on another domain than theirs.",
+      "Subject: Re: Your application",
+      "Hi Jo, thank you.",
+      "It cites none of your stories or atoms.",
+    ]);
+  });
+
+  it("says when an approve was refused because a reply had no draft", () => {
+    expect(
+      summarizeOutcomes([
+        { requestId: "a", outcome: "missing_draft" },
+        { requestId: "b", outcome: "missing_draft" },
+      ]),
+    ).toBe("2 replies have no draft to show, so they weren't approved.");
+  });
+
+  it("says when a reply to another domain must be approved on its own", () => {
+    expect(summarizeOutcomes([{ requestId: "a", outcome: "approve_alone" }])).toBe(
+      "1 reply goes to another domain than the sender's: show it and approve it on its own.",
+    );
   });
 });
