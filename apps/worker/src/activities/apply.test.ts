@@ -87,7 +87,8 @@ describe("the submitApplication activity", () => {
     await expect(activities.submitApplication(args)).resolves.toEqual({
       kind: "refused",
       refusal: "UndoWindowOpen",
-      waitMs: 90_000,
+      // 90 s to the window's end, plus a second for clock skew.
+      waitMs: 91_000,
     });
   });
 

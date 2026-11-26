@@ -20,7 +20,8 @@ can't be requested again, and nothing appears in the feed.
    `null` for every other refusal and after a successful withdrawal.
 2. **The worker waits it out** (`apps/worker`, `src/activities/apply.ts`). A
    `NotApprovedError("ContentChanged")` with a `retryAt` becomes a dated `UndoWindowOpen` wait:
-   - `{ kind: "refused", refusal: "UndoWindowOpen", waitMs }`, until `retryAt`;
+   - `{ kind: "refused", refusal: "UndoWindowOpen", waitMs }`, until `retryAt` plus a second
+     (the Gate decides by the database's clock);
    - `decide` already treats `UndoWindowOpen` as "not now", within its 20 waits;
    - the next call finds `ContentChanged` again, the window has closed, and the withdrawal goes
      through, giving the Gate's `approval.withdrawn` feed line;
@@ -29,14 +30,14 @@ can't be requested again, and nothing appears in the feed.
    `retryAt`, is final as before.
 
 ## Acceptance criteria
-- [ ] Gateway test on the real write paths (PGlite): a package edited inside the undo window
+- [x] Gateway test on the real write paths (PGlite): a package edited inside the undo window
       throws `NotApprovedError("ContentChanged")` with `retryAt` at the decision's `effectiveAt`.
       After the window, a second call withdraws the approval (`approval.withdrawn`) and throws
       with `retryAt: null`.
-- [ ] Activity test: a `ContentChanged` with a `retryAt` returns a dated `UndoWindowOpen` wait.
+- [x] Activity test: a `ContentChanged` with a `retryAt` returns a dated `UndoWindowOpen` wait.
       Without one it is still the non-retryable `NotApproved` failure.
-- [ ] The existing NS-211 tests still pass unchanged.
-- [ ] `pnpm turbo run lint typecheck test build --force` exits 0, and `checks` is green.
+- [x] The existing NS-211 tests still pass unchanged.
+- [x] `pnpm turbo run lint typecheck test build --force` exits 0, and `checks` is green.
 
 ## Out of scope
 - The other two options in #255 (the producer retries, or a separate visible item). The worker
@@ -45,3 +46,10 @@ can't be requested again, and nothing appears in the feed.
 ## Decisions (ADR-0016)
 - **Option 1 of #255 (retry in the worker).** It is the smallest change, with no schema, and
   reuses the existing undo-window wait.
+- **`retryAt` is a private field behind a getter.** It stays out of the error's own fields and
+  out of `toEqual`, so the existing NS-211 assertion `toEqual(new NotApprovedError("ContentChanged"))`
+  holds unchanged (changing an assertion would stop the lane), although that error now carries a
+  `retryAt`. The new test asserts `retryAt` for the same case.
+- **This wait shares the run's 20-wait budget.** A run already near it can end as `gave_up`
+  before the withdrawal goes through. That ending is still a dead letter (NS-226), so it is
+  visible.
