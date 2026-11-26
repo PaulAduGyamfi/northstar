@@ -14,9 +14,10 @@ so a letter waits unseen. And a kind is any dotted name a producer passes, which
 carry a company or person's name into events and spans.
 
 ## Behavior
-- **Allowlist** (`packages/db`, `dead-letter-write.ts`): `DEAD_LETTER_KINDS = ["apply.stale_sweep"]`.
-  `recordDeadLetter` refuses any other kind (`InvalidDeadLetter`, field `kind`), storing nothing.
-  A new producer adds its kind there in its own ticket.
+- **Allowlist: not in this slice.** Limiting `recordDeadLetter` to a fixed list of kinds would
+  change existing assertions in `dead-letter.test.ts`, which record and expect the invented kinds
+  `apply.submit` and `llm.route:story-draft`. An assertion change stops for Paul (ADR-0016), so it
+  is a `needs:paul` follow-up. Until then the page shows an unknown kind as itself, in words.
 - **API** (`apps/api/src/dead-letters.ts`, `auth: "session"`):
   - `GET /dead-letters`: the open letters, oldest first: id, kind, reason code, attempts, time.
     The subject is left out: it names a row, which the page has no use for.
@@ -34,8 +35,6 @@ carry a company or person's name into events and spans.
   reloads. None open: "Nothing is stuck."
 
 ## Acceptance criteria
-- [ ] `recordDeadLetter` refuses a kind not on the list and stores nothing; the sweep's kind
-      passes (db test).
 - [ ] The API lists open letters without the subject, resolves as Paul whatever the body says,
       and maps not found and already resolved (API tests); 401 without a session.
 - [ ] Every kind on the list has words and a next-step line for each action (web test), and an
@@ -54,6 +53,7 @@ carry a company or person's name into events and spans.
 - Running the sweep at once on retry (it runs every 5 minutes; an on-demand run needs the
   worker process, #230).
 - Other producers and their kinds.
+- The kind allowlist (the `needs:paul` follow-up above).
 
 ## Open questions
 - None.

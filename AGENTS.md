@@ -369,7 +369,11 @@ Exists now:
   Since NS-175 also the dead-letter store (RES-007, `dead-letter-write.ts` in `packages/db`,
   append-only): `recordDeadLetter` keeps work that exhausted its retries (kind, subject id, reason
   code, attempts; one per idempotency key), `listOpenDeadLetters` shows what waits, and
-  `resolveDeadLetter` records Paul's retry, skip or hand-off once. No producer or view yet.
+  `resolveDeadLetter` records Paul's retry, skip or hand-off once. Its first producer is the
+  stale-claim sweep (NS-220, `apply.stale_sweep`). Since NS-215 also the view: the API's
+  `GET /dead-letters` (never the subject) and `POST /dead-letters/resolve` (session only, always
+  as Paul; `apps/api/src/dead-letters.ts`), and "Stuck work" on `/health` with Retry, Skip and
+  Hand off buttons that say what happens next (`src/dead-letters.ts`). No kind allowlist yet.
 - Health and feed (NS-125, RES-013, OBS-002): `systemHealth` (`packages/domain`, `health.ts`)
   turns breakers, kill switches and board watches into `healthy / degraded / down` per subsystem
   with a plain reason, and `feedLine` (`feed.ts`) turns an event into one plain sentence from
