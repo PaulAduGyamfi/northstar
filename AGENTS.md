@@ -291,6 +291,23 @@ Exists now:
   route, with the provenance check. Verification mail from any sender (a verification subject
   or a code) is skipped before either; a refusal, invalid output, missing employer or failed
   provenance check goes to review, and a held-back call is thrown for a retry. No storage, Gmail labels (no `gmail.modify`) or caller yet (#224).
+- Interview detection (NS-169, CAL-002), slice 1, plain code in `packages/inbox`
+  (`src/interview/detect.ts`):
+  - `detectInterview` turns one calendar event into an interview for one application. The title
+    must name one, and an organizer or attendee domain must be under exactly one open
+    application's own company domains inside its active window. Shared ATS and freemail domains
+    never pick (`SHARED_DOMAINS`, shared with `matchMail`).
+  - The format comes from fixed words. The interviewers are the company's attendees.
+  - Every detection is `confirmed: false`: invites aren't authenticated, so it is Paul's to
+    confirm and never moves a status.
+  - `interviewFromMail` marks an interview to schedule from a linked `interview_request` or
+    `scheduling` message.
+
+  Only bare `local@domain` addresses count (`bareAddress`).
+
+  ADR-0026 (Proposed) decides `calendar.events.readonly`, on its own consent, under ADR-0014's
+  token model, with fields limited to what detection reads. Writes come later through the Gate.
+  No Calendar client, storage or confirm step yet.
 - Recruiter grading (NS-167, REC-001/002), slice 1:
   - The `recruiter-extract` route (`packages/inbox`, `src/recruiter/`) reads a recruiter email's
     stated facts: title, seniority, company, place, remote kind, pay range, agency or in-house,
