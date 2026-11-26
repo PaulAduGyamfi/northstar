@@ -222,6 +222,11 @@ const TEMPLATES: Record<string, Template> = {
     return decision ? `You ${decision} a request` : "A request was decided";
   },
   "approval.undone": () => "You undid a decision; it is waiting again",
+  // NS-140: Paul took a request back, or a gateway closed an approval whose content changed.
+  "approval.withdrawn": (p) =>
+    name(p, "withdrawnBy") === "gateway"
+      ? "An approval was withdrawn because its content changed; it can be asked for again"
+      : "You withdrew a request; it can be asked for again",
   "approval.policies_set": (p, e) => {
     const rules = count(p, "rules");
     const v = count(p, "version");
