@@ -7,6 +7,7 @@ import {
   isSubsystemOn,
   listApplications,
   listConsentRecords,
+  listOpenDeadLetters,
   listOpenHandoffs,
   listPasskeys,
   listTenants,
@@ -35,6 +36,7 @@ import {
   recordCallOutcome,
   recordCheckIn,
   recordPasskeyUse,
+  resolveDeadLetter,
   resolveHandoff,
   saveFitScore,
   saveIngestedJob,
@@ -66,6 +68,7 @@ import { approvalEndpoints } from "./approvals.js";
 import { captureEndpoint } from "./capture.js";
 import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
 import { consentEndpoints } from "./consent.js";
+import { deadLetterEndpoints } from "./dead-letters.js";
 import { growthEndpoints } from "./growth.js";
 import { markHandoffSubmitted } from "./handoff-ports.js";
 import { handoffEndpoints } from "./handoffs.js";
@@ -210,6 +213,11 @@ try {
   });
   // The unified job inbox (NS-165), read-only.
   const inbox = inboxEndpoints({ read: async () => readInboxThreads(db, await candidateId()) });
+  // Dead letters (NS-215, RES-007): stuck work, and Paul's retry, skip or hand-off.
+  const deadLetters = deadLetterEndpoints({
+    list: async () => listOpenDeadLetters(db, await candidateId()),
+    resolve: async (input) => resolveDeadLetter(db, { candidateId: await candidateId(), ...input }),
+  });
   // The Grow tab (NS-214): check-ins, the dashboard and the weekly review, on packages/db's
   // growth write path.
   const growth = growthEndpoints({
@@ -254,6 +262,7 @@ try {
       ...pipeline,
       ...inbox,
       ...growth,
+      ...deadLetters,
       ...passkeys,
     ],
   });

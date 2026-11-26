@@ -53,6 +53,9 @@ are CSS variables in `apps/web/app/globals.css`.
   and a review through `reviewLines`, every status in words and no guilt copy (UX-032: never
   "missed", "behind" or a broken streak). A check-in form keeps one idempotency key until a save
   succeeds, so a double submit stores one.
+- Stuck work (NS-215, on `/health`, `src/dead-letters.ts`) shows a dead letter's kind and reason
+  in words (`letterLine`), never its subject, and after Retry, Skip or Hand off says what happens
+  next for that kind (`nextStep`). A new producer's kind gets its words there.
 - The Inbox (NS-165, `/inbox`, `src/inbox.ts`) shows Gmail ids, counts, steps and flags only:
   subjects, senders and bodies are never stored, so never fetch or show them. A thread's link is
   shown only when `safeHref` passes and it points at `https://mail.google.com/`.
