@@ -26,6 +26,7 @@ export default defineConfig({
     "./src/voice-schema.ts",
     "./src/audit-schema.ts",
     "./src/independent-work-schema.ts",
+    "./src/growth-schema.ts",
   ],
   out: "./migrations",
 });
