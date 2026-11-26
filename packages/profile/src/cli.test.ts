@@ -2,6 +2,7 @@ import type { OfficialPosition, ProfileView, StoryView, ThesisProfile } from "@n
 import { HeldBack, LlmTransportError } from "@northstar/llm";
 import { describe, expect, it } from "vitest";
 import { type CliDeps, main } from "./cli.js";
+import { CONTACT_USAGE } from "./contact-cli.js";
 import type { ImportResult } from "./import.js";
 import type { InterviewOutcome } from "./interview.js";
 import { SAMPLE_RESUME } from "./test/sample.js";
@@ -80,6 +81,8 @@ function deps(
     saveVoiceProfile: async () => ({ version: 1 }),
     readNewestVoice: async () => null,
     reviewVoiceProfile: async () => ({ ok: true, value: undefined }),
+    setContact: async () => ({ ok: true, value: { saved: true } }),
+    readContact: async () => null,
   };
   return { d, printed, interviewedAtoms };
 }
@@ -734,5 +737,12 @@ describe("profile voice (NS-222)", () => {
   it("is routed to its own command, which prints its own usage", async () => {
     const { d, printed } = deps(["voice"], { kind: "unchanged" });
     expect([await main(d), printed]).toEqual([1, [VOICE_USAGE]]);
+  });
+});
+
+describe("profile contact (NS-227)", () => {
+  it("is routed to its own command, which prints its own usage", async () => {
+    const { d, printed } = deps(["contact"], { kind: "unchanged" });
+    expect([await main(d), printed]).toEqual([1, [CONTACT_USAGE]]);
   });
 });
