@@ -1,5 +1,5 @@
 {
-  "id": "34a97825-1b54-4fb1-aa62-bcac97668975",
+  "id": "98ab874e-4e54-45e6-82c1-4b4225ea74d5",
   "prevId": "c58bc59f-6b7f-4001-ac98-5223c79f1a20",
   "version": "7",
   "dialect": "postgresql",
@@ -6182,7 +6182,7 @@
       "checkConstraints": {
         "posting_check_outcome_valid": {
           "name": "posting_check_outcome_valid",
-          "value": "\"posting_check\".\"outcome\" in ('open', 'closed')"
+          "value": "\"posting_check\".\"outcome\" in ('open', 'closed', 'unavailable')"
         }
       },
       "isRLSEnabled": false

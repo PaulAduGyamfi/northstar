@@ -11,10 +11,12 @@ import {
 } from "drizzle-orm/pg-core";
 import { candidate, job } from "./schema.js";
 
-// Posting liveness (NS-173 slice 2, SRC-010): each re-check of a job's posting that got an
-// answer, append-only (migration trigger), written only through liveness-write.ts. The newest row
-// per job is its state; no row means never checked. An unavailable board stores nothing.
-export const POSTING_OUTCOMES = ["open", "closed"] as const;
+// Posting liveness (NS-173 slice 2, SRC-010): each re-check of a job's posting, append-only
+// (migration trigger), written only through liveness-write.ts. A job is closed after two closed
+// answers in a row (unavailable attempts skipped); no row means never checked.
+// `unavailable` is an attempt the ATS didn't answer: it moves the job back in line but never counts
+// toward closing it.
+export const POSTING_OUTCOMES = ["open", "closed", "unavailable"] as const;
 
 export const postingCheck = pgTable(
   "posting_check",
@@ -31,7 +33,7 @@ export const postingCheck = pgTable(
   },
   (t) => [
     unique("posting_check_position_unique").on(t.position),
-    check("posting_check_outcome_valid", sql`${t.outcome} in ('open', 'closed')`),
+    check("posting_check_outcome_valid", sql`${t.outcome} in ('open', 'closed', 'unavailable')`),
     foreignKey({
       name: "posting_check_job_same_candidate_fk",
       columns: [t.jobId, t.candidateId],

@@ -213,7 +213,7 @@ async function setCommand(
 async function checkCommand(deps: CliDeps): Promise<number> {
   const s = await deps.check();
   deps.print(
-    `Checked ${s.checked} posting${s.checked === 1 ? "" : "s"}: ${s.open} open, ${s.closed} closed, ${s.unavailable} couldn't be reached${s.heldBack > 0 ? `, ${s.heldBack} held back by a switch or breaker` : ""}`,
+    `Checked ${s.checked} posting${s.checked === 1 ? "" : "s"}: ${s.open} open, ${s.closed} closed, ${s.unavailable} couldn't be reached${s.heldBack > 0 ? `, ${s.heldBack} held back by a switch or breaker` : ""}${s.unchecked > 0 ? `, ${s.unchecked} with no API to ask` : ""}`,
   );
   return 0;
 }

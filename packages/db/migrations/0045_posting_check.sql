@@ -6,7 +6,7 @@ CREATE TABLE "posting_check" (
 	"outcome" text NOT NULL,
 	"checked_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "posting_check_position_unique" UNIQUE("position"),
-	CONSTRAINT "posting_check_outcome_valid" CHECK ("posting_check"."outcome" in ('open', 'closed'))
+	CONSTRAINT "posting_check_outcome_valid" CHECK ("posting_check"."outcome" in ('open', 'closed', 'unavailable'))
 );
 --> statement-breakpoint
 ALTER TABLE "posting_check" ADD CONSTRAINT "posting_check_candidate_id_candidate_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidate"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint

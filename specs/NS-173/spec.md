@@ -34,26 +34,34 @@ so they land as two PRs on this issue (as NS-140 did).
 1. `checkPosting(deps, url)` (`packages/sources/src/liveness.ts`): one request through `safeFetch`
    to the posting's ATS API, from the job source's URL (`detectAts`):
    - Greenhouse, Lever, SmartRecruiters single-posting endpoints: 200 open, 404 closed;
-   - Ashby: the board; a posting absent from a board that answered is closed;
-   - anything else (a refused fetch, a 5xx, a malformed answer, an Ashby board that's gone, an
-     ATS with no posting API) is `unavailable` and never closes a job.
-2. `checkPass`: the jobs due (ready, with a checkable ATS source, not closed, not checked in the
-   last 24 h; never-checked first; at most 50 a pass), each behind its `source:<ats>` kill switch
-   and breaker (NS-147). A 404 is the ATS answering; a 5xx counts against its breaker.
-3. `posting_check` (`packages/db`, append-only): one row per answered check. A job that turns
-   closed gets one `job.closed` event (job id and ATS only). `readScorableJobs` leaves closed jobs
-   out of the queue.
+   - Ashby: the board (board byte cap, read once per org per pass); a posting absent from a board
+     that answered is closed;
+   - anything else (a refused fetch, a 5xx, a malformed answer, an Ashby board that's gone) is
+     `unavailable`. EU Lever links (`jobs.eu.lever.co`, served from `api.eu.lever.co`, not on the
+     allowlist) aren't checked: the US API would answer 404.
+2. `checkPass`: the jobs due are ready jobs whose source the ATS's API served (`method = ats_api`:
+   an unlisted Ashby posting read from its page is never on the board, so "absent" would mean
+   nothing), not tried in the last 24 h (closed ones: 7 days, so a wrong closure comes back);
+   never-tried first; at most 50 a pass. Each is behind its `source:<ats>` kill switch and breaker
+   (NS-147); only a 5xx, 429 or failed fetch counts against the breaker (a 404 is an answer). A link
+   with no API to ask touches no breaker.
+3. `posting_check` (`packages/db`, append-only): one row per attempt, `unavailable` included, so a
+   dead link drops back in line instead of taking every pass. A job is closed only after **two
+   closed answers in a row** (unavailable attempts skipped): one mistaken 404 never closes it. It
+   then gets one `job.closed` event and leaves scoring (`readScorableJobs`); a closed job that
+   answers open again gets `job.reopened`. Events carry the job id and ATS only.
 4. CLI `jobs check`: one pass, counts only.
 
-Not in slice 2 (follow-up issue): moving applications that reference a closed job, and the Apply
-Gateway refusing a closed posting; both belong with package assembly (NS-161).
+Not in slice 2 (#209): moving applications that reference a closed job, the Apply Gateway refusing
+a closed posting, and a closed marker in `jobs list`; they belong with package assembly (NS-161).
 
 ### Acceptance criteria (slice 2)
 - [ ] A posting the ATS still serves is open; a 404 (or absent from an answering Ashby board) is
-      closed; a 5xx, a gone board or an unknown link is unavailable and stores nothing.
-- [ ] A job checked in the last day, a closed job and a job without a checkable ATS aren't due.
-- [ ] A job turning closed writes one `job.closed` event; it leaves scoring.
-- [ ] A held-back ATS makes no request.
+      closed; a 5xx, a gone board or an unknown link is unavailable.
+- [ ] A job closes after two closed answers in a row, not one; it leaves scoring, and comes back
+      when a weekly re-check finds it open.
+- [ ] Only API-served sources are due; never-tried first; a job tried in the last day isn't due.
+- [ ] A held-back ATS (switch or breaker) makes no request; a 404 isn't a breaker failure.
 
 ## Acceptance criteria (slice 1)
 - [ ] Every shared adapter test passes for `smartrecruiters`.

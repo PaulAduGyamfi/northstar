@@ -1,6 +1,6 @@
 {
-  "id": "e3f2fecc-6800-4924-b089-605c72c5d89b",
-  "prevId": "34a97825-1b54-4fb1-aa62-bcac97668975",
+  "id": "441b240e-2caa-4240-886d-c00ee8540e38",
+  "prevId": "98ab874e-4e54-45e6-82c1-4b4225ea74d5",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -6182,7 +6182,7 @@
       "checkConstraints": {
         "posting_check_outcome_valid": {
           "name": "posting_check_outcome_valid",
-          "value": "\"posting_check\".\"outcome\" in ('open', 'closed')"
+          "value": "\"posting_check\".\"outcome\" in ('open', 'closed', 'unavailable')"
         }
       },
       "isRLSEnabled": false

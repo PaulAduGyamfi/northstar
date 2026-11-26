@@ -15,32 +15,60 @@ export type CheckableAts = (typeof CHECKABLE_ATS)[number];
 
 export type JobToCheck = { jobId: string; ats: CheckableAts; url: string };
 
-// Every job's newest check, oldest first so later rows replace earlier ones.
-async function latestChecks(
+type JobChecks = {
+  // The two newest answers (open or closed), newest last, with the id of the newest one.
+  answers: ("open" | "closed")[];
+  lastAnswerId: string | null;
+  // The newest attempt of any kind, unavailable included: it sets the job's place in line.
+  lastAttemptAt: Date;
+};
+
+// One mistaken 404 (a renamed board, a region the API doesn't serve) mustn't close a job, so a job
+// is closed only when its two newest answers are both closed. Unavailable attempts are skipped.
+const isClosed = (answers: readonly string[]) =>
+  answers.length === 2 && answers.every((a) => a === "closed");
+
+async function readChecks(
   db: Pick<Db, "select">,
   candidateId: CandidateId,
-): Promise<Map<string, { outcome: PostingOutcome; checkedAt: Date }>> {
+  jobId?: string,
+): Promise<Map<string, JobChecks>> {
   const rows = await db
     .select({
+      id: postingCheck.id,
       jobId: postingCheck.jobId,
       outcome: postingCheck.outcome,
       at: postingCheck.checkedAt,
     })
     .from(postingCheck)
-    .where(eq(postingCheck.candidateId, candidateId))
+    .where(
+      and(
+        eq(postingCheck.candidateId, candidateId),
+        jobId === undefined ? undefined : eq(postingCheck.jobId, jobId),
+      ),
+    )
     .orderBy(asc(postingCheck.position));
-  const latest = new Map<string, { outcome: PostingOutcome; checkedAt: Date }>();
-  for (const r of rows)
-    latest.set(r.jobId, { outcome: r.outcome as PostingOutcome, checkedAt: r.at });
-  return latest;
+  const checks = new Map<string, JobChecks>();
+  for (const r of rows) {
+    const c = checks.get(r.jobId) ?? { answers: [], lastAnswerId: null, lastAttemptAt: r.at };
+    c.lastAttemptAt = r.at;
+    if (r.outcome === "open" || r.outcome === "closed") {
+      c.answers = [...c.answers, r.outcome as "open" | "closed"].slice(-2);
+      c.lastAnswerId = r.id;
+    }
+    checks.set(r.jobId, c);
+  }
+  return checks;
 }
 
-// Ready jobs with a checkable ATS source that aren't closed and weren't checked since
-// `checkedBefore`, never-checked first, then oldest check; at most `limit`.
+// Ready jobs with a source the ATS's API served (an unlisted Ashby posting or an EU Lever one read
+// from its page isn't on the API, so "absent" would mean nothing), whose newest attempt is older
+// than `checkedBefore`, or older than `closedCheckedBefore` for a closed job (a wrong closure can
+// still come back). Never-tried first, then the oldest attempt; at most `limit`.
 export async function readJobsToCheck(
   db: Db,
   candidateId: CandidateId,
-  input: { checkedBefore: Date; limit: number },
+  input: { checkedBefore: Date; closedCheckedBefore: Date; limit: number },
 ): Promise<JobToCheck[]> {
   const sources = await db
     .select({ jobId: jobSource.jobId, ats: jobSource.ats, url: jobSource.url })
@@ -50,26 +78,27 @@ export async function readJobsToCheck(
       and(
         eq(jobSource.candidateId, candidateId),
         eq(job.status, "ready"),
+        eq(jobSource.method, "ats_api"),
         inArray(jobSource.ats, [...CHECKABLE_ATS]),
         isNotNull(jobSource.atsPostingId),
       ),
     )
     .orderBy(asc(jobSource.fetchedAt), asc(jobSource.id));
-  const latest = await latestChecks(db, candidateId);
+  const checks = await readChecks(db, candidateId);
   const seen = new Set<string>();
   const due: (JobToCheck & { lastAt: number })[] = [];
   for (const s of sources) {
     // One source per job: the first one saved.
     if (seen.has(s.jobId)) continue;
     seen.add(s.jobId);
-    const last = latest.get(s.jobId);
-    if (last?.outcome === "closed") continue;
-    if (last && last.checkedAt >= input.checkedBefore) continue;
+    const c = checks.get(s.jobId);
+    const cutoff = c && isClosed(c.answers) ? input.closedCheckedBefore : input.checkedBefore;
+    if (c && c.lastAttemptAt >= cutoff) continue;
     due.push({
       jobId: s.jobId,
       ats: s.ats as CheckableAts,
       url: s.url,
-      lastAt: last?.checkedAt.getTime() ?? 0,
+      lastAt: c?.lastAttemptAt.getTime() ?? 0,
     });
   }
   return due
@@ -78,55 +107,54 @@ export async function readJobsToCheck(
     .map(({ jobId, ats, url }) => ({ jobId, ats, url }));
 }
 
-// Stores one answered check. A job that turns closed gets one `job.closed` event.
+// Stores one attempt. A job that turns closed (its second closed answer in a row) gets one
+// `job.closed` event; a closed job that answers open again gets one `job.reopened`.
 export async function recordPostingCheck(
   db: Db,
   input: { candidateId: CandidateId; jobId: string; ats: CheckableAts; outcome: PostingOutcome },
-): Promise<{ closedNow: boolean }> {
+): Promise<{ closedNow: boolean; reopenedNow: boolean }> {
   return inSpan(
     "job.posting_check",
     { "northstar.job.id": input.jobId, "northstar.posting.outcome": input.outcome },
     (span) =>
       db.transaction(async (tx) => {
-        const [previous] = await tx
-          .select({ outcome: postingCheck.outcome })
-          .from(postingCheck)
-          .where(
-            and(
-              eq(postingCheck.candidateId, input.candidateId),
-              eq(postingCheck.jobId, input.jobId),
-            ),
-          )
-          .orderBy(asc(postingCheck.position))
-          .then((rows) => rows.slice(-1));
+        const before = (await readChecks(tx, input.candidateId, input.jobId)).get(input.jobId);
+        const answers = before?.answers ?? [];
         const [row] = await tx
           .insert(postingCheck)
           .values({ candidateId: input.candidateId, jobId: input.jobId, outcome: input.outcome })
           .returning({ id: postingCheck.id, checkedAt: postingCheck.checkedAt });
         if (!row) throw new Error("posting_check insert returned no row");
-        const closedNow = input.outcome === "closed" && previous?.outcome !== "closed";
-        if (closedNow)
+        const wasClosed = isClosed(answers);
+        const closedNow = input.outcome === "closed" && answers.at(-1) === "closed" && !wasClosed;
+        const reopenedNow = input.outcome === "open" && wasClosed;
+        if (closedNow || reopenedNow) {
+          const type = closedNow ? "job.closed" : "job.reopened";
           await appendEvent(tx, span, {
             candidateId: input.candidateId,
             aggregate: `job:${input.jobId}`,
-            type: "job.closed",
+            type,
             actor: "system",
             // Fixed words only: no title, company or URL.
-            reason: "A saved job's posting has closed; it leaves the queue",
+            reason: closedNow
+              ? "A saved job's posting has closed; it leaves scoring"
+              : "A saved job's posting is open again; it's scored again",
             payload: { jobId: input.jobId, ats: input.ats },
-            idempotencyKey: `job.closed:${row.id}`,
+            // Keyed by the answer before this one: two passes racing write the event once.
+            idempotencyKey: `${type}:${input.jobId}:${before?.lastAnswerId ?? "none"}`,
             at: row.checkedAt,
           });
-        return { closedNow };
+        }
+        return { closedNow, reopenedNow };
       }),
   );
 }
 
-// The jobs whose newest check found the posting closed.
+// The jobs whose two newest answers both found the posting closed.
 export async function readClosedJobIds(
   db: Pick<Db, "select">,
   candidateId: CandidateId,
 ): Promise<Set<string>> {
-  const latest = await latestChecks(db, candidateId);
-  return new Set([...latest].filter(([, c]) => c.outcome === "closed").map(([id]) => id));
+  const checks = await readChecks(db, candidateId);
+  return new Set([...checks].filter(([, c]) => isClosed(c.answers)).map(([id]) => id));
 }
