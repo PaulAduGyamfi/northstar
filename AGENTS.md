@@ -477,7 +477,10 @@ Exists now:
   application that hasn't gone out (`discovered` … `awaiting_approval`) moves to `withdrawn` with
   `reasonCode: "posting_closed"` (feed "Application withdrawn: the job's posting closed"), and
   the Apply Gateway refuses a closed posting (`PostingClosed`, via `isPostingClosed`) before it
-  claims.
+  claims. Since NS-239 the same pass also closes each withdrawn application's open
+  `application_package` Gate request through `withdrawApproval` by `system` (reason
+  `posting_closed`; feed "An approval request was closed because the job's posting closed"),
+  found from its own package rounds, so it leaves the Queue and `verifyApproval` refuses it.
   Since NS-227 (slice 1) also a job's application form: `readGreenhouseForm`
   (`ats/greenhouse-form.ts`) reads a Greenhouse posting's `questions` (`?questions=true`, through
   `safeFetch`) into fields with their label, required flag, kind (`text`, `textarea`, `select`,
@@ -503,7 +506,9 @@ Exists now:
   closes an approval whose content changed (it passes the new hash, which must differ). A
   withdrawn request (`approval_withdrawal`, append-only) is neither pending nor approved:
   `verifyApproval` returns `Withdrawn`, the vault won't open under it, and its subject may be
-  requested again (after Paul's withdrawal, always waiting for him). Since NS-211 the Apply
+  requested again (after Paul's withdrawal, always waiting for him). Since NS-239 the system may also withdraw an
+  `application_package` request whose job's posting closed (`by: "system"`, `posting_closed`;
+  code and the guard trigger refuse any other kind), which doesn't count as Paul's withdrawal. Since NS-211 the Apply
   Gateway is its gateway caller, through `requestOfDecision` (read-only: a decision id to its
   request, scoped by candidate).
   Since NS-139 the queue is in the app: the API's `GET /approvals`, `POST /approvals/decide`

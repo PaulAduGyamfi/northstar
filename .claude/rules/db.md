@@ -74,7 +74,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `approval_decision`, `approval_undo` and (NS-140) `approval_withdrawal`: append-only
   (triggers), written only through `approval-write.ts` (`requestOfDecision`, NS-211, is its read-only
   decision-to-request lookup for gateways). A withdrawn request is closed: every
-  "open", "pending" or "live" check must also exclude it, in SQL (migration 0037) and in code. Reject reasons and draft text never go into events or spans. Every Gate
+  "open", "pending" or "live" check must also exclude it, in SQL (migration 0037) and in code. A
+  withdrawal is by `user` (`paul`), `gateway` (`content_changed`) or, since NS-239, `system`
+  (`posting_closed`, an `application_package` request only; migrations 0080–0081). Reject reasons and draft text never go into events or spans. Every Gate
   time comes from `northstar_gate_now()`, and Gate functions take no time from their caller; never
   override it outside the PGlite test setup (`src/test/global-setup.ts`). Gate transactions stay
   READ COMMITTED.

@@ -1,9 +1,16 @@
 import { ApplicationId, type ApplicationStatus, type CandidateId } from "@northstar/domain";
-import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, notExists, sql } from "drizzle-orm";
+import {
+  approvalDecision,
+  approvalRequest,
+  approvalUndo,
+  approvalWithdrawal,
+} from "./approval-schema.js";
+import { withdrawApproval } from "./approval-write.js";
 import type { Db } from "./db.js";
 import { type POSTING_OUTCOMES, postingCheck } from "./liveness-schema.js";
 import { appendEvent, inSpan } from "./resilience-event.js";
-import { application, job, jobSource } from "./schema.js";
+import { application, domainEvent, job, jobSource } from "./schema.js";
 import { transitionApplication } from "./transition-application.js";
 
 // Posting liveness (NS-173 slice 2, SRC-010): which ready jobs are due a re-check, the only writer
@@ -218,7 +225,96 @@ export async function withdrawClosedApplications(
       failed++;
     }
   }
-  return { withdrawn, failed };
+  // Then close the Gate requests those applications can never use (NS-239), including any left by
+  // an earlier pass or a run that stopped between the two steps.
+  const requests = await closeRequestsOfWithdrawn(db, candidateId, closed);
+  return { withdrawn, failed: failed + requests.failed };
+}
+
+// The open application_package requests of every withdrawn application on a closed job, closed
+// through the Gate's own write path as the system (`posting_closed`). A request is found from the
+// application's own package rounds, so nothing else is touched. Each closure writes its
+// approval.withdrawn event; a repeat finds nothing open.
+async function closeRequestsOfWithdrawn(
+  db: Db,
+  candidateId: CandidateId,
+  closedJobs: ReadonlySet<string>,
+): Promise<{ closed: number; failed: number }> {
+  const apps = await db
+    .select({ id: application.id })
+    .from(application)
+    .where(
+      and(
+        eq(application.candidateId, candidateId),
+        inArray(application.jobId, [...closedJobs]),
+        eq(application.status, "withdrawn"),
+      ),
+    );
+  if (apps.length === 0) return { closed: 0, failed: 0 };
+  // Each round-opening move's key names its package: application:<id>:package:<uuid>:package_ready.
+  const keys = await db
+    .select({ key: domainEvent.idempotencyKey })
+    .from(domainEvent)
+    .where(
+      and(
+        eq(domainEvent.candidateId, candidateId),
+        inArray(
+          domainEvent.aggregate,
+          apps.map((a) => `application:${a.id}`),
+        ),
+        sql`${domainEvent.idempotencyKey} ~ '^application:[0-9a-f-]{36}:package:[0-9a-f-]{36}:package_ready$'`,
+      ),
+    );
+  const subjects = keys.map((k) => `application_package:${k.key.split(":")[3]}`);
+  if (subjects.length === 0) return { closed: 0, failed: 0 };
+  const open = await db
+    .select({ id: approvalRequest.id })
+    .from(approvalRequest)
+    .where(
+      and(
+        eq(approvalRequest.candidateId, candidateId),
+        eq(approvalRequest.kind, "application_package"),
+        inArray(approvalRequest.subject, subjects),
+        notExists(
+          db
+            .select({ one: approvalWithdrawal.id })
+            .from(approvalWithdrawal)
+            .where(eq(approvalWithdrawal.requestId, approvalRequest.id)),
+        ),
+        // Not closed by a live rejection.
+        notExists(
+          db
+            .select({ one: approvalDecision.id })
+            .from(approvalDecision)
+            .where(
+              and(
+                eq(approvalDecision.requestId, approvalRequest.id),
+                eq(approvalDecision.decision, "rejected"),
+                notExists(
+                  db
+                    .select({ one: approvalUndo.id })
+                    .from(approvalUndo)
+                    .where(eq(approvalUndo.decisionId, approvalDecision.id)),
+                ),
+              ),
+            ),
+        ),
+      ),
+    )
+    .orderBy(asc(approvalRequest.id));
+  let closedCount = 0;
+  let failed = 0;
+  for (const r of open) {
+    try {
+      const w = await withdrawApproval(db, { candidateId, requestId: r.id, by: "system" });
+      if (w.ok) closedCount++;
+      // Closed by someone else in the meantime: nothing left to do.
+      else if (w.error.kind !== "AlreadyClosed") failed++;
+    } catch {
+      failed++;
+    }
+  }
+  return { closed: closedCount, failed };
 }
 
 // Whether the application's job is closed (its two newest answers both closed). The Apply

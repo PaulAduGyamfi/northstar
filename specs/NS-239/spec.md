@@ -1,6 +1,6 @@
 # NS-239: Close the Gate request of an application withdrawn because its posting closed
 
-Status: in progress
+Status: done
 Requirements: SRC-010, APR-004 · ADR-0002, ADR-0017
 Rules that apply: ADR-0016, `.claude/rules/db.md`, `.claude/rules/tests.md`.
 Parent: #209, issue #267.
@@ -33,13 +33,13 @@ only through the Gate's own write path.
   request was closed because the job's posting closed".
 
 ## Acceptance criteria
-- [ ] A withdrawn application's pending request, and its approved request, both close. Each leaves
+- [x] A withdrawn application's pending request, and its approved request, both close. Each leaves
       the queue, `verifyApproval` says `Withdrawn`, and an `approval.withdrawn` event is written
       (PGlite).
-- [ ] A repeat closes nothing new; other applications' requests are untouched.
-- [ ] A `system` withdrawal of another kind is refused, in code and by the trigger.
-- [ ] The feed line.
-- [ ] `pnpm turbo run lint typecheck test build` passes.
+- [x] A repeat closes nothing new; other applications' requests are untouched.
+- [x] A `system` withdrawal of another kind is refused, in code and by the trigger.
+- [x] The feed line.
+- [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Decisions made without Paul (ADR-0016)
 - A schema change: the withdrawal CHECKs and the guard function.

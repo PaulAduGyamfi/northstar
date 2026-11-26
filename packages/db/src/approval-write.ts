@@ -865,7 +865,22 @@ export type WithdrawInput =
   | { candidateId: CandidateId; requestId: string; by: "user" }
   // A gateway proves the content changed: the SHA-256 of what it now holds must differ from the
   // approved content. It never asserts it.
-  | { candidateId: CandidateId; requestId: string; by: "gateway"; newContentSha256: string };
+  | { candidateId: CandidateId; requestId: string; by: "gateway"; newContentSha256: string }
+  // The job's posting closed, so the application can never go out (NS-239). Only an
+  // application_package request, and never Paul's withdrawal for the policy rule.
+  | { candidateId: CandidateId; requestId: string; by: "system" };
+
+// Why each withdrawer closes a request: the only reason the database pairs with it.
+const WITHDRAW_REASON = {
+  user: "paul",
+  gateway: "content_changed",
+  system: "posting_closed",
+} as const;
+const WITHDRAW_SENTENCE = {
+  user: "Paul withdrew it; it can be asked for again",
+  gateway: "Withdrawn because the approved content changed; it can be asked for again",
+  system: "Closed because the job's posting closed",
+} as const;
 
 export type WithdrawResult = { withdrawalId: string; requestId: string; decisionId: string | null };
 
@@ -923,6 +938,10 @@ async function withdrawOnce(
       );
     if (!request) return err({ kind: "NotFound" } as const);
     span.setAttribute("northstar.approval.kind", request.kind);
+    // Only an application can have a posting that closed (the trigger refuses it too).
+    if (input.by === "system" && request.kind !== "application_package") {
+      return err({ kind: "NotFound" } as const);
+    }
     if (await isWithdrawn(tx, request.id)) return err({ kind: "AlreadyClosed" } as const);
     const live = await liveDecision(tx, request.id);
     if (live?.decision === "rejected") return err({ kind: "AlreadyClosed" } as const);
@@ -945,7 +964,7 @@ async function withdrawOnce(
         candidateId: input.candidateId,
         requestId: request.id,
         withdrawnBy: input.by,
-        reason: input.by === "user" ? "paul" : "content_changed",
+        reason: WITHDRAW_REASON[input.by],
         withdrawnAt: now,
       })
       .returning({ id: approvalWithdrawal.id, withdrawnAt: approvalWithdrawal.withdrawnAt });
@@ -958,16 +977,13 @@ async function withdrawOnce(
       aggregate: `approval:${request.id}`,
       type: "approval.withdrawn",
       actor: input.by === "user" ? "user" : "system",
-      reason:
-        input.by === "user"
-          ? "Paul withdrew it; it can be asked for again"
-          : "Withdrawn because the approved content changed; it can be asked for again",
+      reason: WITHDRAW_SENTENCE[input.by],
       // Ids and codes only: never content or its hashes.
       payload: {
         withdrawalId: row.id,
         decisionId: closed?.decisionId ?? null,
         withdrawnBy: input.by,
-        reason: input.by === "user" ? "paul" : "content_changed",
+        reason: WITHDRAW_REASON[input.by],
       },
       idempotencyKey: `approval_withdrawal:${row.id}`,
       at: row.withdrawnAt,

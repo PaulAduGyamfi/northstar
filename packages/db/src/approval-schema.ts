@@ -176,12 +176,16 @@ export const approvalWithdrawal = pgTable(
   },
   (t) => [
     unique("approval_withdrawal_one_per_request").on(t.requestId),
-    check("approval_withdrawal_by_valid", sql`${t.withdrawnBy} in ('user', 'gateway')`),
-    check("approval_withdrawal_reason_valid", sql`${t.reason} in ('paul', 'content_changed')`),
-    // Paul withdraws for his own reasons; a gateway only because the content changed.
+    check("approval_withdrawal_by_valid", sql`${t.withdrawnBy} in ('user', 'gateway', 'system')`),
+    check(
+      "approval_withdrawal_reason_valid",
+      sql`${t.reason} in ('paul', 'content_changed', 'posting_closed')`,
+    ),
+    // Paul withdraws for his own reasons; a gateway only because the content changed; the system
+    // only because the job's posting closed (NS-239).
     check(
       "approval_withdrawal_reason_matches_by",
-      sql`(${t.withdrawnBy} = 'user' and ${t.reason} = 'paul') or (${t.withdrawnBy} = 'gateway' and ${t.reason} = 'content_changed')`,
+      sql`(${t.withdrawnBy} = 'user' and ${t.reason} = 'paul') or (${t.withdrawnBy} = 'gateway' and ${t.reason} = 'content_changed') or (${t.withdrawnBy} = 'system' and ${t.reason} = 'posting_closed')`,
     ),
     foreignKey({
       name: "approval_withdrawal_request_same_candidate_fk",
