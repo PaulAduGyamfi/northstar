@@ -14,6 +14,25 @@ export type InboxPorts = { read: () => Promise<Inbox> };
 const GMAIL_ID = /^[0-9a-f]{1,32}$/;
 const gmailUrl = (threadId: string) => `https://mail.google.com/mail/u/0/#all/${threadId}`;
 
+// A recruiter grade (NS-238): codes only, checked again here so no text can reach the page.
+const Grade = z.object({
+  grade: z.enum(["A", "B", "C", "D", "F"]),
+  reasons: z.array(z.string().regex(/^(dealbreaker|[a-z_]+:[a-z_]+)$/)).max(12),
+  confidence: z.enum(["normal", "low"]),
+});
+type GradeView = z.infer<typeof Grade>;
+// Only a graded thread carries the field, picked field by field.
+const gradeOf = (g: { grade: string; reasons: string[]; confidence: string } | undefined) =>
+  g === undefined
+    ? {}
+    : {
+        recruiterGrade: {
+          grade: g.grade as GradeView["grade"],
+          reasons: g.reasons,
+          confidence: g.confidence as GradeView["confidence"],
+        },
+      };
+
 const Thread = z.object({
   gmailThreadId: z.string().regex(GMAIL_ID),
   gmailUrl: z.url({ protocol: /^https$/ }),
@@ -22,6 +41,7 @@ const Thread = z.object({
   step: z.enum(["tag", "thread", "sender"]),
   senderVerified: z.boolean(),
   kind: z.string().nullable(),
+  recruiterGrade: Grade.optional(),
 });
 
 const Application = z.object({
@@ -41,6 +61,7 @@ const Queued = z.object({
   messages: z.number().int().positive(),
   lastReceivedAt: z.string(),
   reason: z.enum(["unknown_tag", "ambiguous", "no_match"]),
+  recruiterGrade: Grade.optional(),
 });
 
 export function inboxEndpoints(ports: InboxPorts): AnyEndpoint[] {
@@ -76,6 +97,7 @@ export function inboxEndpoints(ports: InboxPorts): AnyEndpoint[] {
             step: t.step,
             senderVerified: t.senderVerified,
             kind: t.kind,
+            ...gradeOf(t.recruiterGrade),
           })),
       }));
       const queued = inbox.queued
@@ -86,6 +108,7 @@ export function inboxEndpoints(ports: InboxPorts): AnyEndpoint[] {
           messages: q.messages,
           lastReceivedAt: q.lastReceivedAt.toISOString(),
           reason: q.reason,
+          ...gradeOf(q.recruiterGrade),
         }));
       return { ok: true, body: { applications, queued } };
     },

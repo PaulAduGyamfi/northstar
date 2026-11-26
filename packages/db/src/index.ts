@@ -368,6 +368,15 @@ export {
   writeProfileImport,
 } from "./profile-write.js";
 export { readEventsAfter } from "./read-events.js";
+// Recruiter grades (NS-238, REC-001/002).
+export * as recruiterGradeSchema from "./recruiter-grade-schema.js";
+export {
+  type GradeError,
+  GradeInput,
+  readRecruiterGrades,
+  recordRecruiterGrade,
+  type StoredGrade,
+} from "./recruiter-grade-write.js";
 export * as replySchema from "./reply-schema.js";
 // Reply drafts filed with the Gate (NS-237).
 export {

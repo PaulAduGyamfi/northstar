@@ -3,6 +3,7 @@ import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Db } from "./db.js";
 import { type MATCH_STEPS, mailLink, type QUEUE_REASONS } from "./mail-link-schema.js";
 import { type Origin, readOrigins } from "./origin-write.js";
+import { recruiterGrade } from "./recruiter-grade-schema.js";
 import { inSpan } from "./resilience-event.js";
 import { application, company, job } from "./schema.js";
 
@@ -20,7 +21,12 @@ export type InboxThread = {
   senderVerified: boolean;
   // The mail's kind once the mail-link loop stores classifications (#224); null until then.
   kind: string | null;
+  // The newest graded message's recruiter grade (NS-238); absent when none is graded.
+  recruiterGrade?: ThreadGrade;
 };
+
+// A recruiter grade as the inbox shows it: codes only, never email text.
+export type ThreadGrade = { grade: string; reasons: string[]; confidence: string };
 
 export type InboxApplication = {
   applicationId: string;
@@ -37,6 +43,7 @@ export type QueuedThread = {
   lastReceivedAt: Date;
   // Why the newest message couldn't be linked.
   reason: (typeof QUEUE_REASONS)[number];
+  recruiterGrade?: ThreadGrade;
 };
 
 // A thread with some messages linked and others queued shows up in both groups, each counting
@@ -96,6 +103,39 @@ export async function readInboxThreads(db: Db, candidateId: CandidateId): Promis
       .orderBy(desc(lastReceived), mailLink.gmailThreadId)
       .limit(MAX_INBOX_THREADS);
     const origins = await readOrigins(db, candidateId);
+    // Each thread's newest graded message, keyed by thread and application (null: queued), newest
+    // first so the first row seen per key wins.
+    const grades = new Map<string, ThreadGrade>();
+    const gradeRows = await db
+      .select({
+        gmailThreadId: mailLink.gmailThreadId,
+        applicationId: mailLink.applicationId,
+        grade: recruiterGrade.grade,
+        reasons: recruiterGrade.reasons,
+        confidence: recruiterGrade.confidence,
+      })
+      .from(recruiterGrade)
+      .innerJoin(
+        mailLink,
+        and(
+          eq(mailLink.candidateId, recruiterGrade.candidateId),
+          eq(mailLink.gmailMessageId, recruiterGrade.gmailMessageId),
+        ),
+      )
+      .where(eq(recruiterGrade.candidateId, candidateId))
+      .orderBy(desc(mailLink.receivedAt), desc(mailLink.gmailMessageId));
+    for (const g of gradeRows) {
+      const key = `${g.gmailThreadId}:${g.applicationId ?? ""}`;
+      if (!grades.has(key)) {
+        grades.set(key, { grade: g.grade, reasons: g.reasons, confidence: g.confidence });
+      }
+    }
+
+    // Only a graded thread carries the field.
+    const gradeOf = (key: string) => {
+      const g = grades.get(key);
+      return g === undefined ? {} : { recruiterGrade: g };
+    };
 
     // Rows come newest first, so each application's first thread sets its place in the list.
     const apps = new Map<string, InboxApplication>();
@@ -120,6 +160,7 @@ export async function readInboxThreads(db: Db, candidateId: CandidateId): Promis
         step: r.step as InboxThread["step"],
         senderVerified: r.senderVerified,
         kind: null,
+        ...gradeOf(`${r.gmailThreadId}:${id}`),
       });
     }
     span.setAttributes({
@@ -133,6 +174,7 @@ export async function readInboxThreads(db: Db, candidateId: CandidateId): Promis
         messages: r.messages,
         lastReceivedAt: new Date(r.lastReceivedAt),
         reason: r.reason as QueuedThread["reason"],
+        ...gradeOf(`${r.gmailThreadId}:`),
       })),
     };
   });

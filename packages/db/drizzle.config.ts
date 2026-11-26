@@ -32,6 +32,7 @@ export default defineConfig({
     "./src/file-schema.ts",
     "./src/contact-schema.ts",
     "./src/reply-schema.ts",
+    "./src/recruiter-grade-schema.ts",
   ],
   out: "./migrations",
 });

@@ -133,4 +133,57 @@ describe("GET /inbox", () => {
     const res = await get();
     expect([res.status, JSON.parse(res.body)]).toEqual([503, { error: "unavailable" }]);
   });
+
+  it("passes a thread's recruiter grade on field by field, and leaves it off ungraded threads", async () => {
+    const grade = { grade: "B", reasons: ["title:exact", "pay:unknown"], confidence: "low" };
+    read = async () => ({
+      applications: [
+        {
+          ...(INBOX.applications[0] as Inbox["applications"][number]),
+          threads: [
+            {
+              gmailThreadId: "aa01",
+              messages: 1,
+              lastReceivedAt: T,
+              step: "tag",
+              senderVerified: true,
+              kind: null,
+              recruiterGrade: { ...grade, extra: "never shown" } as typeof grade,
+            },
+          ],
+        },
+      ],
+      queued: [
+        {
+          gmailThreadId: "cc01",
+          messages: 1,
+          lastReceivedAt: T,
+          reason: "no_match",
+          recruiterGrade: grade,
+        },
+        { gmailThreadId: "cc02", messages: 1, lastReceivedAt: T, reason: "no_match" },
+      ],
+    });
+    const body = JSON.parse((await get()).body);
+    expect([
+      body.applications[0].threads[0].recruiterGrade,
+      body.queued.map((q: { recruiterGrade?: unknown }) => q.recruiterGrade ?? null),
+    ]).toEqual([grade, [grade, null]]);
+  });
+
+  it("answers 500 rather than pass on a grade reason that isn't a code", async () => {
+    read = async () => ({
+      applications: [],
+      queued: [
+        {
+          gmailThreadId: "cc01",
+          messages: 1,
+          lastReceivedAt: T,
+          reason: "no_match",
+          recruiterGrade: { grade: "B", reasons: ["Hi Paul <b>call me</b>"], confidence: "normal" },
+        },
+      ],
+    });
+    expect((await get()).status).toBe(500);
+  });
 });

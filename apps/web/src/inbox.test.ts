@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applicationTitle,
+  gradeWords,
   type InboxApplicationView,
   InboxBody,
   originBadge,
@@ -136,5 +137,50 @@ describe("InboxBody", () => {
   it("refuses a status the app has no word for", () => {
     const body = { applications: [{ ...APP, status: "lost" }], queued: [] };
     expect(InboxBody.safeParse(body).success).toBe(false);
+  });
+});
+
+describe("gradeWords", () => {
+  it("says the grade and each reason in words, and when there was little to go on", () => {
+    expect([
+      gradeWords({ grade: "B", reasons: ["title:exact", "pay:unknown"], confidence: "normal" }),
+      gradeWords({ grade: "F", reasons: ["red_flag:upfront_fee"], confidence: "low" }),
+      gradeWords({ grade: "C", reasons: ["mystery:code"], confidence: "normal" }),
+    ]).toEqual([
+      "Recruiter grade B: the title matches, no pay given",
+      "Recruiter grade F: asks for a fee (little to go on)",
+      "Recruiter grade C",
+    ]);
+  });
+
+  it("adds the grade to a graded thread's row and nothing to an ungraded one", () => {
+    const grade = { grade: "A" as const, reasons: ["title:exact"], confidence: "normal" as const };
+    const rows = threadRows(
+      {
+        ...APP,
+        threads: [
+          { ...(APP.threads[0] as InboxApplicationView["threads"][number]), recruiterGrade: grade },
+          APP.threads[1] as InboxApplicationView["threads"][number],
+        ],
+      },
+      NOW,
+    );
+    const queued = queuedRows(
+      [
+        {
+          gmailThreadId: "cc01",
+          gmailUrl: "https://mail.google.com/mail/u/0/#all/cc01",
+          messages: 1,
+          lastReceivedAt: "2026-11-25T12:00:00Z",
+          reason: "no_match",
+          recruiterGrade: grade,
+        },
+      ],
+      NOW,
+    );
+    expect([rows.map((r) => r.grade ?? null), queued[0]?.grade]).toEqual([
+      ["Recruiter grade A: the title matches", null],
+      "Recruiter grade A: the title matches",
+    ]);
   });
 });

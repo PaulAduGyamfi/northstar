@@ -53,6 +53,7 @@ export default async function InboxPage() {
               {queuedRows(inbox.body.queued, now).map((q) => (
                 <li key={q.key}>
                   {q.why} · {q.messages}, {q.received}
+                  {q.grade ? ` · ${q.grade}` : ""}
                   {q.href ? (
                     <>
                       {" · "}
@@ -80,6 +81,7 @@ export default async function InboxPage() {
                     <li key={t.key}>
                       {t.kind} · {t.messages}, {t.received} · {t.linked}
                       {t.unverified ? ` · ${t.unverified}` : ""}
+                      {t.grade ? ` · ${t.grade}` : ""}
                       {t.href ? (
                         <>
                           {" · "}

@@ -430,7 +430,14 @@ Exists now:
     Its reasons are codes only, and confidence is low when two or more of title, pay and place
     are unknown.
 
-  No caller, storage, reply drafts by grade or learning from Paul's actions yet (REC-002/003).
+  Since NS-238 (slice 1) also storage and the view: append-only `recruiter_grade` (`packages/db`,
+  `recruiter-grade-schema.ts`, `recruiter-grade-write.ts`): one grade per message the mail loop
+  recorded (`recordRecruiterGrade` checks its `mail_link`), with the letter, points, reason codes (a CHECK
+  allows codes only) and confidence. `recordRecruiterGrade` writes it once, with a
+  `recruiter.graded` event whose feed line is its fixed-word `reason` ("Graded a recruiter email:
+  B"). `readInboxThreads` gives each thread its newest grade, `GET /inbox` passes it on, and the
+  Inbox tab shows it in words (`gradeWords`). No caller grades mail yet (classifications aren't
+  stored), and there are no reply drafts by grade or learning from Paul's actions (REC-002/003).
 - `packages/funnel/` (NS-113): the 9-month backfill, funnel records derived by plain code from
   `funnel_message` and `funnel_manual_row` (`packages/db`, `funnel-schema.ts`), the tracker CSV
   import, the funnel report (Wilson intervals, rejection latency) and the hypothesis board.
