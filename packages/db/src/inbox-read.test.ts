@@ -4,6 +4,7 @@ import type { Db } from "./db.js";
 import { readInboxThreads } from "./inbox-read.js";
 import { recordMailLink } from "./mail-link-write.js";
 import { createApplication } from "./origin-write.js";
+import { recordRecruiterGrade } from "./recruiter-grade-write.js";
 import { candidate, company, job } from "./schema.js";
 import { createTestDb } from "./test/pglite.js";
 
@@ -177,5 +178,48 @@ describe("readInboxThreads", () => {
     });
     await link(other, "e2", "ee02", 2, { kind: "queued", reason: "no_match" });
     expect(await readInboxThreads(db, candidateId)).toEqual({ applications: [], queued: [] });
+  });
+
+  it("shows each thread's newest recruiter grade, linked or waiting, and only the candidate's own", async () => {
+    const globex = await newApplication(candidateId, "Globex", "Platform Engineer", "northstar");
+    const grade = (id: string, g: string, confidence = "normal") =>
+      recordRecruiterGrade(db, {
+        candidateId,
+        gmailMessageId: id,
+        grade: { grade: g, points: 1, reasons: ["title:partial"], confidence },
+      });
+    // A linked thread with an older and a newer graded message.
+    await link(candidateId, "aa01", "ee01", 1, {
+      kind: "linked",
+      applicationId: globex,
+      step: "tag",
+      senderVerified: true,
+    });
+    await link(candidateId, "aa02", "ee01", 2, {
+      kind: "linked",
+      applicationId: globex,
+      step: "thread",
+      senderVerified: true,
+    });
+    await grade("aa01", "D");
+    await grade("aa02", "B");
+    // A recruiter email waiting to be linked, and an ungraded queued thread.
+    await link(candidateId, "bb01", "ee02", 3, { kind: "queued", reason: "no_match" });
+    await grade("bb01", "C", "low");
+    await link(candidateId, "cc01", "ee03", 4, { kind: "queued", reason: "no_match" });
+    const inbox = await readInboxThreads(db, candidateId);
+    const other = await readInboxThreads(db, await newCandidate());
+    expect([
+      inbox.applications[0]?.threads[0]?.recruiterGrade,
+      inbox.queued.map((q) => [q.gmailThreadId, q.recruiterGrade ?? null]),
+      other,
+    ]).toEqual([
+      { grade: "B", reasons: ["title:partial"], confidence: "normal" },
+      [
+        ["ee03", null],
+        ["ee02", { grade: "C", reasons: ["title:partial"], confidence: "low" }],
+      ],
+      { applications: [], queued: [] },
+    ]);
   });
 });

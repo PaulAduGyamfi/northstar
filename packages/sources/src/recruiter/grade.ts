@@ -1,4 +1,5 @@
 import type { PreferenceValues, ScorableJob } from "@northstar/db";
+import type { RecruiterGradeReason } from "@northstar/domain";
 import { dealbreakerIn, payCheck, placeCheck, titleFit } from "../fit/score.js";
 
 // Grading a recruiter's message A–F (REC-001, REC-002, NS-167). Plain code: the model only read
@@ -26,17 +27,9 @@ export type RecruiterFactsInput = {
 export type Grade = "A" | "B" | "C" | "D" | "F";
 
 // One reason per factor, as `<factor>:<outcome>`: codes only, never email text, so a reason can
-// go into an event or the app as is.
-export type GradeReason =
-  | `title:${"exact" | "partial" | "none" | "unknown"}`
-  | "title:level_mismatch"
-  | `pay:${"ok" | "below" | "unknown"}`
-  | `place:${"ok" | "mismatch" | "unknown"}`
-  | `sender:${"agency" | "in_house" | "unknown"}`
-  | `personal:${"yes" | "no"}`
-  | `company:${"named" | "unnamed"}`
-  | "dealbreaker"
-  | `red_flag:${"upfront_fee" | "sensitive_data" | "vague_role" | "unpaid_work"}`;
+// go into an event or the app as is. The list lives in @northstar/domain, where the store and the
+// API check against it (NS-238).
+export type GradeReason = RecruiterGradeReason;
 
 export type RecruiterGrade = {
   grade: Grade;

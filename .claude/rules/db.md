@@ -228,6 +228,12 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   append-only, written only through `mail-link-write.ts`. They hold Gmail ids, tags, steps and
   reasons: never an address, subject, sender or body. A link never changes an application's
   status; `sender_verified` is what a later automatic change must require (INB-011).
+  Recruiter grades (NS-238) are `recruiter_grade`, append-only (a trigger), one per candidate and
+  Gmail message (`recordRecruiterGrade` checks the message's `mail_link` first), written only through
+  `recruiter-grade-write.ts` (`recordRecruiterGrade`, `readRecruiterGrades`). A CHECK keeps the
+  reasons to the fixed list `RECRUITER_GRADE_REASONS` (`packages/domain`), never email text; `recruiter.graded`
+  carries the message id, grade, confidence and reasons, and its feed line is its fixed-word
+  `reason`.
   `readLinkCandidates` (NS-223) is their read-only candidates reader: applications not in a
   terminal status, with their creation time and the job's and sources' ATS names, never a name or
   address.

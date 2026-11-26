@@ -6,6 +6,14 @@ import { APPLICATION_STATUSES, STATUS_WORDS } from "./pipeline";
 // The unified job inbox (NS-165, INB-006): the API's answer and the plain words the page shows.
 // Gmail ids, counts, steps and flags only: no subject, sender or body exists to show.
 
+// A recruiter grade (NS-238, REC-002): the letter, reason codes and confidence.
+const Grade = z.object({
+  grade: z.enum(["A", "B", "C", "D", "F"]),
+  reasons: z.array(z.string()),
+  confidence: z.enum(["normal", "low"]),
+});
+export type GradeView = z.infer<typeof Grade>;
+
 const Thread = z.object({
   gmailThreadId: z.string().regex(/^[0-9a-f]{1,32}$/),
   gmailUrl: z.string(),
@@ -14,6 +22,7 @@ const Thread = z.object({
   step: z.enum(["tag", "thread", "sender"]),
   senderVerified: z.boolean(),
   kind: z.string().nullable(),
+  recruiterGrade: Grade.optional(),
 });
 
 const Application = z.object({
@@ -33,6 +42,7 @@ const Queued = z.object({
   messages: z.number(),
   lastReceivedAt: z.string(),
   reason: z.enum(["unknown_tag", "ambiguous", "no_match"]),
+  recruiterGrade: Grade.optional(),
 });
 
 export const InboxBody = z.object({ applications: z.array(Application), queued: z.array(Queued) });
@@ -64,6 +74,45 @@ const REASON_WORDS = {
   no_match: "doesn't match any application",
 } as const;
 
+// Each grade reason (gradeRecruiterMessage's codes) in words. An unknown code is left out, never
+// shown raw.
+export const GRADE_REASON_WORDS: Record<string, string> = {
+  "title:exact": "the title matches",
+  "title:partial": "the title partly matches",
+  "title:none": "the title doesn't match",
+  "title:unknown": "no title given",
+  "title:level_mismatch": "a different level",
+  "pay:ok": "pay meets your floor",
+  "pay:below": "pay below your floor",
+  "pay:unknown": "no pay given",
+  "place:ok": "the place fits",
+  "place:mismatch": "the place doesn't fit",
+  "place:unknown": "no place given",
+  "sender:agency": "an agency recruiter",
+  "sender:in_house": "an in-house recruiter",
+  "sender:unknown": "agency or in-house not stated",
+  "personal:yes": "written for you",
+  "personal:no": "not written for you",
+  "company:named": "names the company",
+  "company:unnamed": "doesn't name the company",
+  dealbreaker: "hits one of your dealbreakers",
+  "red_flag:upfront_fee": "asks for a fee",
+  "red_flag:sensitive_data": "asks for sensitive data",
+  "red_flag:vague_role": "the role is vague",
+  "red_flag:unpaid_work": "asks for unpaid work",
+};
+
+// "Recruiter grade B: the title matches, no pay given", plus "(little to go on)" when two or more
+// of title, pay and place were unknown (UX-014: every grade has a why).
+export function gradeWords(g: GradeView): string {
+  // Own keys only, so "constructor" or "toString" can't read the prototype.
+  const why = g.reasons
+    .flatMap((r) => (Object.hasOwn(GRADE_REASON_WORDS, r) ? [GRADE_REASON_WORDS[r] as string] : []))
+    .join(", ");
+  const low = g.confidence === "low" ? " (little to go on)" : "";
+  return `Recruiter grade ${g.grade}${why ? `: ${why}` : ""}${low}`;
+}
+
 export type ThreadRow = {
   key: string;
   // Null when the link isn't https to Gmail: the row then shows no link.
@@ -74,6 +123,8 @@ export type ThreadRow = {
   // "sender not verified" when no message's sender was verified (INB-011), else "".
   unverified: string;
   kind: string;
+  // The recruiter grade in words (NS-238); absent when the thread has none.
+  grade?: string;
 };
 
 const messages = (n: number) => `${n} ${n === 1 ? "message" : "messages"}`;
@@ -97,6 +148,7 @@ export function threadRows(a: InboxApplicationView, nowMs: number): ThreadRow[] 
     unverified: t.senderVerified ? "" : "sender not verified",
     // Classification arrives with the mail-link loop (#224).
     kind: t.kind === null ? "Not classified yet" : t.kind.replaceAll("_", " "),
+    ...(t.recruiterGrade ? { grade: gradeWords(t.recruiterGrade) } : {}),
   }));
 }
 
@@ -106,6 +158,7 @@ export type QueuedRow = {
   messages: string;
   received: string;
   why: string;
+  grade?: string;
 };
 
 export function queuedRows(queued: InboxView["queued"], nowMs: number): QueuedRow[] {
@@ -115,6 +168,7 @@ export function queuedRows(queued: InboxView["queued"], nowMs: number): QueuedRo
     messages: messages(q.messages),
     received: received(q.lastReceivedAt, nowMs),
     why: `This thread ${REASON_WORDS[q.reason]}`,
+    ...(q.recruiterGrade ? { grade: gradeWords(q.recruiterGrade) } : {}),
   }));
 }
 
