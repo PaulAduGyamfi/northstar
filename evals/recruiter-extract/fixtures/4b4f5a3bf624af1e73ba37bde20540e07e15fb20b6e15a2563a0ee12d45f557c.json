@@ -1,0 +1,27 @@
+{
+  "requestSha256": "4b4f5a3bf624af1e73ba37bde20540e07e15fb20b6e15a2563a0ee12d45f557c",
+  "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval recruiter-extract --record.",
+  "response": {
+    "id": "msg_handwritten_1",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-5-5",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"roleTitle\":\"Platform Engineer\",\"seniority\":null,\"company\":null,\"location\":\"Toronto\",\"remote\":\"hybrid\",\"salaryMin\":null,\"salaryMax\":null,\"salaryCurrency\":null,\"salaryPeriod\":null,\"agency\":true,\"personalizedQuote\":null,\"redFlags\":[]}",
+        "citations": null
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  }
+}

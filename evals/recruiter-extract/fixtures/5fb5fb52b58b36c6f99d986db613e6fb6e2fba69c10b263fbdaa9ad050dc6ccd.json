@@ -1,0 +1,27 @@
+{
+  "requestSha256": "5fb5fb52b58b36c6f99d986db613e6fb6e2fba69c10b263fbdaa9ad050dc6ccd",
+  "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval recruiter-extract --record.",
+  "response": {
+    "id": "msg_handwritten_4",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-5-5",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"roleTitle\":null,\"seniority\":null,\"company\":null,\"location\":null,\"remote\":null,\"salaryMin\":null,\"salaryMax\":null,\"salaryCurrency\":null,\"salaryPeriod\":null,\"agency\":null,\"personalizedQuote\":null,\"redFlags\":[{\"kind\":\"vague_role\",\"quote\":\"I have an exciting opportunity at a fast-growing company\"}]}",
+        "citations": null
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "requestSha256": "bcfcf8cb399825e6beedbdd26af07e151e05e1c646718af05090452ec463cf38",
+  "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval recruiter-extract --record.",
+  "response": {
+    "id": "msg_handwritten_3",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-5-5",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"roleTitle\":\"Data Entry Specialist\",\"seniority\":null,\"company\":\"Globex\",\"location\":null,\"remote\":null,\"salaryMin\":null,\"salaryMax\":null,\"salaryCurrency\":null,\"salaryPeriod\":null,\"agency\":null,\"personalizedQuote\":null,\"redFlags\":[{\"kind\":\"upfront_fee\",\"quote\":\"please send a $300 equipment deposit by gift card\"},{\"kind\":\"sensitive_data\",\"quote\":\"Reply with your bank account number for payroll setup\"}]}",
+        "citations": null
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  }
+}

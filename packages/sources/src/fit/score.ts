@@ -74,7 +74,7 @@ const levelsIn = (text: string): Set<string> =>
       .map(([, level]) => level),
   );
 
-function titleFit(job: ScorableJob, prefs: PreferenceValues): [number | null, TitleCheck] {
+export function titleFit(job: ScorableJob, prefs: PreferenceValues): [number | null, TitleCheck] {
   const title = job.title ?? "";
   if (prefs.titles.length === 0 || title === "") {
     return [null, { status: "unknown", levelMismatch: false }];
@@ -105,7 +105,7 @@ const coverage = (matched: Match[], unmatched: Unmatched[], kind: "must" | "nice
 };
 
 // The top of the posted range as yearly pay in Paul's currency, checked against his floor.
-function payCheck(job: ScorableJob, prefs: PreferenceValues): PayCheck {
+export function payCheck(job: ScorableJob, prefs: PreferenceValues): PayCheck {
   const top = job.salaryMax ?? job.salaryMin;
   const sameCurrency = job.salaryCurrency?.toUpperCase() === prefs.currency;
   if (top === null || job.salaryPeriod === null || !sameCurrency) {
@@ -116,7 +116,7 @@ function payCheck(job: ScorableJob, prefs: PreferenceValues): PayCheck {
   return { status: yearly >= prefs.compFloor ? "ok" : "below", yearly };
 }
 
-function placeCheck(job: ScorableJob, prefs: PreferenceValues): PlaceCheck {
+export function placeCheck(job: ScorableJob, prefs: PreferenceValues): PlaceCheck {
   if (prefs.remote.length === 0 && prefs.locations.length === 0) return { status: "unknown" };
   if (job.remote !== null && prefs.remote.includes(job.remote)) return { status: "ok" };
   const location = job.location ?? "";
@@ -126,7 +126,7 @@ function placeCheck(job: ScorableJob, prefs: PreferenceValues): PlaceCheck {
 }
 
 // The first dealbreaker the job names as a whole phrase anywhere in its text.
-function dealbreakerIn(job: ScorableJob, prefs: PreferenceValues): string | null {
+export function dealbreakerIn(job: ScorableJob, prefs: PreferenceValues): string | null {
   const text = [job.title, job.description, ...job.requirements, ...job.niceToHaves]
     .filter((s): s is string => s !== null)
     .join("\n");
