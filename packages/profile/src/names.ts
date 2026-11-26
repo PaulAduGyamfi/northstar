@@ -15,6 +15,12 @@ const JOINER = /[^\p{L}\p{N}+#]+/u;
 // A piece with a capital anywhere is a name. Units and numbers ("10k", "24h", "12%") have none.
 const HAS_CAPITAL = /\p{Lu}/u;
 
+// A number with a unit written with a capital ("1M", "5GB", "200kW") is a quantity, not a name
+// (NS-216, Paul's decision on #203). Its digits still face the number rule, so "1M" can't appear
+// unless a quote holds a 1. "3M" the company has the same shape and is exempt too. Units not on
+// the list ("2FA", "5G") stay names.
+const UNIT = /^\p{N}+(?:K|M|B|KB|MB|GB|TB|PB|kW|MW|GW|dB|Hz|kHz|MHz|GHz)$/u;
+
 // "I" and its real contractions are Paul, never a name. Only these: "I'Globex" is not Paul.
 const PAUL = /^I(?:['’](?:m|ve|d|ll))?$/u;
 
@@ -22,7 +28,9 @@ const PAUL = /^I(?:['’](?:m|ve|d|ll))?$/u;
 // possessive already removed by the caller.
 export function nameParts(word: string): string[] {
   if (PAUL.test(word)) return [];
-  return word.split(JOINER).filter((part) => part !== "" && part !== "I" && HAS_CAPITAL.test(part));
+  return word
+    .split(JOINER)
+    .filter((part) => part !== "" && part !== "I" && HAS_CAPITAL.test(part) && !UNIT.test(part));
 }
 
 // Everything one word must have backed, in order. A word that starts with a capital must still be

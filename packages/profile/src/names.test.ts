@@ -23,7 +23,7 @@ describe("nameParts", () => {
   });
 
   it("takes a word that starts with a digit and holds a capital as a name", () => {
-    expect([nameParts("3M"), nameParts("5G")]).toEqual([["3M"], ["5G"]]);
+    expect([nameParts("2FA"), nameParts("5G")]).toEqual([["2FA"], ["5G"]]);
   });
 
   it("leaves numbers, units and ordinary lower-case words alone", () => {
@@ -89,6 +89,29 @@ describe("nameCandidates", () => {
     expect([nameCandidates("iOS"), nameCandidates("ex-Globex")]).toEqual([
       [{ name: "iOS", leading: false }],
       [{ name: "Globex", leading: false }],
+    ]);
+  });
+});
+
+describe("number-plus-unit tokens (NS-216)", () => {
+  it("never takes a number with a listed unit as a name", () => {
+    const units = ["K", "M", "B", "KB", "MB", "GB", "TB", "PB", "kW", "MW", "GW", "dB", "Hz"];
+    const more = ["kHz", "MHz", "GHz"];
+    expect([...units, ...more].map((u) => nameParts(`12${u}`))).toEqual(
+      [...units, ...more].map(() => []),
+    );
+  });
+
+  it("cuts a decimal at its dot and still exempts the unit", () => {
+    expect([nameParts("1.5M"), nameParts("$2M")]).toEqual([[], []]);
+  });
+
+  it("keeps product names, acronyms and units not on the list as names", () => {
+    expect([nameParts("2FA"), nameParts("macOS"), nameParts("S3"), nameParts("5G")]).toEqual([
+      ["2FA"],
+      ["macOS"],
+      ["S3"],
+      ["5G"],
     ]);
   });
 });
