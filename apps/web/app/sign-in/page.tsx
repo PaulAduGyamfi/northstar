@@ -5,7 +5,10 @@ export default function SignInPage() {
     <main className="page">
       <div className="card">
         <h1>Sign in to Northstar</h1>
-        <p className="muted">Paste your sign-in key. It is checked by the API and never stored.</p>
+        <p className="muted">
+          Use a passkey you added, or paste your sign-in key. The key is checked by the API and
+          never stored.
+        </p>
         <SignInForm />
       </div>
     </main>

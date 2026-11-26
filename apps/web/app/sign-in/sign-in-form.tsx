@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { apiFetch } from "../../src/client-fetch";
+import { signInWithPasskey } from "../../src/passkey";
 
 // What each API answer means for Paul, in plain words.
 const MESSAGES: Record<number, string> = {
@@ -16,6 +17,20 @@ export function SignInForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // A passkey button only where the browser has WebAuthn; the key form always works (ADR-0022).
+  const [passkeys, setPasskeys] = useState(false);
+  useEffect(() => {
+    setPasskeys(typeof window.PublicKeyCredential === "function");
+  }, []);
+
+  async function withPasskey() {
+    setBusy(true);
+    setError(null);
+    const outcome = await signInWithPasskey(navigator.credentials);
+    setBusy(false);
+    if (outcome.ok) router.replace("/");
+    else setError(outcome.message);
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,6 +75,11 @@ export function SignInForm() {
       <button type="submit" className="primary" disabled={busy}>
         Sign in
       </button>
+      {passkeys && (
+        <button type="button" className="secondary" onClick={withPasskey} disabled={busy}>
+          Sign in with a passkey
+        </button>
+      )}
     </form>
   );
 }

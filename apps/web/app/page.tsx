@@ -5,6 +5,7 @@ import { HandoffsBody, handoffCards } from "../src/handoffs";
 import { PillNav } from "../src/pill-nav";
 import { readSession, SESSION_COOKIE, todayView } from "../src/session";
 import { dotStatus, FeedBody, HealthBody, readApi } from "../src/system";
+import { AddPasskey } from "./add-passkey";
 import { LiveFeed } from "./live-feed";
 import { NeedsYourHands } from "./needs-your-hands";
 import { SignOutButton } from "./sign-out-button";
@@ -45,6 +46,7 @@ export default async function TodayPage() {
           <h1>Today</h1>
           <p className="muted">Signed in. Your queue, replies and quests will show up here.</p>
           <SignOutButton />
+          <AddPasskey />
         </div>
         {/* Shown only when a challenge stopped an application (NS-121). */}
         {cards.length > 0 ? (

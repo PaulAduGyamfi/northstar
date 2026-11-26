@@ -374,7 +374,9 @@ Exists now:
   web origin's host name, user verification required, challenges single use for 5 minutes.
   Credentials are in `packages/db` (`passkey-schema.ts`, `passkey-write.ts`: `savePasskey`,
   `listPasskeys`, `readPasskey`, `recordPasskeyUse`; append-only, the sign count only moves
-  forward or stays at 0). The web app's buttons come in slice 2.
+  forward or stays at 0). In the web app (slice 2), "Sign in with a passkey" on the sign-in page
+  and "Add a passkey" on Today (`src/passkey.ts`, hand-written conversions for
+  `navigator.credentials`), shown only where the browser has WebAuthn.
 - `apps/extension/` (NS-128): "Save to Northstar", a Chrome MV3 extension compiled by `tsc` (no
   bundler or framework). Permissions `activeTab`, `scripting`, `storage` and the local API host
   only; nothing runs until Paul clicks. It reads the visible page and posts it to the API's
