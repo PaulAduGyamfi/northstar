@@ -19,6 +19,7 @@ import {
   readFeed,
   readFeedAfter,
   readFeedNames,
+  readInboxThreads,
   readPasskey,
   readPreferences,
   readRun,
@@ -60,6 +61,7 @@ import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
 import { consentEndpoints } from "./consent.js";
 import { markHandoffSubmitted } from "./handoff-ports.js";
 import { handoffEndpoints } from "./handoffs.js";
+import { inboxEndpoints } from "./inbox.js";
 import { passkeyEndpoints } from "./passkeys.js";
 import { pipelineEndpoints } from "./pipeline.js";
 import { runEndpoints } from "./run.js";
@@ -198,6 +200,8 @@ try {
     // The funnel and breakdowns (NS-208): plain code over the status histories.
     metrics: async () => pipelineMetrics(await readApplicationHistories(db, await candidateId())),
   });
+  // The unified job inbox (NS-165), read-only.
+  const inbox = inboxEndpoints({ read: async () => readInboxThreads(db, await candidateId()) });
   // One set of sessions for the sign-in key and passkeys, so both open the same kind of session
   // and their failures count toward one throttle (ADR-0022).
   const sessions = createSessions(Date.now);
@@ -227,6 +231,7 @@ try {
       ...consent,
       ...approvals,
       ...pipeline,
+      ...inbox,
       ...passkeys,
     ],
   });
