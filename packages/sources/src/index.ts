@@ -49,4 +49,12 @@ export {
 } from "./job-extract-route.js";
 export { JobExtract } from "./job-extract-schema.js";
 export { findJobPosting, fromJsonLd } from "./jsonld.js";
+// Recruiter grading (NS-167, REC-001): A–F from the checked facts and the search preferences.
+export {
+  type Grade,
+  type GradeReason,
+  gradeRecruiterMessage,
+  type RecruiterFactsInput,
+  type RecruiterGrade,
+} from "./recruiter/grade.js";
 export { type SourceTerms, type Terms, termsFor } from "./terms.js";

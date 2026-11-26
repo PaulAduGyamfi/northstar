@@ -290,6 +290,20 @@ Exists now:
   route, with the provenance check. Verification mail from any sender (a verification subject
   or a code) is skipped before either; a refusal, invalid output, missing employer or failed
   provenance check goes to review, and a held-back call is thrown for a retry. No storage, Gmail labels (no `gmail.modify`) or caller yet (#224).
+- Recruiter grading (NS-167, REC-001/002), slice 1:
+  - The `recruiter-extract` route (`packages/inbox`, `src/recruiter/`) reads a recruiter email's
+    stated facts: title, seniority, company, place, remote kind, pay range, agency or in-house,
+    a quote showing it was written for Paul, and red flags from a fixed list with quotes.
+  - `checkRecruiterFacts` drops any value not in the email: whole words, the email's own numbers
+    ("150k" counts as 150000), the currency's code or symbol, and quotes of 4+ words.
+  - `extractRecruiterFacts` is off by default (hand-written fixtures).
+  - `gradeRecruiterMessage` (`packages/sources`, `src/recruiter/grade.ts`) is plain code that
+    grades A–F. It uses the Fit Score's own title, pay, place and dealbreaker checks, with
+    points per factor. A dealbreaker, an upfront fee or a request for sensitive data makes it F;
+    any other red flag caps it at D. Its reasons are codes only, and confidence is low when two
+    of title, pay and place are unknown.
+
+  No caller, storage, reply drafts by grade or learning from Paul's actions yet (REC-002/003).
 - `packages/funnel/` (NS-113): the 9-month backfill, funnel records derived by plain code from
   `funnel_message` and `funnel_manual_row` (`packages/db`, `funnel-schema.ts`), the tracker CSV
   import, the funnel report (Wilson intervals, rejection latency) and the hypothesis board.

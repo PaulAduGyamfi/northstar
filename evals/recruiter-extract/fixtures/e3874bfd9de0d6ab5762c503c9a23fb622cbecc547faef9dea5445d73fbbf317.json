@@ -1,0 +1,27 @@
+{
+  "requestSha256": "e3874bfd9de0d6ab5762c503c9a23fb622cbecc547faef9dea5445d73fbbf317",
+  "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval recruiter-extract --record.",
+  "response": {
+    "id": "msg_handwritten_2",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-5-5",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"roleTitle\":\"Backend Engineer\",\"seniority\":null,\"company\":\"Initech\",\"location\":\"Chicago\",\"remote\":\"onsite\",\"salaryMin\":null,\"salaryMax\":null,\"salaryCurrency\":null,\"salaryPeriod\":null,\"agency\":false,\"personalizedQuote\":null,\"redFlags\":[]}",
+        "citations": null
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "requestSha256": "3efbbcdb0655fccdda13f5b7436d6f7f3d4fd0d88c44c5713b780c4bb45460a1",
+  "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval recruiter-extract --record.",
+  "response": {
+    "id": "msg_handwritten_5",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-5-5",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"roleTitle\":\"Staff Engineer\",\"seniority\":\"Staff\",\"company\":null,\"location\":null,\"remote\":\"remote\",\"salaryMin\":95,\"salaryMax\":95,\"salaryCurrency\":\"USD\",\"salaryPeriod\":\"hour\",\"agency\":true,\"personalizedQuote\":null,\"redFlags\":[]}",
+        "citations": null
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  }
+}
