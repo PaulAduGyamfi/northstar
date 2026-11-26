@@ -9,7 +9,8 @@ paths:
 `apps/worker` exists since NS-157: the `pipeline` and `apply-browser` queues (`src/queues.ts`),
 `submissionWorkflow` and its plain `decide` step (`src/workflows/`), and the Apply Gateway
 activity (`src/activities/apply.ts`); since NS-220 the stale-claim sweep (`src/workflows/sweep.ts`,
-`src/activities/sweep.ts`). Workflow code may import only `@temporalio/workflow`, plain
+`src/activities/sweep.ts`); since NS-226 a submission's ending that only Temporal's history
+would show becomes a dead letter (`src/workflows/ending.ts`, `src/activities/ending.ts`). Workflow code may import only `@temporalio/workflow`, plain
 code and type-only imports: the bundle test (`bundleWorkflowCode`) fails otherwise. No worker
 process, client or heartbeats yet (NS-225); other domains' workflows arrive with their tickets.
 
@@ -27,3 +28,5 @@ Rules:
 - Every state change emits a domain event (outbox) and carries the trace context.
 - Application status moves only through the state machine in `docs/requirements/03-auto-apply.md`.
 - Changing a running workflow's code needs versioning (`patched`), or in-flight workflows break.
+- A workflow ending that leaves no `needs_human` item or feed line records a dead letter through
+  an activity (never from workflow code), keyed so a retry stores one, and still fails visibly.
