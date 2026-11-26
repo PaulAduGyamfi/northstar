@@ -260,11 +260,14 @@ const TEMPLATES: Record<string, Template> = {
     return `${who(e.actor)} set ${what}${v ? ` (version ${v})` : ""}`;
   },
 
-  // A LinkedIn export (NS-133) says so; a resume event carries no kind.
-  "profile.imported": (p) =>
-    name(p, "kind") === "linkedin"
-      ? "Imported your LinkedIn export into the profile graph"
-      : "Imported your resume into the profile graph",
+  // A LinkedIn export (NS-133) or the personal site (NS-209) says so; a resume event carries no
+  // kind.
+  "profile.imported": (p) => {
+    const kind = name(p, "kind");
+    if (kind === "linkedin") return "Imported your LinkedIn export into the profile graph";
+    if (kind === "site") return "Imported your personal site into the profile graph";
+    return "Imported your resume into the profile graph";
+  },
   "profile.locked_fact_edited": (p, e) => {
     const table = name(p, "table");
     return `${who(e.actor)} edited a locked fact${table ? ` (${words(table)})` : ""}`;

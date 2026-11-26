@@ -199,6 +199,19 @@ export {
   saveFunnelMessages,
   setManualRows,
 } from "./funnel-write.js";
+export * as growthSchema from "./growth-schema.js";
+export {
+  type GrowthSettingsInput,
+  type GrowthTrackInput,
+  type GrowthTrackView,
+  readGrowthSettings,
+  readGrowthTracks,
+  recordGrowthTouch,
+  type StoredPlan,
+  saveWeekPlan,
+  setGrowthSettings,
+  setGrowthTracks,
+} from "./growth-write.js";
 export { HANDOFF_OUTCOMES, type HandoffOutcome } from "./handoff-schema.js";
 export {
   CHALLENGE_REASONS,
@@ -287,6 +300,7 @@ export {
   type ApplicationRow,
   listApplications,
   MAX_APPLICATIONS,
+  readApplicationHistories,
   readApplicationTimeline,
   type TimelineItem,
 } from "./pipeline-read.js";

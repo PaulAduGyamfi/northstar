@@ -43,7 +43,10 @@ Exists now:
   Since NS-171 also the weekly growth planner (`growth.ts`, GRW-001…004): `planWeek` puts at-risk
   tracks first, then priority, target date and id; the first `wipLimit` (default 3) are in focus
   with at least two blocks each, the rest get one maintenance block, and the week never exceeds
-  `weeklyMinutes` (default 480, Q-09). No storage, settings page or calendar blocks yet.
+  `weeklyMinutes` (default 480, Q-09). Since NS-210 stored in `packages/db` (`growth-schema.ts`,
+  `growth-write.ts`: tracks from Paul's file, touches, settings and one plan per week, all
+  append-only) and run by `profile growth plan`. No milestones, settings page or calendar blocks
+  yet.
   Since NS-172 also growth check-ins and the weekly review (`growth-progress.ts`, GRW-005…007):
   `parseCheckIn` (track, time, minutes, optional percent; no free text), `applyCheckIns` (moves
   each track's last touch forward, which feeds the next `planWeek`), `trackDashboard` (minutes
@@ -87,6 +90,10 @@ Exists now:
   `profile_source` of kind `linkedin` beside the resume (it supersedes only an earlier export).
   Resume readers ignore it; `profile facts check` compares its positions with the official
   record too.
+  Since NS-209 also Paul's personal site, from a file he saves himself (`site.ts`, plain code, no
+  fetch): `## Project` headings, an optional `Link: https://…` line, and one atom per other line,
+  verbatim, with no role and the link as evidence, stored as its own `profile_source` of kind
+  `site`. Resume readers ignore it too. No GitHub import or reconciling across sources yet.
   Since NS-111 also the guided story interview: a fixed STAR script per atom, the `story-draft`
   route, and a provenance check that every story part quotes Paul's answers verbatim (whole words
   and whole numbers, `quotedIn`, NS-184/NS-200), with its numbers, number words and capitalised
@@ -459,7 +466,12 @@ Exists now:
   Pipeline also filters by company, fit band, source (the job's ATS, or `other`) and creation day,
   applied in `listApplications`' SQL and kept in the URL, has a table view, and Today shows counts
   of approvals waiting and needs-your-hands items (`src/today.ts`), with interviews, follow-ups
-  and growth blocks marked not set up yet. `/api/*` is rewritten to the API, and pages that need Paul go
+  and growth blocks marked not set up yet. Since NS-208 also `/pipeline/metrics`: the funnel (found →
+  applied → heard back → interviewing → offer), median days to apply and to the first reply, and
+  reply rates by source, fit band and time from posting to applying, each with its count and a
+  Wilson interval, or "not enough data yet" under 20 (`pipelineMetrics` in `packages/domain`,
+  over `readApplicationHistories`; the API's `GET /pipeline/metrics`). `wilson` lives in
+  `packages/domain` (`stats.ts`); `packages/funnel` re-exports it. `/api/*` is rewritten to the API, and pages that need Paul go
   through `readSession`/`todayView` or `readApi` (`src/session.ts`, `src/system.ts`), which forward
   his session cookie to the API. It holds no secret.
 - `packages/pipeline/` (NS-161, ADR-0023): plain-code pipeline steps, no model or network.
@@ -517,6 +529,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/prompts lock` | add new prompt versions to `prompts.lock.json` (never rewrites an existing hash) |
 | repo root | `pnpm --filter @northstar/profile profile import-resume data/<file> [--reimport]` | import Paul's resume into the profile graph (`--reimport` redoes it even when the file is unchanged) (Paul only: real data, needs `DATABASE_URL` and `ANTHROPIC_API_KEY`; prints counts only) |
 | repo root | `pnpm --filter @northstar/profile profile import-linkedin data/<folder>` | import Paul's unzipped LinkedIn data export (`Positions.csv` required; `Education.csv`, `Skills.csv` optional) as its own source; an unchanged export is a no-op. Paul only: real data, needs `DATABASE_URL`; prints counts only; agents never run it |
+| repo root | `pnpm --filter @northstar/profile profile import-site data/<file>` | import Paul's personal site from a file he saved (`## Project` headings, an optional `Link: https://…` line, one claim per line) as its own source; a file with any bad line stores nothing; an unchanged file is a no-op. Paul only: real data, needs `DATABASE_URL`; prints counts only; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile show` | read the imported profile back (roles, atoms, skills). Paul only: it prints his real profile; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile interview [--atom <id>]` | guided story interview about the next atom with no story; answers are saved as you go, rerun to resume (Paul only: his real answers, needs `DATABASE_URL` and `ANTHROPIC_API_KEY`; agents never run it) |
 | repo root | `pnpm --filter @northstar/profile profile stories` | list approved stories and the competencies with none yet. Paul only: it prints his real stories; agents never run it |
@@ -525,6 +538,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/profile profile thesis draft` | up to three positioning theses that pass the deterministic check, with the atoms each cites; says so while drafting is off. Paul only: it reads his real profile; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile thesis set "<text>" --atoms <id,id>` / `profile thesis show` | check a thesis against the cited atoms, roles and skills and save it as a new version (a failure saves nothing) / print the current one. Paul only: needs `DATABASE_URL`; agents never run them |
 | repo root | `pnpm --filter @northstar/profile profile work set data/<file>` / `profile work show` | store Paul's independent work since his last role as a new version (`Title \| YYYY-MM \| YYYY-MM or present [\| https link]`, then 1–6 `- ` lines per entry; a file with any bad line stores nothing; unchanged stores nothing) / print the "Projects / Independent work" section and the 20-second answer with its sources. Paul only: his real data, needs `DATABASE_URL`; agents never run them |
+| repo root | `pnpm --filter @northstar/profile profile growth tracks set data/<file>` / `growth tracks` / `growth touch <key>` / `growth settings [set <field> <value>]` / `growth plan` | store Paul's growth tracks from a file, one per line (`key \| name \| type \| status \| priority [\| target YYYY-MM-DD] [\| untouched <days>] [\| next <minutes> <title>]`; any bad line stores nothing) / list them with their last touch / note he worked on one / show or change the planner's settings / plan this week once (Monday, UTC) and print focus, maintenance, at risk and needs-a-next-action. Paul only: his data, needs `DATABASE_URL`; agents never run them |
 | repo root | `pnpm --filter @northstar/profile profile tailor <job-id> [--drop <skill,skill>]` | tailor the resume to a ready job (plain code, no model): prints the diff, what it doesn't claim, the pre-send score and the validator result, and stores a new version (unchanged content stores nothing); `--drop` turns off skills the tailor added. Paul only: it prints his real profile, needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile audit` / `profile audit accept <key> "<new line>"` / `profile audit reject <key>` | audit the current resume against the search preferences' titles and ready jobs' requirements and store the run (leaving out suggestions rejected on this import) / accept one line suggestion with Paul's own line (checked like `applySuggestion`; the tailor uses it from then on) / reject one. Paul only: it prints his real resume, needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile settings set <field> <value> [--for <qualifier>]` / `profile settings show` | store an answer to a factual question (`work_authorization --for <country>`, `years_of_experience --for <skill>`, `previously_employed --for <company>`; yes/no, whole years, `YYYY-MM-DD`, `remote\|hybrid\|onsite`, https links, short text) / list the current ones. Paul only: his real data, needs `DATABASE_URL`; agents never run them |

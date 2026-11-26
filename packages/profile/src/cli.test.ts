@@ -68,6 +68,13 @@ function deps(
     rejectSuggestion: async () => ({ kind: "refused", reason: "NoAudit" }),
     setIndependentWork: async () => ({ status: "set", version: 1, entries: 0, lines: 0 }),
     readIndependentWork: async () => null,
+    now: () => new Date("2026-11-26T12:00:00Z"),
+    setGrowthTracks: async () => ({ status: "set", version: 1, tracks: 0 }),
+    readGrowthTracks: async () => null,
+    recordGrowthTouch: async () => ({ ok: true }),
+    readGrowthSettings: async () => null,
+    setGrowthSettings: async () => {},
+    saveWeekPlan: async (input) => ({ ...input, status: "planned" }),
   };
   return { d, printed, interviewedAtoms };
 }
@@ -671,6 +678,47 @@ describe("profile import-linkedin (NS-133)", () => {
       [
         "Not imported: linkedin has no Positions.csv. Unzip your LinkedIn export there.",
         'Not imported: Positions.csv has no "Description" column. Nothing was written.',
+      ],
+      0,
+    ]);
+  });
+});
+
+describe("profile import-site (NS-209)", () => {
+  const SITE = "## Ledgerline\nLink: https://example.com/l\n- Built a budgeting app\n";
+
+  it("imports the file as a site source and prints counts only", async () => {
+    const { d, printed } = deps(["import-site", "data/site.md"], new Error("unused"));
+    d.readText = async () => SITE;
+    const stored: unknown[] = [];
+    d.storeImport = async (input) => {
+      stored.push([input.kind, input.fileName, input.model, input.extract.atoms.length]);
+      return {
+        status: "imported",
+        sourceId: "s3",
+        counts: { roles: 0, education: 0, atoms: 1, skills: 0, certifications: 0, links: 1 },
+      };
+    };
+    expect([await main(d), printed, stored]).toEqual([
+      0,
+      ["Imported your site: 1 project, 1 atom, 1 link."],
+      [["site", "site.md", "none", 1]],
+    ]);
+  });
+
+  it("refuses a bad file, names the line and stores nothing", async () => {
+    const { d, printed } = deps(["import-site", "data/site.md"], new Error("unused"));
+    d.readText = async () => "an intro\n## X\n- a";
+    let stores = 0;
+    d.storeImport = async () => {
+      stores++;
+      return { status: "unchanged", sourceId: "s1" };
+    };
+    expect([await main(d), printed, stores]).toEqual([
+      1,
+      [
+        "Not imported: site.md has lines to fix first. Nothing was written.",
+        "  line 1: a line comes before any ## project heading",
       ],
       0,
     ]);

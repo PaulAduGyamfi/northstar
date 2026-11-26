@@ -1,5 +1,5 @@
 import type { ApplicationFilter, ApplicationRow, TimelineItem } from "@northstar/db";
-import { APPLICATION_STATUSES } from "@northstar/domain";
+import { APPLICATION_STATUSES, FUNNEL_STAGES, type PipelineMetrics } from "@northstar/domain";
 import { z } from "zod";
 import { type AnyEndpoint, endpoint } from "./endpoint.js";
 
@@ -12,7 +12,32 @@ export type PipelinePorts = {
   timeline: (
     applicationId: string,
   ) => Promise<{ application: ApplicationRow; items: TimelineItem[] } | null>;
+  // The funnel and breakdowns (NS-208), computed from the status histories.
+  metrics: () => Promise<PipelineMetrics>;
 };
+
+const Rate = z.object({
+  k: z.number(),
+  n: z.number(),
+  enough: z.boolean(),
+  rate: z.number().nullable(),
+  low: z.number().nullable(),
+  high: z.number().nullable(),
+});
+const Group = z.object({ key: z.string(), rate: Rate });
+const Median = z.object({ days: z.number().nullable(), n: z.number() });
+// Counts, rates and keys only: nothing names a job or company.
+const Metrics = z.object({
+  funnel: z.array(
+    z.object({ stage: z.enum(FUNNEL_STAGES), count: z.number(), fromPrevious: Rate.nullable() }),
+  ),
+  timeInStage: z.object({ toApply: Median, toResponse: Median }),
+  responseBy: z.object({
+    source: z.array(Group),
+    band: z.array(Group),
+    timeToApply: z.array(Group),
+  }),
+});
 
 const Application = z.object({
   applicationId: z.string(),
@@ -135,5 +160,20 @@ export function pipelineEndpoints(ports: PipelinePorts): AnyEndpoint[] {
     },
   });
 
-  return [list, timeline];
+  const metrics = endpoint({
+    method: "GET",
+    path: "/pipeline/metrics",
+    auth: "session",
+    input: z.object({}),
+    output: Metrics,
+    handler: async () => {
+      try {
+        return { ok: true, body: await ports.metrics() };
+      } catch {
+        return { ok: false, status: 503, error: "unavailable" };
+      }
+    },
+  });
+
+  return [list, timeline, metrics];
 }

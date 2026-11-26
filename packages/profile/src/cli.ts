@@ -15,6 +15,7 @@ import {
 import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
 import { type AuditCliDeps, auditCommand } from "./audit-cli.js";
 import { type Claim, checkEmploymentFacts, type Mismatch, parseOfficialRecord } from "./facts.js";
+import { type GrowthCliDeps, growthCommand } from "./growth-cli.js";
 import type { ImportResult } from "./import.js";
 import type { InterviewOutcome } from "./interview.js";
 import { describeLinkedinProblem, type LinkedinFiles, parseLinkedinExport } from "./linkedin.js";
@@ -24,6 +25,7 @@ import {
   settingsSetCommand,
   settingsShowCommand,
 } from "./settings-cli.js";
+import { parseSiteText } from "./site.js";
 import { parseDrop, type TailorCliDeps, tailorCommand } from "./tailor-cli.js";
 import { type ThesisDraftResult, thesisProblems } from "./thesis-draft.js";
 import { type WorkCliDeps, workCommand } from "./work-cli.js";
@@ -61,7 +63,8 @@ export type CliDeps = {
 } & SettingsDeps &
   TailorCliDeps &
   AuditCliDeps &
-  WorkCliDeps;
+  WorkCliDeps &
+  GrowthCliDeps;
 
 const USAGE =
   'usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check | profile thesis draft | profile thesis set "<text>" --atoms <id,id> | profile thesis show | profile import-linkedin <folder>';
@@ -81,6 +84,10 @@ export async function main(deps: CliDeps): Promise<number> {
   if (command === "show") return showCommand(deps);
   if (command === "import-linkedin" && path && flags.length === 0) {
     return importLinkedinCommand(deps, path);
+  }
+  // Paul's personal site, from a file he saved (NS-209).
+  if (command === "import-site" && path && flags.length === 0) {
+    return importSiteCommand(deps, path);
   }
   if (command === "interview") {
     const rest = deps.argv.slice(1);
@@ -131,6 +138,8 @@ export async function main(deps: CliDeps): Promise<number> {
   if (command === "audit") return auditCommand(deps, deps.argv.slice(1));
   // Independent work since the last role (NS-196): its own usage line, like audit's.
   if (command === "work") return workCommand(deps, deps.argv.slice(1));
+  // Growth tracks, touches, settings and the week's plan (NS-210).
+  if (command === "growth") return growthCommand(deps, deps.argv.slice(1));
   deps.print(command === "settings" || command === "answer" ? SETTINGS_USAGE : USAGE);
   return 1;
 }
@@ -535,5 +544,37 @@ async function importLinkedinCommand(deps: CliDeps, folder: string): Promise<num
     `Imported your LinkedIn export: ${plural(c.roles, "position")}, ${c.education} education, ${plural(c.atoms, "atom")}, ${plural(c.skills, "skill")}.`,
   );
   deps.print("Run `profile facts check` to compare it with your official record.");
+  return 0;
+}
+
+// `profile import-site <file>` (NS-209): Paul's personal site, from a file he saved himself, as its
+// own source. Prints counts only. A file with any bad line stores nothing.
+async function importSiteCommand(deps: CliDeps, path: string): Promise<number> {
+  const name = basename(path);
+  const parsed = parseSiteText(await deps.readText(path));
+  if (!parsed.ok) {
+    deps.print(`Not imported: ${name} has lines to fix first. Nothing was written.`);
+    for (const p of parsed.error)
+      deps.print(p.line > 0 ? `  line ${p.line}: ${p.problem}` : `  ${p.problem}`);
+    return 1;
+  }
+  const report = await deps.storeImport({
+    kind: "site",
+    fileName: name,
+    textSha256: parsed.value.textSha256,
+    // No model: version 0 and "none" mark a deterministic import.
+    promptVersion: 0,
+    model: "none",
+    traceId: null,
+    call: {},
+    extract: parsed.value.extract,
+  });
+  if (report.status === "unchanged") {
+    deps.print("Your site file is unchanged since the last import. Nothing to do.");
+    return 0;
+  }
+  deps.print(
+    `Imported your site: ${plural(parsed.value.projects, "project")}, ${plural(report.counts.atoms, "atom")}, ${plural(report.counts.links, "link")}.`,
+  );
   return 0;
 }

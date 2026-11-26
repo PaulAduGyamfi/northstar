@@ -9,9 +9,10 @@ Lives in `packages/db` since NS-105. The event log design and PGlite tests are A
 profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
 `src/story-schema.ts`.
 
-- `profile_source.kind` is `resume` or (NS-133) `linkedin`, each with its own current source.
+- `profile_source.kind` is `resume`, (NS-133) `linkedin` or (NS-209) `site`, each with its own
+  current source.
   Every reader that means "Paul's resume" filters `kind = 'resume'` as well as "not superseded";
-  a new reader must too, or LinkedIn rows leak into scoring, stories and the thesis.
+  a new reader must too, or LinkedIn or site rows leak into scoring, stories and the thesis.
 - Locked facts (CPG-004): `role` employer/title/dates/is_current and `education` school/degree/field/dates
   are guarded by a trigger. Change them only through `editLockedFact` (Paul's own edits); never
   set `northstar.locked_edit` anywhere else.
@@ -154,6 +155,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   written only through `independent-work-write.ts`; the newest version is current and the same
   content stores nothing. Titles, lines and links are Paul's words: `independent_work.set`
   carries the version and counts only.
+- Growth (NS-210, GRW-001…004) is `growth_track_set` and `growth_track` (a version per tracks
+  file), `growth_touch`, `growth_settings` (newest wins) and `growth_plan` (one per Monday-start
+  week), append-only (triggers), written only through `growth-write.ts`. Track keys, names and
+  next actions are Paul's words: `growth.tracks_set`, `growth.touched` and `growth.planned` carry
+  versions, counts, row ids and the week only.
 - Mail tags and links (NS-158) are `mail_tag` (one tag per application or tenant, never reused)
   and `mail_link` (one decision per Gmail message: linked by a step, or queued with a reason),
   append-only, written only through `mail-link-write.ts`. They hold Gmail ids, tags, steps and
@@ -188,3 +194,5 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   Since NS-207 `listApplications` takes an optional filter (company part, fit band, the job's
   ATS or `other`, creation days), applied as SQL parameters, and gives each row its job's newest
   fit score and band.
+  `readApplicationHistories` (NS-208) gives each application's creation time, source, newest fit
+  band, posting time and status moves (`application.*` events with a `to`), never names or text.
