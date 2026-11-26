@@ -5,7 +5,13 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { budgetHold, loadLlmBudget, type SpendMeter, type Spent } from "./budget.js";
+import {
+  budgetHold,
+  loadLlmBudget,
+  pausedPriorities,
+  type SpendMeter,
+  type Spent,
+} from "./budget.js";
 import { createLlmGateway } from "./gateway.js";
 import { describeHeldBack, HeldBack } from "./guard.js";
 import { fakeClient } from "./test/fake-client.js";
@@ -257,5 +263,39 @@ describe("the gateway with a budget", () => {
       "LLM spend couldn't be read (is the database up?)",
       "earlier LLM spend couldn't be recorded (is the database up?)",
     ]);
+  });
+});
+
+describe("pausedPriorities (NS-219)", () => {
+  const caps = { dailyUsd: 10, monthlyUsd: 100 };
+
+  it("lists nothing below every priority's share", () => {
+    expect(pausedPriorities({ todayUsd: 7.99, monthUsd: 79.99 }, caps)).toEqual([]);
+  });
+
+  it("pauses low at 80 %, normal at 100 % and fresh at 125 % of the daily cap", () => {
+    expect([
+      pausedPriorities({ todayUsd: 8, monthUsd: 0 }, caps),
+      pausedPriorities({ todayUsd: 10, monthUsd: 0 }, caps),
+      pausedPriorities({ todayUsd: 12.5, monthUsd: 0 }, caps),
+    ]).toEqual([
+      [{ priority: "low", cap: "daily" }],
+      [
+        { priority: "low", cap: "daily" },
+        { priority: "normal", cap: "daily" },
+      ],
+      [
+        { priority: "low", cap: "daily" },
+        { priority: "normal", cap: "daily" },
+        { priority: "fresh", cap: "daily" },
+      ],
+    ]);
+  });
+
+  it("names the monthly cap when only it holds, and nothing without caps", () => {
+    expect([
+      pausedPriorities({ todayUsd: 1, monthUsd: 80 }, caps),
+      pausedPriorities({ todayUsd: 999, monthUsd: 9999 }, { dailyUsd: null, monthlyUsd: null }),
+    ]).toEqual([[{ priority: "low", cap: "monthly" }], []]);
   });
 });
