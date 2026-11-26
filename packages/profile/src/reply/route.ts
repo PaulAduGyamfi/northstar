@@ -5,15 +5,17 @@ import type { EvidenceItem } from "../answer/evidence.js";
 import { renderEvidence } from "../answer/route.js";
 import { ReplyDraft } from "./schema.js";
 
-export const REPLY_DRAFT_VERSION = 1;
+// v1 was replaced before it shipped: its framing rule was a blocklist (NS-166 review).
+export const REPLY_DRAFT_VERSION = 2;
 
-// The most characters of the email the route sees, and the validator checks framing names
-// against: a long thread's quoted history adds cost, not context.
+// The most characters of the email the route sees.
 export const EMAIL_LIMIT = 8_000;
 
 export type ReplyDraftInput = {
   // The email's text, already cut to EMAIL_LIMIT.
   email: string;
+  // The sender's first name for the greeting (greetingName), or null for no name.
+  sender: string | null;
   // From replyNeed (plain code): "reply" or "reply_without_times". No reply proposes times until
   // Calendar exists (RPL-003, NS-169); the second also asks it to say availability will follow.
   need: "reply" | "reply_without_times";
@@ -38,10 +40,11 @@ export function replyDraftRoute(): Route<ReplyDraftInput, ReplyDraft> {
     maxTokens: 8_000,
     timeoutMs: 120_000,
     output: ReplyDraft,
-    render: ({ email, need, voiceGuide, evidence }) => ({
+    render: ({ email, sender, need, voiceGuide, evidence }) => ({
       stable: [],
       volatile: [
         untrustedBlock("email", email),
+        untrustedBlock("sender", sender ?? "none"),
         untrustedBlock("need", need),
         untrustedBlock("voice", voiceGuide),
         untrustedBlock("evidence", renderEvidence(evidence)),

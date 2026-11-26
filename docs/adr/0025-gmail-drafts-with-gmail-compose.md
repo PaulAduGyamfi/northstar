@@ -14,21 +14,37 @@ decision. Google's `gmail.compose` scope can create drafts. It can also send the
 sent" has to be enforced in code.
 
 ## Decision
-1. Gmail drafts use `https://www.googleapis.com/auth/gmail.compose`, requested next to
-   `gmail.readonly`. No other Gmail scope is added. `gmail.modify` is still not requested (labels
+1. Gmail drafts use `https://www.googleapis.com/auth/gmail.compose`. Only the draft writer
+   requests it: a Mail Gateway module in its own OAuth flow, with its own token. The mail reader,
+   triage and the mail-link loop keep `gmail.readonly` and never hold the compose token, so the
+   code that reads untrusted mail can't write any. `gmail.modify` is still not requested (labels
    are #238).
 2. The token model stays ADR-0014's: desktop OAuth with PKCE, the access token in memory for one
    run, and no stored refresh token.
-3. A draft is created only for a reply Paul approved in the Gate (ADR-0002). The Gmail draft
-   writer calls `verifyApproval` with the approval's id and the draft's content hash at the moment
-   it acts, the same way the Apply Gateway does. A changed draft needs a new approval.
-4. Northstar never sends mail. The only Gmail write path is `users.drafts.create`. Paul sends
-   from Gmail himself. A boundary test fails if any code calls `drafts.send` or `messages.send`,
-   or builds those paths.
-5. Each draft creation carries an idempotency key (the approval's id), so a retry never makes a
-   second draft (RES-006). The draft's id goes into the domain event, and its text never does.
+3. A draft is created only for a reply Paul approved in the Gate (ADR-0002). The draft writer
+   calls `verifyApproval` at the moment it acts, the same way the Apply Gateway does. The
+   approval's hash covers everything that ends up in the draft: To, Cc and Bcc, subject,
+   `threadId`, `In-Reply-To`, `References` and the body. Code sets the recipients from the
+   thread's own headers, read from Gmail, and never from model output. A changed draft needs a
+   new approval.
+4. Northstar never sends mail. `users.drafts.create` is the only Gmail write. Paul sends from
+   Gmail himself. `gmail.compose` also allows `drafts.update`, `drafts.delete`, `drafts.send` and
+   `messages.send`, so three things keep the writer to the one call:
+   - The draft writer is the only module that receives the compose token. It is not exported
+     from its package, like the vault's `open.ts`, and a boundary test fails if anything else
+     imports it.
+   - The writer builds its one URL from a constant. A boundary test fails if any Gmail URL
+     string, or any client method, in the code names `send`, `update` or `delete` on drafts or
+     messages.
+   - Review checks any change to the writer.
+5. Gmail's `drafts.create` takes no idempotency key, so the writer claims each approval once in
+   a ledger before the call (like `apply-write`'s claim), and records the draft's id after it.
+   After an unknown outcome, it looks for an existing draft in the thread carrying the approval's
+   marker header before it creates another. A retry never makes a second draft (RES-006). The
+   draft's id goes into the domain event. Its text never does.
 6. Paul adds the scope to the Google OAuth client's consent screen himself. Until then, the
    draft writer reports `needs_human` (`scope_missing`). It never asks for a broader scope.
+7. No code requests the scope until Paul accepts this ADR.
 
 ## Alternatives considered
 - **Show drafts only in the app, with no Gmail draft.** That needs no new scope, but RPL-002 asks
@@ -43,8 +59,8 @@ sent" has to be enforced in code.
 ## Consequences
 - + Paul's replies are waiting in Gmail, in the thread, once he approves them.
 - + Sending stays a human click in Gmail, whatever a bug or an injected email tries.
-- − `gmail.compose` is broader than drafts alone. The boundary test and code review are what
-  keep it to drafts.
+- − `gmail.compose` is broader than drafts alone. The writer's isolation, its boundary tests and
+  code review are what keep it to drafts.
 - − Paul reconsents to the larger scope on each run (ADR-0014's model), and adds the scope to the
   OAuth client once.
 - NS-166 slice 1 adds no Gmail code. The draft writer, its boundary test and the scope request

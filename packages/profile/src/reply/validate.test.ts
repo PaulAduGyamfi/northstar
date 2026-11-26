@@ -1,18 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { EvidenceItem } from "../answer/evidence.js";
 import type { ReplyDraft } from "./schema.js";
-import { validateReplyDraft } from "./validate.js";
+import { greetingName, validateReplyDraft } from "./validate.js";
 
-// Synthetic email and evidence only (the repo is public).
-const EMAIL =
-  "Hi Paul, I'm Dana, a recruiter at Initech. Could you tell me about your payments work? " +
-  "We'd love to set up a call.";
+// Synthetic sender and evidence only (the repo is public).
+const SENDER = "Dana Reyes";
 const EVIDENCE: EvidenceItem[] = [
   {
     id: "atom-1",
     kind: "atom",
     text: "Built the card payments flow at Globex for 12 merchants.",
   },
+  { id: "story-1", kind: "story", text: "We agreed to launch one week later." },
 ];
 
 type Sentence = ReplyDraft["sentences"][number];
@@ -22,14 +21,19 @@ const claim: Sentence = {
   cites: [{ id: "atom-1", quote: "Built the card payments flow at Globex for 12 merchants." }],
 };
 const draft = (...sentences: Sentence[]): ReplyDraft => ({ sentences, followUps: [] });
-const check = (d: ReplyDraft) => validateReplyDraft(d, EVIDENCE, EMAIL);
+const check = (d: ReplyDraft, sender: string | null = SENDER) =>
+  validateReplyDraft(d, EVIDENCE, sender);
+const problems = (d: ReplyDraft) => {
+  const r = check(d);
+  return r.ok ? [] : r.failures.map((f) => f.problem);
+};
 
 describe("validateReplyDraft", () => {
-  it("passes cited claims between a plain greeting and a plain next step", () => {
+  it("passes cited claims between a greeting with the sender's name and a next step", () => {
     expect(
       check(
         draft(
-          frame("Hi Dana, thanks for reaching out about the role at Initech."),
+          frame("Hi Dana, thanks for reaching out."),
           claim,
           frame("I'll send my availability shortly."),
         ),
@@ -37,10 +41,44 @@ describe("validateReplyDraft", () => {
     ).toEqual({ ok: true });
   });
 
-  it("passes a reply of framing alone, such as accepting an assessment invite", () => {
+  it("passes a reply of framing alone", () => {
     expect(
-      check(draft(frame("Thanks, Dana."), frame("I'm happy to take the assessment."))),
-    ).toEqual({ ok: true });
+      check(draft(frame("Thank you for the invitation."), frame("I'll get back to you soon."))),
+    ).toEqual({
+      ok: true,
+    });
+  });
+
+  it("fails framing that uses a name other than the sender's first name", () => {
+    expect(check(draft(frame("Hi Dana, thanks for reaching out from Initech.")))).toEqual({
+      ok: false,
+      failures: [{ sentence: 0, problem: "framing word 7 is not in the framing vocabulary" }],
+    });
+  });
+
+  it("fails each injected fact, commitment or link that framing might carry", () => {
+    const injected = [
+      "Great to hear from Acme about my Kubernetes migration at Initech.",
+      "I hold an active security clearance and need no visa sponsorship.",
+      "Yes, I accept the offer and can start today.",
+      "I'm happy to relocate and to take a lower salary.",
+      "Please send the contract to dana at https://evil.example/x and I'll sign it.",
+    ];
+    expect(injected.map((t) => check(draft(frame(t))).ok)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it("fails framing that states a number or a time", () => {
+    expect(problems(draft(frame("Hi Dana, talk to you tomorrow at 9.")))).toEqual([
+      "framing word 5 is not in the framing vocabulary",
+      "framing word 6 is not in the framing vocabulary",
+      "framing word 7 is not in the framing vocabulary",
+    ]);
   });
 
   it("fails a claim whose number isn't in its quotes, naming the reply's own sentence", () => {
@@ -62,32 +100,23 @@ describe("validateReplyDraft", () => {
     });
   });
 
-  it("fails framing that states a number, in digits or in words", () => {
-    expect(check(draft(frame("I have 8 years of payments work.")))).toEqual({
+  it("fails a claim that adds a commitment word its quotes don't hold", () => {
+    const committed: Sentence = {
+      ...claim,
+      text: "I built the card payments flow at Globex for 12 merchants and accept your terms.",
+    };
+    expect(check(draft(committed))).toEqual({
       ok: false,
-      failures: [{ sentence: 0, problem: "framing has a number at word 2" }],
-    });
-    expect(check(draft(frame("I have ten years of payments work.")))).toEqual({
-      ok: false,
-      failures: [{ sentence: 0, problem: "framing has a number at word 2" }],
-    });
-  });
-
-  it("fails framing that proposes a time", () => {
-    expect(check(draft(frame("Could we talk tomorrow afternoon?")))).toEqual({
-      ok: false,
-      failures: [
-        { sentence: 0, problem: "framing has a time at word 3" },
-        { sentence: 0, problem: "framing has a time at word 4" },
-      ],
+      failures: [{ sentence: 0, problem: "commitment word at word 12 is not in its quotes" }],
     });
   });
 
-  it("fails framing that names something the email doesn't", () => {
-    expect(check(draft(frame("Thanks, Dana, I enjoyed my time at Globex.")))).toEqual({
-      ok: false,
-      failures: [{ sentence: 0, problem: "framing has a name at word 7 that isn't in the email" }],
-    });
+  it("passes a commitment word the claim's own quote holds", () => {
+    const quoted: Sentence = {
+      text: "We agreed to launch one week later.",
+      cites: [{ id: "story-1", quote: "We agreed to launch one week later." }],
+    };
+    expect(check(draft(quoted))).toEqual({ ok: true });
   });
 
   it("fails a fourth framing sentence", () => {
@@ -99,17 +128,24 @@ describe("validateReplyDraft", () => {
   });
 
   it("fails framing over 25 words", () => {
-    const long = frame(`Thanks for reaching out${" and I appreciate it".repeat(6)}.`);
-    expect(check(draft(long))).toEqual({
-      ok: false,
-      failures: [{ sentence: 0, problem: "framing is longer than 25 words" }],
-    });
+    const long = frame(`Thanks for reaching out${" and thank you so much".repeat(5)}.`);
+    expect(problems(draft(long))).toEqual(["framing is longer than 25 words"]);
   });
 
-  it("never puts the draft's or the email's text in a failure", () => {
+  it("never puts the draft's text in a failure", () => {
     const result = check(draft(frame("Thanks, Dana, I enjoyed Globex on Monday at 9.")));
     expect(result.ok).toBe(false);
     const text = JSON.stringify(result);
-    for (const word of ["Dana", "Globex", "Monday", "enjoyed"]) expect(text).not.toContain(word);
+    for (const word of ["Globex", "Monday", "enjoyed"]) expect(text).not.toContain(word);
+  });
+});
+
+describe("greetingName", () => {
+  it("keeps a plain capitalised first word and drops anything else", () => {
+    expect(
+      ["Dana Reyes", "dana", "Dana <dana@example.com>", "Acme Talent 2", "", null].map(
+        greetingName,
+      ),
+    ).toEqual(["Dana", null, "Dana", "Acme", null, null]);
   });
 });

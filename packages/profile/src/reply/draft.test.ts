@@ -60,6 +60,7 @@ function gatewayAnswering(outcome: LlmOutcome<ReplyDraft> | null) {
 const request = {
   kind: "recruiter_inbound",
   email: EMAIL,
+  senderName: "Dana Reyes",
   voiceGuide: "",
   items: [ATOM, UNRELATED],
 };
@@ -85,8 +86,8 @@ describe("draftReply", () => {
       evidence: ["atom-1"],
       record,
     });
-    expect(inputs.map((i) => [i.need, i.evidence.map((e) => e.id)])).toEqual([
-      ["reply", ["atom-1"]],
+    expect(inputs.map((i) => [i.need, i.sender, i.evidence.map((e) => e.id)])).toEqual([
+      ["reply", "Dana", ["atom-1"]],
     ]);
   });
 

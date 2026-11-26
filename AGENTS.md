@@ -201,9 +201,10 @@ Exists now:
     recruiter, assessment and follow-up mail does; interview and scheduling mail gets one with no
     times (until Calendar, NS-169); confirmations, rejections, offers and other mail get none.
   - The `reply-draft` route drafts from the email (untrusted) and `selectEvidence`'s items.
-  - `validateReplyDraft` checks each claim like an answer sentence. A sentence that cites
-    nothing is framing: at most 3, under 25 words each, with no numbers, no times, and no
-    capitalised word that isn't an opener, a greeting or a name in the email.
+  - `validateReplyDraft` checks each claim like an answer sentence, and refuses a commitment
+    word (accept, salary, start, …) its quotes don't hold. A sentence that cites nothing is
+    framing: at most 3, under 25 words each, every word from the fixed `FRAMING_WORDS`
+    vocabulary or the sender's first name (`greetingName`, parsed by code).
   - `draftReply` is off by default (hand-written fixtures). A failing draft becomes
     `needs_human`.
 

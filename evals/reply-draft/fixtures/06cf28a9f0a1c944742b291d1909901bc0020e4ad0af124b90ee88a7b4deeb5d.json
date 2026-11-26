@@ -1,5 +1,5 @@
 {
-  "requestSha256": "ef23547c0136eccb5440d3bb6c417b7ee0c2f5cb4c28cc497d17ff4b3895fcc0",
+  "requestSha256": "06cf28a9f0a1c944742b291d1909901bc0020e4ad0af124b90ee88a7b4deeb5d",
   "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval reply-draft --record.",
   "response": {
     "id": "msg_handwritten_4",
@@ -9,7 +9,7 @@
     "content": [
       {
         "type": "text",
-        "text": "{\"sentences\":[{\"text\":\"Hi Dana, thanks for the note.\",\"cites\":[]},{\"text\":\"I'm glad to keep talking about the payments role.\",\"cites\":[]}],\"followUps\":[\"What salary range would you like to share with Initech, if any?\"]}",
+        "text": "{\"sentences\":[{\"text\":\"Hi Dana, thanks for the note.\",\"cites\":[]},{\"text\":\"I'll get back to you soon.\",\"cites\":[]}],\"followUps\":[\"What salary range would you like to share with Initech, if any?\"]}",
         "citations": null
       }
     ],

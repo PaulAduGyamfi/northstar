@@ -9,6 +9,7 @@ import { defineEval } from "../types.js";
 export const ReplyInput = z
   .object({
     email: z.string().min(1),
+    sender: z.string().min(1).nullable(),
     need: z.enum(["reply", "reply_without_times"]),
     voiceGuide: z.string(),
     evidence: z.array(
@@ -44,7 +45,7 @@ export function gradeReplyDraft(output: unknown, expected: unknown, input: unkno
   const draft = d.data;
   const exp = e.data;
 
-  if (!validateReplyDraft(draft, i.data.evidence, i.data.email).ok) return false;
+  if (!validateReplyDraft(draft, i.data.evidence, i.data.sender).ok) return false;
   const cited = new Set(draft.sentences.flatMap((s) => s.cites.map((c) => c.id)));
   if (exp.citesAnyOf.length === 0 ? cited.size > 0 : !exp.citesAnyOf.some((id) => cited.has(id))) {
     return false;

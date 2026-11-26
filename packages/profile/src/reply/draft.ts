@@ -5,7 +5,7 @@ import { findAvoided } from "../voice/edits.js";
 import { words } from "../voice/words.js";
 import { EMAIL_LIMIT, replyDraftRoute } from "./route.js";
 import type { ReplyDraft } from "./schema.js";
-import { type ReplyFailure, replyText, validateReplyDraft } from "./validate.js";
+import { greetingName, type ReplyFailure, replyText, validateReplyDraft } from "./validate.js";
 
 // Drafting a reply to a job email (RPL-001, NS-166). Code decides: replyNeed says whether the
 // email gets a reply at all, code picks the evidence, the model drafts, and the check decides
@@ -17,6 +17,9 @@ export type ReplyRequest = {
   kind: string;
   // The email's text. Untrusted.
   email: string;
+  // The From header's display name, parsed by code. Only its first word, and only when it is a
+  // plain name (greetingName), may appear in the greeting.
+  senderName: string | null;
   // How Paul writes (renderVoiceGuide). May be empty.
   voiceGuide: string;
   // Phrases Paul keeps deleting from drafts (ANS-008).
@@ -46,7 +49,7 @@ export async function draftReply(
   if (deps.enabled !== true) return { kind: "off" };
   const need = replyNeed(request.kind);
   if (need === "none") return { kind: "none" };
-  // The same cut text the route sees is what framing names are checked against.
+  // A long thread's quoted history adds cost, not context.
   const email = request.email.slice(0, EMAIL_LIMIT);
   // May be empty: a reply that only accepts an invite needs no evidence, and its framing is
   // still checked.
@@ -62,6 +65,7 @@ export async function draftReply(
   // A transport error or a held-back call throws, for the caller's retry policy (llm.md).
   const outcome = await deps.gateway.call(replyDraftRoute(), {
     email,
+    sender: greetingName(request.senderName),
     need,
     voiceGuide,
     evidence,
@@ -80,7 +84,7 @@ export async function draftReply(
     case "InvalidOutput":
       return needsHuman("invalid_output");
     case "Ok": {
-      const check = validateReplyDraft(outcome.output, evidence, email);
+      const check = validateReplyDraft(outcome.output, evidence, request.senderName);
       if (!check.ok) {
         return {
           kind: "needs_human",

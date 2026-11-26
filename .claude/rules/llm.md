@@ -52,8 +52,9 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
   policy (`bank_exact` or `bank_high_confidence`), whatever its confidence.
 - The `reply-draft` route (NS-166) lives in `packages/profile/src/reply/`. Call it only
   through `draftReply`, which asks only when `replyNeed` says a reply is due and keeps a draft
-  only when `validateReplyDraft` passes: claims cite stories or atoms verbatim, and framing has
-  no numbers, times or names that aren't in the email. It is off by default (`enabled: true`
+  only when `validateReplyDraft` passes: claims cite stories or atoms verbatim and add no
+  commitment word, and framing uses only `FRAMING_WORDS` and the sender's first name. Keep
+  `FRAMING_WORDS` and the prompt's list the same (a test checks). It is off by default (`enabled: true`
   turns it on), because its fixtures are hand-written. Nothing it drafts is ever sent
   (ADR-0025).
 - A new route with no real recordings gets hand-written fixtures (ADR-0016 item 8). Write the

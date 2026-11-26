@@ -1,15 +1,15 @@
 {
-  "requestSha256": "1bfc3b53db879ffd3401323564641f171a488d81dff8fa34bf3c03f6fb871a3a",
+  "requestSha256": "816253a5e95a4929dc543ad618523e397923698acd280185ddf7d6939753cb66",
   "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval reply-draft --record.",
   "response": {
-    "id": "msg_handwritten_1",
+    "id": "msg_handwritten_2",
     "type": "message",
     "role": "assistant",
     "model": "claude-opus-5-5",
     "content": [
       {
         "type": "text",
-        "text": "{\"sentences\":[{\"text\":\"Hello, thank you for the next step.\",\"cites\":[]},{\"text\":\"I'm glad to take the coding assessment and will complete it in the portal.\",\"cites\":[]}],\"followUps\":[]}",
+        "text": "{\"sentences\":[{\"text\":\"Hi Dana, thank you so much for the invitation.\",\"cites\":[]},{\"text\":\"I'll send my availability shortly.\",\"cites\":[]}],\"followUps\":[]}",
         "citations": null
       }
     ],

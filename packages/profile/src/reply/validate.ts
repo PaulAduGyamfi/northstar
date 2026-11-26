@@ -1,81 +1,89 @@
 import type { EvidenceItem } from "../answer/evidence.js";
-import {
-  type AnswerFailure,
-  NUMBER_WORDS,
-  STARTERS,
-  validateAnswerDraft,
-} from "../answer/validate.js";
-import { nameCandidates } from "../names.js";
+import { type AnswerFailure, validateAnswerDraft } from "../answer/validate.js";
 import { hasWhole, normalize } from "../validate.js";
 import type { ReplyDraft } from "./schema.js";
 
 // The deterministic check for reply drafts (RPL-001, ADR-0004, NS-166): plain code, no model.
-// A claim (a sentence that cites) passes the answer-draft rules. Framing (a sentence that cites
-// nothing) may greet and thank, but can't carry a fact: no numbers, no times, no capitalised word
-// that isn't an opener, a greeting or a name in the email itself, and only a few short sentences.
-// A failure names the sentence and the problem, never the text.
+// A claim (a sentence that cites) passes the answer-draft rules, and may not add a commitment
+// word its quotes don't hold. Framing (a sentence that cites nothing) is a closed set: every word
+// must be in FRAMING_WORDS, a fixed vocabulary of greetings, thanks and next steps, or be the
+// sender's name. So framing can't state a fact, a figure, a time, a name or a link, whatever the
+// email asks for. A failure names the sentence and the problem, never the text.
 export type ReplyFailure = AnswerFailure;
 export type ReplyValidation = { ok: true } | { ok: false; failures: ReplyFailure[] };
 
 export const MAX_FRAMING_SENTENCES = 3;
 export const MAX_FRAMING_WORDS = 25;
 
-// Greeting and sign-off words a reply opens or closes with. Capitalised, so they'd otherwise
-// count as names.
-const GREETINGS = new Set(
+// Everything framing may say: greet, thank, acknowledge, say a reply or availability will follow,
+// sign off. No "yes", "no", "accept", "sure" or anything that answers a question by itself.
+export const FRAMING_WORDS = new Set(
   (
-    "Hi Hello Hey Dear Thanks Thank Best Regards Kind Warm Sincerely Cheers Looking Happy Glad " +
-    "Great Please Yes Sure Absolutely Certainly Of"
+    "hi hello dear thanks thank you so much very for reaching out the your note message email " +
+    "following up update next step invitation i i'm i am i'll i will i'd would be glad happy " +
+    "pleased great to hear from it this and appreciate hope you're are well all best regards kind " +
+    "warm many sincerely cheers looking forward talking speaking talk speak more with soon " +
+    "shortly send my availability get back in touch a reply"
   ).split(" "),
 );
 
-// Words that set a time. No reply proposes one until Calendar exists (RPL-003, NS-169). "May"
-// and "March" are left out: as ordinary words ("you may") they would refuse plain framing.
-const TIME_WORDS = new Set(
+// Words that commit Paul to something or state terms. A claim may use one only when its own
+// quotes do ("We agreed to launch one week later" can be quoted); framing never can, since none
+// is in FRAMING_WORDS.
+export const COMMITMENT_WORDS = new Set(
   (
-    "monday tuesday wednesday thursday friday saturday sunday mondays tuesdays wednesdays " +
-    "thursdays fridays weekend weekends week weeks tomorrow tonight morning mornings afternoon " +
-    "afternoons evening evenings noon midnight am pm a.m p.m january february april may " +
-    "june july august september october november december o'clock"
+    "accept accepted accepting accepts decline declined declining declines agree agreed agreeing " +
+    "sign signed signing relocate relocating relocation salary salaries compensation pay rate " +
+    "sponsorship sponsor visa clearance offer offers contract notice withdraw withdrawing " +
+    "available availability start starting"
   ).split(" "),
 );
 
-// Edge punctuation off ("Hi," → "Hi", "a.m." → "a.m"), keeping name characters such as + and #.
+// The sender's first name as the greeting may use it: one plain word from the From header (code
+// parses it, never the model). Anything else gives no name, and the greeting goes without.
+export function greetingName(senderName: string | null): string | null {
+  const first = senderName?.trim().split(/\s+/)[0] ?? "";
+  return /^\p{Lu}[\p{L}'-]{0,39}$/u.test(first) ? first : null;
+}
+
+// Edge punctuation off ("Hi," → "Hi"), keeping name characters such as + and #.
 const bare = (raw: string) => raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}+#]+$/gu, "");
 
-function framingFailures(text: string, email: string, fail: (problem: string) => void): void {
+function framingFailures(text: string, name: string | null, fail: (problem: string) => void): void {
   const words = normalize(text).split(" ");
   if (words.length > MAX_FRAMING_WORDS) {
     fail(`framing is longer than ${MAX_FRAMING_WORDS} words`);
   }
-  const seen = new Set<string>();
   words.forEach((raw, position) => {
     const word = bare(raw);
-    const lower = word.toLowerCase();
-    // Any digit, or a number in words: framing states no figure of any kind.
-    if (/\p{N}/u.test(word) || NUMBER_WORDS.has(lower)) {
-      fail(`framing has a number at word ${position}`);
+    if (word === "" || word === name) return;
+    if (!FRAMING_WORDS.has(word.toLowerCase())) {
+      fail(`framing word ${position} is not in the framing vocabulary`);
     }
-    if (TIME_WORDS.has(lower)) fail(`framing has a time at word ${position}`);
-    let unbacked = false;
-    for (const { name, leading } of nameCandidates(word)) {
-      // Openers only open a sentence; greetings may stand anywhere ("Thanks again, and best").
-      if (leading && (GREETINGS.has(name) || (position === 0 && STARTERS.has(name)))) continue;
-      if (seen.has(name)) continue;
-      seen.add(name);
-      // A name may come only from the email (the recruiter's or the company's name), never from
-      // the model: framing must not bring in an employer, tool or place of its own.
-      if (!hasWhole(email, name)) unbacked = true;
-    }
-    if (unbacked) fail(`framing has a name at word ${position} that isn't in the email`);
   });
+}
+
+// A commitment word in a claim that its quotes don't hold: the model added it.
+function commitmentFailures(
+  sentence: ReplyDraft["sentences"][number],
+  fail: (problem: string) => void,
+): void {
+  const quotes = sentence.cites.map((c) => normalize(c.quote).toLowerCase()).join(" \n ");
+  normalize(sentence.text)
+    .split(" ")
+    .forEach((raw, position) => {
+      const word = bare(raw).toLowerCase();
+      if (COMMITMENT_WORDS.has(word) && !hasWhole(quotes, word)) {
+        fail(`commitment word at word ${position} is not in its quotes`);
+      }
+    });
 }
 
 export function validateReplyDraft(
   draft: ReplyDraft,
   evidence: readonly EvidenceItem[],
-  // The email as the route saw it (cut to EMAIL_LIMIT).
-  email: string,
+  // The sender's display name from the From header, parsed by code (greetingName).
+  senderName: string | null,
 ): ReplyValidation {
   const failures: ReplyFailure[] = [];
   if (draft.sentences.length === 0) failures.push({ sentence: null, problem: "no sentences" });
@@ -96,7 +104,13 @@ export function validateReplyDraft(
     }
   }
 
-  const normalizedEmail = normalize(email);
+  for (const index of claimIndex) {
+    commitmentFailures(draft.sentences[index] as ReplyDraft["sentences"][number], (problem) =>
+      failures.push({ sentence: index, problem }),
+    );
+  }
+
+  const name = greetingName(senderName);
   const framing = draft.sentences.flatMap((s, i) => (s.cites.length === 0 ? [i] : []));
   if (framing.length > MAX_FRAMING_SENTENCES) {
     failures.push({
@@ -106,9 +120,7 @@ export function validateReplyDraft(
   }
   for (const index of framing) {
     const sentence = draft.sentences[index] as ReplyDraft["sentences"][number];
-    framingFailures(sentence.text, normalizedEmail, (problem) =>
-      failures.push({ sentence: index, problem }),
-    );
+    framingFailures(sentence.text, name, (problem) => failures.push({ sentence: index, problem }));
   }
   return failures.length === 0 ? { ok: true } : { ok: false, failures };
 }

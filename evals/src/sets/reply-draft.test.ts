@@ -4,6 +4,7 @@ import { gradeReplyDraft } from "./reply-draft.js";
 // Synthetic email and evidence only.
 const input = {
   email: "Hi, I'm Dana at Initech. Could you tell me about your payments work?",
+  sender: "Dana",
   need: "reply",
   voiceGuide: "",
   evidence: [{ id: "atom-1", kind: "atom", text: "Built the card payments flow at Globex." }],
@@ -25,14 +26,17 @@ describe("gradeReplyDraft", () => {
     expect(gradeReplyDraft(output, { citesAnyOf: [], followUps: false }, input)).toBe(false);
   });
 
-  it("fails a reply that the check refuses, such as framing with a time", () => {
+  it("fails a reply that the check refuses, such as framing with a day", () => {
     const output = { sentences: [{ text: "Could we talk on Monday?", cites: [] }], followUps: [] };
     expect(gradeReplyDraft(output, { citesAnyOf: [], followUps: false }, input)).toBe(false);
   });
 
   it("fails a reply holding a word the case forbids", () => {
-    const output = { sentences: [greeting, { text: "I accept.", cites: [] }], followUps: [] };
-    const expected = { citesAnyOf: [], followUps: false, absent: ["accept"] };
+    const output = {
+      sentences: [greeting, { text: "I'd be glad to talk.", cites: [] }],
+      followUps: [],
+    };
+    const expected = { citesAnyOf: [], followUps: false, absent: ["glad"] };
     expect(gradeReplyDraft(output, expected, input)).toBe(false);
   });
 });

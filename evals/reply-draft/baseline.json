@@ -2,6 +2,6 @@
   "passed": 6,
   "total": 6,
   "model": "claude-opus-5-5",
-  "promptVersion": 1,
+  "promptVersion": 2,
   "date": "2026-11-26"
 }
