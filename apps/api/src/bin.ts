@@ -1,4 +1,5 @@
 import { lookup } from "node:dns/promises";
+import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import {
   acquireCall,
@@ -47,6 +48,7 @@ import {
   soleCandidate,
 } from "@northstar/db";
 import { pipelineMetrics } from "@northstar/domain";
+import { loadVaultKey } from "@northstar/gateways";
 import {
   type CallGuard,
   createAnthropicClient,
@@ -73,12 +75,13 @@ import { growthEndpoints } from "./growth.js";
 import { markHandoffSubmitted } from "./handoff-ports.js";
 import { handoffEndpoints } from "./handoffs.js";
 import { inboxEndpoints } from "./inbox.js";
-import { passkeyEndpoints } from "./passkeys.js";
+import { passkeyAssertion, passkeyEndpoints } from "./passkeys.js";
 import { pipelineEndpoints } from "./pipeline.js";
 import { runEndpoints } from "./run.js";
 import { createApi } from "./server.js";
 import { createSessions } from "./sessions.js";
 import { systemEndpoints } from "./system.js";
+import { vaultRevealEndpoints } from "./vault-reveal.js";
 
 // Entry point for `pnpm --filter @northstar/api start`. The only place in this app that reads
 // process.env. Listens on loopback only: Northstar is local first (NS-156, ADR-0018).
@@ -235,17 +238,27 @@ try {
   // and their failures count toward one throttle (ADR-0022).
   const sessions = createSessions(Date.now);
   // Passkey sign-in (NS-178) on packages/db's passkey write path.
-  const passkeys = passkeyEndpoints({
-    config,
+  const passkeyStore = {
+    list: async () => listPasskeys(db, await candidateId()),
+    read: async (credentialId: string) => readPasskey(db, await candidateId(), credentialId),
+    save: async (input: Parameters<typeof savePasskey>[1] extends infer T
+      ? Omit<T, "candidateId">
+      : never) => savePasskey(db, { ...input, candidateId: await candidateId() }),
+    recordUse: async (passkeyId: string, signCount: number) =>
+      recordPasskeyUse(db, await candidateId(), passkeyId, signCount),
+  };
+  const passkeys = passkeyEndpoints({ config, sessions, now: Date.now, store: passkeyStore });
+  // Paul's password reveal (NS-230, ADR-0024): a fresh passkey check on the same store, and the
+  // master key read from its file for each reveal only, while the `vault` switch is on.
+  const vaultKeySettings = { VAULT_MASTER_KEY_FILE: process.env.VAULT_MASTER_KEY_FILE };
+  const vaultReveal = vaultRevealEndpoints({
+    db,
+    candidateId,
     sessions,
+    assertion: passkeyAssertion({ config, store: passkeyStore, now: Date.now }),
+    isVaultOn: async () => isSubsystemOn(db, await candidateId(), "vault"),
+    loadKey: () => loadVaultKey(vaultKeySettings, (path) => readFile(path, "utf8")),
     now: Date.now,
-    store: {
-      list: async () => listPasskeys(db, await candidateId()),
-      read: async (credentialId) => readPasskey(db, await candidateId(), credentialId),
-      save: async (input) => savePasskey(db, { ...input, candidateId: await candidateId() }),
-      recordUse: async (passkeyId, signCount) =>
-        recordPasskeyUse(db, await candidateId(), passkeyId, signCount),
-    },
   });
   const handler = createApi({
     config,
@@ -264,6 +277,7 @@ try {
       ...growth,
       ...deadLetters,
       ...passkeys,
+      ...vaultReveal,
     ],
   });
   const server = createServer(handler);
