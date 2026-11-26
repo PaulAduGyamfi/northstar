@@ -311,6 +311,8 @@ export {
   type TagTarget,
   type TagView,
 } from "./mail-link-write.js";
+// Which applications are due a follow-up nudge (NS-237 slice 3).
+export { readNudgeCandidates } from "./nudge-read.js";
 // Application origin and the credit report (NS-188, INB-007, INB-010).
 export {
   type CreditReport,
