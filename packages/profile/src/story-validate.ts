@@ -1,5 +1,5 @@
 import { MIN_QUOTE_WORDS, NUMBER_WORDS, STARTERS } from "./answer/validate.js";
-import { nameParts } from "./names.js";
+import { nameCandidates } from "./names.js";
 import { STAR_PARTS, type StarPart, type StoryDraft } from "./story-schema.js";
 import { hasWhole, normalize, numbers, quotedIn } from "./validate.js";
 
@@ -114,16 +114,19 @@ export function unbackedNames(text: string, sources: string, openers: string): n
     // Edge punctuation and a possessive off ("Go." → "Go", "Globex's" → "Globex"), keeping name
     // characters such as + and #.
     const word = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}+#]+$/gu, "").replace(/'s$/u, "");
-    // Each name-shaped piece (NS-202: "iOS", "ex-Globex", "3M"); one failure per word at most.
+    // The whole word, then each name piece (NS-202: "iOS", "ex-Globex", "3M"); one failure per
+    // word at most.
     let unbacked = false;
-    nameParts(word).forEach((part, i) => {
-      // Only a sentence's first piece is capitalised by grammar: an ordinary opener or a word
-      // the part's own quotes hold in lower case passes there.
-      if (first && i === 0 && (STARTERS.has(part) || hasWhole(openers, part.toLowerCase()))) return;
-      if (seen.has(part)) return;
-      seen.add(part);
-      if (!hasWhole(sources, part)) unbacked = true;
-    });
+    for (const { name, leading } of nameCandidates(word)) {
+      // Only the start of a sentence's first word is capitalised by grammar: an ordinary opener
+      // or a word the part's own quotes hold in lower case passes there.
+      if (first && leading && (STARTERS.has(name) || hasWhole(openers, name.toLowerCase()))) {
+        continue;
+      }
+      if (seen.has(name)) continue;
+      seen.add(name);
+      if (!hasWhole(sources, name)) unbacked = true;
+    }
     if (unbacked) out.push(position);
   });
   return out;

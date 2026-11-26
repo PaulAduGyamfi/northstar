@@ -1,4 +1,4 @@
-import { nameParts } from "../names.js";
+import { nameCandidates } from "../names.js";
 import { hasWhole, normalize, numbers, quotedIn } from "../validate.js";
 import type { EvidenceItem } from "./evidence.js";
 import type { AnswerDraft } from "./schema.js";
@@ -97,24 +97,25 @@ export function validateAnswerDraft(
       if (NUMBER_WORDS.has(lower) && !hasWhole(quoteText, lower)) {
         fail(`number at word ${position} is not in its quotes`);
       }
-      // Each name-shaped piece (NS-202: "iOS", "ex-Globex", "3M"; never "I"); one failure per
-      // word at most.
+      // The whole word, then each name piece (NS-202: "iOS", "ex-Globex", "3M"; never "I"); one
+      // failure per word at most.
       let unbacked = false;
-      nameParts(word).forEach((part, i) => {
+      for (const { name, leading } of nameCandidates(word)) {
         // A sentence's first word is capitalised anyway: an opener, or a word the cited text
-        // holds in lower case ("Deadlines slipped…"), isn't a name. Only its first piece.
+        // holds in lower case ("Deadlines slipped…"), isn't a name. Only at the word's start.
         if (
           position === 0 &&
-          i === 0 &&
-          (STARTERS.has(part) || hasWhole(names, part.toLowerCase()))
-        )
-          return;
-        if (seen.has(part)) return;
-        seen.add(part);
+          leading &&
+          (STARTERS.has(name) || hasWhole(names, name.toLowerCase()))
+        ) {
+          continue;
+        }
+        if (seen.has(name)) continue;
+        seen.add(name);
         // Names may come from anywhere in a cited item (a story names its employer once), while
         // numbers must come from the sentence's own quotes (a figure belongs to one claim).
-        if (!hasWhole(names, part)) unbacked = true;
-      });
+        if (!hasWhole(names, name)) unbacked = true;
+      }
       if (unbacked) fail(`name at word ${position} is not in its cited items`);
     });
   });

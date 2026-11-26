@@ -16,18 +16,23 @@ Story titles are never name-checked. But the title is part of a story's answer e
 name invented in a title could back a name in a later answer.
 
 ## Behavior
-1. **`nameParts(word)`** (`packages/profile/src/names.ts`, plain code).
-   - The word, with its edge punctuation and possessive already removed, is split on `-` and
-     `/`.
-   - Each piece is a name candidate when it:
-     - starts with a capital ("Globex");
-     - has a capital right after a lower-case letter ("iOS", "eBay"); or
-     - starts with a digit and holds a capital ("3M", "5G").
-   - "I" and its contractions are never names.
-   - The story check (`unbackedNames`) and the answer check (`validateAnswerDraft`) both use it.
-     Every candidate must be backed exactly as a capitalised word is today: as a whole word,
-     case-sensitive.
-   - The sentence-opener exemption applies only to the first piece of a sentence's first word.
+1. **`nameParts(word)` and `nameCandidates(word)`** (`packages/profile/src/names.ts`, plain
+   code).
+   - `nameParts` cuts the word, with its edge punctuation and possessive already removed, at
+     every character that can't be part of a name: anything but letters, digits, `+` and `#`.
+     That includes apostrophes, dots, underscores, look-alike slashes and invisible joiners
+     (a soft hyphen, a zero-width space).
+   - Each piece holding a capital is a name candidate: "Globex", "iOS", "eBay", "3M", the "Oréal"
+     in "l'Oréal", the "AI" in "x.AI".
+   - "I" and its real contractions (I'm, I've, I'd, I'll) are never names; "I'Globex" is.
+   - `nameCandidates` adds the whole word first when it starts with a capital. A capitalised
+     word must still be backed whole, as before, so a made-up compound of two real names
+     ("Globex-Initech" when the sources say only "Globex" and "Initech") stays refused. Then
+     each piece must be backed too. Nothing is looser than before NS-202.
+   - The story check (`unbackedNames`) and the answer check (`validateAnswerDraft`) both loop
+     over `nameCandidates`. Every candidate is backed as a whole word, case-sensitive, as before.
+   - The sentence-opener exemption applies only to the candidates that start a sentence's first
+     word: the whole word and its first piece.
 2. **Story titles are out of the evidence a sentence can lean on.**
    - `EvidenceItem` gets an optional `checkText`. `storyEvidence` sets it to the four parts only,
      without the title.
@@ -54,6 +59,14 @@ name invented in a title could back a name in a later answer.
 - [ ] `eval --all` (CI): `story-draft` and `answer-draft` at or above baseline. A fixture that
       starts failing is a finding for Paul, never a reason to loosen.
 - [ ] `pnpm turbo run lint typecheck test build --force` exits 0, and `checks` is green.
+
+## Trade-offs (recorded as decisions)
+- **A unit written with a capital counts as a name-shaped word:** "1M", "5GB", "2FA", "4K",
+  "macOS". It must appear as written, same case, in its sources: "1 million" doesn't back "1M".
+  This fails safe (the draft becomes `needs_human`). A test pins it.
+- **The answer-draft eval doesn't exercise the title rule.** Its cases give story evidence as
+  plain `text`, title included, with no `checkText`. Unit tests cover the rule. Building the
+  eval's story items through `storyEvidence` is a later change.
 
 ## Out of scope (recorded as a decision)
 - **All-lowercase names** ("at globex", "kubernetes", "npm"). Plain code can't tell them from

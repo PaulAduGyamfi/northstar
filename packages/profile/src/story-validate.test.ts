@@ -276,8 +276,26 @@ describe("names in story text", () => {
   });
 
   it("lets only a sentence's first piece through as an opener", () => {
-    // "Re" opens the sentence and is exempt as the part's quote holds it; "Globex" isn't.
-    expect(unbackedNames("Re-Globex the planner.", "we planned", "re")).toEqual([0]);
+    // The part's quotes hold "re-globex" in lower case. Before NS-202 that let the whole word
+    // through; now only its first piece is grammar, and "Globex" must be backed.
+    expect(unbackedNames("Re-Globex the planner.", "we planned", "re-globex the planner")).toEqual([
+      0,
+    ]);
+  });
+
+  it("still needs a capitalised joined word backed whole, not just its pieces", () => {
+    // Both names are real, but the compound isn't: before NS-202 this was refused too.
+    expect(
+      unbackedNames("We built Globex-Initech together.", "at Globex, later Initech", ""),
+    ).toEqual([2]);
+  });
+
+  it("needs a unit written with a capital to appear as written", () => {
+    // "1M" counts as a name-shaped word: "1 million" in the sources doesn't back it (fail safe).
+    expect([
+      unbackedNames("We served 1M users.", "we served 1 million users", ""),
+      unbackedNames("We served 1M users.", "we served 1M users", ""),
+    ]).toEqual([[2], []]);
   });
 
   it("reads a possessive as its name", () => {
