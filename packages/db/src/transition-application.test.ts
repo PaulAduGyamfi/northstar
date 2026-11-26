@@ -159,6 +159,18 @@ describe("transitionApplication", () => {
     expect(await eventCount()).toBe(1);
   });
 
+  it("refuses a key already used for the same move with a different reason code (NS-218)", async () => {
+    const withdraw = { to: "withdrawn" as const, submittedVia: undefined, idempotencyKey: "w1" };
+    await transitionApplication(db, input({ ...withdraw, reasonCode: "posting_closed" }));
+    const replayed = await transitionApplication(db, input({ ...withdraw, reasonCode: undefined }));
+
+    expect(replayed).toEqual({
+      ok: false,
+      error: { kind: "IdempotencyKeyReused", idempotencyKey: "w1" },
+    });
+    expect(await eventCount()).toBe(1);
+  });
+
   it("refuses an invalid event before writing anything", async () => {
     const result = await transitionApplication(db, input({ actor: "someone" }));
 

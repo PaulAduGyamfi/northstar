@@ -38,12 +38,16 @@ export type TransitionInput = {
   // How it went out (INB-007): required for a move to `submitted`, and stored in that move's
   // event, so the origin is written in the same transaction as the move. Ignored otherwise.
   submittedVia?: SubmittedVia;
-  // A fixed code for why the move happened (NS-218: `posting_closed`), stored in the event's
-  // payload so the feed can say so. Never free text: no title, company or URL.
-  reasonCode?: string;
+  // A fixed code for why the move happened, stored in the event's payload so the feed can say
+  // so. A closed list, never free text: no title, company or URL.
+  reasonCode?: TransitionReasonCode;
   // Injected clock for tests; defaults to the current time.
   now?: Date;
 };
+
+// Why a move happened, when it isn't the usual reason for that move. NS-218: the job's posting
+// closed before the application went out.
+export type TransitionReasonCode = "posting_closed";
 
 export type StaleStatus = {
   kind: "StaleStatus";

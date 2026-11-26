@@ -424,6 +424,7 @@ export {
   type StaleStatus,
   type TransitionError,
   type TransitionInput,
+  type TransitionReasonCode,
   type TransitionResult,
   transitionApplication,
 } from "./transition-application.js";

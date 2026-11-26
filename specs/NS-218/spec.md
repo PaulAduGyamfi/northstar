@@ -1,6 +1,6 @@
 # NS-218: Act on closed postings: pipeline items and the Apply Gateway
 
-Status: building
+Status: built
 Requirements: SRC-010 (posting liveness), ADR-0007 (never a silent drop), APPLY-009
 Rules that apply: ADR-0016, `.claude/rules/gateways.md`, `.claude/rules/db.md`,
 `.claude/rules/tests.md`. Parent: #124. Builds on NS-173 slice 2 (`posting_check`,
@@ -32,12 +32,12 @@ Gateway would still try to submit it to a dead posting.
   posting closed".
 
 ## Acceptance criteria
-- [ ] An open application before submission whose job closed moves to `withdrawn` with
+- [x] An open application before submission whose job closed moves to `withdrawn` with
       `reasonCode: "posting_closed"`, once (run twice: one event); a submitting or submitted one
       doesn't move; an open job's application doesn't move.
-- [ ] `submitApplication` refuses `PostingClosed` before claiming, on fakes and on the db ports.
-- [ ] `checkPass` runs the withdrawal after the pass and a failure there doesn't fail the pass.
-- [ ] `pnpm turbo run lint typecheck test build` passes.
+- [x] `submitApplication` refuses `PostingClosed` before claiming, on fakes and on the db ports.
+- [x] `checkPass` runs the withdrawal after the pass and a failure there doesn't fail the pass.
+- [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Out of scope
 - Withdrawing a waiting Gate request for an application that left the pipeline (the gateway
