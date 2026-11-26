@@ -15,9 +15,9 @@ import {
   answerFactual,
   type ConfirmedMatch,
   confirmCandidates,
+  isNegatedQuestion,
   matchQuestion,
   narrativeKindOf,
-  normalize,
   type Setting,
   type StoredAnswer,
 } from "@northstar/profile";
@@ -114,9 +114,6 @@ export type NeedsHuman = { kind: "NeedsHuman"; unanswered: Unanswered[] };
 // - new: a weaker match (the 0.6 matching floor is not "high confidence"). It still fills the
 //   field, but Paul reviews it.
 const HIGH_CONFIDENCE = 0.8;
-// A narrative label with a negation ("Why would you NOT…") asks the opposite of the banked
-// question, and the matcher drops "not" as filler: never reuse an answer for it.
-const NEGATION = /\b(?:without|not|no|never)\b|n't\b/i;
 
 // Lowercase, single spaces, no trailing punctuation: how two wordings are compared.
 const plain = (text: string) =>
@@ -168,8 +165,9 @@ function answer(q: FormQuestion, input: AssemblyInput): Answer {
   if (
     match.status !== "matched" ||
     narrativeKindOf(match.canonical.id) === null ||
-    // Normalized first (NFKC, curly quotes), as the confirm step does: "wouldn’t" is a negation.
-    NEGATION.test(normalize(q.label))
+    // A negated label ("Why would you NOT…") asks the opposite of the banked question, and the
+    // matcher drops "not" as filler: never reuse an answer for it (the shared check, NS-244).
+    isNegatedQuestion(q.label)
   ) {
     return { ok: false, reason: "not_matched" };
   }
