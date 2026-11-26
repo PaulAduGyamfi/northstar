@@ -477,6 +477,20 @@
       "when": 1795696603380,
       "tag": "0067_growth_check_ins_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1795706772817,
+      "tag": "0068_job_form",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1795706774301,
+      "tag": "0069_job_form_append_only",
+      "breakpoints": true
     }
   ]
 }

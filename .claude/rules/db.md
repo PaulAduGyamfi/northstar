@@ -116,6 +116,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `liveness-write.ts`: one row per attempt (`open`, `closed` or `unavailable`). A job is closed
   only when its two newest answers (unavailable skipped) are `closed`; `readScorableJobs` leaves
   closed jobs out. `job.closed` / `job.reopened` carry the job id and ATS, never a URL or title.
+- Job forms (NS-227) are `job_form`, append-only (a trigger), written only through
+  `job-form-write.ts`: one row per distinct form of a job (its questions' canonical JSON and
+  SHA-256), the newest current. Labels and choices are the employer's text, bounded before insert
+  (200 fields, 1,000-character labels, 500 choices); `job.form_read` carries the job id, ATS and a
+  count only.
 - LLM spend (NS-176, ADR-0021) is `llm_spend`, append-only (a trigger), written only through
   `spend-write.ts`: a route name and micro-dollars per reply, never a prompt, input or output.
   `readLlmSpend` sums by the UTC day and month.

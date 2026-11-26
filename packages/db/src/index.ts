@@ -249,6 +249,16 @@ export {
   type SetIndependentWorkResult,
   setIndependentWork,
 } from "./independent-work-write.js";
+export type { JobFormQuestion } from "./job-form-schema.js";
+// Posting liveness (NS-173 slice 2, SRC-010).
+// A job's application form (NS-227).
+export * as jobFormSchema from "./job-form-schema.js";
+export {
+  readJobAtsSources,
+  readJobForm,
+  type SaveJobFormResult,
+  saveJobForm,
+} from "./job-form-write.js";
 export {
   type Ats,
   type DedupeCandidate,
@@ -270,7 +280,6 @@ export {
   type SetKillSwitchResult,
   setKillSwitch,
 } from "./kill-switch-write.js";
-// Posting liveness (NS-173 slice 2, SRC-010).
 export * as livenessSchema from "./liveness-schema.js";
 export {
   CHECKABLE_ATS,

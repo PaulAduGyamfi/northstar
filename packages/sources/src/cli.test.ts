@@ -37,6 +37,11 @@ function deps(argv: string[], result?: IngestResult | Error) {
       wait: async () => false,
     },
     fit: noFit(),
+    form: {
+      sources: async () => [],
+      readGreenhouse: async () => null,
+      save: async () => ({ status: "unchanged", questions: 0 }),
+    },
     check: async () => ({
       checked: 0,
       open: 0,
