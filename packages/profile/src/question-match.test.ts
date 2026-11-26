@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { CANONICAL_QUESTIONS } from "./question-canon.js";
-import { classifyQuestion, matchQuestion, questionConcepts } from "./question-match.js";
+import {
+  classifyQuestion,
+  isNegatedQuestion,
+  matchQuestion,
+  questionConcepts,
+} from "./question-match.js";
 
 // The canonical id a question maps to, or "new" when it maps to none.
 function idOf(question: string): string {
@@ -222,5 +227,19 @@ describe("classifyQuestion", () => {
       factualField: null,
       match: { status: "new", reason: "below_threshold" },
     });
+  });
+});
+
+describe("isNegatedQuestion", () => {
+  it.each([
+    ["plain ASCII", "Why would you not want to work here?", true],
+    ["an ASCII contraction", "Why wouldn't you join us?", true],
+    ["a curly apostrophe", "Why wouldn\u2019t you join us?", true],
+    ["full-width letters", "Why would you \uff4e\uff4f\uff54 join?", true],
+    ["without", "Can you start without notice?", true],
+    ["a plain question", "Why do you want to work here?", false],
+    ["a word that only contains no", "Do you know Node?", false],
+  ])("reads %s", (_name, label, negated) => {
+    expect(isNegatedQuestion(label)).toBe(negated);
   });
 });

@@ -106,6 +106,7 @@ export {
   AMBIGUITY_MARGIN,
   classifyQuestion,
   FACTUAL_THRESHOLD,
+  isNegatedQuestion,
   MATCH_THRESHOLD,
   matchQuestion,
   type QuestionClassification,
