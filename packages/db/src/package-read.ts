@@ -110,7 +110,8 @@ export async function readPackageInputs(
 
 // APPLY-003: another job's application went out through the Apply Gateway (its ledger row
 // finished `submitted`), and the form that job had when it went out (its newest form read before
-// the submission finished) has this exact shape on the same ATS. Paul's own submissions (by hand,
+// the submission started: the package was built before the claim) has this exact shape on the
+// same ATS. Paul's own submissions (by hand,
 // or "I submitted it" on a handoff) have no ledger row, so a form Northstar never filled is never
 // "seen", and nor is a shape the other job only took on after it went out.
 async function seenBefore(
@@ -134,7 +135,7 @@ async function seenBefore(
         and f.position = (
           select max(f2.position) from job_form f2
           where f2.candidate_id = ${candidateId} and f2.job_id = a.job_id
-            and f2.read_at <= s.finished_at
+            and f2.read_at <= s.started_at
         )
     ) as seen`)) as unknown as { rows: { seen: boolean }[] };
   return result.rows[0]?.seen === true;

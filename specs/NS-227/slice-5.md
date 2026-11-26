@@ -26,7 +26,7 @@ reason codes only. This slice is the `packages/db` side of that; the caller is p
   - the newest fit score or null;
   - `formSeenBefore`: true only when the Apply Gateway sent another job's application (its ledger
     row finished `submitted`) while that job's form, the newest read before the submission
-    finished, had this form's ATS and SHA-256. Paul's own submissions (by hand, or "I submitted it"
+    started, had this form's ATS and SHA-256. Paul's own submissions (by hand, or "I submitted it"
     on a handoff) have no ledger row and never count, and nor does a shape the other job took on
     after it went out (both reviewers of this slice).
 - **`recordPackageNeedsHuman(db, { candidateId, applicationId, reasons, basis })`**

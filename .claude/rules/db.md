@@ -129,7 +129,7 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
 - A package's inputs (NS-227 slice 5) are read only through `readPackageInputs`
   (`package-read.ts`, read-only, the candidate's own application). `formSeenBefore` counts only an
   Apply Gateway submission (`apply_submission` finished `submitted`) of another job whose form, as
-  read before that submission finished, had the same ATS and SHA-256; Paul's own submissions have
+  read before that submission started, had the same ATS and SHA-256; Paul's own submissions have
   no ledger row and never count. `recordPackageNeedsHuman` (`package-write.ts`) writes
   `package.needs_human` (never an `application.*` type: the feed reads those as status moves) with
   the application id, snake_case reason codes and counts only, keyed by the caller's SHA-256 basis
