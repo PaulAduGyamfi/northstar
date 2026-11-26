@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { type CandidateId, err, ok, parseDomainEvent, type Result } from "@northstar/domain";
 import { isSpanContextValid, type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { approvalDecision, approvalUndo } from "./approval-schema.js";
+import { approvalDecision, approvalUndo, approvalWithdrawal } from "./approval-schema.js";
 import type { Db } from "./db.js";
 import { currentState } from "./kill-switch-write.js";
 import { domainEvent } from "./schema.js";
@@ -161,7 +161,7 @@ export type OpenInput = {
   decisionId: string;
 };
 
-// Is this an approval of this candidate that has taken effect and wasn't undone? By the Gate's
+// Is this an approval of this candidate that has taken effect and wasn't undone or withdrawn? By the Gate's
 // clock (northstar_gate_now()), as verifyApproval decides it. The caller still verifies the
 // decision covers the action at hand; this keeps a rejected or undone id from opening anything.
 async function liveApproval(
@@ -170,6 +170,13 @@ async function liveApproval(
   decisionId: string,
 ): Promise<boolean> {
   if (!UUID.test(decisionId)) return false;
+  // Lock the decision row first, as verifyApproval does: a withdrawal (NS-140) locks it too, so
+  // an opening and a withdrawal never overlap; whichever commits first, the other sees it.
+  await tx
+    .select({ id: approvalDecision.id })
+    .from(approvalDecision)
+    .where(and(eq(approvalDecision.id, decisionId), eq(approvalDecision.candidateId, candidateId)))
+    .for("update");
   const [row] = await tx
     .select({ id: approvalDecision.id })
     .from(approvalDecision)
@@ -181,6 +188,10 @@ async function liveApproval(
         eq(approvalDecision.decision, "approved"),
         sql`${approvalDecision.effectiveAt} <= northstar_gate_now()`,
         sql`${approvalUndo.id} is null`,
+        // A withdrawn request (NS-140) is closed: its approval opens nothing.
+        sql`not exists (
+          select 1 from ${approvalWithdrawal} w where w.request_id = ${approvalDecision.requestId}
+        )`,
       ),
     );
   return row !== undefined;

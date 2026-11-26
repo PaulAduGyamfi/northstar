@@ -21,6 +21,7 @@ import {
   approvalPolicySet,
   approvalRequest,
   approvalUndo,
+  approvalWithdrawal,
 } from "./approval-schema.js";
 import type { Db } from "./db.js";
 import { domainEvent } from "./schema.js";
@@ -66,17 +67,31 @@ export type Undone = { kind: "Undone" };
 export type UndoWindowOpen = { kind: "UndoWindowOpen"; effectiveAt: Date };
 export type SubjectMismatch = { kind: "SubjectMismatch" };
 export type ContentChanged = { kind: "ContentChanged" };
+// The request was withdrawn (NS-140): closed, neither pending nor approved.
+export type Withdrawn = { kind: "Withdrawn" };
+// Withdrawing: the request is already closed by a rejection, or was withdrawn before.
+export type AlreadyClosed = { kind: "AlreadyClosed" };
+// A gateway may only withdraw an approval whose content really changed, and only an approval.
+export type ContentUnchanged = { kind: "ContentUnchanged" };
+export type NotApproved = { kind: "NotApproved" };
 
 export type RequestError = InvalidRequest | IdempotencyKeyReused | SubjectAlreadyRequested;
-export type DecideError = NotFound | AlreadyDecided;
-export type UndoError = NotFound | AlreadyUndone | UndoWindowClosed | SubjectReopened;
+export type DecideError = NotFound | AlreadyDecided | Withdrawn;
+export type UndoError = NotFound | AlreadyUndone | UndoWindowClosed | SubjectReopened | Withdrawn;
 export type VerifyError =
   | NotFound
   | Rejected
   | Undone
   | UndoWindowOpen
   | SubjectMismatch
-  | ContentChanged;
+  | ContentChanged
+  | Withdrawn;
+export type WithdrawError =
+  | NotFound
+  | AlreadyClosed
+  | ContentUnchanged
+  | NotApproved
+  | UndoWindowOpen;
 
 const Subject = z
   .string()
@@ -201,6 +216,28 @@ async function liveDecision(tx: Tx, requestId: string): Promise<DecisionView | n
   return row ? toDecisionView(row) : null;
 }
 
+// A request is withdrawn (NS-140) once it has a withdrawal row: closed for good.
+const notWithdrawn = sql`not exists (
+  select 1 from ${approvalWithdrawal} w where w.request_id = ${approvalRequest.id}
+)`;
+
+async function isWithdrawn(tx: Tx, requestId: string): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: approvalWithdrawal.id })
+    .from(approvalWithdrawal)
+    .where(eq(approvalWithdrawal.requestId, requestId));
+  return row !== undefined;
+}
+
+async function decisionWithdrawn(tx: Tx, decisionId: string): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: approvalWithdrawal.id })
+    .from(approvalWithdrawal)
+    .innerJoin(approvalDecision, eq(approvalDecision.requestId, approvalWithdrawal.requestId))
+    .where(eq(approvalDecision.id, decisionId));
+  return row !== undefined;
+}
+
 // The policy set in force: the newest one for this candidate, or null if Paul never set one.
 // Its rules are checked again on the way out: a row that no longer parses (written by hand, or
 // by an older schema) counts as no rules, so everything waits for Paul instead of a missing
@@ -225,7 +262,8 @@ async function currentPolicySet(
   return { id: row.id, rules: parsed.value };
 }
 
-// Has Paul ever rejected this subject, or undone a decision on it? Then no policy may approve it.
+// Has Paul ever rejected this subject, undone a decision on it, or withdrawn it? Then no policy
+// may approve it.
 async function declinedBefore(tx: Tx, candidateId: CandidateId, subject: string): Promise<boolean> {
   const [row] = await tx
     .select({ id: approvalDecision.id })
@@ -240,7 +278,21 @@ async function declinedBefore(tx: Tx, candidateId: CandidateId, subject: string)
       ),
     )
     .limit(1);
-  return row !== undefined;
+  if (row) return true;
+  // A subject Paul withdrew (NS-140) counts the same: he took it back, so it waits for him.
+  const [withdrawn] = await tx
+    .select({ id: approvalWithdrawal.id })
+    .from(approvalWithdrawal)
+    .innerJoin(approvalRequest, eq(approvalRequest.id, approvalWithdrawal.requestId))
+    .where(
+      and(
+        eq(approvalRequest.candidateId, candidateId),
+        eq(approvalRequest.subject, subject),
+        eq(approvalWithdrawal.withdrawnBy, "user"),
+      ),
+    )
+    .limit(1);
+  return withdrawn !== undefined;
 }
 
 async function insertDecision(
@@ -368,6 +420,7 @@ async function requestOnce(
         and(
           eq(approvalRequest.candidateId, candidateId),
           eq(approvalRequest.subject, req.subject),
+          notWithdrawn,
           sql`not exists (
             select 1 from ${approvalDecision} d
             where d.request_id = ${approvalRequest.id} and d.decision = 'rejected'
@@ -496,6 +549,7 @@ export async function listPendingApprovals(
       and(
         eq(approvalRequest.candidateId, candidateId),
         kind ? eq(approvalRequest.kind, kind) : undefined,
+        notWithdrawn,
         sql`not exists (
           select 1 from ${approvalDecision} d
           where d.request_id = ${approvalRequest.id}
@@ -561,6 +615,7 @@ async function decideOne(
         .for("update");
       if (!request) return err({ kind: "NotFound" } as const);
       span.setAttribute("northstar.approval.kind", request.kind);
+      if (await isWithdrawn(tx, requestId)) return err({ kind: "Withdrawn" } as const);
       if (await liveDecision(tx, requestId)) return err({ kind: "AlreadyDecided" } as const);
       const view = await insertDecision(
         tx,
@@ -580,6 +635,9 @@ async function decideOne(
   } catch (error) {
     // The one-live-decision trigger refused a decision that raced in after our check.
     if (pgCode(error) === UNIQUE_VIOLATION) return err({ kind: "AlreadyDecided" });
+    // The decision trigger refused it: only on a withdrawn request (its other check failures
+    // apply to policy decisions only).
+    if (pgCode(error) === CHECK_VIOLATION) return err({ kind: "Withdrawn" });
     throw error;
   }
 }
@@ -598,8 +656,11 @@ export async function undoDecision(
       const code = pgCode(error);
       // A concurrent undo of the same decision committed first.
       if (code === UNIQUE_VIOLATION) return err({ kind: "AlreadyUndone" });
-      // The window closed between our check and the insert; the trigger refused it.
-      if (code === CHECK_VIOLATION) return err({ kind: "UndoWindowClosed" });
+      // The trigger refused it: the request was withdrawn in the meantime, or the window closed.
+      if (code === CHECK_VIOLATION) {
+        const withdrawn = await db.transaction((tx) => decisionWithdrawn(tx, input.decisionId));
+        return err({ kind: withdrawn ? "Withdrawn" : "UndoWindowClosed" });
+      }
       // A request for the same subject opened between our check and the insert.
       if (code === EXCLUSION_VIOLATION) return err({ kind: "SubjectReopened" });
       throw error;
@@ -630,6 +691,8 @@ async function undoOnce(
     if (!found) return err({ kind: "NotFound" } as const);
     const decision = found.decision;
     span.setAttribute("northstar.approval.kind", found.kind);
+    // A withdrawn request is closed: its decision can't be taken back into the queue.
+    if (await isWithdrawn(tx, decision.requestId)) return err({ kind: "Withdrawn" } as const);
     const [undone] = await tx
       .select({ id: approvalUndo.id })
       .from(approvalUndo)
@@ -649,6 +712,7 @@ async function undoOnce(
           eq(approvalRequest.candidateId, input.candidateId),
           eq(approvalRequest.subject, found.subject),
           sql`${approvalRequest.id} <> ${decision.requestId}`,
+          notWithdrawn,
           sql`not exists (
             select 1 from ${approvalDecision} d
             where d.request_id = ${approvalRequest.id} and d.decision = 'rejected'
@@ -739,6 +803,8 @@ export async function verifyApproval(
       if (row.kind !== input.kind || row.subject !== input.subject) {
         return err({ kind: "SubjectMismatch" });
       }
+      // Withdrawn first: a closed request refuses whatever content is offered.
+      if (await isWithdrawn(tx, row.decision.requestId)) return err({ kind: "Withdrawn" });
       if (row.contentSha256 !== input.contentSha256) return err({ kind: "ContentChanged" });
       if (row.undoId !== null) return err({ kind: "Undone" });
       if (row.decision.decision !== "approved") return err({ kind: "Rejected" });
@@ -761,4 +827,123 @@ function pgCode(error: unknown): string | null {
   const cause = (error as { cause?: { code?: unknown } }).cause?.code;
   const code = typeof own === "string" ? own : cause;
   return typeof code === "string" ? code : null;
+}
+
+export type WithdrawInput =
+  | { candidateId: CandidateId; requestId: string; by: "user" }
+  // A gateway proves the content changed: the SHA-256 of what it now holds must differ from the
+  // approved content. It never asserts it.
+  | { candidateId: CandidateId; requestId: string; by: "gateway"; newContentSha256: string };
+
+export type WithdrawResult = { withdrawalId: string; requestId: string; decisionId: string | null };
+
+// Closes a request (NS-140, APR-004): Paul withdraws a pending or approved request, or a gateway
+// withdraws an approval whose content changed for good. A withdrawn request is neither pending nor
+// approved: verifyApproval refuses it, it leaves the queue, and its subject may be requested
+// again (after Paul's withdrawal, that request always waits for him). The trigger (migration
+// 0037) takes the same locks an undo does, so a withdrawal and a gateway's check never overlap.
+export async function withdrawApproval(
+  db: Db,
+  input: WithdrawInput,
+): Promise<Result<WithdrawResult, WithdrawError>> {
+  return inSpan(
+    "approval.withdraw",
+    { "northstar.approval.withdrawn_by": input.by },
+    async (span) => {
+      if (!Uuid.safeParse(input.requestId).success) return err({ kind: "NotFound" });
+      if (input.by === "gateway" && !Sha256.safeParse(input.newContentSha256).success) {
+        return err({ kind: "NotFound" });
+      }
+      try {
+        return await withdrawOnce(db, span, input);
+      } catch (error) {
+        const code = pgCode(error);
+        // A concurrent withdrawal of the same request committed first.
+        if (code === UNIQUE_VIOLATION) return err({ kind: "AlreadyClosed" });
+        // The trigger refused it: rejected (closed) in the meantime, or no longer an approval.
+        if (code === CHECK_VIOLATION) {
+          return err({ kind: input.by === "gateway" ? "NotApproved" : "AlreadyClosed" });
+        }
+        throw error;
+      }
+    },
+  );
+}
+
+async function withdrawOnce(
+  db: Db,
+  span: Span,
+  input: WithdrawInput,
+): Promise<Result<WithdrawResult, WithdrawError>> {
+  return db.transaction(async (tx) => {
+    const [request] = await tx
+      .select({
+        id: approvalRequest.id,
+        kind: approvalRequest.kind,
+        contentSha256: approvalRequest.contentSha256,
+      })
+      .from(approvalRequest)
+      .where(
+        and(
+          eq(approvalRequest.id, input.requestId),
+          eq(approvalRequest.candidateId, input.candidateId),
+        ),
+      );
+    if (!request) return err({ kind: "NotFound" } as const);
+    span.setAttribute("northstar.approval.kind", request.kind);
+    if (await isWithdrawn(tx, request.id)) return err({ kind: "AlreadyClosed" } as const);
+    const live = await liveDecision(tx, request.id);
+    if (live?.decision === "rejected") return err({ kind: "AlreadyClosed" } as const);
+    if (input.by === "gateway") {
+      if (live?.decision !== "approved") return err({ kind: "NotApproved" } as const);
+      // Inside the undo window the approval is still Paul's to undo; a gateway meets changed
+      // content only when it acts, after the window (the trigger checks this too).
+      if ((await gateNow(tx)).getTime() < live.effectiveAt.getTime()) {
+        return err({ kind: "UndoWindowOpen", effectiveAt: live.effectiveAt } as const);
+      }
+      if (input.newContentSha256 === request.contentSha256) {
+        return err({ kind: "ContentUnchanged" } as const);
+      }
+    }
+    // withdrawn_at is overwritten by the trigger from the database clock.
+    const now = await gateNow(tx);
+    const [row] = await tx
+      .insert(approvalWithdrawal)
+      .values({
+        candidateId: input.candidateId,
+        requestId: request.id,
+        withdrawnBy: input.by,
+        reason: input.by === "user" ? "paul" : "content_changed",
+        withdrawnAt: now,
+      })
+      .returning({ id: approvalWithdrawal.id, withdrawnAt: approvalWithdrawal.withdrawnAt });
+    if (!row) throw new Error("approval_withdrawal insert returned no row");
+    // Read again now the trigger holds the locks: a decision that committed after the first read
+    // (Paul approving while he withdraws) is the one this withdrawal closed.
+    const closed = await liveDecision(tx, request.id);
+    await appendEvent(tx, span, {
+      candidateId: input.candidateId,
+      aggregate: `approval:${request.id}`,
+      type: "approval.withdrawn",
+      actor: input.by === "user" ? "user" : "system",
+      reason:
+        input.by === "user"
+          ? "Paul withdrew it; it can be asked for again"
+          : "Withdrawn because the approved content changed; it can be asked for again",
+      // Ids and codes only: never content or its hashes.
+      payload: {
+        withdrawalId: row.id,
+        decisionId: closed?.decisionId ?? null,
+        withdrawnBy: input.by,
+        reason: input.by === "user" ? "paul" : "content_changed",
+      },
+      idempotencyKey: `approval_withdrawal:${row.id}`,
+      at: row.withdrawnAt,
+    });
+    return ok({
+      withdrawalId: row.id,
+      requestId: request.id,
+      decisionId: live?.decisionId ?? null,
+    });
+  });
 }

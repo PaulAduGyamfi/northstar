@@ -58,6 +58,8 @@ const UNDO_ERRORS: Record<UndoError["kind"], { status: 404 | 409; error: string 
   AlreadyUndone: { status: 409, error: "already_undone" },
   UndoWindowClosed: { status: 409, error: "undo_window_closed" },
   SubjectReopened: { status: 409, error: "subject_reopened" },
+  // The request was withdrawn (NS-140): closed, so its decision stays as it is.
+  Withdrawn: { status: 409, error: "withdrawn" },
 };
 
 export function approvalEndpoints(ports: ApprovalPorts): AnyEndpoint[] {
@@ -115,10 +117,11 @@ export function approvalEndpoints(ports: ApprovalPorts): AnyEndpoint[] {
                 }
               : {
                   requestId: o.requestId,
+                  // A withdrawn request (NS-140) has left the queue: to the page it is gone.
                   outcome:
-                    o.result.error.kind === "NotFound"
-                      ? ("not_found" as const)
-                      : ("already_decided" as const),
+                    o.result.error.kind === "AlreadyDecided"
+                      ? ("already_decided" as const)
+                      : ("not_found" as const),
                 },
           ),
         },

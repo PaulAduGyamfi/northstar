@@ -193,6 +193,21 @@ describe("POST /approvals/decide", () => {
     expect(calls).toEqual([["decide", { requestIds: [R1, R2], decision: "approve" }]]);
   });
 
+  it("reports a withdrawn request as no longer in the queue (NS-140)", async () => {
+    ports.decide = async (input) => ({
+      ok: true,
+      value: input.requestIds.map((requestId) => ({
+        requestId,
+        result: { ok: false, error: { kind: "Withdrawn" } },
+      })),
+    });
+    const res = await post("/approvals/decide", { requestIds: [D1], decision: "approve" });
+    expect([res.status, JSON.parse(res.body).outcomes]).toEqual([
+      200,
+      [{ requestId: D1, outcome: "not_found" }],
+    ]);
+  });
+
   it("passes Paul's reject reason through", async () => {
     await post("/approvals/decide", { requestIds: [R1], decision: "reject", reason: "Wrong team" });
     expect(calls).toEqual([
@@ -251,5 +266,11 @@ describe("POST /approvals/undo", () => {
       [409, "undo_window_closed"],
       [409, "subject_reopened"],
     ]);
+  });
+
+  it("answers 409 withdrawn for a decision whose request was withdrawn (NS-140)", async () => {
+    ports.undo = async () => ({ ok: false, error: { kind: "Withdrawn" } });
+    const res = await post("/approvals/undo", { decisionId: D1 });
+    expect([res.status, JSON.parse(res.body)]).toEqual([409, { error: "withdrawn" }]);
   });
 });

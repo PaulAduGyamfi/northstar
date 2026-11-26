@@ -253,6 +253,20 @@
       "when": 1795644320185,
       "tag": "0035_profile_source_linkedin",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795645912905,
+      "tag": "0036_approval_withdrawal",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795645914118,
+      "tag": "0037_approval_withdrawal_guards",
+      "breakpoints": true
     }
   ]
 }
