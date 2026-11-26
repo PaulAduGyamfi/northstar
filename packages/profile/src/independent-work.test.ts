@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   independentWorkSection,
+  linkedinProjects,
   MAX_ANSWER_WORDS,
   parseIndependentWork,
   sinceFromFacts,
@@ -219,5 +220,59 @@ describe("twentySecondAnswer", () => {
 
   it("says there is nothing yet when there are no entries", () => {
     expect(twentySecondAnswer([], null)).toEqual({ ok: false, reason: "no_entries" });
+  });
+});
+
+describe("linkedinProjects", () => {
+  // Invented work only (the repo is public).
+  const entries = [
+    {
+      title: "Cloud certification",
+      start: "2026-01",
+      end: "2026-04",
+      link: null,
+      lines: ["Passed the associate exam"],
+    },
+    {
+      title: "Ledgerline",
+      start: "2026-02",
+      end: null,
+      link: "https://example.com/ledgerline",
+      lines: ["Built a budgeting app used by 40 testers", "Wrote its import from bank CSVs"],
+    },
+  ];
+
+  it("gives one project per entry, ongoing first, with its fields and verbatim lines", () => {
+    expect(linkedinProjects(entries)).toEqual([
+      {
+        name: "Ledgerline",
+        start: "Feb 2026",
+        end: null,
+        link: "https://example.com/ledgerline",
+        description:
+          "• Built a budgeting app used by 40 testers\n• Wrote its import from bank CSVs",
+        length: 76,
+        tooLong: false,
+      },
+      {
+        name: "Cloud certification",
+        start: "Jan 2026",
+        end: "Apr 2026",
+        link: null,
+        description: "• Passed the associate exam",
+        length: 27,
+        tooLong: false,
+      },
+    ]);
+  });
+
+  it("flags a description over LinkedIn's 2,000 characters with its length, and never cuts it", () => {
+    const long = { ...entries[0], lines: Array.from({ length: 6 }, () => "x".repeat(400)) };
+    const [project] = linkedinProjects([long as (typeof entries)[number]]);
+    expect([project?.tooLong, project?.length, project?.description.length]).toEqual([
+      true,
+      2417,
+      2417,
+    ]);
   });
 });

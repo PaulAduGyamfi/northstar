@@ -165,6 +165,39 @@ export function independentWorkSection(entries: readonly WorkEntry[]): string[] 
   return out;
 }
 
+// LinkedIn's limit on a project's description, in characters.
+export const LINKEDIN_DESCRIPTION_MAX = 2000;
+
+// One LinkedIn "Projects" entry, field by field, for Paul to paste by hand: Northstar never
+// writes to LinkedIn (ADR-0003). `end` null is "I am currently working on this".
+export type LinkedinProject = {
+  name: string;
+  start: string;
+  end: string | null;
+  link: string | null;
+  description: string;
+  length: number;
+  // Over LinkedIn's limit: flagged, never cut, so Paul shortens his own file (no line is lost).
+  tooLong: boolean;
+};
+
+// The same entries as the resume section (NS-231 slice 2, DX-010), in its order, with his lines
+// verbatim as the description, one `• ` line each.
+export function linkedinProjects(entries: readonly WorkEntry[]): LinkedinProject[] {
+  return ordered(entries).map(({ entry }) => {
+    const description = entry.lines.map((line) => `• ${line}`).join("\n");
+    return {
+      name: entry.title,
+      start: monthName(entry.start),
+      end: entry.end === null ? null : monthName(entry.end),
+      link: entry.link,
+      description,
+      length: description.length,
+      tooLong: description.length > LINKEDIN_DESCRIPTION_MAX,
+    };
+  });
+}
+
 // Since when: the official record's latest ended position, or null while one is ongoing (then
 // there is no gap to explain) or the record is empty.
 export type Since = { employer: string; month: string };

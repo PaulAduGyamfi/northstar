@@ -7,6 +7,8 @@ import type {
 import {
   type AnswerSource,
   independentWorkSection,
+  LINKEDIN_DESCRIPTION_MAX,
+  linkedinProjects,
   parseIndependentWork,
   sinceFromFacts,
   twentySecondAnswer,
@@ -25,7 +27,8 @@ export type WorkCliDeps = {
   readIndependentWork: () => Promise<IndependentWorkView | null>;
 };
 
-export const WORK_USAGE = "usage: profile work set <file> | profile work show";
+export const WORK_USAGE =
+  "usage: profile work set <file> | profile work show | profile work linkedin";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -33,6 +36,7 @@ export async function workCommand(deps: WorkCliDeps, args: string[]): Promise<nu
   const [sub, path, ...rest] = args;
   if (sub === "set" && path && rest.length === 0) return workSetCommand(deps, path);
   if (sub === "show" && path === undefined) return workShowCommand(deps);
+  if (sub === "linkedin" && path === undefined) return workLinkedinCommand(deps);
   deps.print(WORK_USAGE);
   return 1;
 }
@@ -65,10 +69,41 @@ function sourceLine(s: AnswerSource, entries: readonly WorkEntry[]): string {
     : `entry ${s.entry + 1} (${title}): line ${s.line + 1}`;
 }
 
+// LinkedIn "Projects" fields to paste by hand (NS-231 slice 2): Paul's own entries, printed to his
+// own terminal. Nothing is sent to LinkedIn (ADR-0003).
+async function workLinkedinCommand(deps: WorkCliDeps): Promise<number> {
+  const work = await deps.readIndependentWork();
+  if (work === null) {
+    deps.print(NOTHING_STORED);
+    return 0;
+  }
+  deps.print(
+    `LinkedIn Projects from version ${work.version}. Paste each field; nothing is sent to LinkedIn.`,
+  );
+  linkedinProjects(work.entries).forEach((p, i) => {
+    deps.print("");
+    deps.print(`Project ${i + 1}`);
+    deps.print(`  Name: ${p.name}`);
+    deps.print(`  Start: ${p.start}`);
+    deps.print(`  End: ${p.end ?? "I am currently working on this"}`);
+    if (p.link !== null) deps.print(`  Project URL: ${p.link}`);
+    deps.print("  Description:");
+    for (const line of p.description.split("\n")) deps.print(`  ${line}`);
+    if (p.tooLong) {
+      deps.print(
+        `  Too long for LinkedIn: ${p.length} of ${LINKEDIN_DESCRIPTION_MAX} characters. Shorten these lines in your file.`,
+      );
+    }
+  });
+  return 0;
+}
+
+const NOTHING_STORED = "No independent work stored yet. Run: profile work set data/<file>";
+
 async function workShowCommand(deps: WorkCliDeps): Promise<number> {
   const work = await deps.readIndependentWork();
   if (work === null) {
-    deps.print("No independent work stored yet. Run: profile work set data/<file>");
+    deps.print(NOTHING_STORED);
     return 0;
   }
   deps.print(`Version ${work.version}`);

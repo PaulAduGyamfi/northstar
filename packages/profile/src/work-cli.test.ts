@@ -38,6 +38,75 @@ function deps(over: Partial<WorkCliDeps> = {}) {
   return { d, printed, stored };
 }
 
+describe("profile work linkedin", () => {
+  const VIEW: IndependentWorkView = {
+    version: 2,
+    createdAt: new Date("2026-05-01T00:00:00Z"),
+    entries: [
+      {
+        title: "Cloud certification",
+        start: "2026-01",
+        end: "2026-04",
+        link: null,
+        lines: ["Passed the associate exam"],
+      },
+      {
+        title: "Ledgerline",
+        start: "2026-02",
+        end: null,
+        link: "https://example.com/ledgerline",
+        lines: ["Built a budgeting app used by 40 testers"],
+      },
+    ],
+  };
+
+  it("prints each project's LinkedIn fields to paste, ongoing first", async () => {
+    const { d, printed } = deps({ readIndependentWork: async () => VIEW });
+    expect([await workCommand(d, ["linkedin"]), printed]).toEqual([
+      0,
+      [
+        "LinkedIn Projects from version 2. Paste each field; nothing is sent to LinkedIn.",
+        "",
+        "Project 1",
+        "  Name: Ledgerline",
+        "  Start: Feb 2026",
+        "  End: I am currently working on this",
+        "  Project URL: https://example.com/ledgerline",
+        "  Description:",
+        "  • Built a budgeting app used by 40 testers",
+        "",
+        "Project 2",
+        "  Name: Cloud certification",
+        "  Start: Jan 2026",
+        "  End: Apr 2026",
+        "  Description:",
+        "  • Passed the associate exam",
+      ],
+    ]);
+  });
+
+  it("says when a description is over LinkedIn's limit, and still prints it whole", async () => {
+    const long = {
+      ...VIEW,
+      entries: [{ ...VIEW.entries[0], lines: Array.from({ length: 6 }, () => "x".repeat(400)) }],
+    } as IndependentWorkView;
+    const { d, printed } = deps({ readIndependentWork: async () => long });
+    await workCommand(d, ["linkedin"]);
+    expect(printed).toContain(
+      "  Too long for LinkedIn: 2417 of 2000 characters. Shorten these lines in your file.",
+    );
+    expect(printed.filter((l) => l.startsWith("  • ")).length).toBe(6);
+  });
+
+  it("says when no work is stored yet", async () => {
+    const { d, printed } = deps();
+    expect([await workCommand(d, ["linkedin"]), printed]).toEqual([
+      0,
+      ["No independent work stored yet. Run: profile work set data/<file>"],
+    ]);
+  });
+});
+
 describe("profile work set", () => {
   it("stores the parsed file and prints counts only", async () => {
     const { d, printed, stored } = deps();
