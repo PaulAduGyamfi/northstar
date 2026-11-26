@@ -11,7 +11,7 @@ const Me = z.object({ user: z.literal("paul") });
 
 // HttpOnly: page scripts can't read it. SameSite=Strict: no other site's request carries it.
 // No Secure flag: served over http on loopback only (ADR-0018); add it with https.
-const sessionCookie = (token: string) =>
+export const sessionCookie = (token: string) =>
   `${SESSION_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_TTL_MS / 1000}`;
 const clearedCookie = `${SESSION_COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`;
 
