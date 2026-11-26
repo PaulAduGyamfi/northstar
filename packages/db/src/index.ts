@@ -209,6 +209,14 @@ export {
   resolveHandoff,
 } from "./handoff-write.js";
 export { readSystemHealth } from "./health-read.js";
+export * as independentWorkSchema from "./independent-work-schema.js";
+export {
+  type IndependentWorkInput,
+  type IndependentWorkView,
+  readIndependentWork,
+  type SetIndependentWorkResult,
+  setIndependentWork,
+} from "./independent-work-write.js";
 export {
   type Ats,
   type DedupeCandidate,
@@ -275,6 +283,7 @@ export {
 } from "./passkey-write.js";
 // The pipeline board and application timeline (NS-168), read-only.
 export {
+  type ApplicationFilter,
   type ApplicationRow,
   listApplications,
   MAX_APPLICATIONS,
@@ -391,6 +400,9 @@ export {
   type NotApproved,
   type OpenInput,
   openSealedSecret,
+  REVEAL_ACTOR,
+  REVEAL_PURPOSE,
+  revealSealedSecret,
   type SealedSecret,
   type SealedVersion,
   type SecretNotFound,

@@ -393,6 +393,34 @@
       "when": 1795676461472,
       "tag": "0055_resume_audit_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1795683530889,
+      "tag": "0056_vault_reveal_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1795683533099,
+      "tag": "0057_vault_reveal_immediate",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1795685142865,
+      "tag": "0058_independent_work",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795685144331,
+      "tag": "0059_independent_work_append_only",
+      "breakpoints": true
     }
   ]
 }

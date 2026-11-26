@@ -23,6 +23,8 @@ const ROW: ApplicationRow = {
   jobTitle: "Backend Engineer",
   company: "Example Corp",
   ats: "greenhouse",
+  fitScore: 88,
+  fitBand: "queue",
   createdAt: T,
   updatedAt: T,
 };
@@ -35,8 +37,8 @@ let calls: unknown[];
 beforeEach(async () => {
   calls = [];
   ports = {
-    list: async () => {
-      calls.push("list");
+    list: async (filter) => {
+      calls.push(["list", filter]);
       return [ROW];
     },
     timeline: async (id) => {
@@ -66,7 +68,10 @@ beforeEach(async () => {
       config,
       sessions,
       extensionTokenSha256: EXT_HASH,
-      extra: pipelineEndpoints({ list: () => ports.list(), timeline: (id) => ports.timeline(id) }),
+      extra: pipelineEndpoints({
+        list: (filter) => ports.list(filter),
+        timeline: (id) => ports.timeline(id),
+      }),
     }),
   );
 });
@@ -84,6 +89,8 @@ const APP_JSON = {
   jobTitle: "Backend Engineer",
   company: "Example Corp",
   ats: "greenhouse",
+  fitScore: 88,
+  fitBand: "queue",
   createdAt: "2026-11-25T12:00:00.000Z",
   updatedAt: "2026-11-25T12:00:00.000Z",
 };
@@ -110,6 +117,42 @@ describe("GET /applications", () => {
   it("lists applications with times as ISO text", async () => {
     const res = await get("/applications");
     expect([res.status, JSON.parse(res.body)]).toEqual([200, { items: [APP_JSON] }]);
+  });
+
+  it("passes each filter to the read, and only those fields", async () => {
+    const res = await get(
+      "/applications?company=Globex&band=queue&source=other&from=2026-11-01&to=2026-11-30&x=1",
+    );
+    expect([res.status, calls]).toEqual([
+      200,
+      [
+        [
+          "list",
+          {
+            company: "Globex",
+            band: "queue",
+            source: "other",
+            from: "2026-11-01",
+            to: "2026-11-30",
+          },
+        ],
+      ],
+    ]);
+  });
+
+  it("refuses a bad band, source, date or range with 400, before reading", async () => {
+    const statuses = [];
+    for (const q of [
+      "band=great",
+      "source=Green%20house",
+      "from=2026-13-01",
+      "to=2026-02-30",
+      "from=2026-11-02&to=2026-11-01",
+      `company=${"x".repeat(101)}`,
+    ]) {
+      statuses.push((await get(`/applications?${q}`)).status);
+    }
+    expect([statuses, calls]).toEqual([[400, 400, 400, 400, 400, 400], []]);
   });
 
   it("answers 503 when the pipeline can't be read", async () => {

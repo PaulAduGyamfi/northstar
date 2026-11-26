@@ -164,6 +164,14 @@ Exists now:
   `positioning-thesis` route drafts up to three theses citing atoms, and `draftTheses` keeps only
   those `thesisProblems` passes (`checkThesis` plus unknown atom ids). Off by default
   (hand-written fixtures); nothing is saved until Paul runs `profile thesis set`.
+- Gap-to-proof (NS-196, DX-010), plain code, no model: Paul's independent work since his last role
+  from his own file (`independent-work.ts`: `parseIndependentWork`, one `Title | YYYY-MM | YYYY-MM
+  or present [| https link]` header and 1–6 `- ` lines per entry; any bad line stores nothing),
+  `independentWorkSection` (the "Projects / Independent work" lines, verbatim) and
+  `twentySecondAnswer` (at most 55 words from the entries and the official record's last employer,
+  with its sources). Stored in `packages/db` (`independent-work-schema.ts`,
+  `independent-work-write.ts`: `setIndependentWork`, `readIndependentWork`; append-only, a
+  version per file). Not yet in tailored resumes, the PDF or LinkedIn.
 - Answer drafting (NS-135, ANS-004) in `packages/profile/src/answer/`:
   - `selectEvidence` picks Paul's stories and atoms by the question's words (plain code).
   - The `answer-draft` route drafts from them.
@@ -403,6 +411,12 @@ Exists now:
   never exported; a boundary test fails if anything outside `packages/gateways/src` imports it.
   Secrets come back as `VaultSecret`, which prints `[redacted]`. No caller yet (NS-124), and no
   password-manager mirror yet (CRD-004, Q-16).
+  Since NS-182 (slice 1, ADR-0024, Proposed) also Paul's own reveal: `revealSealedSecret`
+  (`packages/db`) files a `vault_reveal` approval (effective at once, naming the tenant by
+  `revealContentSha256`), approves it for Paul and uses it once, in one transaction; the Gate
+  refuses that kind everywhere else. `revealTenantPassword` is the one opening
+  `@northstar/gateways` exports, and the boundary test allows only the vault's files to name it.
+  No API route or page yet (slice 2).
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write
@@ -441,7 +455,11 @@ Exists now:
   Today, since NS-153 `/health`, since NS-139 the Queue (`/approvals`), and since NS-168 the
   Pipeline (`/pipeline`: a board by status in UX-020's words, and `/pipeline/<id>`, an
   application's timeline from `listApplications` and `readApplicationTimeline` in `packages/db`,
-  served by the API's `GET /applications` and `GET /applications/timeline`). Read-only. `/api/*` is rewritten to the API, and pages that need Paul go
+  served by the API's `GET /applications` and `GET /applications/timeline`). Read-only. Since NS-207 the
+  Pipeline also filters by company, fit band, source (the job's ATS, or `other`) and creation day,
+  applied in `listApplications`' SQL and kept in the URL, has a table view, and Today shows counts
+  of approvals waiting and needs-your-hands items (`src/today.ts`), with interviews, follow-ups
+  and growth blocks marked not set up yet. `/api/*` is rewritten to the API, and pages that need Paul go
   through `readSession`/`todayView` or `readApi` (`src/session.ts`, `src/system.ts`), which forward
   his session cookie to the API. It holds no secret.
 - `packages/pipeline/` (NS-161, ADR-0023): plain-code pipeline steps, no model or network.
@@ -506,6 +524,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/profile profile facts check` | compare the imported resume's roles with the official record and list every mismatch (exits 1 on any). Paul only: it prints his real employment facts; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile thesis draft` | up to three positioning theses that pass the deterministic check, with the atoms each cites; says so while drafting is off. Paul only: it reads his real profile; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile thesis set "<text>" --atoms <id,id>` / `profile thesis show` | check a thesis against the cited atoms, roles and skills and save it as a new version (a failure saves nothing) / print the current one. Paul only: needs `DATABASE_URL`; agents never run them |
+| repo root | `pnpm --filter @northstar/profile profile work set data/<file>` / `profile work show` | store Paul's independent work since his last role as a new version (`Title \| YYYY-MM \| YYYY-MM or present [\| https link]`, then 1–6 `- ` lines per entry; a file with any bad line stores nothing; unchanged stores nothing) / print the "Projects / Independent work" section and the 20-second answer with its sources. Paul only: his real data, needs `DATABASE_URL`; agents never run them |
 | repo root | `pnpm --filter @northstar/profile profile tailor <job-id> [--drop <skill,skill>]` | tailor the resume to a ready job (plain code, no model): prints the diff, what it doesn't claim, the pre-send score and the validator result, and stores a new version (unchanged content stores nothing); `--drop` turns off skills the tailor added. Paul only: it prints his real profile, needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile audit` / `profile audit accept <key> "<new line>"` / `profile audit reject <key>` | audit the current resume against the search preferences' titles and ready jobs' requirements and store the run (leaving out suggestions rejected on this import) / accept one line suggestion with Paul's own line (checked like `applySuggestion`; the tailor uses it from then on) / reject one. Paul only: it prints his real resume, needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile settings set <field> <value> [--for <qualifier>]` / `profile settings show` | store an answer to a factual question (`work_authorization --for <country>`, `years_of_experience --for <skill>`, `previously_employed --for <company>`; yes/no, whole years, `YYYY-MM-DD`, `remote\|hybrid\|onsite`, https links, short text) / list the current ones. Paul only: his real data, needs `DATABASE_URL`; agents never run them |

@@ -25,6 +25,14 @@ export {
 // passwords. Opening (decrypting) is deliberately not exported: only code inside this package
 // may call src/vault/open.ts (CRD-002), and a test enforces it.
 export { loadVaultKey, type MasterKey } from "./vault/key.js";
+// The one opening exported (NS-182, ADR-0024): Paul's own reveal, through a one-time
+// `vault_reveal` the database makes and uses in one transaction. Only the API may call it.
+export {
+  dbRevealPorts,
+  type RevealError,
+  type RevealPorts,
+  revealTenantPassword,
+} from "./vault/reveal.js";
 export { VaultSecret } from "./vault/secret.js";
 export {
   generateTenantPassword,

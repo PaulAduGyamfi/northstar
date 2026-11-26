@@ -138,12 +138,22 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `vault` kill switch and that the decision is a live approval, and records the access, in the
   same transaction before handing a row out. Only `vaultAccess` is exported; sealed rows never
   leave `vault-write.ts`.
+  Since NS-182 (ADR-0024) Paul's reveal is `revealSealedSecret` only: one transaction that
+  files a `vault_reveal` (by `system`), approves it for Paul (effective at once, migration 0057)
+  and records one access by `user` for `reveal_to_user`. Never request, list or decide a
+  `vault_reveal` anywhere else; `openSealedSecret` refuses that actor, purpose and kind, and the
+  database pairs `user` with `reveal_to_user` only and lets a reveal decision open once.
 - The positioning thesis (NS-127, stored since NS-155) is `positioning_thesis` and
   `positioning_thesis_atom`, append-only (a trigger), each version citing at least one atom (a
   deferred trigger), written only through `thesis-write.ts`, which also requires the atoms to be
   from the current resume import (in code, not in the database). The text
   is Paul's words: its `thesis.approved` event carries the version and atom count only, never the
   text. Callers run `checkThesis` (`packages/profile`) before saving.
+- Independent work (NS-196, DX-010) is `independent_work_set` (a version per stored file, with
+  its SHA-256), `independent_work_entry` and `independent_work_line`, append-only (triggers),
+  written only through `independent-work-write.ts`; the newest version is current and the same
+  content stores nothing. Titles, lines and links are Paul's words: `independent_work.set`
+  carries the version and counts only.
 - Mail tags and links (NS-158) are `mail_tag` (one tag per application or tenant, never reused)
   and `mail_link` (one decision per Gmail message: linked by a step, or queued with a reason),
   append-only, written only through `mail-link-write.ts`. They hold Gmail ids, tags, steps and
@@ -175,3 +185,6 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `readApplicationTimeline`. A timeline is the application's own events plus events whose payload
   names it (`applicationId`); its lines come only from `feedLine`. So an event about an
   application should carry `applicationId` in its payload.
+  Since NS-207 `listApplications` takes an optional filter (company part, fit band, the job's
+  ATS or `other`, creation days), applied as SQL parameters, and gives each row its job's newest
+  fit score and band.

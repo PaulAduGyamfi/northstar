@@ -26,6 +26,7 @@ import {
 } from "./settings-cli.js";
 import { parseDrop, type TailorCliDeps, tailorCommand } from "./tailor-cli.js";
 import { type ThesisDraftResult, thesisProblems } from "./thesis-draft.js";
+import { type WorkCliDeps, workCommand } from "./work-cli.js";
 
 // Everything main() touches, injected so tests run with no database, model or file.
 export type CliDeps = {
@@ -59,7 +60,8 @@ export type CliDeps = {
   readLinkedinRoles: () => Promise<SourceRole[] | null>;
 } & SettingsDeps &
   TailorCliDeps &
-  AuditCliDeps;
+  AuditCliDeps &
+  WorkCliDeps;
 
 const USAGE =
   'usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check | profile thesis draft | profile thesis set "<text>" --atoms <id,id> | profile thesis show | profile import-linkedin <folder>';
@@ -127,6 +129,8 @@ export async function main(deps: CliDeps): Promise<number> {
   }
   // The resume audit and Paul's decisions (NS-190): its own usage line, like tailor's.
   if (command === "audit") return auditCommand(deps, deps.argv.slice(1));
+  // Independent work since the last role (NS-196): its own usage line, like audit's.
+  if (command === "work") return workCommand(deps, deps.argv.slice(1));
   deps.print(command === "settings" || command === "answer" ? SETTINGS_USAGE : USAGE);
   return 1;
 }

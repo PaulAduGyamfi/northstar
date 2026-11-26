@@ -57,6 +57,8 @@ const isVaultTest = (rel: string) => rel.startsWith(VAULT_DIR) && rel.endsWith("
 const DECRYPT = /\bcreateDecipheriv\b/;
 const KEY_BYTES = /\bkeyBytes\b/;
 // The sealed-row table, but not the `vault_secret.stored` event or `vault_secret:<id>` aggregate.
+// The reveal path: the gateway function, its port, and the database function it wraps.
+const REVEAL = /\b(revealTenantPassword|dbRevealPorts|revealSealedSecret|approveRevealWithin)\b/;
 const SEALED_ROWS = /\bvaultSecret\b|\bvault_secret\b(?![.:])/;
 
 describe("the vault's decrypt boundary (CRD-002)", () => {
@@ -88,6 +90,33 @@ describe("the vault's decrypt boundary (CRD-002)", () => {
       (rel) => allowed.includes(rel) || rel === `${VAULT_DIR}boundary.test.ts`,
     );
     expect(found).toEqual([]);
+  });
+
+  // Paul's reveal (NS-182, ADR-0024) makes and uses its own approval, so whoever can call it can
+  // reveal. The API, after a fresh passkey check, is to be its only caller (slice 2 adds that
+  // file here); today nothing outside the vault and its tests may name it.
+  it("only the vault's own files name the reveal path", async () => {
+    const allowed = [
+      "packages/db/src/vault-write.ts",
+      "packages/db/src/approval-write.ts",
+      "packages/db/src/index.ts",
+      "packages/db/src/vault-reveal.test.ts",
+      `${VAULT_DIR}reveal.ts`,
+      `${VAULT_DIR}reveal-db.test.ts`,
+      `${VAULT_DIR}boundary.test.ts`,
+      "packages/gateways/src/index.ts",
+    ];
+    const found = await offenders(REVEAL, (rel) => allowed.includes(rel));
+    expect(found).toEqual([]);
+  });
+
+  it("the reveal check would catch a caller", () => {
+    expect([
+      REVEAL.test("await revealTenantPassword(ports, key, input)"),
+      REVEAL.test("dbRevealPorts(db)"),
+      REVEAL.test("revealSealedSecret(db, input)"),
+      REVEAL.test("approveRevealWithin(tx, span, c, t)"),
+    ]).toEqual([true, true, true, true]);
   });
 
   it("the checks above would catch each way in", () => {
