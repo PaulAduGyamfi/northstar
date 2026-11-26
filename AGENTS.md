@@ -424,6 +424,15 @@ Exists now:
   served by the API's `GET /applications` and `GET /applications/timeline`). Read-only. `/api/*` is rewritten to the API, and pages that need Paul go
   through `readSession`/`todayView` or `readApi` (`src/session.ts`, `src/system.ts`), which forward
   his session cookie to the API. It holds no secret.
+- `packages/pipeline/` (NS-161, ADR-0023): plain-code pipeline steps, no model or network.
+  `assemblePackage` builds an application package for a job: each form question is answered from
+  a factual setting (`answerFactual`) or a banked answer (`adaptAnswer`), with every answer's
+  source. A required question it can't answer (no setting, no banked answer, too long, not one of
+  the choices), or a required cover letter, makes it `NeedsHuman`; an optional one stays blank.
+  It also gives the Gate's policy facts (factual settings count as `new`, never reuse).
+  `filePackage` files the package with the Gate (`requestApproval`, actor `system`, key
+  `package:<packageId>`); it never submits. No caller, form questions from the ATS or stored
+  resume files yet.
 - `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
   (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
   decision as an `approval` signal (or `withdrawn`), then runs the `submitApplication` activity
