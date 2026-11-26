@@ -13,8 +13,11 @@ import {
 import {
   adaptAnswer,
   answerFactual,
+  type ConfirmedMatch,
+  confirmCandidates,
   matchQuestion,
   narrativeKindOf,
+  normalize,
   type Setting,
   type StoredAnswer,
 } from "@northstar/profile";
@@ -57,6 +60,9 @@ export type AssemblyInput = {
   // The job's fit score (NS-116), or null when it has none.
   fit: number | null;
   formSeenBefore: boolean;
+  // Matches the caller confirmed with confirmQuestion before assembly (NS-233), by field name.
+  // Optional: without it every question is matched by code alone.
+  confirmed?: ReadonlyMap<string, ConfirmedMatch>;
 };
 
 // Where an answer came from, so Paul (and the Gate's policy) can trace every value.
@@ -71,6 +77,9 @@ export type AnswerSource =
       confidence: number;
       // The label is the canonical question's own wording (see bankSource).
       exactWording: boolean;
+      // Who chose the canonical question (NS-233): code's lexical match, or the model's pick in
+      // confirmQuestion. A model's pick is never reuse for the Gate's policy.
+      confirmedBy: "rules" | "model";
     };
 
 // Why one question can't be answered without Paul.
@@ -117,6 +126,24 @@ const plain = (text: string) =>
     .replace(/[?.!:\s]+$/, "")
     .toLowerCase();
 
+// The model's pick for this field (NS-233), only where it could be one: code's own match of the
+// label left it new, and the chosen question is one the confirm step offers for this label. Any
+// other entry is ignored and code's match stands, so a stale map or a mixed-up field name can never
+// carry a match the label doesn't earn. A rules entry is never trusted: code matches the label
+// itself. Either flag marks a pick as the model's.
+function modelPick(
+  label: string,
+  own: ReturnType<typeof matchQuestion>,
+  entry: ConfirmedMatch | undefined,
+): ReturnType<typeof matchQuestion> | null {
+  const chosen = entry?.match;
+  if (entry === undefined || chosen === undefined || chosen.status !== "matched") return null;
+  const byModel = entry.by === "model" || chosen.confirmedBy === "model";
+  if (!byModel || own.status === "matched") return null;
+  const offered = confirmCandidates(label).some((c) => c.id === chosen.canonical.id);
+  return offered ? chosen : null;
+}
+
 type Answer =
   | { ok: true; value: string; source: AnswerSource; freeText: boolean }
   | { ok: false; reason: Unanswered["reason"] };
@@ -134,11 +161,15 @@ function answer(q: FormQuestion, input: AssemblyInput): Answer {
   }
   // A factual question whose setting is missing or doesn't fit: never drafted around.
   if (factual.reason !== "not_factual") return { ok: false, reason: factual.reason };
-  const match = matchQuestion(q.label);
+  const own = matchQuestion(q.label);
+  const pick = modelPick(q.label, own, input.confirmed?.get(q.fieldName));
+  const match = pick ?? own;
+  const confirmedBy = pick === null ? "rules" : "model";
   if (
     match.status !== "matched" ||
     narrativeKindOf(match.canonical.id) === null ||
-    NEGATION.test(q.label)
+    // Normalized first (NFKC, curly quotes), as the confirm step does: "wouldn’t" is a negation.
+    NEGATION.test(normalize(q.label))
   ) {
     return { ok: false, reason: "not_matched" };
   }
@@ -161,6 +192,7 @@ function answer(q: FormQuestion, input: AssemblyInput): Answer {
       variant: adapted.variant,
       confidence: match.confidence,
       exactWording,
+      confirmedBy,
     },
     freeText: true,
   };
@@ -176,6 +208,9 @@ function pickChoice(choices: readonly string[], value: string): string | null {
 function bankSource(source: AnswerSource): PackageFacts["answers"][number]["source"] {
   // Factual settings are marked for Paul's review (NS-141), so they never count as reuse.
   if (source.from === "setting") return "new";
+  // The model chose the canonical question (NS-233): a mistaken or injected pick must never skip
+  // Paul's review, whatever its confidence or wording.
+  if (source.confirmedBy === "model") return "new";
   if (source.exactWording) return "bank_exact";
   return source.confidence >= HIGH_CONFIDENCE ? "bank_high_confidence" : "new";
 }
