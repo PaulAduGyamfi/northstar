@@ -78,7 +78,10 @@ Exists now:
   Since NS-111 also the guided story interview: a fixed STAR script per atom, the `story-draft`
   route, and a provenance check that every story part quotes Paul's answers verbatim (whole words
   and whole numbers, `quotedIn`, NS-184/NS-200), with its numbers, number words and capitalised
-  names backed by its quotes, the answers or the resume line. Stories
+  names backed by its quotes, the answers or the resume line. Since NS-202 the name rule
+  (`names.ts`, shared with answer drafting) also catches mixed-case, digit-start and joined names
+  ("iOS", "3M", "ex-Globex", "l'Oréal"); a capitalised word is still backed whole. All-lowercase
+  names are not caught. Stories
   are stored only when Paul approves them, then locked by a trigger (`packages/db`,
   `story-schema.ts`).
   Since NS-112 also the employment-facts check (DX-011): Paul's official HR record
@@ -138,7 +141,9 @@ Exists now:
   - `selectEvidence` picks Paul's stories and atoms by the question's words (plain code).
   - The `answer-draft` route drafts from them.
   - `validateAnswerDraft` requires every sentence to cite a given item with a verbatim quote,
-    and its numbers and capitalised names to come from what it cites.
+    and its numbers and names (`names.ts`, NS-202) to come from what it cites. A story's title is
+    shown to the model but is no evidence: quotes and names come from its four parts
+    (`checkText`).
   - `draftAnswer` is off by default: its fixtures are hand-written until Paul records real ones.
     When on, a failing draft becomes `needs_human`.
 

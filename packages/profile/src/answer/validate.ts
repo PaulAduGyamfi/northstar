@@ -1,3 +1,4 @@
+import { nameCandidates } from "../names.js";
 import { hasWhole, normalize, numbers, quotedIn } from "../validate.js";
 import type { EvidenceItem } from "./evidence.js";
 import type { AnswerDraft } from "./schema.js";
@@ -45,7 +46,9 @@ export function validateAnswerDraft(
   limit: number | null,
 ): AnswerValidation {
   const failures: AnswerFailure[] = [];
-  const byId = new Map(evidence.map((e) => [e.id, normalize(e.text)]));
+  // A story's title is shown to the model but is no evidence (NS-202): titles are never
+  // name-checked, so quotes and names come from `checkText` (the four parts) when it is set.
+  const byId = new Map(evidence.map((e) => [e.id, normalize(e.checkText ?? e.text)]));
 
   if (draft.sentences.length === 0) failures.push({ sentence: null, problem: "no sentences" });
 
@@ -94,15 +97,26 @@ export function validateAnswerDraft(
       if (NUMBER_WORDS.has(lower) && !hasWhole(quoteText, lower)) {
         fail(`number at word ${position} is not in its quotes`);
       }
-      // "I", and its contractions ("I've", "I'm"), are Paul, not a name.
-      if (!/^\p{Lu}/u.test(word) || /^I(?:['’]\p{L}+)?$/u.test(word) || seen.has(word)) return;
-      seen.add(word);
-      // A sentence's first word is capitalised anyway: an opener, or a word the cited text holds
-      // in lower case ("Deadlines slipped…"), isn't a name. Any other first word is checked.
-      if (position === 0 && (STARTERS.has(word) || hasWhole(names, lower))) return;
-      // Names may come from anywhere in a cited item (a story names its employer once), while
-      // numbers must come from the sentence's own quotes (a figure belongs to one claim).
-      if (!hasWhole(names, word)) fail(`name at word ${position} is not in its cited items`);
+      // The whole word, then each name piece (NS-202: "iOS", "ex-Globex", "3M"; never "I"); one
+      // failure per word at most.
+      let unbacked = false;
+      for (const { name, leading } of nameCandidates(word)) {
+        // A sentence's first word is capitalised anyway: an opener, or a word the cited text
+        // holds in lower case ("Deadlines slipped…"), isn't a name. Only at the word's start.
+        if (
+          position === 0 &&
+          leading &&
+          (STARTERS.has(name) || hasWhole(names, name.toLowerCase()))
+        ) {
+          continue;
+        }
+        if (seen.has(name)) continue;
+        seen.add(name);
+        // Names may come from anywhere in a cited item (a story names its employer once), while
+        // numbers must come from the sentence's own quotes (a figure belongs to one claim).
+        if (!hasWhole(names, name)) unbacked = true;
+      }
+      if (unbacked) fail(`name at word ${position} is not in its cited items`);
     });
   });
 
