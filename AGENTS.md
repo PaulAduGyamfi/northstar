@@ -50,6 +50,11 @@ Exists now:
   against plan, days since touched, at risk, a week streak that never resets mid-week, percent per
   week still needed) and `weeklyReview` (moved, not reached, a neutral log; UX-032). No storage,
   auto-detected progress or page yet.
+  Since NS-164 also `mailStatusChange` (`mail-status.ts`, INB-004/011): a linked email's kind
+  gives a target status (confirmation → `confirmed`; assessment, interview request, scheduling →
+  `in_process`; offer; rejection), taken only as a `nextStatus` move. It applies by itself only on
+  a deterministic link from a verified sender; otherwise it is a proposal for Paul's confirm
+  queue. No caller yet (#224).
 - `packages/db/` (NS-105): Drizzle schema, committed migrations (`migrations/`), the one write
   path for status changes (`transitionApplication`: status + event in one transaction) and
   `readEventsAfter`. `domain_event` is append-only (ADR-0012). Tests run on in-process PGlite.
@@ -226,6 +231,11 @@ Exists now:
   received, the client reads only the top `Delivered-To`, the one Gmail adds (NS-188); mail it
   never stamped (Sent, drafts, inserted) must be skipped by the loop. No mail loop or gateway use yet
   (#224).
+  Since NS-164 also `classifyLinkedMail` (`src/triage.ts`, INB-003/012): one linked message to
+  its classification by the backfill's rules (verified senders only) or the `mail-classify`
+  route, with the provenance check. Verification mail is skipped before either; a refusal,
+  invalid output, missing employer or failed provenance check goes to review, and a held-back
+  call is thrown for a retry. No storage, Gmail labels (no `gmail.modify`) or caller yet (#224).
 - `packages/funnel/` (NS-113): the 9-month backfill, funnel records derived by plain code from
   `funnel_message` and `funnel_manual_row` (`packages/db`, `funnel-schema.ts`), the tracker CSV
   import, the funnel report (Wilson intervals, rejection latency) and the hypothesis board.
