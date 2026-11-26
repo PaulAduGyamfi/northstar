@@ -49,11 +49,12 @@ export function vaultRevealEndpoints(deps: VaultRevealDeps): AnyEndpoint[] {
     method: "POST",
     path: "/vault/reveal/options",
     auth: "session",
-    input: z.object({}),
+    // The tenant is bound to the challenge (NS-245): the check Paul makes is for this one only.
+    input: z.object({ tenantKey: TenantKey }),
     output: Options,
-    handler: async () => {
+    handler: async ({ tenantKey }) => {
       if (deps.sessions.throttled()) return { ok: false, status: 429, error: "throttled" };
-      return { ok: true, body: { options: await deps.assertion.options() } };
+      return { ok: true, body: { options: await deps.assertion.options(tenantKey) } };
     },
   });
 
@@ -75,7 +76,7 @@ export function vaultRevealEndpoints(deps: VaultRevealDeps): AnyEndpoint[] {
       // refused later (locked vault, unknown tenant) keeps its slot on purpose: it was Paul's.
       const slot = deps.now();
       recent.push(slot);
-      const refused = await deps.assertion.verify(response);
+      const refused = await deps.assertion.verify(response, tenantKey);
       if (refused !== null) {
         recent.splice(recent.indexOf(slot), 1);
         deps.sessions.recordFailure();

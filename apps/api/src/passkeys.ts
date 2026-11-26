@@ -52,9 +52,11 @@ const TTL_MS: Record<Ceremony, number> = {
 // Challenges in memory, each answerable once within its time (ADR-0022): a replayed response
 // finds its challenge gone. A restart forgets them, which only means asking again. One store per
 // ceremony, so a flood of sign-in requests (which need no session) can't push out the challenge of
-// a registration Paul is in the middle of.
+// a registration Paul is in the middle of. A challenge may be bound to a subject (a reveal's
+// tenant, NS-245): it is then answerable only for that subject.
+type Live = { expiresAt: number; subject: string | null };
 export function createChallenges(now: () => number) {
-  const stores: Record<Ceremony, Map<string, number>> = {
+  const stores: Record<Ceremony, Map<string, Live>> = {
     register: new Map(),
     "sign-in": new Map(),
     reveal: new Map(),
@@ -62,7 +64,7 @@ export function createChallenges(now: () => number) {
   return {
     // Raw bytes for the library (a string it would encode again); kept by their base64url form,
     // which is what the browser echoes back in clientDataJSON.
-    issue(ceremony: Ceremony): Uint8Array<ArrayBuffer> {
+    issue(ceremony: Ceremony, subject: string | null = null): Uint8Array<ArrayBuffer> {
       const bytes = new Uint8Array(randomBytes(32));
       const challenge = Buffer.from(bytes).toString("base64url");
       const live = stores[ceremony];
@@ -70,14 +72,15 @@ export function createChallenges(now: () => number) {
         const oldest = live.keys().next().value;
         if (oldest !== undefined) live.delete(oldest);
       }
-      live.set(challenge, now() + TTL_MS[ceremony]);
+      live.set(challenge, { expiresAt: now() + TTL_MS[ceremony], subject });
       return bytes;
     },
-    consume(ceremony: Ceremony, challenge: string): boolean {
+    // Used up whatever the answer: a challenge tried for the wrong subject can't be tried again.
+    consume(ceremony: Ceremony, challenge: string, subject: string | null = null): boolean {
       const live = stores[ceremony];
-      const expiresAt = live.get(challenge);
+      const found = live.get(challenge);
       live.delete(challenge);
-      return expiresAt !== undefined && now() < expiresAt;
+      return found !== undefined && now() < found.expiresAt && found.subject === subject;
     },
   };
 }
@@ -134,14 +137,18 @@ function assertionChecker(deps: {
   challenges: ReturnType<typeof createChallenges>;
 }) {
   const rpID = new URL(deps.config.webOrigin).hostname;
-  return async (ceremony: Ceremony, response: AssertionJson): Promise<string | null> => {
+  return async (
+    ceremony: Ceremony,
+    response: AssertionJson,
+    subject: string | null = null,
+  ): Promise<string | null> => {
     const stored = await deps.store.read(response.id);
     if (!stored) return "unknown_passkey";
     let newCounter: number;
     try {
       const verified = await verifyAuthenticationResponse({
         response,
-        expectedChallenge: (c) => deps.challenges.consume(ceremony, c),
+        expectedChallenge: (c) => deps.challenges.consume(ceremony, c, subject),
         expectedOrigin: deps.config.webOrigin,
         expectedRPID: rpID,
         credential: {
@@ -165,11 +172,12 @@ function assertionChecker(deps: {
 }
 
 // A fresh passkey check for a reveal (NS-230): its own single-use challenges, a minute each, so a
-// sign-in challenge (or an old one) can't stand in for it.
+// sign-in challenge (or an old one) can't stand in for it. Each is bound to the tenant Paul asked
+// for (NS-245), so one check reveals that tenant's password and no other.
 export type PasskeyAssertion = {
-  options: () => Promise<Record<string, unknown>>;
-  // null when the assertion passes, else the refusal's reason code.
-  verify: (response: AssertionJson) => Promise<string | null>;
+  options: (tenantKey: string) => Promise<Record<string, unknown>>;
+  // null when the assertion passes for this tenant, else the refusal's reason code.
+  verify: (response: AssertionJson, tenantKey: string) => Promise<string | null>;
 };
 
 export function passkeyAssertion(deps: {
@@ -181,16 +189,16 @@ export function passkeyAssertion(deps: {
   const check = assertionChecker({ config: deps.config, store: deps.store, challenges });
   const rpID = new URL(deps.config.webOrigin).hostname;
   return {
-    options: async () =>
+    options: async (tenantKey) =>
       asJson(
         await generateAuthenticationOptions({
           rpID,
-          challenge: challenges.issue("reveal"),
+          challenge: challenges.issue("reveal", tenantKey),
           userVerification: "required",
           timeout: REVEAL_CHALLENGE_TTL_MS,
         }),
       ),
-    verify: (response) => check("reveal", response),
+    verify: (response, tenantKey) => check("reveal", response, tenantKey),
   };
 }
 
