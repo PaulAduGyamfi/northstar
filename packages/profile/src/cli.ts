@@ -13,6 +13,7 @@ import {
   type ThesisView,
 } from "@northstar/db";
 import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
+import { type AuditCliDeps, auditCommand } from "./audit-cli.js";
 import { type Claim, checkEmploymentFacts, type Mismatch, parseOfficialRecord } from "./facts.js";
 import type { ImportResult } from "./import.js";
 import type { InterviewOutcome } from "./interview.js";
@@ -57,7 +58,8 @@ export type CliDeps = {
   storeImport: (input: Omit<ProfileImportInput, "candidateId">) => Promise<ImportReport>;
   readLinkedinRoles: () => Promise<SourceRole[] | null>;
 } & SettingsDeps &
-  TailorCliDeps;
+  TailorCliDeps &
+  AuditCliDeps;
 
 const USAGE =
   'usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check | profile thesis draft | profile thesis set "<text>" --atoms <id,id> | profile thesis show | profile import-linkedin <folder>';
@@ -123,6 +125,8 @@ export async function main(deps: CliDeps): Promise<number> {
     deps.print(TAILOR_USAGE);
     return 1;
   }
+  // The resume audit and Paul's decisions (NS-190): its own usage line, like tailor's.
+  if (command === "audit") return auditCommand(deps, deps.argv.slice(1));
   deps.print(command === "settings" || command === "answer" ? SETTINGS_USAGE : USAGE);
   return 1;
 }

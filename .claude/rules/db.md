@@ -91,6 +91,16 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   trigger), written only through `tailor-write.ts`; `readTailorInput` reads the current resume
   import (`kind = 'resume'`) and a ready job. The stored resume, validation and score hold Paul's
   lines and the job's requirements: `resume.tailored` carries ids, counts and flags only.
+- Resume audits (NS-190) are `resume_audit`, `resume_audit_suggestion`, `resume_audit_decision`
+  (one per suggestion of a run; accepted with a line or rejected) and `atom_line_edit` (Paul's
+  line for an atom, from an accepted decision; the newest is the atom's current line),
+  append-only (triggers), written only through `audit-write.ts`. `experience_atom.source_quote`
+  never changes: `readResumeMaster` (the tailor's and the audit's reader) puts the newest edit in
+  its place. Callers run `applySuggestion` (`packages/profile`, CPG-004: no other role's
+  employer, title or years) before `decideSuggestion`, which checks only one non-empty line (a
+  CHECK refuses control characters). Lines, messages and targets stay in the tables:
+  `resume.audited` and `resume.suggestion_decided` carry ids, counts, the kind and the decision
+  only.
 - Posting liveness (NS-173) is `posting_check`, append-only (a trigger), written only through
   `liveness-write.ts`: one row per attempt (`open`, `closed` or `unavailable`). A job is closed
   only when its two newest answers (unavailable skipped) are `closed`; `readScorableJobs` leaves

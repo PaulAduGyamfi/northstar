@@ -7,12 +7,15 @@ import {
   connectDb,
   currentResumeHash,
   dbSpendMeter,
+  decideSuggestion,
   isSubsystemOn,
   loadDbConfig,
   nextAtomForInterview,
+  readAuditInput,
   readCurrentThesis,
   readEmploymentFacts,
   readInterviewAnswers,
+  readLatestAudit,
   readProfile,
   readProfileSettings,
   readSourceRoles,
@@ -24,8 +27,10 @@ import {
   recordDraftOutcome,
   recordFactsCheck,
   recordFactualAnswer,
+  rejectedKeys,
   saveApprovedStory,
   saveApprovedThesis,
+  saveResumeAudit,
   saveTailoredResume,
   setEmploymentFacts,
   setProfileSetting,
@@ -42,6 +47,7 @@ import {
   type SpendMeter,
 } from "@northstar/llm";
 import { sql } from "drizzle-orm";
+import { type AuditRunDeps, acceptSuggestion, rejectSuggestion, runAudit } from "./audit/run.js";
 import { main, safeErrorSummary } from "./cli.js";
 import { importResume } from "./import.js";
 import { type Choice, runInterview, type Terminal } from "./interview.js";
@@ -92,6 +98,14 @@ try {
       guard,
       dbSpendMeter(db, () => candidateId),
     );
+  // The resume audit's storage (NS-190), on packages/db's one write path for it.
+  const auditDeps: AuditRunDeps = {
+    readInput: () => readAuditInput(db, candidateId),
+    rejected: (sourceId) => rejectedKeys(db, candidateId, sourceId),
+    save: (input) => saveResumeAudit(db, { ...input, candidateId }),
+    readLatest: () => readLatestAudit(db, candidateId),
+    decide: (input) => decideSuggestion(db, { ...input, candidateId }),
+  };
   const exitCode = await main({
     argv: process.argv.slice(2),
     print: (line) => console.log(printable(line)),
@@ -193,6 +207,9 @@ try {
         jobId,
         drop,
       ),
+    runAudit: () => runAudit(auditDeps),
+    acceptSuggestion: (key, line) => acceptSuggestion(auditDeps, key, line),
+    rejectSuggestion: (key) => rejectSuggestion(auditDeps, key),
     recordFactualUse: (use) => recordFactualAnswer(db, { candidateId, kind: "factual", ...use }),
   });
   process.exitCode = exitCode;

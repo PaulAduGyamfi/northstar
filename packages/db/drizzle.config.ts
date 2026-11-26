@@ -24,6 +24,7 @@ export default defineConfig({
     "./src/liveness-schema.ts",
     "./src/passkey-schema.ts",
     "./src/voice-schema.ts",
+    "./src/audit-schema.ts",
   ],
   out: "./migrations",
 });
