@@ -25,7 +25,8 @@ later writer puts in the draft: the recipient, subject, thread headers and body.
   checked draft's sentences, `replyText`), the ids the draft cites, and the drafter's follow-up
   questions.
   - `replyContentSha256` hashes the recipient, subject, thread headers and body: what Paul approves.
-  - Its Gate subject is `email_reply:<gmailMessageId>`, so one message has one live reply.
+  - Its Gate subject is `email_reply:<uuid>`, a version 8 UUID derived from the Gmail message id
+    (the Gate's subjects name a UUID), so one message has one live reply.
 - **From a checked draft** (`replyPackage` in `packages/profile`, `reply/package.ts`): it turns a
   `drafted` result plus the incoming headers into a package, or gives the envelope's refusal.
 - **Filing** (`fileReplyDraft` in `packages/db`, `reply-write.ts`):
@@ -46,7 +47,7 @@ later writer puts in the draft: the recipient, subject, thread headers and body.
 
 ## Decisions made without Paul (ADR-0016)
 - A schema change: the `reply_draft` table.
-- The envelope rules above, and storing the recipient address with the draft, which the writer
+- The envelope rules above, the UUID derived from the Gmail id for the Gate's subject, and storing the recipient address with the draft, which the writer
   needs.
 
 ## Out of scope
