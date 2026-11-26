@@ -53,6 +53,8 @@ export function fakeWorld(script: {
   withdrawRefusal?: "NotApproved" | "UndoWindowOpen" | "AlreadyClosed";
   // Who the Gate says decided: Paul ("user", the default) or an auto-approve policy.
   decidedBy?: "user" | "policy";
+  // Whether the application's job posting is closed (NS-218; open by default).
+  postingClosed?: boolean;
 }): FakeWorld {
   const submittedVia: string[] = [];
   let status: ApplicationStatus = script.initialStatus ?? "awaiting_approval";
@@ -203,6 +205,7 @@ export function fakeWorld(script: {
       // The gateway only reads ok/error from a transition.
       return ok({ replayed: false } as never);
     },
+    isPostingClosed: async () => script.postingClosed ?? false,
     readFile: async (hash) => files.get(hash) ?? null,
     openDriver: () => driver,
     isSubsystemOn: async (_c, subsystem) => {

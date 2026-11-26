@@ -1,9 +1,10 @@
-import type { CandidateId } from "@northstar/domain";
+import { ApplicationId, type ApplicationStatus, type CandidateId } from "@northstar/domain";
 import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import type { Db } from "./db.js";
 import { type POSTING_OUTCOMES, postingCheck } from "./liveness-schema.js";
 import { appendEvent, inSpan } from "./resilience-event.js";
-import { job, jobSource } from "./schema.js";
+import { application, job, jobSource } from "./schema.js";
+import { transitionApplication } from "./transition-application.js";
 
 // Posting liveness (NS-173 slice 2, SRC-010): which ready jobs are due a re-check, the only writer
 // of posting_check, and which jobs are closed. Events carry ids and the ATS, never a URL or title.
@@ -157,4 +158,82 @@ export async function readClosedJobIds(
 ): Promise<Set<string>> {
   const checks = await readChecks(db, candidateId);
   return new Set([...checks].filter(([, c]) => isClosed(c.answers)).map(([id]) => id));
+}
+
+// The statuses an application can leave the pipeline from when its posting closes (NS-218): it
+// hasn't gone out. From submitting on, a run may be in the browser or it already went out, so
+// it is left alone.
+const BEFORE_SUBMISSION: readonly ApplicationStatus[] = [
+  "discovered",
+  "scored",
+  "queued",
+  "package_ready",
+  "awaiting_approval",
+];
+
+// Moves every application whose job is closed and that hasn't gone out to `withdrawn`, through
+// transitionApplication, with the reason code `posting_closed` (SRC-010). Safe to repeat: one key
+// per application, and a withdrawn one is no longer listed. One failing application (a status
+// that changed meanwhile, Postgres) is counted and never stops the others.
+export async function withdrawClosedApplications(
+  db: Db,
+  candidateId: CandidateId,
+  now?: Date,
+): Promise<{ withdrawn: number; failed: number }> {
+  const closed = await readClosedJobIds(db, candidateId);
+  if (closed.size === 0) return { withdrawn: 0, failed: 0 };
+  const open = await db
+    .select({ id: application.id, status: application.status })
+    .from(application)
+    .where(
+      and(
+        eq(application.candidateId, candidateId),
+        inArray(application.jobId, [...closed]),
+        inArray(application.status, [...BEFORE_SUBMISSION]),
+      ),
+    )
+    .orderBy(asc(application.createdAt), asc(application.id));
+  let withdrawn = 0;
+  let failed = 0;
+  for (const a of open) {
+    try {
+      const moved = await transitionApplication(db, {
+        candidateId,
+        applicationId: ApplicationId.parse(a.id),
+        from: a.status as ApplicationStatus,
+        to: "withdrawn",
+        actor: "system",
+        // Fixed words only: no title, company or URL.
+        reason: "The job's posting closed before the application went out",
+        inputsSummary: "",
+        links: [],
+        reasonCode: "posting_closed",
+        // Withdrawn is final, so one key per application is enough.
+        idempotencyKey: `application:${a.id}:posting_closed`,
+        ...(now === undefined ? {} : { now }),
+      });
+      if (moved.ok) withdrawn++;
+      else failed++;
+    } catch {
+      failed++;
+    }
+  }
+  return { withdrawn, failed };
+}
+
+// Whether the application's job is closed (its two newest answers both closed). The Apply
+// Gateway asks this right before it claims (NS-218). An unknown application is not closed: the
+// claim refuses it on its own.
+export async function isPostingClosed(
+  db: Pick<Db, "select">,
+  candidateId: CandidateId,
+  applicationId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ jobId: application.jobId })
+    .from(application)
+    .where(and(eq(application.candidateId, candidateId), eq(application.id, applicationId)));
+  if (!row) return false;
+  const c = (await readChecks(db, candidateId, row.jobId)).get(row.jobId);
+  return c !== undefined && isClosed(c.answers);
 }

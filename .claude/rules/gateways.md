@@ -15,7 +15,8 @@ GitHub) don't exist yet: if you are about to create one outside its ticket, stop
 - Every submission goes through `submitApplication`: the apply URL's host must be the ATS's own
   and the posting id must match the one in the URL, then the Gate check (throws
   `NotApprovedError`), a re-hash of the files, `claimSubmission`, a `FormDriver` with time limits,
-  then proof. Before the claim it asks the `auto_apply` and `adapter:<ats>` switches and the
+  then proof. After the files it asks `isPostingClosed` (NS-218): a closed posting is the
+  `PostingClosed` refusal, nothing claimed. Before the claim it asks the `auto_apply` and `adapter:<ats>` switches and the
   `ats:<ats>` breaker (NS-206, `guard.ts`); held back is the `HeldBack` refusal with nothing
   claimed, so a later call retries. After the browser step only a timeout counts against the
   breaker, a page the ATS served is it working, and a browser crash isn't reported. A live claim

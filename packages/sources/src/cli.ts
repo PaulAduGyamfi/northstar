@@ -215,5 +215,18 @@ async function checkCommand(deps: CliDeps): Promise<number> {
   deps.print(
     `Checked ${s.checked} posting${s.checked === 1 ? "" : "s"}: ${s.open} open, ${s.closed} closed, ${s.unavailable} couldn't be reached${s.heldBack > 0 ? `, ${s.heldBack} held back by a switch or breaker` : ""}${s.unchecked > 0 ? `, ${s.unchecked} with no API to ask` : ""}`,
   );
+  // Applications for closed postings (NS-218): said only when something happened.
+  if (s.withdrawn === null) {
+    deps.print("Couldn't withdraw applications for closed postings; the next pass tries again.");
+  } else if (s.withdrawn > 0) {
+    deps.print(
+      `${s.withdrawn} application${s.withdrawn === 1 ? "" : "s"} left the pipeline: their job postings closed.`,
+    );
+  }
+  if (s.withdrawFailed > 0) {
+    deps.print(
+      `${s.withdrawFailed} application${s.withdrawFailed === 1 ? "" : "s"} couldn't be moved; the next pass tries again.`,
+    );
+  }
   return 0;
 }

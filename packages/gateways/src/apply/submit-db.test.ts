@@ -6,6 +6,7 @@ import {
   decideApprovals,
   listOpenHandoffs,
   readOrigin,
+  recordPostingCheck,
   requestApproval,
   schema,
   setKillSwitch,
@@ -237,6 +238,27 @@ describe("submitApplication on the real write paths", () => {
         ok: false,
         error: { kind: "HeldBack", by: "kill_switch", what: "auto_apply", retryAt: null },
       },
+      "awaiting_approval",
+      [],
+    ]);
+  });
+});
+
+describe("a closed posting, on the real write paths (NS-218)", () => {
+  it("refuses an approved package whose job's posting closed, and claims nothing", async () => {
+    const decisionId = await approve();
+    const [row] = await db.select().from(schema.application);
+    for (let i = 0; i < 2; i++) {
+      await recordPostingCheck(db, {
+        candidateId,
+        jobId: row?.jobId ?? "",
+        ats: "greenhouse",
+        outcome: "closed",
+      });
+    }
+    const result = await submitApplication(ports(), { candidateId, decisionId, package: pkg });
+    expect([result, await applicationStatus(), await ledger()]).toEqual([
+      { ok: false, error: { kind: "PostingClosed" } },
       "awaiting_approval",
       [],
     ]);

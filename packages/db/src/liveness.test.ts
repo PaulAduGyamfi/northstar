@@ -5,12 +5,14 @@ import type { Db } from "./db.js";
 import { readScorableJobs } from "./fit-write.js";
 import { postingCheck } from "./liveness-schema.js";
 import {
+  isPostingClosed,
   type PostingOutcome,
   readClosedJobIds,
   readJobsToCheck,
   recordPostingCheck,
+  withdrawClosedApplications,
 } from "./liveness-write.js";
-import { domainEvent, job, jobSource } from "./schema.js";
+import { application, domainEvent, job, jobSource } from "./schema.js";
 import { createTestDb, seedApplication, sqlState } from "./test/pglite.js";
 
 // Posting liveness (NS-173 slice 2). Synthetic jobs and boards only.
@@ -173,5 +175,73 @@ describe("closed jobs", () => {
     await record("open");
     const reopened = (await readScorableJobs(db, candidateId)).map((j) => j.id);
     expect([closed, scorable, reopened]).toEqual([[jobId], [], [jobId]]);
+  });
+});
+
+describe("withdrawClosedApplications (NS-218)", () => {
+  // Another job with an application in the given status, its posting already closed.
+  async function closedJobWith(status: "submitting" | "submitted" | "queued"): Promise<string> {
+    const other = await addJob();
+    const [a] = await db
+      .insert(application)
+      .values({ candidateId, jobId: other, status })
+      .returning({ id: application.id });
+    if (!a) throw new Error("no application");
+    await record("closed", other);
+    await record("closed", other);
+    return a.id;
+  }
+  const statusOf = async (id: string) =>
+    (await db.select().from(application).where(eq(application.id, id)))[0]?.status;
+  const withdrawnEvents = () =>
+    db.select().from(domainEvent).where(eq(domainEvent.type, "application.withdrawn"));
+
+  it("withdraws a closed job's application that hasn't gone out, once, saying why", async () => {
+    const [seeded] = await db.select().from(application).where(eq(application.jobId, jobId));
+    await record("closed");
+    await record("closed");
+    const first = await withdrawClosedApplications(db, candidateId);
+    const second = await withdrawClosedApplications(db, candidateId);
+    const events = await withdrawnEvents();
+    expect([
+      first,
+      second,
+      await statusOf(seeded?.id ?? ""),
+      events.map((e) => [e.actor, e.payload]),
+    ]).toEqual([
+      { withdrawn: 1, failed: 0 },
+      { withdrawn: 0, failed: 0 },
+      "withdrawn",
+      [["system", { from: "discovered", to: "withdrawn", reasonCode: "posting_closed" }]],
+    ]);
+  });
+
+  it("leaves an open job's application, and a closed job's submitting or submitted one, alone", async () => {
+    await record("closed"); // one closed answer: the seeded job isn't closed yet
+    const submitting = await closedJobWith("submitting");
+    const submitted = await closedJobWith("submitted");
+    const queued = await closedJobWith("queued");
+    expect([
+      await withdrawClosedApplications(db, candidateId),
+      await statusOf(submitting),
+      await statusOf(submitted),
+      await statusOf(queued),
+      (await db.select().from(application).where(eq(application.jobId, jobId)))[0]?.status,
+    ]).toEqual([{ withdrawn: 1, failed: 0 }, "submitting", "submitted", "withdrawn", "discovered"]);
+  });
+});
+
+describe("isPostingClosed (NS-218)", () => {
+  it("is true for an application whose job closed, and false before and for an unknown one", async () => {
+    const [seeded] = await db.select().from(application).where(eq(application.jobId, jobId));
+    const id = seeded?.id ?? "";
+    const before = await isPostingClosed(db, candidateId, id);
+    await record("closed");
+    await record("closed");
+    expect([
+      before,
+      await isPostingClosed(db, candidateId, id),
+      await isPostingClosed(db, candidateId, "00000000-0000-4000-8000-000000000009"),
+    ]).toEqual([false, true, false]);
   });
 });
