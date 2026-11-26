@@ -25,7 +25,7 @@ import {
   REVEAL_CHALLENGE_TTL_MS,
 } from "./passkeys.js";
 import { createApi } from "./server.js";
-import { createSessions, type Sessions } from "./sessions.js";
+import { createSessions, type Sessions, THROTTLE_LIMIT } from "./sessions.js";
 import { type FakeAuthenticator, fakeAuthenticator } from "./test/authenticator.js";
 import { portOf, type Sent, send } from "./test/http.js";
 import { REVEALS_PER_MINUTE, vaultRevealEndpoints } from "./vault-reveal.js";
@@ -64,6 +64,8 @@ let rows: Row[];
 let t: number;
 let vaultOn: boolean;
 let keyLoads: number;
+// When set, reading the key file fails, as a missing or unreadable file would.
+let keyBroken: boolean;
 let auth: FakeAuthenticator;
 
 // As packages/db behaves: one row per credential id, and a sign count that only moves forward.
@@ -93,6 +95,7 @@ beforeEach(async () => {
   t = 1_000_000;
   vaultOn = true;
   keyLoads = 0;
+  keyBroken = false;
   ({ db, close: closeDb } = await createTestDb());
   const seeded = await seedApplication(db, "awaiting_approval");
   const candidateId = CandidateId.parse(seeded.candidateId);
@@ -100,6 +103,7 @@ beforeEach(async () => {
   const keyText = randomBytes(32).toString("base64");
   const loadKey = (): Promise<MasterKey> => {
     keyLoads += 1;
+    if (keyBroken) return Promise.reject(new Error("VAULT_MASTER_KEY_FILE could not be read"));
     return loadVaultKey({ VAULT_MASTER_KEY_FILE: "vault.key" }, async () => keyText);
   };
   await storeTenantPassword(dbVaultPorts(db), await loadKey(), {
@@ -251,5 +255,42 @@ describe("revealing a vault password", () => {
     const attributes = JSON.stringify(exporter.getFinishedSpans().map((s) => s.attributes));
     expect(attributes).toContain("revealed");
     expect(attributes).not.toContain(PASSWORD);
+  });
+
+  it("refuses an assertion from a passkey that was never registered", async () => {
+    const stranger = fakeAuthenticator({ rpId: RP_ID, origin: WEB });
+    const options = await post("/vault/reveal/options", {});
+    const res = await post("/vault/reveal", {
+      tenantKey: TENANT,
+      response: stranger.signIn(challengeOf(options)),
+    });
+    expect(res.status).toBe(401);
+    expect(await accessRows()).toBe(0);
+  });
+
+  it("counts refused assertions toward the sign-in throttle, then refuses even a good one", async () => {
+    // A good assertion, made before the failures.
+    const options = await post("/vault/reveal/options", {});
+    const good = auth.signIn(challengeOf(options));
+    for (let i = 0; i < THROTTLE_LIMIT; i++) {
+      const res = await post("/vault/reveal", { tenantKey: TENANT, response: auth.signIn("AAAA") });
+      expect(res.status).toBe(401);
+    }
+    const res = await post("/vault/reveal", { tenantKey: TENANT, response: good });
+    const moreOptions = await post("/vault/reveal/options", {});
+    expect([res.status, moreOptions.status]).toEqual([429, 429]);
+    expect(await accessRows()).toBe(0);
+  });
+
+  it("answers 400 for a tenant key the vault doesn't accept", async () => {
+    const { res } = await reveal("no-colon-here");
+    expect([res.status, JSON.parse(res.body).error]).toEqual([400, "invalid_tenant"]);
+  });
+
+  it("answers 503 with no detail when the key can't be read", async () => {
+    keyBroken = true;
+    const { res } = await reveal();
+    expect([res.status, res.body]).toEqual([503, JSON.stringify({ error: "vault_locked" })]);
+    expect(await accessRows()).toBe(0);
   });
 });

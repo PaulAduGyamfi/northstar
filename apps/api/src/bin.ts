@@ -75,7 +75,7 @@ import { growthEndpoints } from "./growth.js";
 import { markHandoffSubmitted } from "./handoff-ports.js";
 import { handoffEndpoints } from "./handoffs.js";
 import { inboxEndpoints } from "./inbox.js";
-import { passkeyAssertion, passkeyEndpoints } from "./passkeys.js";
+import { type PasskeyStore, passkeyAssertion, passkeyEndpoints } from "./passkeys.js";
 import { pipelineEndpoints } from "./pipeline.js";
 import { runEndpoints } from "./run.js";
 import { createApi } from "./server.js";
@@ -238,13 +238,11 @@ try {
   // and their failures count toward one throttle (ADR-0022).
   const sessions = createSessions(Date.now);
   // Passkey sign-in (NS-178) on packages/db's passkey write path.
-  const passkeyStore = {
+  const passkeyStore: PasskeyStore = {
     list: async () => listPasskeys(db, await candidateId()),
-    read: async (credentialId: string) => readPasskey(db, await candidateId(), credentialId),
-    save: async (
-      input: Parameters<typeof savePasskey>[1] extends infer T ? Omit<T, "candidateId"> : never,
-    ) => savePasskey(db, { ...input, candidateId: await candidateId() }),
-    recordUse: async (passkeyId: string, signCount: number) =>
+    read: async (credentialId) => readPasskey(db, await candidateId(), credentialId),
+    save: async (input) => savePasskey(db, { ...input, candidateId: await candidateId() }),
+    recordUse: async (passkeyId, signCount) =>
       recordPasskeyUse(db, await candidateId(), passkeyId, signCount),
   };
   const passkeys = passkeyEndpoints({ config, sessions, now: Date.now, store: passkeyStore });

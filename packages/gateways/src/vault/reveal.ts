@@ -14,8 +14,8 @@ import type { VaultSecret } from "./secret.js";
 // Revealing one of Paul's vault passwords to him (NS-182, CRD-002, ADR-0024). The one opening
 // this package exports. The database files, approves and uses a one-time `vault_reveal` for this
 // tenant in one transaction (revealSealedSecret), so no decision id passes through any caller.
-// Its only caller is the API, after a WebAuthn assertion made within 60 seconds (slice 2); the
-// boundary test fails if anything else names it. The decrypt stays in open.ts.
+// Its only caller is the API's reveal route (apps/api/src/vault-reveal.ts, NS-230), after a
+// WebAuthn assertion made within 60 seconds; the boundary test fails if anything else names it. The decrypt stays in open.ts.
 
 export type RevealPorts = {
   revealSealedSecret: (

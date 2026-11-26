@@ -70,13 +70,18 @@ export function vaultRevealEndpoints(deps: VaultRevealDeps): AnyEndpoint[] {
         outcome("throttled");
         return { ok: false, status: 429, error: "throttled" };
       }
+      // The slot is taken before the await, so concurrent requests can't all pass the limit; a
+      // refused assertion gives it back (its failure counts toward the throttle instead). A reveal
+      // refused later (locked vault, unknown tenant) keeps its slot on purpose: it was Paul's.
+      const slot = deps.now();
+      recent.push(slot);
       const refused = await deps.assertion.verify(response);
       if (refused !== null) {
+        recent.splice(recent.indexOf(slot), 1);
         deps.sessions.recordFailure();
         outcome(refused);
         return { ok: false, status: 401, error: "passkey_refused" };
       }
-      recent.push(deps.now());
       // A locked vault never loads the key.
       if (!(await deps.isVaultOn())) {
         outcome("vault_locked");
