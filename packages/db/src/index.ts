@@ -355,6 +355,16 @@ export {
   VAULT_SUBSYSTEM,
   type VaultLocked,
 } from "./vault-write.js";
+export * as voiceSchema from "./voice-schema.js";
+// Paul's voice profile, its review and his draft edits (NS-185).
+export {
+  readReviewedVoice,
+  readVoiceEdits,
+  recordVoiceEdit,
+  reviewVoiceProfile,
+  saveVoiceProfile,
+  type VoiceMeasures,
+} from "./voice-write.js";
 export {
   addWatch,
   dueWatches,

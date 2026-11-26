@@ -147,6 +147,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   increase (0 may repeat, for platform passkeys); a unique index stops two uses claiming one
   non-zero count. Credential ids and public keys never go into events, spans or logs:
   `passkey.registered` carries the row id only.
+- The voice profile (NS-185, ANS-007/008) is `voice_profile` (one row per version),
+  `voice_review` (Paul's keep/drop per version; the newest counts) and `voice_edit` (an approved
+  answer's deleted phrases only, one row per approval `subject`), append-only (triggers), written only through `voice-write.ts`.
+  Never store a sample, draft or approved text. Phrases are from Paul's writing: `voice.measured`
+  and `voice.reviewed` carry versions and counts only.
 - The pipeline reads (NS-168, `pipeline-read.ts`) are read-only: `listApplications` and
   `readApplicationTimeline`. A timeline is the application's own events plus events whose payload
   names it (`applicationId`); its lines come only from `feedLine`. So an event about an
