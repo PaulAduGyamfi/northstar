@@ -57,6 +57,10 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
   Keep the prompt's list of framing sentences and the code's the same (a test checks). It is off by default (`enabled: true`
   turns it on), because its fixtures are hand-written. Nothing it drafts is ever sent
   (ADR-0025).
+- The `recruiter-extract` route (NS-167) lives in `packages/inbox/src/recruiter/`. Call it only
+  through `extractRecruiterFacts`, which keeps only values `checkRecruiterFacts` finds in the
+  email. It never grades: `gradeRecruiterMessage` in `packages/sources` does, in plain code. It
+  is off by default (`enabled: true` turns it on), because its fixtures are hand-written.
 - A new route with no real recordings gets hand-written fixtures (ADR-0016 item 8). Write the
   expected outputs to `evals/<route>/handwritten.jsonl` and run
   `node evals/dist/handwrite-bin.js <route>` (after building `evals`). Each fixture is marked

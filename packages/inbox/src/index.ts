@@ -55,6 +55,15 @@ export {
   underDomain,
 } from "./prefilter.js";
 export { checkMailProvenance, type ProvenanceFailure } from "./provenance.js";
+export { checkRecruiterFacts, MIN_QUOTE_WORDS, type RecruiterCheck } from "./recruiter/check.js";
+export { extractRecruiterFacts, type RecruiterExtractResult } from "./recruiter/extract.js";
+export {
+  RECRUITER_EMAIL_LIMIT,
+  RECRUITER_EXTRACT_VERSION,
+  type RecruiterExtractInput,
+  recruiterExtractRoute,
+} from "./recruiter/route.js";
+export { RED_FLAGS, RecruiterFacts, type RedFlag } from "./recruiter/schema.js";
 export {
   classifyLinkedMail,
   type ReviewReason as TriageReviewReason,
