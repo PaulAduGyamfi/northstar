@@ -334,6 +334,10 @@ Exists now:
   and `company` (or `null`), read per page by `readFeedNames` from Paul's own job rows for
   `job:<id>` and `application:<id>` aggregates; never stored in events or put in the line text.
   The web feed shows them after the line as plain text (`feedSubject`).
+  Since NS-154 also the run inspector (OBS-003): `readRun` (`run-read.ts`) gathers the events
+  with the same `traceId` as a feed line, oldest first (at most 200), each with its feed line, its
+  offset and its LLM call record copied field by field, plus totals; the API's `GET /feed/run`
+  serves it, and each feed line on Today has a "Show the run" button. No Temporal history yet.
 - `packages/gateways/` (NS-120): the Apply Gateway, the only code that submits an application
   (ADR-0002). `submitApplication` checks the approval with the Gate at the moment it acts (no
   verified approval throws `NotApprovedError`), re-hashes the package and its files, claims the
@@ -448,6 +452,11 @@ Exists now:
   and `HeldBack` (at most 20 waits, then `gave_up`). Tests run without a server: `decide`, the
   activity on a fake gateway, and Temporal's workflow bundler. No worker process, client or
   restart test yet (the test server download is extra network).
+  Since NS-220 also `staleClaimSweepWorkflow` (on `pipeline`): every 5 minutes (input) it runs the
+  `sweepStaleClaims` activity per candidate (the gateway's sweep with `dbSweepPorts`; 1 minute,
+  3 attempts), continuing as new after 100 passes. A pass that fails all its attempts becomes a
+  dead letter (`recordSweepFailure`: kind `apply.stale_sweep`, reason `sweep_failed`, keyed by
+  run and pass) and the next pass tries again. Nothing starts it until the worker process (#230).
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 

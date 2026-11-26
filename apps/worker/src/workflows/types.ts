@@ -43,3 +43,6 @@ export const NOT_APPROVED = "NotApproved";
 
 // The Gate's refusal kind for an approval still inside its undo window: wait, then try again.
 export const UNDO_WINDOW_OPEN = "UndoWindowOpen";
+
+// Attempts a sweep pass gets before it becomes a dead letter (NS-220).
+export const SWEEP_ATTEMPTS = 3;

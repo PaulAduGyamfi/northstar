@@ -120,6 +120,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   Names (NS-189) are read at display time only: `readFeedNames` maps `job:<id>` and
   `application:<id>` aggregates to the candidate's own job title and company. Never copy them
   into an event, a `reason` or a span (its span carries a count only).
+  The run inspector (NS-154) is `readRun` (`run-read.ts`), read-only: one candidate's events
+  with the same `traceId`, lines from `feedLine`, and `payload.call` copied field by field
+  (`pickCall`), never spread. Write an LLM call into an event only as the gateway's `CallRecord`.
 - The submission ledger (NS-120) is `apply_submission` and `submission_proof`, written only
   through `apply-write.ts`. A trigger lets a submission row finish only once, and proof is
   append-only. `listStaleClaims` reads the claims in progress past `CLAIM_STALE_AFTER_MS` by the
