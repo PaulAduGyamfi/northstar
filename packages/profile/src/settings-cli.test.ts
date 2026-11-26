@@ -88,15 +88,3 @@ describe("profile answer", () => {
     expect([code, uses]).toEqual([1, []]);
   });
 });
-
-describe("profile settings usage", () => {
-  it("prints the settings usage for a malformed settings command", async () => {
-    const { main } = await import("./cli.js");
-    const printed: string[] = [];
-    const d = { argv: ["settings", "set"], print: (l: string) => printed.push(l) };
-    expect(await main(d as unknown as Parameters<typeof main>[0])).toBe(1);
-    expect(printed).toEqual([
-      'usage: profile settings set <field> <value> [--for <qualifier>] | profile settings show | profile answer "<question>"',
-    ]);
-  });
-});

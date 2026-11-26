@@ -224,6 +224,14 @@ describe("profile cli", () => {
     ]);
   });
 
+  it("prints the settings usage for a malformed settings command", async () => {
+    const { d, printed } = deps(["settings", "set"], { kind: "unchanged" });
+    expect(await main(d)).toBe(1);
+    expect(printed).toEqual([
+      'usage: profile settings set <field> <value> [--for <qualifier>] | profile settings show | profile answer "<question>"',
+    ]);
+  });
+
   it("interview prints the summed cost of every call after an approved story, and no story text", async () => {
     const { d, printed } = deps(["interview"], new Error("unused"), null, {
       interview: {
