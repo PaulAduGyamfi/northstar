@@ -8,6 +8,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { approvalDecision } from "./approval-schema.js";
@@ -100,7 +101,16 @@ export const vaultAccess = pgTable(
       columns: [t.decisionId, t.candidateId],
       foreignColumns: [approvalDecision.id, approvalDecision.candidateId],
     }),
-    check("vault_access_actor_valid", sql`${t.actor} ~ '^agent:[a-z0-9-]+$'`),
+    // A reveal approval opens once (NS-182, ADR-0024): a backstop to the reveal path in vault-write.ts, which
+    // makes a fresh approval for each reveal.
+    uniqueIndex("vault_access_reveal_once")
+      .on(t.decisionId)
+      .where(sql`${t.purpose} = 'reveal_to_user'`),
+    // An agent for its own purposes, or Paul only to reveal his own password (NS-182, ADR-0024).
+    check(
+      "vault_access_actor_valid",
+      sql`(${t.actor} ~ '^agent:[a-z0-9-]+$' and ${t.purpose} <> 'reveal_to_user') or (${t.actor} = 'user' and ${t.purpose} = 'reveal_to_user')`,
+    ),
     check("vault_access_purpose_valid", sql`${t.purpose} ~ '^[a-z]+(_[a-z]+)*$'`),
   ],
 );

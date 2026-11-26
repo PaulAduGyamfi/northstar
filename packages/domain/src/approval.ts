@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { err, ok, type Result } from "./result.js";
 
@@ -14,6 +15,10 @@ export const APPROVAL_KINDS = [
   "profile_fix",
   "growth_plan",
   "prep_plan",
+  // Paul reveals one of his own vault passwords (NS-182, CRD-002, ADR-0024): filed, approved and
+  // used in one transaction by packages/db's reveal path (vault-write.ts), effective at once (migration
+  // 0057), never through the queue.
+  "vault_reveal",
 ] as const;
 export const ApprovalKind = z.enum(APPROVAL_KINDS);
 export type ApprovalKind = z.infer<typeof ApprovalKind>;
@@ -25,6 +30,12 @@ const AUTO_APPROVABLE: ReadonlySet<ApprovalKind> = new Set(["application_package
 // Every decision takes effect this long after it is made; until then Paul can undo it (UX-016,
 // design research brief: ~2 min "undo send" before submit).
 export const UNDO_WINDOW_MS = 2 * 60 * 1000;
+
+// The content hash a `vault_reveal` request carries: it names the one tenant the approval may
+// open (ADR-0024). The tenant key is a vault key such as `workday:acme`, never a secret.
+export function revealContentSha256(tenantKey: string): string {
+  return createHash("sha256").update(`vault_reveal:${tenantKey}`).digest("hex");
+}
 
 // What a producer tells the Gate about an application package. Numbers and flags only: never
 // answer text, job titles or company names, since facts are stored with the request.

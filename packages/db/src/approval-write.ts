@@ -12,6 +12,7 @@ import {
   parseDomainEvent,
   parsePolicySet,
   type Result,
+  revealContentSha256,
 } from "@northstar/domain";
 import { isSpanContextValid, type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
@@ -369,6 +370,11 @@ export async function requestApproval(
     if (parsed.data.kind !== "application_package" && parsed.data.facts !== null) {
       return err({ kind: "InvalidRequest", fields: ["facts"] });
     }
+    // A reveal is filed, decided and used in one transaction by revealSealedSecret (NS-182,
+    // ADR-0024), never through the queue: an agent must not be able to put one before Paul.
+    if (parsed.data.kind === "vault_reveal") {
+      return err({ kind: "InvalidRequest", fields: ["kind"] });
+    }
     try {
       return await requestOnce(db, span, input.candidateId, parsed.data);
     } catch (error) {
@@ -549,6 +555,8 @@ export async function listPendingApprovals(
       and(
         eq(approvalRequest.candidateId, candidateId),
         kind ? eq(approvalRequest.kind, kind) : undefined,
+        // Reveals are decided as they are filed (ADR-0024); one never waits in the queue.
+        sql`${approvalRequest.kind} <> 'vault_reveal'`,
         notWithdrawn,
         sql`not exists (
           select 1 from ${approvalDecision} d
@@ -613,7 +621,8 @@ async function decideOne(
           ),
         )
         .for("update");
-      if (!request) return err({ kind: "NotFound" } as const);
+      // A reveal is never decided from the queue (ADR-0024): it isn't in it.
+      if (!request || request.kind === "vault_reveal") return err({ kind: "NotFound" } as const);
       span.setAttribute("northstar.approval.kind", request.kind);
       if (await isWithdrawn(tx, requestId)) return err({ kind: "Withdrawn" } as const);
       if (await liveDecision(tx, requestId)) return err({ kind: "AlreadyDecided" } as const);
@@ -946,4 +955,50 @@ async function withdrawOnce(
       decisionId: live?.decisionId ?? null,
     });
   });
+}
+
+// Files and approves one `vault_reveal` for Paul inside the caller's transaction (NS-182,
+// ADR-0024). Only revealSealedSecret (vault-write.ts) calls it, after his fresh passkey check in
+// the API; it is not exported from the package. The request names the tenant by its content hash
+// and is filed by `system`; the decision is Paul's and takes effect at once (migration 0057).
+export async function approveRevealWithin(
+  tx: Tx,
+  span: Span,
+  candidateId: CandidateId,
+  tenantKey: string,
+): Promise<string> {
+  const id = randomUUID();
+  const now = await gateNow(tx);
+  const [row] = await tx
+    .insert(approvalRequest)
+    .values({
+      candidateId,
+      kind: "vault_reveal",
+      subject: `vault_reveal:${id}`,
+      contentSha256: revealContentSha256(tenantKey),
+      facts: null,
+      actor: "system",
+      idempotencyKey: `vault_reveal:${id}`,
+      requestedAt: now,
+    })
+    .returning({ id: approvalRequest.id, requestedAt: approvalRequest.requestedAt });
+  if (!row) throw new Error("approval_request insert returned no row");
+  await appendEvent(tx, span, {
+    candidateId,
+    aggregate: `approval:${row.id}`,
+    type: "approval.requested",
+    actor: "system",
+    reason: "Paul asked to see a password",
+    payload: { kind: "vault_reveal", subject: `vault_reveal:${id}` },
+    idempotencyKey: `approval_request:${row.id}`,
+    at: row.requestedAt,
+  });
+  const view = await insertDecision(
+    tx,
+    span,
+    { candidateId, requestId: row.id, decision: "approved", decidedBy: "user", reason: null },
+    candidateId,
+    "user",
+  );
+  return view.decisionId;
 }

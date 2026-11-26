@@ -5,6 +5,7 @@ import {
   type PackageFacts,
   type PolicyRule,
   parsePolicySet,
+  revealContentSha256,
 } from "./approval.js";
 
 // A package every rule below would auto-approve; each test spoils one fact.
@@ -150,5 +151,20 @@ describe("parsePolicySet", () => {
       ok: false,
       error: { kind: "InvalidPolicySet", fields: ["0.minFit"] },
     });
+  });
+});
+
+describe("vault reveals (NS-182, ADR-0024)", () => {
+  it("are never auto-approved", () => {
+    expect(evaluatePolicies("vault_reveal", null, [])).toEqual({ auto: false, why: "never_auto" });
+  });
+
+  it("name their tenant through a content hash that differs per tenant and never changes", () => {
+    const acme = revealContentSha256("workday:acme");
+    expect([
+      acme === revealContentSha256("workday:acme"),
+      acme === revealContentSha256("workday:globex"),
+      /^[0-9a-f]{64}$/.test(acme),
+    ]).toEqual([true, false, true]);
   });
 });
