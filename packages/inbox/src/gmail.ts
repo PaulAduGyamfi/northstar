@@ -226,9 +226,10 @@ export function createGmailClient(deps: GmailDeps): GmailClient {
   };
 }
 
-// Gmail's own Authentication-Results header (authserv-id mx.google.com), wherever it sits: a
-// sender can put a forged one above or below it. Gmail stamps one on every message it receives;
-// a message without it reads the first header, as before.
+// Gmail's own Authentication-Results header (authserv-id mx.google.com), not just the first one.
+// Gmail adds its header above everything the sender wrote, so the first mx.google.com match is
+// Gmail's, and a forged one (with that authserv-id or another) below it is never read. A message
+// with no Google header reads the first one, as before (see #205).
 const GOOGLE_AUTHSERV = /^\s*mx\.google\.com\s*;/i;
 function authenticationResults(m: GmailMessage): string | null {
   const all = (m.payload?.headers ?? [])

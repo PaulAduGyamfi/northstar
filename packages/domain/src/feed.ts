@@ -234,6 +234,10 @@ const TEMPLATES: Record<string, Template> = {
   },
   "approval.undone": () => "You undid a decision; it is waiting again",
   // NS-140: Paul took a request back, or a gateway closed an approval whose content changed.
+  "approval.withdrawn": (p) =>
+    name(p, "withdrawnBy") === "gateway"
+      ? "An approval was withdrawn because its content changed; it can be asked for again"
+      : "You withdrew a request; it can be asked for again",
   // The Apply Gateway (NS-120): the ATS and the reason code only, never a field value or URL.
   "apply_submission.claimed": (p) => `Submitting an application through ${form(p)}`,
   "apply_submission.submitted": (p) => `Submitted an application through ${form(p)}`,
@@ -246,10 +250,6 @@ const TEMPLATES: Record<string, Template> = {
         : "a check it can't pass";
     return `An application through ${form(p)} stopped at ${why}`;
   },
-  "approval.withdrawn": (p) =>
-    name(p, "withdrawnBy") === "gateway"
-      ? "An approval was withdrawn because its content changed; it can be asked for again"
-      : "You withdrew a request; it can be asked for again",
   "approval.policies_set": (p, e) => {
     const rules = count(p, "rules");
     const v = count(p, "version");

@@ -145,17 +145,19 @@ describe("isAuthenticatedSender (NS-160)", () => {
   });
 
   it("refuses a sender domain that isn't shaped like a host name", () => {
-    const bad = [
-      "ats example.com",
-      "ats.example.com/x",
-      "a@example.com",
-      "ats..example.com",
-      "localhost",
-      "-ats.example.com",
-    ];
+    const bad = ["ats..example.com", "localhost", "-ats.example.com"];
     expect(
       bad.map((d) => isAuthenticatedSender({ senderDomain: d, authenticationResults: results(d) })),
     ).toEqual(bad.map(() => false));
+  });
+
+  it("refuses a space, slash or @ under a verified parent domain", () => {
+    const bad = ["x y.example.com", "x/y.example.com", "x@y.example.com"];
+    expect(
+      bad.map((d) =>
+        isAuthenticatedSender({ senderDomain: d, authenticationResults: results("example.com") }),
+      ),
+    ).toEqual([false, false, false]);
   });
 });
 
