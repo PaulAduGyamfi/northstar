@@ -13,9 +13,19 @@ export function RevealButton({ tenantKey }: { tenantKey: string }) {
   const [busy, setBusy] = useState(false);
   // Stops the mask timer and clears the password; null when nothing is shown.
   const stopRef = useRef<(() => void) | null>(null);
+  // False once the page is left: a reveal still in flight then drops its result instead of
+  // starting a timer that would hold the password in memory for no one.
+  const mountedRef = useRef(true);
 
-  // Leaving the page clears a shown password at once.
-  useEffect(() => () => stopRef.current?.(), []);
+  // Leaving the page clears a shown password at once. Set to true again on (re)mount: React's
+  // Strict Mode runs effects twice in development, cleanup in between.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      stopRef.current?.();
+    };
+  }, []);
 
   // The countdown only: the mask timer itself is what clears the password.
   useEffect(() => {
@@ -37,6 +47,7 @@ export function RevealButton({ tenantKey }: { tenantKey: string }) {
         return;
       }
       const outcome = await revealPassword(tenantKey, navigator.credentials);
+      if (!mountedRef.current) return;
       if (!outcome.ok) {
         setError(outcome.message);
         return;
@@ -50,7 +61,7 @@ export function RevealButton({ tenantKey }: { tenantKey: string }) {
         stopRef.current = null;
       });
     } finally {
-      setBusy(false);
+      if (mountedRef.current) setBusy(false);
     }
   }
 

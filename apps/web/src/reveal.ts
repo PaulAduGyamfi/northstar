@@ -50,8 +50,9 @@ const post = (path: string, body: unknown, fetchFn: typeof fetch) =>
     fetchFn,
   );
 
-// The browser's own errors in plain words. A reveal only reads, so a timeout can simply be tried
-// again (nothing it started is left half-done that Paul would need to check).
+// The browser's own errors in plain words. A timed-out reveal may still have been recorded (the
+// API logs each vault access and uses its one-time approval), but it changes nothing Paul needs to
+// check, so trying again is the whole advice.
 function errorMessage(error: unknown): string {
   if (isTimeout(error)) return "No answer in time. Try again.";
   if (error instanceof DOMException) {
