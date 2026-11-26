@@ -1,0 +1,1 @@
+ALTER TABLE "apply_submission" ADD CONSTRAINT "apply_submission_application_same_candidate_fk" FOREIGN KEY ("application_id","candidate_id") REFERENCES "public"."application"("id","candidate_id") ON DELETE no action ON UPDATE no action;

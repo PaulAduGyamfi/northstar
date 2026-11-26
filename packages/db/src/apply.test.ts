@@ -10,6 +10,7 @@ import {
   claimSubmission,
   DEFAULT_DAILY_CAP,
   DEFAULT_MIN_GAP_MS,
+  listHalfClosedClaims,
   listStaleClaims,
   recordNeedsHuman,
   recordSubmitted,
@@ -21,6 +22,7 @@ import { createTestDb, seedApplication, sqlState } from "./test/pglite.js";
 
 const RESTRICT_VIOLATION = "23001";
 const UNIQUE_VIOLATION = "23505";
+const FOREIGN_KEY_VIOLATION = "23503";
 const NOW = new Date("2026-11-25T12:00:00Z");
 const after = (ms: number) => new Date(NOW.getTime() + ms);
 
@@ -309,6 +311,12 @@ describe("database guards", () => {
     );
     expect(state).toBe(UNIQUE_VIOLATION);
   });
+
+  it("refuses a submission for another candidate's application (NS-177)", async () => {
+    const other = await seedApplication(db, "awaiting_approval");
+    const input = await claimInput({ applicationId: other.applicationId });
+    expect(await sqlState(claimSubmission(db, input))).toBe(FOREIGN_KEY_VIOLATION);
+  });
 });
 
 describe("listStaleClaims", () => {
@@ -337,5 +345,37 @@ describe("listStaleClaims", () => {
     await setClock(after(CLAIM_STALE_AFTER_MS));
     const other = CandidateId.parse(randomUUID());
     expect(await listStaleClaims(db, other)).toEqual([]);
+  });
+});
+
+describe("listHalfClosedClaims (NS-177)", () => {
+  it("lists a claim closed as outcome_unknown whose application never moved", async () => {
+    const id = await claimOk(await claimInput());
+    await recordNeedsHuman(db, candidateId, id, "outcome_unknown");
+    const half = await listHalfClosedClaims(db, candidateId);
+    expect(half.map((s) => [s.submissionId, s.reason])).toEqual([[id, "outcome_unknown"]]);
+  });
+
+  it("leaves out a claim whose application already reached needs_human", async () => {
+    const input = await claimInput();
+    const id = await claimOk(input);
+    await recordNeedsHuman(db, candidateId, id, "outcome_unknown");
+    await db
+      .update(application)
+      .set({ status: "needs_human" })
+      .where(eq(application.id, input.applicationId));
+    expect(await listHalfClosedClaims(db, candidateId)).toEqual([]);
+  });
+
+  it("leaves out a claim closed for another reason", async () => {
+    const id = await claimOk(await claimInput());
+    await recordNeedsHuman(db, candidateId, id, "captcha");
+    expect(await listHalfClosedClaims(db, candidateId)).toEqual([]);
+  });
+
+  it("lists only the given candidate's claims", async () => {
+    const id = await claimOk(await claimInput());
+    await recordNeedsHuman(db, candidateId, id, "outcome_unknown");
+    expect(await listHalfClosedClaims(db, CandidateId.parse(randomUUID()))).toEqual([]);
   });
 });

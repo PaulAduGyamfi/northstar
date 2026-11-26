@@ -44,6 +44,7 @@ export {
   DEFAULT_DAILY_CAP,
   DEFAULT_MIN_GAP_MS,
   type Existing,
+  listHalfClosedClaims,
   listStaleClaims,
   type NotInProgress,
   type ProofInput,
