@@ -85,8 +85,13 @@ const CONCEPTS: Record<string, readonly string[]> = {
   bring: ["bring", "contribut"],
 };
 
-// Words that flip a yes/no question's answer.
-export const NEGATION = /\b(?:without|not|no|never)\b|n't\b/i;
+// Words that flip a question's meaning ("Do you NOT need…", "Why wouldn't you…"). The one copy:
+// matching, confirming and package assembly all ask `isNegatedQuestion` (NS-244).
+const NEGATION = /\b(?:without|not|no|never)\b|n't\b/i;
+
+// Is this question negated? Normalized first (NFKC, curly quotes), so "wouldn’t" and
+// full-width letters count the same as plain ASCII.
+export const isNegatedQuestion = (label: string): boolean => NEGATION.test(normalize(label));
 
 // "us" after these verbs is the reader of the form ("Tell us about…"), not the company ("Why us?").
 const ADDRESS_VERBS = new Set(["tell", "give", "show", "send", "let"]);
@@ -228,7 +233,7 @@ export function matchQuestion(question: string): QuestionMatch {
   }
   // A factual setting answers one polarity: "Do you need sponsorship?" and "Can you work without
   // sponsorship?" share a field but have opposite answers, so a negated factual question is new.
-  if (canonical.kind === "factual" && NEGATION.test(normalize(question))) {
+  if (canonical.kind === "factual" && isNegatedQuestion(question)) {
     return { status: "new", reason: "negated", confidence, nearest: canonical.id };
   }
   // One setting can't answer two questions: "Are you authorized to work here and will you need

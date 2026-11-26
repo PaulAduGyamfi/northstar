@@ -3,8 +3,12 @@ import { untrustedBlock } from "@northstar/llm";
 import { loadPrompt } from "@northstar/prompts";
 import { z } from "zod";
 import type { CanonicalQuestion } from "./question-canon.js";
-import { matchQuestion, NEGATION, type QuestionMatch, rankCanonical } from "./question-match.js";
-import { normalize } from "./validate.js";
+import {
+  isNegatedQuestion,
+  matchQuestion,
+  type QuestionMatch,
+  rankCanonical,
+} from "./question-match.js";
 
 // The question-confirm route (NS-137, ANS-002): a model confirm step for questions the lexical
 // matcher left as new because they scored low or tied. Decided on #62: no embedding provider.
@@ -102,7 +106,7 @@ export async function confirmQuestion(
   }
   // A negated question ("Why would you NOT want to work here?") asks the opposite of any
   // catalog question it resembles.
-  if (NEGATION.test(normalize(question))) return rules;
+  if (isNegatedQuestion(question)) return rules;
   if (deps.enabled !== true) return rules;
   const ranked = rankCanonical(question);
   // Closest to a factual question ("Are you authorized to work here and do you need
