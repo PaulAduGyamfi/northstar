@@ -1,4 +1,4 @@
-import type { SubmissionResult, SubmitStep } from "./types.js";
+import { NOT_APPROVED, type RefusalKind, type SubmissionResult, type SubmitStep } from "./types.js";
 
 // Plain code (no Temporal APIs, no clock) that turns one gateway answer into the workflow's next
 // move: finish, or wait on a durable timer and call the gateway again.
@@ -7,7 +7,7 @@ export type Decision = { kind: "finish"; result: SubmissionResult } | { kind: "w
 
 // Refusals that mean "not now": the gateway claimed nothing (or an earlier run holds the claim),
 // so calling again later is safe. Every other refusal is final for this package.
-export const WAIT_REFUSALS: ReadonlySet<string> = new Set([
+export const WAIT_REFUSALS: ReadonlySet<RefusalKind> = new Set<RefusalKind>([
   "InProgress",
   "AtsBusy",
   "Paced",
@@ -19,7 +19,7 @@ export const WAIT_REFUSALS: ReadonlySet<string> = new Set([
 
 // First wait when the gateway gave no time: an earlier run may still be in the browser
 // (InProgress), the ATS lane is busy, or a kill switch is off. Each repeat doubles it.
-const FIRST_WAIT_MS: Readonly<Record<string, number>> = {
+const FIRST_WAIT_MS: Readonly<Partial<Record<RefusalKind, number>>> = {
   InProgress: 5 * 60_000,
   AtsBusy: 2 * 60_000,
   HeldBack: 60_000,
@@ -52,4 +52,13 @@ export function decide(step: SubmitStep, waitsSoFar: number): Decision {
   const first = FIRST_WAIT_MS[step.refusal] ?? FALLBACK_FIRST_WAIT_MS;
   // 2 ** waitsSoFar grows fast; the cap keeps it at 15 minutes.
   return { kind: "wait", ms: Math.min(first * 2 ** waitsSoFar, MAX_BACKOFF_MS) };
+}
+
+// The not_approved reason for an activity failure the Gate caused, or null for any other error.
+// Plain code so it can be tested without a Temporal server; the workflow passes in the failure's
+// cause (ActivityFailure.cause).
+export function notApprovedReason(cause: unknown): string | null {
+  if (typeof cause !== "object" || cause === null) return null;
+  const { type, message } = cause as { type?: unknown; message?: unknown };
+  return type === NOT_APPROVED && typeof message === "string" ? message : null;
 }

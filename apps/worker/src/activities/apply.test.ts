@@ -88,13 +88,16 @@ describe("the submitApplication activity", () => {
     await expect(activities.submitApplication(args)).rejects.toBe(boom);
   });
 
-  it("refuses a candidate id that isn't a uuid before calling the gateway", async () => {
+  it("refuses a candidate id that isn't a uuid, without retry, before calling the gateway", async () => {
     let called = false;
     const activities = createApplyActivities(async () => {
       called = true;
       return err({ kind: "AtsBusy" });
     }, now);
-    await expect(activities.submitApplication({ ...args, candidateId: "nope" })).rejects.toThrow();
+    const failure = await activities
+      .submitApplication({ ...args, candidateId: "nope" })
+      .catch((error: unknown) => error);
+    expect(failure).toMatchObject({ type: "InvalidInput", nonRetryable: true });
     expect(called).toBe(false);
   });
 });

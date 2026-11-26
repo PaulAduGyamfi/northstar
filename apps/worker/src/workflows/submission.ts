@@ -1,6 +1,5 @@
 import {
   ActivityFailure,
-  ApplicationFailure,
   condition,
   defineSignal,
   proxyActivities,
@@ -9,7 +8,7 @@ import {
 } from "@temporalio/workflow";
 import type { ApplyActivities } from "../activities/apply.js";
 import { APPLY_BROWSER_QUEUE } from "../queues.js";
-import { decide } from "./decide.js";
+import { decide, notApprovedReason } from "./decide.js";
 import { NOT_APPROVED, type SubmissionResult } from "./types.js";
 
 // One application submission as a durable workflow (NS-157, ADR-0001). It waits for the Gate's
@@ -62,10 +61,8 @@ export async function submissionWorkflow(input: SubmissionInput): Promise<Submis
         package: input.package,
       });
     } catch (error) {
-      const cause = error instanceof ActivityFailure ? error.cause : null;
-      if (cause instanceof ApplicationFailure && cause.type === NOT_APPROVED) {
-        return { kind: "not_approved", reason: cause.message };
-      }
+      const reason = error instanceof ActivityFailure ? notApprovedReason(error.cause) : null;
+      if (reason !== null) return { kind: "not_approved", reason };
       // Retries exhausted on an unexpected error: fail the workflow so it shows in Temporal.
       throw error;
     }

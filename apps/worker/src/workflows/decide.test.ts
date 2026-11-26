@@ -1,8 +1,9 @@
+import { ApplicationFailure } from "@temporalio/common";
 import { describe, expect, it } from "vitest";
-import { decide, MAX_WAITS } from "./decide.js";
-import type { SubmitStep } from "./types.js";
+import { decide, MAX_WAITS, notApprovedReason } from "./decide.js";
+import type { RefusalKind, SubmitStep } from "./types.js";
 
-const refused = (refusal: string, waitMs: number | null = null): SubmitStep => ({
+const refused = (refusal: RefusalKind, waitMs: number | null = null): SubmitStep => ({
   kind: "refused",
   refusal,
   waitMs,
@@ -29,14 +30,14 @@ describe("decide", () => {
     "PostingMismatch",
     "FileChanged",
     "DuplicateRequisition",
-  ])("stops for good on %s", (refusal) => {
+  ] as const)("stops for good on %s", (refusal) => {
     expect(decide(refused(refusal), 0)).toEqual({
       kind: "finish",
       result: { kind: "refused", refusal },
     });
   });
 
-  it.each(["Paced", "DailyCapReached", "HeldBack"])(
+  it.each(["Paced", "DailyCapReached", "HeldBack"] as const)(
     "waits exactly until the gateway's time on a dated %s",
     (refusal) => {
       expect(decide(refused(refusal, 42_000), 3)).toEqual({ kind: "wait", ms: 42_000 });
@@ -66,5 +67,19 @@ describe("decide", () => {
       kind: "finish",
       result: { kind: "gave_up", refusal: "HeldBack" },
     });
+  });
+});
+
+describe("notApprovedReason", () => {
+  it("reads the Gate's refusal kind from the activity's NotApproved failure", () => {
+    expect(notApprovedReason(ApplicationFailure.nonRetryable("Rejected", "NotApproved"))).toBe(
+      "Rejected",
+    );
+  });
+
+  it("ignores every other failure, so the workflow fails visibly instead", () => {
+    expect(notApprovedReason(ApplicationFailure.nonRetryable("x", "InvalidInput"))).toBeNull();
+    expect(notApprovedReason(new Error("database down"))).toBeNull();
+    expect(notApprovedReason(undefined)).toBeNull();
   });
 });

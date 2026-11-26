@@ -23,8 +23,13 @@ type Submit = (input: SubmitInput) => Promise<Result<SubmitOutcome, SubmitRefusa
 export function createApplyActivities(submit: Submit, now: () => Date = () => new Date()) {
   return {
     async submitApplication(args: SubmitArgs): Promise<SubmitStep> {
+      const candidateId = CandidateId.safeParse(args.candidateId);
+      // Bad input never gets better on a retry.
+      if (!candidateId.success) {
+        throw ApplicationFailure.nonRetryable("candidateId is not a uuid", "InvalidInput");
+      }
       const input: SubmitInput = {
-        candidateId: CandidateId.parse(args.candidateId),
+        candidateId: candidateId.data,
         decisionId: args.decisionId,
         package: args.package,
       };

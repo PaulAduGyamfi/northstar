@@ -1,6 +1,6 @@
 # NS-157: Temporal worker pools (slice 1: the submission workflow)
 
-Status: draft (autonomous lane, ADR-0016)
+Status: approved under ADR-0016 (autonomous lane)
 Requirements: RES-001, RES-005
 Rules that apply: ADR-0001, ADR-0002, ADR-0007, ADR-0016, `.claude/rules/worker.md`, `.claude/rules/gateways.md`
 
@@ -21,19 +21,22 @@ Temporal (ADR-0001) gives durable waits, signals and retry policies for that.
 - The activity calls the gateway's `submitApplication` and returns a plain, serializable result.
   `NotApprovedError` becomes a non-retryable failure. A dated refusal (`Paced`,
   `DailyCapReached`, a breaker's `HeldBack`) becomes a wait in milliseconds, computed in the
-  activity so the workflow never reads a clock.
+  activity so the workflow never reads a clock. The Gate's `UndoWindowOpen` (Paul approved less
+  than 2 minutes ago) is a wait too, never an ending (`.claude/rules/gateways.md`). A candidate
+  id that isn't a uuid fails without retry.
 - Plain code (`decide`) turns each activity result into: done (submitted or needs_human), wait
-  then try again (`InProgress`, `AtsBusy`, `Paced`, `DailyCapReached`, `HeldBack`), or stop with
+  then try again (`InProgress`, `AtsBusy`, `Paced`, `DailyCapReached`, `HeldBack`,
+  `UndoWindowOpen`), or stop with
   the refusal (invalid package, host not allowed, posting mismatch, changed file, duplicate
   requisition). After 20 waits it stops as `gave_up` rather than loop forever.
 
 ## Acceptance criteria
-- [ ] `decide` maps every `SubmitRefusal` kind and both outcomes as above (unit tests).
-- [ ] The activity returns the gateway's outcome, turns `retryAt` into a wait, and throws a
+- [x] `decide` maps every `SubmitRefusal` kind and both outcomes as above (unit tests).
+- [x] The activity returns the gateway's outcome, turns `retryAt` into a wait, and throws a
       non-retryable `NotApproved` failure for `NotApprovedError` (unit tests with a fake gateway).
-- [ ] The workflow code bundles with Temporal's workflow bundler (`bundleWorkflowCode`), which
+- [x] The workflow code bundles with Temporal's workflow bundler (`bundleWorkflowCode`), which
       refuses Node built-ins and other non-deterministic imports.
-- [ ] `pnpm turbo run lint typecheck test build` passes.
+- [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Failure modes
 - Gateway throws (database down, invariant error): the activity fails and Temporal retries it
@@ -47,11 +50,17 @@ The gateway's existing `apply.submit` span and events. Temporal history shows ea
 ## Out of scope (follow-ups)
 - The test that a submission survives a worker restart in Temporal's test environment: that
   environment downloads its server binary from `temporal.download`, which is network beyond the
-  package registry (ADR-0016 item 5). Filed as a `needs:paul` issue.
+  package registry (ADR-0016 item 5). Filed as NS-224 (#229, `needs:paul`).
 - The worker process (`main`), its connection settings, worker health in `systemHealth`, the
-  client that starts workflows, and the other domain queues: an `agent-filed` follow-up.
+  client that starts workflows, and the other domain queues: NS-225 (#230).
   There is no browser driver yet (NS-142), so the `apply-browser` worker can't run anyway.
 - Activity heartbeats: the gateway has no step hook to heartbeat from yet.
+- Visible endings and ids-only input (NS-226, #231): today `refused`, `gave_up`, `not_approved`
+  and a failed workflow show only in Temporal's history (no dead letter or feed event), and the
+  workflow carries the whole package, so its personal data sits in that history. Neither can
+  happen yet because no worker runs the workflow; both must close before one does (#230).
+- Tests of the workflow's own branches (signals, the loop) need Temporal's test environment
+  (NS-224, #229). The not-approved mapping is plain code (`notApprovedReason`) and is tested.
 
 ## Open questions
 None blocking.
