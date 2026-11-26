@@ -24,11 +24,14 @@ reason codes only. This slice is the `packages/db` side of that; the caller is p
   - the newest tailored resume version and its PDF's SHA-256 (null before NS-227 slice 2);
   - the current form (ATS, SHA-256, questions) or null;
   - the newest fit score or null;
-  - `formSeenBefore`: true only when another job of Paul's has this form's exact shape (the same
-    SHA-256) as its own current form, and that job's application went out (submitted or any later
-    status). A form never sent is not "seen" for the Gate's policy.
+  - `formSeenBefore`: true only when the Apply Gateway sent another job's application (its ledger
+    row finished `submitted`) while that job's form, the newest read before the submission
+    finished, had this form's ATS and SHA-256. Paul's own submissions (by hand, or "I submitted it"
+    on a handoff) have no ledger row and never count, and nor does a shape the other job took on
+    after it went out (both reviewers of this slice).
 - **`recordPackageNeedsHuman(db, { candidateId, applicationId, reasons, basis })`**
-  (`package-write.ts`) writes `application.package_needs_human` on the application. It carries
+  (`package-write.ts`) writes `package.needs_human` on the application. Not an `application.*`
+  type: `feedLine` reads every one of those as a status move. It carries
   the application id, each reason code with its count, and the total, and a `reason` of fixed
   words and a number, which is the feed line: "The application package needs you: 3 items".
   - Reason codes must be short snake_case words (a CHECK in code); no field names or text.
@@ -44,7 +47,7 @@ reason codes only. This slice is the `packages/db` side of that; the caller is p
 ## Acceptance criteria
 - [x] The inputs are read for the candidate's own application only, each newest where versions
       exist.
-- [x] `formSeenBefore` is true only for the same shape on another job whose application went out.
+- [x] `formSeenBefore` is true only for the same ATS and shape on another job the Apply Gateway sent.
 - [x] The needs-you event has ids, codes and counts only, is written once per basis, and refuses a
       code that isn't a short snake_case word.
 - [x] `pnpm turbo run lint typecheck test build` passes.

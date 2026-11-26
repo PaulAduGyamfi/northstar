@@ -1,14 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { CandidateId, UNDO_WINDOW_MS } from "@northstar/domain";
+import { CandidateId, feedLine, UNDO_WINDOW_MS } from "@northstar/domain";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { answerContentSha256, saveApprovedAnswer } from "./answer-write.js";
+import { applySubmission } from "./apply-schema.js";
 import { decideApprovals, requestApproval } from "./approval-write.js";
 import { setContact } from "./contact-write.js";
 import type { Db } from "./db.js";
 import { searchPreference } from "./fit-schema.js";
 import { PREFERENCE_DEFAULTS, saveFitScore, savePreferences } from "./fit-write.js";
-import type { JobFormQuestion } from "./job-form-schema.js";
+import { type JobFormQuestion, jobForm } from "./job-form-schema.js";
 import { saveJobForm } from "./job-form-write.js";
 import { readPackageInputs } from "./package-read.js";
 import { recordPackageNeedsHuman } from "./package-write.js";
@@ -86,9 +87,8 @@ async function importResume(): Promise<string> {
 }
 
 // One banked answer for a canonical question, approved through the Gate (as answer-bank does).
-async function bankAnswer(canonicalId: string, shortText: string): Promise<void> {
-  const answerId = randomUUID();
-  const content = { canonicalId, shortText, longText: null };
+// An approved Gate decision for an answer, as the answer bank gets one.
+async function approvedDecision(answerId: string, content: AnswerDraft): Promise<string> {
   const requested = await requestApproval(db, {
     candidateId,
     kind: "answer",
@@ -104,13 +104,22 @@ async function bankAnswer(canonicalId: string, shortText: string): Promise<void>
     requestIds: [requested.value.requestId],
     decision: "approve",
   });
-  const decisionId = decided.ok ? decided.value[0]?.result : undefined;
-  if (!decisionId?.ok) throw new Error("not approved");
+  const result = decided.ok ? decided.value[0]?.result : undefined;
+  if (!result?.ok) throw new Error("not approved");
+  return result.value.decisionId;
+}
+type AnswerDraft = { canonicalId: string; shortText: string; longText: string | null };
+
+// One banked answer for a canonical question, approved through the Gate (as answer-bank does).
+async function bankAnswer(canonicalId: string, shortText: string): Promise<void> {
+  const answerId = randomUUID();
+  const content: AnswerDraft = { canonicalId, shortText, longText: null };
+  const decisionId = await approvedDecision(answerId, content);
   await setClock(new Date(clock.getTime() + UNDO_WINDOW_MS + 60_000));
   const saved = await saveApprovedAnswer(db, {
     candidateId,
     answerId,
-    decisionId: decisionId.value.decisionId,
+    decisionId,
     applicationId,
     kind: "company_specific",
     edited: false,
@@ -123,22 +132,74 @@ async function bankAnswer(canonicalId: string, shortText: string): Promise<void>
   if (!saved.ok) throw new Error(saved.error.kind);
 }
 
-// Another job of the same candidate, with its own application at `status` and this form.
-async function otherJob(status: string, form: JobFormQuestion[]): Promise<string> {
+// Another job of `owner`'s, with its own application at `status`.
+async function otherJob(
+  status: string,
+  owner = candidateId,
+  ownerCompany: string | null = companyId,
+) {
   const [row] = await db
     .insert(job)
     .values({
-      candidateId,
-      companyId,
+      candidateId: owner,
+      companyId: ownerCompany,
       title: "Other role",
       url: "https://jobs.example.com/other",
       status: "ready",
     })
     .returning({ id: job.id });
   if (!row) throw new Error("no job");
-  await db.insert(application).values({ candidateId, jobId: row.id, status });
-  await saveJobForm(db, { candidateId, jobId: row.id, ats: "greenhouse", questions: form });
-  return row.id;
+  const [app] = await db
+    .insert(application)
+    .values({ candidateId: owner, jobId: row.id, status })
+    .returning({ id: application.id });
+  if (!app) throw new Error("no application");
+  return { jobId: row.id, applicationId: app.id };
+}
+
+// A stored form row at a known time (job_form is append-only; rows are only ever added).
+const formRow = (
+  jobId: string,
+  sha256: string,
+  readAt: Date,
+  over: { ats?: string; owner?: CandidateId } = {},
+) =>
+  db.insert(jobForm).values({
+    candidateId: over.owner ?? candidateId,
+    jobId,
+    ats: over.ats ?? "greenhouse",
+    sha256,
+    questions: FORM,
+    readAt,
+  });
+
+// The Apply Gateway's ledger row for a submission that finished at `finishedAt`.
+async function gatewaySubmitted(
+  app: string,
+  finishedAt: Date,
+  owner = candidateId,
+  ending: { status: "submitted" | "needs_human"; reason: string | null } = {
+    status: "submitted",
+    reason: null,
+  },
+): Promise<void> {
+  const decisionId = await approvedDecision(randomUUID(), {
+    canonicalId: "why-this-role",
+    shortText: "A synthetic answer.",
+    longText: null,
+  });
+  await db.insert(applySubmission).values({
+    candidateId: owner,
+    applicationId: app,
+    decisionId,
+    ats: "greenhouse",
+    requisitionKey: `greenhouse:${randomUUID()}`,
+    idempotencyKey: `application:${app}:submit`,
+    status: ending.status,
+    reason: ending.reason,
+    startedAt: new Date(finishedAt.getTime() - 60_000),
+    finishedAt,
+  });
 }
 
 describe("readPackageInputs", () => {
@@ -262,35 +323,76 @@ describe("readPackageInputs", () => {
 });
 
 describe("formSeenBefore", () => {
+  const T0 = new Date("2026-11-01T00:00:00Z");
+  const T1 = new Date("2026-11-02T00:00:00Z");
+  const T2 = new Date("2026-11-03T00:00:00Z");
+  const OTHER_SHAPE = "b".repeat(64);
+  let shape: string;
   beforeEach(async () => {
     await saveJobForm(db, { candidateId, jobId, ats: "greenhouse", questions: FORM });
+    const [row] = await db.select({ sha256: jobForm.sha256 }).from(jobForm);
+    shape = row?.sha256 ?? "";
   });
   const seen = async () =>
     (await readPackageInputs(db, candidateId, applicationId))?.formSeenBefore;
 
-  it("is true when another job's current form has this shape and its application went out", async () => {
-    await otherJob("submitted", FORM);
+  it("is true when the Apply Gateway sent another job's application with this form shape", async () => {
+    const other = await otherJob("submitted");
+    await formRow(other.jobId, shape, T0);
+    await gatewaySubmitted(other.applicationId, T1);
     expect(await seen()).toBe(true);
   });
 
-  it("is false when that other application never went out", async () => {
-    await otherJob("awaiting_approval", FORM);
+  it("is false when Paul sent that application himself (no Apply Gateway submission)", async () => {
+    const other = await otherJob("submitted");
+    await formRow(other.jobId, shape, T0);
     expect(await seen()).toBe(false);
   });
 
-  it("is false when the other job's form has another shape", async () => {
-    await otherJob("submitted", [{ ...FORM[0], label: "Why this company?" } as JobFormQuestion]);
-    expect(await seen()).toBe(false);
-  });
-
-  it("is false when the other job has since moved to another shape", async () => {
-    const other = await otherJob("submitted", FORM);
-    await saveJobForm(db, {
-      candidateId,
-      jobId: other,
-      ats: "greenhouse",
-      questions: [{ ...FORM[0], label: "Changed" } as JobFormQuestion],
+  it("is false when the Apply Gateway's run on it ended needing Paul", async () => {
+    const other = await otherJob("needs_human");
+    await formRow(other.jobId, shape, T0);
+    await gatewaySubmitted(other.applicationId, T1, candidateId, {
+      status: "needs_human",
+      reason: "captcha",
     });
+    expect(await seen()).toBe(false);
+  });
+
+  it("is false when the other job's form had another shape when it went out", async () => {
+    const other = await otherJob("submitted");
+    await formRow(other.jobId, OTHER_SHAPE, T0);
+    await gatewaySubmitted(other.applicationId, T1);
+    // The job took on this shape only after its application went out.
+    await formRow(other.jobId, shape, T2);
+    expect(await seen()).toBe(false);
+  });
+
+  it("is still true when the other job's form changed after it went out with this shape", async () => {
+    const other = await otherJob("submitted");
+    await formRow(other.jobId, shape, T0);
+    await gatewaySubmitted(other.applicationId, T1);
+    await formRow(other.jobId, OTHER_SHAPE, T2);
+    expect(await seen()).toBe(true);
+  });
+
+  it("is false when the same shape went out on another ATS", async () => {
+    const other = await otherJob("submitted");
+    await formRow(other.jobId, shape, T0, { ats: "lever" });
+    await gatewaySubmitted(other.applicationId, T1);
+    expect(await seen()).toBe(false);
+  });
+
+  it("is false when the shape went out only for another candidate", async () => {
+    const stranger = await seedApplication(db, "submitted");
+    const owner = CandidateId.parse(stranger.candidateId);
+    await formRow(stranger.jobId, shape, T0, { owner });
+    await gatewaySubmitted(stranger.applicationId, T1, owner);
+    expect(await seen()).toBe(false);
+  });
+
+  it("is false when the only submission with this shape is this job's own", async () => {
+    await gatewaySubmitted(applicationId, new Date(Date.now() + 60_000));
     expect(await seen()).toBe(false);
   });
 });
@@ -305,7 +407,7 @@ describe("recordPackageNeedsHuman", () => {
         aggregate: domainEvent.aggregate,
       })
       .from(domainEvent)
-      .where(eq(domainEvent.type, "application.package_needs_human"));
+      .where(eq(domainEvent.type, "package.needs_human"));
 
   it("writes one event with the codes and counts, and its feed line", async () => {
     const result = await recordPackageNeedsHuman(db, {
@@ -324,6 +426,28 @@ describe("recordPackageNeedsHuman", () => {
         },
       ],
     ]);
+  });
+
+  it("shows its own line in the feed, not a status change", async () => {
+    await recordPackageNeedsHuman(db, {
+      candidateId,
+      applicationId,
+      reasons: { no_phone: 1 },
+      basis: BASIS,
+    });
+    const [row] = await db
+      .select({
+        type: domainEvent.type,
+        actor: domainEvent.actor,
+        reason: domainEvent.reason,
+        payload: domainEvent.payload,
+      })
+      .from(domainEvent)
+      .where(eq(domainEvent.type, "package.needs_human"));
+    if (!row) throw new Error("no event");
+    expect(feedLine({ ...row, payload: row.payload as Record<string, unknown> })).toBe(
+      "The application package needs you: 1 item",
+    );
   });
 
   it("writes nothing more for the same basis", async () => {

@@ -653,10 +653,11 @@ Exists now:
   `readPackageInputs` (`package-read.ts`) gives the application and its company, the job's
   sources, contact, settings, the newest banked answer per canonical question, the newest tailored
   resume and its PDF hash, the current form, the fit score and `formSeenBefore`. That last one is
-  true only when another job's current form has the same SHA-256 and its application went out.
-  `recordPackageNeedsHuman` (`package-write.ts`) writes `application.package_needs_human`: reason
-  codes and counts only, once per basis, with the feed line "The application package needs you:
-  N items".
+  true only when the Apply Gateway sent another job's application (its `apply_submission` row
+  finished `submitted`) while that job's form had the same ATS and SHA-256. Paul's own submissions
+  never count. `recordPackageNeedsHuman` (`package-write.ts`) writes `package.needs_human` on the
+  application (not `application.*`, which the feed reads as a status move): reason codes and counts
+  only, once per basis, with the feed line "The application package needs you: N items".
 - `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
   (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
   decision as an `approval` signal (or `withdrawn`), then runs the `submitApplication` activity
