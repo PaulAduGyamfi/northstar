@@ -11,3 +11,5 @@ export {
   type Unanswered,
 } from "./assemble.js";
 export { filePackage } from "./file.js";
+// A stored form as the questions a package answers (NS-227).
+export { type FormQuestions, formQuestions } from "./form.js";

@@ -40,7 +40,9 @@ and never hand its `gmail.modify` token to code that reads mail.
   Paul's own reveal (NS-182, ADR-0024) goes only through `revealTenantPassword`, the one opening
   the package exports. It makes its own approval, so its caller must be the API after a fresh
   passkey check; the boundary test lists the only files that may name it. Since NS-230 the one
-  API file is `apps/api/src/vault-reveal.ts`; adding any other needs Paul's approval.
+  API file is `apps/api/src/vault-reveal.ts`; adding any other needs Paul's approval. Since
+  NS-245 its passkey challenge is bound to the tenant it was issued for, and no other `apps/api`
+  file but its test and `bin.ts` may import `@northstar/gateways` (the boundary test).
 
 - Employer accounts (NS-124): before creating an account on a tenant, register it
   (`registerTenant`) and call `beginAccountCreation`. Only the caller it returns `creating` to may

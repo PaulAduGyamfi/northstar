@@ -586,7 +586,11 @@ Exists now:
   passkey assertion for the `reveal` ceremony made within a minute and used once (`passkeys.ts`),
   then the `vault` switch on; only then the key is read from `VAULT_MASTER_KEY_FILE` for that one
   reveal. At most 5 reveals a minute; a failed assertion counts toward the sign-in throttle; the
-  password goes in the response only. No page yet.
+  password goes in the response only. Since NS-245 the reveal challenge is bound to the tenant
+  named in `POST /vault/reveal/options` (`{ tenantKey }`): an assertion made for one tenant can't
+  reveal another. The boundary test scans the whole repository (`.cjs` and `.jsx` too) and fails
+  any `apps/api` file other than `vault-reveal.ts`, its test and `bin.ts` that imports
+  `@northstar/gateways`. No page yet.
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write
@@ -655,8 +659,11 @@ Exists now:
   `confirmedBy`, and a model's pick always counts as `new` for the Gate, never `bank_exact` or
   `bank_high_confidence`. The negation check runs on the normalized label (curly quotes, NFKC).
   `filePackage` files the package with the Gate (`requestApproval`, actor `system`, key
-  `package:<packageId>`); it never submits. No caller, form questions from the ATS or stored
-  resume files yet.
+  `package:<packageId>`); it never submits. Since NS-227 (slice 4) also `formQuestions`
+  (`form.ts`): a stored Greenhouse form as `FormQuestion`s. The standard contact, resume and cover
+  letter fields (and their paste-in alternatives) and hidden fields are not questions; it flags a
+  required cover letter or phone, and lists a required upload it can't fill as `unsupported`.
+  Choices are the option labels. No caller yet (slice 5).
 - `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
   (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
   decision as an `approval` signal (or `withdrawn`), then runs the `submitApplication` activity

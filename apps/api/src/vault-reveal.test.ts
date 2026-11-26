@@ -169,7 +169,7 @@ const challengeOf = (res: Sent): string => JSON.parse(res.body).options.challeng
 
 // A fresh reveal: a reveal challenge, signed by Paul's passkey, sent with the tenant.
 async function reveal(tenantKey = TENANT, wait = 0) {
-  const options = await post("/vault/reveal/options", {});
+  const options = await post("/vault/reveal/options", { tenantKey });
   const response = auth.signIn(challengeOf(options));
   t += wait;
   const res = await post("/vault/reveal", { tenantKey, response });
@@ -188,7 +188,7 @@ describe("revealing a vault password", () => {
   });
 
   it("answers 401 to both steps without a session, and opens nothing", async () => {
-    const options = await post("/vault/reveal/options", {}, false);
+    const options = await post("/vault/reveal/options", { tenantKey: TENANT }, false);
     const res = await post(
       "/vault/reveal",
       { tenantKey: TENANT, response: auth.signIn("AAAA") },
@@ -222,7 +222,7 @@ describe("revealing a vault password", () => {
   });
 
   it("refuses an assertion without user verification", async () => {
-    const options = await post("/vault/reveal/options", {});
+    const options = await post("/vault/reveal/options", { tenantKey: TENANT });
     const res = await post("/vault/reveal", {
       tenantKey: TENANT,
       response: auth.signIn(challengeOf(options), { userVerified: false }),
@@ -259,7 +259,7 @@ describe("revealing a vault password", () => {
 
   it("refuses an assertion from a passkey that was never registered", async () => {
     const stranger = fakeAuthenticator({ rpId: RP_ID, origin: WEB });
-    const options = await post("/vault/reveal/options", {});
+    const options = await post("/vault/reveal/options", { tenantKey: TENANT });
     const res = await post("/vault/reveal", {
       tenantKey: TENANT,
       response: stranger.signIn(challengeOf(options)),
@@ -270,14 +270,14 @@ describe("revealing a vault password", () => {
 
   it("counts refused assertions toward the sign-in throttle, then refuses even a good one", async () => {
     // A good assertion, made before the failures.
-    const options = await post("/vault/reveal/options", {});
+    const options = await post("/vault/reveal/options", { tenantKey: TENANT });
     const good = auth.signIn(challengeOf(options));
     for (let i = 0; i < THROTTLE_LIMIT; i++) {
       const res = await post("/vault/reveal", { tenantKey: TENANT, response: auth.signIn("AAAA") });
       expect(res.status).toBe(401);
     }
     const res = await post("/vault/reveal", { tenantKey: TENANT, response: good });
-    const moreOptions = await post("/vault/reveal/options", {});
+    const moreOptions = await post("/vault/reveal/options", { tenantKey: TENANT });
     expect([res.status, moreOptions.status]).toEqual([429, 429]);
     expect(await accessRows()).toBe(0);
   });
@@ -291,6 +291,25 @@ describe("revealing a vault password", () => {
     keyBroken = true;
     const { res } = await reveal();
     expect([res.status, res.body]).toEqual([503, JSON.stringify({ error: "vault_locked" })]);
+    expect(await accessRows()).toBe(0);
+  });
+
+  it("refuses a challenge issued for one tenant when used to reveal another", async () => {
+    const options = await post("/vault/reveal/options", { tenantKey: "workday:globex" });
+    const res = await post("/vault/reveal", {
+      tenantKey: TENANT,
+      response: auth.signIn(challengeOf(options)),
+    });
+    expect(res.status).toBe(401);
+    expect(await accessRows()).toBe(0);
+  });
+
+  it("uses up a challenge tried for the wrong tenant, so it can't then reveal its own", async () => {
+    const options = await post("/vault/reveal/options", { tenantKey: "workday:globex" });
+    const response = auth.signIn(challengeOf(options));
+    await post("/vault/reveal", { tenantKey: TENANT, response });
+    const again = await post("/vault/reveal", { tenantKey: "workday:globex", response });
+    expect(again.status).toBe(401);
     expect(await accessRows()).toBe(0);
   });
 });
