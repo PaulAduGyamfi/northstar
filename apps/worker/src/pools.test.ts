@@ -44,6 +44,14 @@ describe("loadPoolLimits", () => {
 });
 
 describe("workerOptions", () => {
+  it("never asks for fewer than 2 workflow tasks, which Temporal would raise to 2 anyway", () => {
+    expect(workerOptions(APPLY_BROWSER_QUEUE, loadPoolLimits({}))).toEqual({
+      taskQueue: "apply-browser",
+      maxConcurrentActivityTaskExecutions: 1,
+      maxConcurrentWorkflowTaskExecutions: 2,
+    });
+  });
+
   it("gives each pool its own queue and limit for activities and workflow tasks", () => {
     const limits = { [PIPELINE_QUEUE]: 6, [APPLY_BROWSER_QUEUE]: 2 };
     expect([

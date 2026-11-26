@@ -19,7 +19,9 @@ it does.
   allows one submission per ATS and the 90 s gap, ADR-0003). Whole numbers from 1; anything else
   throws naming the setting, never its value. Entry points pass their settings in.
 - `workerOptions(queue, limits)`: the Temporal worker options for one pool: its task queue and the
-  limit as both its activity and workflow-task concurrency. A full pool leaves tasks waiting in
+  limit as its activity concurrency (where browsers and model calls run), and the same limit, but
+  at least 2, for workflow tasks (Temporal raises a lower one to 2 while its cache is on). With the
+  browser pool at 4, at most 4 browsers run at once, each on a different ATS (the ledger). A full pool leaves tasks waiting in
   Temporal's queue: nothing is dropped.
 - Only the two queues that exist (`pipeline`, `apply-browser`); other domains' pools arrive with
   their queues.
@@ -28,7 +30,7 @@ it does.
 ## Acceptance criteria
 - [x] Defaults, valid values, the ceilings and refusals (0, negative, fraction, text, over the
       ceiling) are tested, and a refusal names only the setting.
-- [x] `workerOptions` gives each queue its own limit (test).
+- [x] `workerOptions` gives each queue its own limit, and at least 2 workflow tasks (tests).
 - [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Out of scope

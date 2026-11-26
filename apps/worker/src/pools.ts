@@ -42,8 +42,11 @@ export function loadPoolLimits(settings: Record<string, string | undefined>): Po
   };
 }
 
-// The Temporal worker options for one pool: its queue, and its limit on both activities and
-// workflow tasks, so neither can outrun the pool.
+// The Temporal worker options for one pool: its queue and its limit. The limit that matters is
+// on activities, where browsers and model calls run. Workflow tasks are short replays; Temporal
+// raises a workflow-task limit under 2 to 2 while its workflow cache is on (@temporalio/worker
+// 1.25, with a warning), so it is never asked for less. The worker process must not also pass a
+// `tuner`: Temporal refuses both.
 export function workerOptions(
   queue: PoolQueue,
   limits: PoolLimits,
@@ -55,6 +58,6 @@ export function workerOptions(
   return {
     taskQueue: queue,
     maxConcurrentActivityTaskExecutions: limits[queue],
-    maxConcurrentWorkflowTaskExecutions: limits[queue],
+    maxConcurrentWorkflowTaskExecutions: Math.max(2, limits[queue]),
   };
 }
