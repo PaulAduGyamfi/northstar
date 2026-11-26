@@ -137,7 +137,7 @@ describe("recordRecruiterGrade", () => {
       await recordRecruiterGrade(db, {
         candidateId,
         gmailMessageId: MSG,
-        grade: { ...GRADE, grade: "E", reasons: ["Dear Paul, call me"] },
+        grade: { ...GRADE, grade: "E", reasons: ["company:acme_robotics"] },
       }),
       await recordRecruiterGrade(db, { candidateId, gmailMessageId: "not hex", grade: GRADE }),
     ]).toEqual([
@@ -157,7 +157,7 @@ describe("recordRecruiterGrade", () => {
     ]).toEqual([[], { ok: false, error: { kind: "UnknownMessage" } }]);
   });
 
-  it("puts the grade id and codes in the span, never anything else", async () => {
+  it("puts only the grade letter in the span", async () => {
     await recordMail(candidateId, MSG);
     exporter.reset();
     await recordRecruiterGrade(db, { candidateId, gmailMessageId: MSG, grade: GRADE });
@@ -185,6 +185,7 @@ describe("the recruiter_grade table", () => {
       await sqlState(db.delete(recruiterGrade)),
       await sqlState(db.execute(sql`truncate recruiter_grade`)),
       await sqlState(row(["Hi Paul, great role"])),
+      await sqlState(row(["company:acme_robotics"])),
       await sqlState(
         db.execute(
           sql`insert into recruiter_grade (candidate_id, gmail_message_id, grade, points, reasons, confidence) values (${candidateId}, '18c3f0a2b4d6e802', 'B', 1, array['title:exact', null]::text[], 'normal')`,
@@ -196,6 +197,7 @@ describe("the recruiter_grade table", () => {
       RESTRICT_VIOLATION,
       RESTRICT_VIOLATION,
       RESTRICT_VIOLATION,
+      CHECK_VIOLATION,
       CHECK_VIOLATION,
       CHECK_VIOLATION,
       CHECK_VIOLATION,

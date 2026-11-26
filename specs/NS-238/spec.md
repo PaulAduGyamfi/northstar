@@ -17,11 +17,12 @@ The caller that grades each `recruiter_inbound` message comes once classificatio
     message must have a `mail_link`, which `recordRecruiterGrade` checks in the same transaction. It holds:
     - the grade (`A`–`F`);
     - the points;
-    - reason codes, at most 12, each `<factor>:<outcome>` or `dealbreaker` (CHECK);
+    - reason codes, 1–12 from the fixed list `RECRUITER_GRADE_REASONS` (`packages/domain`), checked
+      by Zod, a CHECK and the API;
     - the confidence (`normal` | `low`).
   - `recordRecruiterGrade(db, { candidateId, gmailMessageId, grade })` writes the row and a
-    `recruiter.graded` event in one transaction. The event carries the grade id, grade, confidence
-    and reasons, never email text. The same message recorded again stores nothing.
+    `recruiter.graded` event in one transaction. The event carries the Gmail message id, grade, confidence
+    and reasons (the grade id is its aggregate), never email text. The same message recorded again stores nothing.
   - `readRecruiterGrades(db, candidateId, gmailMessageIds)` is a read.
 - **Feed:** `recruiter.graded` reads "Graded a recruiter email: B". Low confidence adds "(little
   to go on)".

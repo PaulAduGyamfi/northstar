@@ -1,5 +1,5 @@
 {
-  "id": "fc2bc1f0-b11a-4dd2-a653-4cb2f7a63bd9",
+  "id": "4e61a6d5-5691-4257-ac32-a88b0c65d9b2",
   "prevId": "852eba37-8072-4313-8cc6-eb9f52f560ee",
   "version": "7",
   "dialect": "postgresql",
@@ -9365,9 +9365,9 @@
           "name": "recruiter_grade_confidence_valid",
           "value": "\"recruiter_grade\".\"confidence\" in ('normal', 'low')"
         },
-        "recruiter_grade_reasons_shape": {
-          "name": "recruiter_grade_reasons_shape",
-          "value": "cardinality(\"recruiter_grade\".\"reasons\") between 1 and 12 and array_position(\"recruiter_grade\".\"reasons\", null) is null and array_to_string(\"recruiter_grade\".\"reasons\", ',') ~ '^(dealbreaker|[a-z_]+:[a-z_]+)(,(dealbreaker|[a-z_]+:[a-z_]+))*$'"
+        "recruiter_grade_reasons_listed": {
+          "name": "recruiter_grade_reasons_listed",
+          "value": "cardinality(\"recruiter_grade\".\"reasons\") between 1 and 12 and array_position(\"recruiter_grade\".\"reasons\", null) is null and \"recruiter_grade\".\"reasons\" <@ array['title:exact', 'title:partial', 'title:none', 'title:unknown', 'title:level_mismatch', 'pay:ok', 'pay:below', 'pay:unknown', 'place:ok', 'place:mismatch', 'place:unknown', 'sender:agency', 'sender:in_house', 'sender:unknown', 'personal:yes', 'personal:no', 'company:named', 'company:unnamed', 'dealbreaker', 'red_flag:upfront_fee', 'red_flag:sensitive_data', 'red_flag:vague_role', 'red_flag:unpaid_work']::text[]"
         }
       },
       "isRLSEnabled": false

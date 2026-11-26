@@ -1,5 +1,5 @@
 import type { ApplicationStatus, CandidateId } from "@northstar/domain";
-import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Db } from "./db.js";
 import { type MATCH_STEPS, mailLink, type QUEUE_REASONS } from "./mail-link-schema.js";
 import { type Origin, readOrigins } from "./origin-write.js";
@@ -122,7 +122,16 @@ export async function readInboxThreads(db: Db, candidateId: CandidateId): Promis
           eq(mailLink.gmailMessageId, recruiterGrade.gmailMessageId),
         ),
       )
-      .where(eq(recruiterGrade.candidateId, candidateId))
+      .where(
+        and(
+          eq(recruiterGrade.candidateId, candidateId),
+          // Only the threads this read returns, so it stays as bounded as they are.
+          inArray(mailLink.gmailThreadId, [
+            "",
+            ...new Set([...linked, ...queued].map((t) => t.gmailThreadId)),
+          ]),
+        ),
+      )
       .orderBy(desc(mailLink.receivedAt), desc(mailLink.gmailMessageId));
     for (const g of gradeRows) {
       const key = `${g.gmailThreadId}:${g.applicationId ?? ""}`;

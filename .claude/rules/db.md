@@ -231,7 +231,7 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   Recruiter grades (NS-238) are `recruiter_grade`, append-only (a trigger), one per candidate and
   Gmail message (`recordRecruiterGrade` checks the message's `mail_link` first), written only through
   `recruiter-grade-write.ts` (`recordRecruiterGrade`, `readRecruiterGrades`). A CHECK keeps the
-  reasons to codes (`<factor>:<outcome>` or `dealbreaker`), never email text; `recruiter.graded`
+  reasons to the fixed list `RECRUITER_GRADE_REASONS` (`packages/domain`), never email text; `recruiter.graded`
   carries the message id, grade, confidence and reasons, and its feed line is its fixed-word
   `reason`.
   `readLinkCandidates` (NS-223) is their read-only candidates reader: applications not in a

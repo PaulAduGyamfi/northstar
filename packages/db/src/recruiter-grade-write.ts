@@ -1,4 +1,4 @@
-import type { CandidateId, Result } from "@northstar/domain";
+import { type CandidateId, RECRUITER_GRADE_REASONS, type Result } from "@northstar/domain";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "./db.js";
@@ -10,12 +10,12 @@ import { appendEvent, inSpan } from "./resilience-event.js";
 // (gradeRecruiterMessage in @northstar/sources), stored once per message with its feed event in one
 // transaction. Codes and numbers only: no email text reaches the table, the event or the span.
 
-const Reason = z.string().regex(/^(dealbreaker|[a-z_]+:[a-z_]+)$/);
 export const GradeInput = z
   .object({
     grade: z.enum(["A", "B", "C", "D", "F"]),
     points: z.number().int().min(-50).max(50),
-    reasons: z.array(Reason).min(1).max(12),
+    // The fixed list only: a pattern would let words from an email through.
+    reasons: z.array(z.enum(RECRUITER_GRADE_REASONS)).min(1).max(12),
     confidence: z.enum(["normal", "low"]),
   })
   .strict();

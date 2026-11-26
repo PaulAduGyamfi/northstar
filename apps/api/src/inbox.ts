@@ -1,5 +1,10 @@
 import type { Inbox } from "@northstar/db";
-import { APPLICATION_STATUSES, STARTED_BY, SUBMITTED_VIA } from "@northstar/domain";
+import {
+  APPLICATION_STATUSES,
+  RECRUITER_GRADE_REASONS,
+  STARTED_BY,
+  SUBMITTED_VIA,
+} from "@northstar/domain";
 import { z } from "zod";
 import { type AnyEndpoint, endpoint } from "./endpoint.js";
 
@@ -17,7 +22,7 @@ const gmailUrl = (threadId: string) => `https://mail.google.com/mail/u/0/#all/${
 // A recruiter grade (NS-238): codes only, checked again here so no text can reach the page.
 const Grade = z.object({
   grade: z.enum(["A", "B", "C", "D", "F"]),
-  reasons: z.array(z.string().regex(/^(dealbreaker|[a-z_]+:[a-z_]+)$/)).max(12),
+  reasons: z.array(z.enum(RECRUITER_GRADE_REASONS)).max(12),
   confidence: z.enum(["normal", "low"]),
 });
 type GradeView = z.infer<typeof Grade>;
@@ -28,7 +33,7 @@ const gradeOf = (g: { grade: string; reasons: string[]; confidence: string } | u
     : {
         recruiterGrade: {
           grade: g.grade as GradeView["grade"],
-          reasons: g.reasons,
+          reasons: g.reasons as GradeView["reasons"],
           confidence: g.confidence as GradeView["confidence"],
         },
       };

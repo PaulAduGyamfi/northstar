@@ -432,8 +432,8 @@ Exists now:
 
   Since NS-238 (slice 1) also storage and the view: append-only `recruiter_grade` (`packages/db`,
   `recruiter-grade-schema.ts`, `recruiter-grade-write.ts`): one grade per message the mail loop
-  recorded (`recordRecruiterGrade` checks its `mail_link`), with the letter, points, reason codes (a CHECK
-  allows codes only) and confidence. `recordRecruiterGrade` writes it once, with a
+  recorded (`recordRecruiterGrade` checks its `mail_link`), with the letter, points, reason codes (only
+  `RECRUITER_GRADE_REASONS`, a fixed list in `packages/domain`, by Zod, a CHECK and the API) and confidence. `recordRecruiterGrade` writes it once, with a
   `recruiter.graded` event whose feed line is its fixed-word `reason` ("Graded a recruiter email:
   B"). `readInboxThreads` gives each thread its newest grade, `GET /inbox` passes it on, and the
   Inbox tab shows it in words (`gradeWords`). No caller grades mail yet (classifications aren't

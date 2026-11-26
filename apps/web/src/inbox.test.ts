@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applicationTitle,
+  GRADE_REASON_WORDS,
   gradeWords,
   type InboxApplicationView,
   InboxBody,
@@ -145,12 +146,46 @@ describe("gradeWords", () => {
     expect([
       gradeWords({ grade: "B", reasons: ["title:exact", "pay:unknown"], confidence: "normal" }),
       gradeWords({ grade: "F", reasons: ["red_flag:upfront_fee"], confidence: "low" }),
-      gradeWords({ grade: "C", reasons: ["mystery:code"], confidence: "normal" }),
+      gradeWords({ grade: "C", reasons: ["mystery:code", "constructor"], confidence: "normal" }),
     ]).toEqual([
       "Recruiter grade B: the title matches, no pay given",
       "Recruiter grade F: asks for a fee (little to go on)",
       "Recruiter grade C",
     ]);
+  });
+
+  it("has words for every reason a grade can give", () => {
+    // RECRUITER_GRADE_REASONS in @northstar/domain, which the web app doesn't depend on; the API
+    // refuses any other reason.
+    const reasons = [
+      "title:exact",
+      "title:partial",
+      "title:none",
+      "title:unknown",
+      "title:level_mismatch",
+      "pay:ok",
+      "pay:below",
+      "pay:unknown",
+      "place:ok",
+      "place:mismatch",
+      "place:unknown",
+      "sender:agency",
+      "sender:in_house",
+      "sender:unknown",
+      "personal:yes",
+      "personal:no",
+      "company:named",
+      "company:unnamed",
+      "dealbreaker",
+      "red_flag:upfront_fee",
+      "red_flag:sensitive_data",
+      "red_flag:vague_role",
+      "red_flag:unpaid_work",
+    ];
+    expect([
+      reasons.filter((r) => !Object.hasOwn(GRADE_REASON_WORDS, r)),
+      Object.keys(GRADE_REASON_WORDS).filter((k) => !reasons.includes(k)),
+    ]).toEqual([[], []]);
   });
 
   it("adds the grade to a graded thread's row and nothing to an ungraded one", () => {

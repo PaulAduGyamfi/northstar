@@ -76,7 +76,7 @@ const REASON_WORDS = {
 
 // Each grade reason (gradeRecruiterMessage's codes) in words. An unknown code is left out, never
 // shown raw.
-const GRADE_REASON_WORDS: Record<string, string> = {
+export const GRADE_REASON_WORDS: Record<string, string> = {
   "title:exact": "the title matches",
   "title:partial": "the title partly matches",
   "title:none": "the title doesn't match",
@@ -90,6 +90,7 @@ const GRADE_REASON_WORDS: Record<string, string> = {
   "place:unknown": "no place given",
   "sender:agency": "an agency recruiter",
   "sender:in_house": "an in-house recruiter",
+  "sender:unknown": "agency or in-house not stated",
   "personal:yes": "written for you",
   "personal:no": "not written for you",
   "company:named": "names the company",
@@ -104,7 +105,10 @@ const GRADE_REASON_WORDS: Record<string, string> = {
 // "Recruiter grade B: the title matches, no pay given", plus "(little to go on)" when two or more
 // of title, pay and place were unknown (UX-014: every grade has a why).
 export function gradeWords(g: GradeView): string {
-  const why = g.reasons.flatMap((r) => GRADE_REASON_WORDS[r] ?? []).join(", ");
+  // Own keys only, so "constructor" or "toString" can't read the prototype.
+  const why = g.reasons
+    .flatMap((r) => (Object.hasOwn(GRADE_REASON_WORDS, r) ? [GRADE_REASON_WORDS[r] as string] : []))
+    .join(", ");
   const low = g.confidence === "low" ? " (little to go on)" : "";
   return `Recruiter grade ${g.grade}${why ? `: ${why}` : ""}${low}`;
 }
