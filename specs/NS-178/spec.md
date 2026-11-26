@@ -2,7 +2,7 @@
 
 Status: accepted (autonomous lane, ADR-0016), in slices
 Requirements: APR-001, NFR-SEC-* · ADR-0002, ADR-0018 (item 7), ADR-0022 (new)
-Rules that apply: `.claude/rules/db.md`, `.claude/rules/tests.md`
+Rules that apply: `.claude/rules/db.md`, `.claude/rules/web.md`, `.claude/rules/tests.md`
 Parent: #107 (NS-156)
 
 ## Why
@@ -42,27 +42,28 @@ can't be phished: the browser signs only for Northstar's own name.
      in logs, spans or events.
 
 ### Acceptance criteria (slice 1)
-- [ ] A fake authenticator registers a passkey with a live session and the sign-in key; without
+- [x] A fake authenticator registers a passkey with a live session and the sign-in key; without
       a session, or without the right key, it gets 401 (400 when the key is missing).
-- [ ] That passkey signs in and gets a session cookie; a replayed response, a wrong origin, an
+- [x] That passkey signs in and gets a session cookie; a replayed response, a wrong origin, an
       unknown credential and a non-increasing sign count each get 401 and open no session.
-- [ ] Failed passkey sign-ins count toward the throttle.
-- [ ] The sign count is stored and only moves forward; credentials are scoped to the candidate.
+- [x] Failed passkey sign-ins count toward the throttle.
+- [x] The sign count is stored and only moves forward; credentials are scoped to the candidate.
 
 ## Slice 2: the web app
 1. `src/passkey.ts`: the API's JSON options to `navigator.credentials` types and the answers back
    to JSON, written by hand (the browsers' JSON helpers aren't everywhere yet), and
    `signInWithPasskey` / `addPasskey`, which take the credentials container and fetch as
-   arguments. Every API answer and a cancelled browser dialog get a plain message; a timed-out
-   verify says it may have gone through (`TIMED_OUT_MESSAGE`).
+   arguments. Every API answer and every browser error (cancelled, already on this device, wrong
+   address) get a plain message; a timed-out verify says it may have gone through
+   (`TIMED_OUT_MESSAGE`).
 2. The sign-in page gets "Sign in with a passkey" next to the key form; Today gets "Add a
    passkey", which asks for the sign-in key first. Both appear only where the browser has
    WebAuthn.
 
 ### Acceptance criteria (slice 2)
-- [ ] Options convert from base64url to bytes; the answers convert back to what the API reads.
-- [ ] Sign-in and adding report success, the API's refusals, a cancelled dialog and a timeout in
+- [x] Options convert from base64url to bytes; the answers convert back to what the API reads.
+- [x] Sign-in and adding report success, the API's refusals, a cancelled dialog and a timeout in
       plain words; a wrong key stops before the browser's dialog.
 
 ## Out of scope
-Slice 2 (above). Removing a passkey (a later ticket, when there's a settings page).
+Removing a passkey (a later ticket, when there's a settings page).

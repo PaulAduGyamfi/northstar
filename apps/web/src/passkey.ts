@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { apiFetch, isTimeout, TIMED_OUT_MESSAGE } from "./client-fetch";
 
 // The browser side of passkeys (NS-178 slice 2, ADR-0022): turn the API's JSON options into what
@@ -99,16 +100,31 @@ export function authenticationJson(credential: PublicKeyCredential) {
 }
 
 // The API's answers in plain words.
+const WRONG_ADDRESS =
+  "Open Northstar at http://northstar.localhost:3100 (or your NORTHSTAR_WEB_ORIGIN) and try again.";
+const TOO_MANY = "Too many tries. Wait a minute, then try again.";
 const SIGN_IN_MESSAGES: Record<number, string> = {
   401: "That passkey wasn't accepted. Try again, or use your sign-in key.",
-  403: "Open Northstar at http://northstar.localhost:3100 (or your NORTHSTAR_WEB_ORIGIN) and try again.",
-  429: "Too many tries. Wait a minute, then try again.",
+  403: WRONG_ADDRESS,
+  429: TOO_MANY,
 };
-const ADD_MESSAGES: Record<number, string> = {
+// The options step checks the key; the verify step only the session.
+const ADD_OPTIONS_MESSAGES: Record<number, string> = {
   401: "That key didn't match, or you've been signed out.",
-  409: "That passkey is already added.",
-  429: "Too many tries. Wait a minute, then try again.",
+  403: WRONG_ADDRESS,
+  429: TOO_MANY,
 };
+const ADD_VERIFY_MESSAGES: Record<number, string> = {
+  400: "The browser's passkey wasn't accepted. Try again.",
+  401: "You've been signed out. Sign in again, then add the passkey.",
+  403: WRONG_ADDRESS,
+  409: "That passkey is already added.",
+};
+
+// The options body, checked before the browser sees it (the fields it needs as base64url).
+const OptionsBody = z.object({
+  options: z.looseObject({ challenge: z.string().regex(/^[A-Za-z0-9_-]+$/) }),
+});
 
 const post = (path: string, body: unknown, fetchFn: typeof fetch) =>
   apiFetch(
@@ -121,13 +137,24 @@ const post = (path: string, body: unknown, fetchFn: typeof fetch) =>
     fetchFn,
   );
 
-// A refusal in the browser's own dialog (Paul cancelled, or no passkey here) is NotAllowedError.
-const dialogMessage = (error: unknown, what: string): string =>
-  error instanceof DOMException && error.name === "NotAllowedError"
-    ? `No passkey was ${what}: the request was cancelled or timed out.`
-    : isTimeout(error)
-      ? TIMED_OUT_MESSAGE
-      : "Couldn't reach Northstar. Is the API running?";
+// What went wrong, from the browser's own errors. Its dialog refuses with NotAllowedError (Paul
+// cancelled, it timed out, or this device has no passkey for Northstar); InvalidStateError means
+// the device already has one (the exclude list); SecurityError means the page isn't on the name
+// passkeys are made for. A fetch that never connected throws a TypeError.
+function errorMessage(error: unknown, ceremony: "sign-in" | "add"): string {
+  if (isTimeout(error)) return TIMED_OUT_MESSAGE;
+  if (error instanceof DOMException) {
+    if (error.name === "NotAllowedError") {
+      return ceremony === "sign-in"
+        ? "No passkey was used: the request was cancelled, timed out, or this device has no passkey for Northstar. You can use your sign-in key."
+        : "No passkey was made: the request was cancelled or timed out.";
+    }
+    if (error.name === "InvalidStateError") return "This device already has a Northstar passkey.";
+    if (error.name === "SecurityError") return WRONG_ADDRESS;
+    return "Something went wrong with the passkey. Try again.";
+  }
+  return "Couldn't reach Northstar. Is the API running?";
+}
 
 export async function signInWithPasskey(
   credentials: Credentials,
@@ -140,7 +167,10 @@ export async function signInWithPasskey(
         ok: false,
         message: SIGN_IN_MESSAGES[optionsRes.status] ?? "Couldn't start a passkey sign-in.",
       };
-    const { options } = (await optionsRes.json()) as { options: RequestJson };
+    const body = OptionsBody.safeParse(await optionsRes.json());
+    if (!body.success) return { ok: false, message: "Couldn't start a passkey sign-in." };
+    // Checked above for the challenge; the rest is the browser's to judge.
+    const options = body.data.options as unknown as RequestJson;
     const credential = await credentials.get({ publicKey: requestOptions(options) });
     if (!credential) return { ok: false, message: "No passkey was used." };
     const response = authenticationJson(credential as PublicKeyCredential);
@@ -148,7 +178,7 @@ export async function signInWithPasskey(
     if (verified.ok) return { ok: true };
     return { ok: false, message: SIGN_IN_MESSAGES[verified.status] ?? "Couldn't sign in." };
   } catch (error) {
-    return { ok: false, message: dialogMessage(error, "used") };
+    return { ok: false, message: errorMessage(error, "sign-in") };
   }
 }
 
@@ -163,9 +193,12 @@ export async function addPasskey(
     if (!optionsRes.ok)
       return {
         ok: false,
-        message: ADD_MESSAGES[optionsRes.status] ?? "Couldn't start adding a passkey.",
+        message: ADD_OPTIONS_MESSAGES[optionsRes.status] ?? "Couldn't start adding a passkey.",
       };
-    const { options } = (await optionsRes.json()) as { options: CreationJson };
+    const body = OptionsBody.safeParse(await optionsRes.json());
+    if (!body.success) return { ok: false, message: "Couldn't start adding a passkey." };
+    // Checked above for the challenge; the rest is the browser's to judge.
+    const options = body.data.options as unknown as CreationJson;
     const credential = await credentials.create({ publicKey: creationOptions(options) });
     if (!credential) return { ok: false, message: "No passkey was made." };
     const response = registrationJson(credential as PublicKeyCredential);
@@ -173,9 +206,9 @@ export async function addPasskey(
     if (verified.ok) return { ok: true };
     return {
       ok: false,
-      message: ADD_MESSAGES[verified.status] ?? "The passkey couldn't be added.",
+      message: ADD_VERIFY_MESSAGES[verified.status] ?? "The passkey couldn't be added.",
     };
   } catch (error) {
-    return { ok: false, message: dialogMessage(error, "made") };
+    return { ok: false, message: errorMessage(error, "add") };
   }
 }

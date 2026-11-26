@@ -125,12 +125,48 @@ describe("signInWithPasskey", () => {
     });
   });
 
-  it("says the request was cancelled when Paul closes the browser's dialog", async () => {
+  it("says the request was cancelled, or no passkey is here, and points to the key", async () => {
     const outcome = await signInWithPasskey(fakeCredentials("cancel"), fakeApi().fetchFn);
     expect(outcome).toEqual({
       ok: false,
-      message: "No passkey was used: the request was cancelled or timed out.",
+      message:
+        "No passkey was used: the request was cancelled, timed out, or this device has no passkey for Northstar. You can use your sign-in key.",
     });
+  });
+
+  it("leaves out the user handle when the authenticator sends none", async () => {
+    const api = fakeApi();
+    const credentials: Credentials = {
+      create: async () => null,
+      get: async () => {
+        const c = credential("get");
+        (c.response as unknown as { userHandle: ArrayBuffer | null }).userHandle = null;
+        return c;
+      },
+    };
+    await signInWithPasskey(credentials, api.fetchFn);
+    const sent = api.calls[1]?.body as { response: { response: Record<string, string> } };
+    expect(Object.keys(sent.response.response)).toEqual([
+      "clientDataJSON",
+      "authenticatorData",
+      "signature",
+    ]);
+  });
+
+  it("says to wait when sign-in is throttled, before any browser dialog", async () => {
+    let asked = false;
+    const credentials: Credentials = {
+      create: async () => null,
+      get: async () => {
+        asked = true;
+        return null;
+      },
+    };
+    const outcome = await signInWithPasskey(credentials, fakeApi({ options: 429 }).fetchFn);
+    expect([outcome, asked]).toEqual([
+      { ok: false, message: "Too many tries. Wait a minute, then try again." },
+      false,
+    ]);
   });
 });
 
@@ -167,6 +203,17 @@ describe("addPasskey", () => {
       { ok: false, message: "That key didn't match, or you've been signed out." },
       false,
     ]);
+  });
+
+  it("says this device already has a passkey when the browser refuses a second one", async () => {
+    const credentials: Credentials = {
+      create: async () => {
+        throw new DOMException("excluded", "InvalidStateError");
+      },
+      get: async () => null,
+    };
+    const outcome = await addPasskey("test-key", credentials, fakeApi().fetchFn);
+    expect(outcome).toEqual({ ok: false, message: "This device already has a Northstar passkey." });
   });
 
   it("says a passkey added twice is already there", async () => {

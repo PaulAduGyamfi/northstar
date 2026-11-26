@@ -29,6 +29,8 @@ export function AddPasskey() {
       setOpen(false);
       setMessage({ ok: true, text: "Passkey added. Next time, sign in with it." });
     } else {
+      // Not kept in the page longer than needed: Paul pastes it again to retry.
+      form.reset();
       setMessage({ ok: false, text: outcome.message });
     }
   }
