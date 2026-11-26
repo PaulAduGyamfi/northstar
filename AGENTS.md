@@ -308,6 +308,14 @@ Exists now:
   ADR-0026 (Proposed) decides `calendar.events.readonly`, on its own consent, under ADR-0014's
   token model, with fields limited to what detection reads. Writes come later through the Gate.
   No Calendar client, storage or confirm step yet.
+- Interview prep (NS-170, CAL-003/004), slice 1, plain code in `packages/domain`
+  (`interview-prep.ts`): `planPrepBlocks` proposes CAL-003's default prep for one interview, two
+  45-minute blocks in the 3 days before (one per day where it can, nearest days first, earliest
+  free quarter hour inside working hours in Paul's time zone, ending at least an hour before) and a
+  15-minute warm-up an hour before. It only uses free time after now, never shortens a block, and
+  reports what it couldn't place (`missingPrep`, `warmUpMissing`). `reminderTimes` gives the
+  day-before and hour-before reminders, dropping any already past. It proposes only: no caller,
+  storage, calendar write (that goes through the Gate) or briefs yet.
 - Recruiter grading (NS-167, REC-001/002), slice 1:
   - The `recruiter-extract` route (`packages/inbox`, `src/recruiter/`) reads a recruiter email's
     stated facts: title, seniority, company, place, remote kind, pay range, agency or in-house,
