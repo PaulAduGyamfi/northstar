@@ -15,7 +15,11 @@ GitHub) don't exist yet: if you are about to create one outside its ticket, stop
 - Every submission goes through `submitApplication`: the apply URL's host must be the ATS's own
   and the posting id must match the one in the URL, then the Gate check (throws
   `NotApprovedError`), a re-hash of the files, `claimSubmission`, a `FormDriver` with time limits,
-  then proof. A live claim is never touched (`InProgress`). A claim older than 15 minutes becomes
+  then proof. Before the claim it asks the `auto_apply` and `adapter:<ats>` switches and the
+  `ats:<ats>` breaker (NS-206, `guard.ts`); held back is the `HeldBack` refusal with nothing
+  claimed, so a later call retries. After the browser step only a timeout counts against the
+  breaker, a page the ATS served is it working, and a browser crash isn't reported. A live claim
+  is never touched (`InProgress`). A claim older than 15 minutes becomes
   `needs_human` (`outcome_unknown`) and is never retried; `closeStaleClaim` (`stale.ts`) does
   that for both a repeated call and `sweepStaleClaims` (NS-143). Status moves use the
   `application:<id>:apply:<submissionId>:<to>` key namespace (`applyMoveKey`). Pacing limits

@@ -1,17 +1,20 @@
 import {
   type ApplyLimits,
+  acquireCall,
   claimSubmission,
   type Db,
   DEFAULT_APPLY_LIMITS,
+  isSubsystemOn,
   listStaleClaims,
   openSealedSecret,
+  recordCallOutcome,
   recordNeedsHuman,
   recordSubmitted,
   storeSealedSecret,
   transitionApplication,
   verifyApproval,
 } from "@northstar/db";
-import type { CandidateId } from "@northstar/domain";
+import type { CallDecision, CallOutcome, CandidateId } from "@northstar/domain";
 import type { OpenPorts } from "../vault/open.js";
 import type { StorePorts } from "../vault/store.js";
 import type { FormDriver } from "./driver.js";
@@ -46,6 +49,16 @@ export type ApplyPorts = {
   readFile: (sha256: string) => Promise<Uint8Array | null>;
   // A fresh browser session for one submission.
   openDriver: () => FormDriver;
+  // The stored kill switches and breakers (NS-206, RES-002/008), asked at the moment it acts.
+  isSubsystemOn: (candidateId: CandidateId, subsystem: string) => Promise<boolean>;
+  acquireCall: (candidateId: CandidateId, dependency: string) => Promise<CallDecision>;
+  recordCallOutcome: (
+    candidateId: CandidateId,
+    dependency: string,
+    outcome: CallOutcome,
+    // The token acquireCall gave the probe; null for any other call.
+    probeToken: string | null,
+  ) => Promise<void>;
 };
 
 // `limits` come from loadApplyLimits at the entry point (NS-143), never from a caller per call.
@@ -60,6 +73,11 @@ export function dbPorts(
     recordSubmitted: (c, s, p) => recordSubmitted(db, c, s, p),
     recordNeedsHuman: (c, s, r, url) => recordNeedsHuman(db, c, s, r, url),
     transitionApplication: (input) => transitionApplication(db, input),
+    isSubsystemOn: (c, subsystem) => isSubsystemOn(db, c, subsystem),
+    acquireCall: (c, dependency) => acquireCall(db, { candidateId: c, dependency }),
+    recordCallOutcome: async (c, dependency, outcome, probeToken) => {
+      await recordCallOutcome(db, { candidateId: c, dependency, outcome, probeToken });
+    },
     ...deps,
   };
 }

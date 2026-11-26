@@ -7,6 +7,7 @@ import {
   listOpenHandoffs,
   requestApproval,
   schema,
+  setKillSwitch,
 } from "@northstar/db";
 import { createTestDb, seedApplication, setGateClock } from "@northstar/db/testing";
 import {
@@ -190,5 +191,26 @@ describe("submitApplication on the real write paths", () => {
       submitApplication(ports(), { candidateId, decisionId, package: pkg }),
     ).rejects.toEqual(new NotApprovedError("UndoWindowOpen"));
     expect(await ledger()).toEqual([]);
+  });
+
+  it("holds a submission back while Paul has auto_apply switched off, and claims nothing", async () => {
+    const decisionId = await approve();
+    const off = await setKillSwitch(db, {
+      candidateId,
+      subsystem: "auto_apply",
+      enabled: false,
+      actor: "user",
+      reason: "pausing applications",
+    });
+    if (!off.ok) throw new Error(off.error.kind);
+    const result = await submitApplication(ports(), { candidateId, decisionId, package: pkg });
+    expect([result, await applicationStatus(), await ledger()]).toEqual([
+      {
+        ok: false,
+        error: { kind: "HeldBack", by: "kill_switch", what: "auto_apply", retryAt: null },
+      },
+      "awaiting_approval",
+      [],
+    ]);
   });
 });

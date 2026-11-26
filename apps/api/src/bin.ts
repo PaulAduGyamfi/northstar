@@ -1,7 +1,9 @@
 import { lookup } from "node:dns/promises";
 import { createServer } from "node:http";
 import {
+  acquireCall,
   connectDb,
+  isSubsystemOn,
   listApplications,
   listOpenHandoffs,
   listTenants,
@@ -15,6 +17,7 @@ import {
   readScoreKeys,
   readScoringProfile,
   readSystemHealth,
+  recordCallOutcome,
   resolveHandoff,
   saveFitScore,
   saveIngestedJob,
@@ -24,6 +27,7 @@ import {
 } from "@northstar/db";
 import { ApplicationId } from "@northstar/domain";
 import {
+  type CallGuard,
   createAnthropicClient,
   createLlmGateway,
   type LlmGateway,
@@ -63,6 +67,21 @@ try {
     });
     return candidate;
   };
+  // The stored kill switches and breakers (NS-206): agent:job-extract and the anthropic breaker,
+  // read from Postgres on every call. A held-back call answers 503 (capture.ts), never a 500.
+  const guard: CallGuard = {
+    isOn: async (subsystem) => isSubsystemOn(db, await candidateId(), subsystem),
+    acquire: async (dependency) =>
+      acquireCall(db, { candidateId: await candidateId(), dependency }),
+    report: async (dependency, outcome, probeToken) => {
+      await recordCallOutcome(db, {
+        candidateId: await candidateId(),
+        dependency,
+        outcome,
+        probeToken,
+      });
+    },
+  };
   // Built on first use, as in `jobs add`: a posting read through an ATS API or JSON-LD needs no
   // API key, and the API starts without one.
   let gateway: LlmGateway | undefined;
@@ -73,6 +92,7 @@ try {
           loadLlmConfig({ ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }),
         ),
         now: () => performance.now(),
+        guard,
       });
       return gateway.call(route, input);
     },

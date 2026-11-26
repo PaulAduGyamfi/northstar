@@ -1,3 +1,4 @@
+import { describeHeldBack, HeldBack } from "@northstar/llm";
 import { detectAts, type IngestResult } from "@northstar/sources";
 import type { Span } from "@opentelemetry/api";
 import { z } from "zod";
@@ -61,18 +62,26 @@ export function captureEndpoint(ports: CapturePorts): AnyEndpoint {
     input: Capture,
     output: Captured,
     handler: async ({ url, title, text }, { span }) => {
-      if (detectAts(url) !== null) {
-        const byLink = await ports.byUrl(url);
-        if (!TRY_TEXT.has(byLink.status)) {
-          await scoreSaved(ports, byLink, span);
-          return { ok: true, body: answer(byLink, "link") };
+      try {
+        if (detectAts(url) !== null) {
+          const byLink = await ports.byUrl(url);
+          if (!TRY_TEXT.has(byLink.status)) {
+            await scoreSaved(ports, byLink, span);
+            return { ok: true, body: answer(byLink, "link") };
+          }
         }
+        // The title leads, so the model sees it with the description.
+        const page = title ? `${title}\n\n${text}` : text;
+        const byText = await ports.byText(url, page);
+        await scoreSaved(ports, byText, span);
+        return { ok: true, body: answer(byText, "text") };
+      } catch (error) {
+        // A kill switch or breaker held the model call back (NS-206): retry later, and say which
+        // one, from its fixed fields only. Anything else is still a 500.
+        if (!(error instanceof HeldBack)) throw error;
+        span.setAttribute("capture.held_by", error.by);
+        return { ok: false, status: 503, error: `held back (${describeHeldBack(error)})` };
       }
-      // The title leads, so the model sees it with the description.
-      const page = title ? `${title}\n\n${text}` : text;
-      const byText = await ports.byText(url, page);
-      await scoreSaved(ports, byText, span);
-      return { ok: true, body: answer(byText, "text") };
     },
   });
 }

@@ -9,6 +9,7 @@ export {
   ApplyInvariantError,
   CLOSE_TIMEOUT_MS,
   type FileChanged,
+  type HeldBack,
   type HostNotAllowed,
   type InProgress,
   NotApprovedError,

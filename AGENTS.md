@@ -263,8 +263,11 @@ Exists now:
   - Only the dependency's own failures count: a retryable transport error, or no answer, 429,
     5xx or a rate limit from Gmail. A 400 or 404 means it answered.
 
-  The funnel and sources CLIs wire it to the stored switches and breakers. The profile CLI, the
-  API and the Apply Gateway don't use them yet.
+  The funnel, sources and profile CLIs and the API wire it to the stored switches and breakers.
+  Since NS-206 the API answers a held-back capture with 503 naming the switch or breaker, and the
+  Apply Gateway checks `auto_apply`, `adapter:<ats>` and the `ats:<ats>` breaker before it claims
+  (held back: the `HeldBack` refusal, nothing claimed). Only a step timeout counts against the
+  ATS's breaker.
   Since NS-175 also the dead-letter store (RES-007, `dead-letter-write.ts` in `packages/db`,
   append-only): `recordDeadLetter` keeps work that exhausted its retries (kind, subject id, reason
   code, attempts; one per idempotency key), `listOpenDeadLetters` shows what waits, and
