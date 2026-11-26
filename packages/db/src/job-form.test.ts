@@ -69,20 +69,38 @@ describe("saveJobForm and readJobForm", () => {
     expect((await readJobForm(db, candidateId, jobId))?.questions).toEqual(changed);
   });
 
+  it("stores a form that comes back after a change, so the newest read is current", async () => {
+    const changed = [...FORM, Q({ fieldName: "phone", label: "Phone", required: false, group: 2 })];
+    const results = [await save(FORM), await save(changed), await save(FORM)];
+    const events = await db.select().from(domainEvent).where(eq(domainEvent.type, "job.form_read"));
+    expect([
+      results.map((r) => r.status),
+      (await readJobForm(db, candidateId, jobId))?.questions,
+      events.length,
+    ]).toEqual([["stored", "stored", "stored"], FORM, 3]);
+  });
+
   it("refuses a form over its bounds, storing nothing", async () => {
     const tooMany = Array.from({ length: 201 }, (_, i) => Q({ fieldName: `f${i}`, group: i }));
     const longLabel = [Q({ label: "x".repeat(1001) })];
+    const longName = [Q({ fieldName: "f".repeat(1001) })];
     const manyChoices = [
       Q({
         kind: "select",
         choices: Array.from({ length: 501 }, (_, i) => ({ label: `c${i}`, value: String(i) })),
       }),
     ];
-    const results = [await save(tooMany), await save(longLabel), await save(manyChoices)];
+    const results = [
+      await save(tooMany),
+      await save(longLabel),
+      await save(longName),
+      await save(manyChoices),
+    ];
     expect([results, (await db.select().from(jobForm)).length]).toEqual([
       [
         { status: "refused", reason: "too_many_fields" },
-        { status: "refused", reason: "label_too_long" },
+        { status: "refused", reason: "text_too_long" },
+        { status: "refused", reason: "text_too_long" },
         { status: "refused", reason: "too_many_choices" },
       ],
       0,
@@ -113,13 +131,7 @@ describe("readJobAtsSources", () => {
       await readJobAtsSources(db, candidateId, jobId),
       await readJobAtsSources(db, CandidateId.parse("00000000-0000-4000-8000-000000000009"), jobId),
     ]).toEqual([
-      [
-        {
-          ats: "greenhouse",
-          url: "https://boards.greenhouse.io/globex/jobs/4012345",
-          atsPostingId: "4012345",
-        },
-      ],
+      [{ ats: "greenhouse", url: "https://boards.greenhouse.io/globex/jobs/4012345" }],
       [],
     ]);
   });

@@ -40,14 +40,14 @@ export const jobForm = pgTable(
       .references(() => candidate.id),
     jobId: uuid("job_id").notNull(),
     ats: text("ats").notNull(),
-    // SHA-256 of the questions' canonical JSON: the same form is stored once.
+    // SHA-256 of the questions' canonical JSON: compared with the job's newest row, so a form is
+    // stored again when it comes back after a change (A, B, A: the newest A is current).
     sha256: text("sha256").notNull(),
     questions: jsonb("questions").$type<JobFormQuestion[]>().notNull(),
     readAt: timestamp("read_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     unique("job_form_position_unique").on(t.position),
-    unique("job_form_job_sha_unique").on(t.candidateId, t.jobId, t.sha256),
     check("job_form_sha256_shape", sql`${t.sha256} ~ '^[0-9a-f]{64}$'`),
     check("job_form_questions_array", sql`jsonb_typeof(${t.questions}) = 'array'`),
     foreignKey({

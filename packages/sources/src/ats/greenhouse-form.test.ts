@@ -143,6 +143,15 @@ describe("readGreenhouseForm", () => {
     expect(await readGreenhouseForm(web.deps, TARGET)).toBeNull();
   });
 
+  it("never takes an object's built-in name for a field type", async () => {
+    const odd = {
+      ...POSTING,
+      questions: [{ required: true, label: "Odd", fields: [field("x", "constructor")] }],
+    };
+    const web = fakeWeb({ [URL]: { body: odd } });
+    expect(await readGreenhouseForm(web.deps, TARGET)).toBeNull();
+  });
+
   it("reads nothing when the API doesn't answer 200 or the answer isn't a posting", async () => {
     const missing = fakeWeb({});
     const garbled = fakeWeb({ [URL]: { body: { questions: "no" } } });

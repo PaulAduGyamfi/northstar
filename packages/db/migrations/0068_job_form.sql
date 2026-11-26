@@ -8,7 +8,6 @@ CREATE TABLE "job_form" (
 	"questions" jsonb NOT NULL,
 	"read_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "job_form_position_unique" UNIQUE("position"),
-	CONSTRAINT "job_form_job_sha_unique" UNIQUE("candidate_id","job_id","sha256"),
 	CONSTRAINT "job_form_sha256_shape" CHECK ("job_form"."sha256" ~ '^[0-9a-f]{64}$'),
 	CONSTRAINT "job_form_questions_array" CHECK (jsonb_typeof("job_form"."questions") = 'array')
 );

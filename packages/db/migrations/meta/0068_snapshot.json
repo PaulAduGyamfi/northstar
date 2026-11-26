@@ -1,5 +1,5 @@
 {
-  "id": "a4b554f3-84ea-4aa2-9218-22aa20d3248c",
+  "id": "4be2ff48-549d-46c2-91d0-094a38adacce",
   "prevId": "19b6c8a7-a056-4338-8cc6-7f76c3a9422f",
   "version": "7",
   "dialect": "postgresql",
@@ -8697,15 +8697,6 @@
           "nullsNotDistinct": false,
           "columns": [
             "position"
-          ]
-        },
-        "job_form_job_sha_unique": {
-          "name": "job_form_job_sha_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "candidate_id",
-            "job_id",
-            "sha256"
           ]
         }
       },

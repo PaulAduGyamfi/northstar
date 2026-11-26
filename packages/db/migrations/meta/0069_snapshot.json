@@ -1,6 +1,6 @@
 {
-  "id": "dcf1f982-55c1-49ec-8038-f7cb27170886",
-  "prevId": "a4b554f3-84ea-4aa2-9218-22aa20d3248c",
+  "id": "80a3434a-eafc-41fb-bb9b-fe368acb7753",
+  "prevId": "4be2ff48-549d-46c2-91d0-094a38adacce",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -8696,15 +8696,6 @@
           "name": "job_form_position_unique",
           "columns": [
             "position"
-          ],
-          "nullsNotDistinct": false
-        },
-        "job_form_job_sha_unique": {
-          "name": "job_form_job_sha_unique",
-          "columns": [
-            "candidate_id",
-            "job_id",
-            "sha256"
           ],
           "nullsNotDistinct": false
         }

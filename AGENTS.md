@@ -384,7 +384,7 @@ Exists now:
   `safeFetch`) into fields with their label, required flag, kind (`text`, `textarea`, `select`,
   `multi_select`, `file`, `hidden`), choices and question group; an unknown field type reads
   nothing. Stored in `packages/db` (`job-form-schema.ts`, `job-form-write.ts`: append-only
-  `job_form`, one row per distinct form, the newest current; `saveJobForm`, `readJobForm`,
+  `job_form`, a new row whenever the form differs from the job's newest, which is current; `saveJobForm`, `readJobForm`,
   `readJobAtsSources`) by `jobs form <job-id>`. Lever's and Ashby's public APIs publish no
   questions. No caller assembles a package from it yet.
   Since NS-163 also fresh-job alerts (`alerts.ts`, SRC-015, plain code): after every scoring

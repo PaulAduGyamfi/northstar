@@ -16,9 +16,9 @@ export const FORM_USAGE = "usage: jobs form <job-id>";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-const REFUSED: Record<"too_many_fields" | "label_too_long" | "too_many_choices", string> = {
+const REFUSED: Record<"too_many_fields" | "text_too_long" | "too_many_choices", string> = {
   too_many_fields: "it has more than 200 fields",
-  label_too_long: "a label is longer than 1,000 characters",
+  text_too_long: "a label, field name or choice is longer than 1,000 characters",
   too_many_choices: "a question has more than 500 choices",
 };
 

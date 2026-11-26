@@ -77,12 +77,15 @@ describe("jobs form", () => {
   it("stores nothing when the form can't be read or is over its bounds", async () => {
     const unread = deps({ readGreenhouse: async () => null });
     const big = deps({ save: async () => ({ status: "refused", reason: "too_many_fields" }) });
+    const long = deps({ save: async () => ({ status: "refused", reason: "text_too_long" }) });
     expect([
       await formCommand(unread.d, ["form", "j1"]),
       unread.saved.length,
       unread.printed,
       await formCommand(big.d, ["form", "j1"]),
       big.printed,
+      await formCommand(long.d, ["form", "j1"]),
+      long.printed,
     ]).toEqual([
       1,
       0,
@@ -91,6 +94,8 @@ describe("jobs form", () => {
       ],
       1,
       ["Not stored: it has more than 200 fields."],
+      1,
+      ["Not stored: a label, field name or choice is longer than 1,000 characters."],
     ]);
   });
 
