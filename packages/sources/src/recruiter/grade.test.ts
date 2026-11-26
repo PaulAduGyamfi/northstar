@@ -127,4 +127,46 @@ describe("gradeRecruiterMessage", () => {
       reasons: expect.arrayContaining(["title:level_mismatch"]),
     });
   });
+
+  it("grades a message naming a dealbreaker only in its text as F", () => {
+    const quiet = { ...GOOD, company: null };
+    const email = "Senior Backend Engineer at a crypto exchange, remote, $180k per year.";
+    expect(gradeRecruiterMessage(quiet, PREFS, email)).toMatchObject({
+      grade: "F",
+      reasons: expect.arrayContaining(["dealbreaker"]),
+    });
+  });
+
+  it("grades a message asking for sensitive data as F", () => {
+    const scam = { ...GOOD, redFlags: [{ kind: "sensitive_data" as const }] };
+    expect(gradeRecruiterMessage(scam, PREFS).grade).toBe("F");
+  });
+
+  it("caps an otherwise good message asking for unpaid work at D", () => {
+    const unpaid = { ...GOOD, redFlags: [{ kind: "unpaid_work" as const }] };
+    expect(gradeRecruiterMessage(unpaid, PREFS).grade).toBe("D");
+  });
+
+  it("keeps F when a capped red flag meets a dealbreaker", () => {
+    const both = {
+      ...GOOD,
+      company: "Initech crypto",
+      redFlags: [{ kind: "vague_role" as const }],
+    };
+    expect(gradeRecruiterMessage(both, PREFS).grade).toBe("F");
+  });
+
+  it("marks low confidence when exactly two of title, pay and place are unknown", () => {
+    const twoUnknown = { ...NOTHING, roleTitle: "Senior Backend Engineer" };
+    expect(gradeRecruiterMessage(twoUnknown, PREFS).confidence).toBe("low");
+  });
+
+  it("keeps normal confidence when only one of them is unknown", () => {
+    const oneUnknown = {
+      ...NOTHING,
+      roleTitle: "Senior Backend Engineer",
+      remote: "remote" as const,
+    };
+    expect(gradeRecruiterMessage(oneUnknown, PREFS).confidence).toBe("normal");
+  });
 });

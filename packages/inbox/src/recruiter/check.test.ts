@@ -102,4 +102,65 @@ describe("checkRecruiterFacts", () => {
       dropped: ["redFlags", "redFlags"],
     });
   });
+
+  it("doesn't count a number as pay unless it's written with the currency", () => {
+    const team = "Hi Paul, Initech is 200 engineers. Pay in $ to be discussed, 180000 per year.";
+    const facts = { ...STATED, salaryMin: 200, salaryMax: 180_000 };
+    expect(checkRecruiterFacts(facts, team).dropped).toEqual(
+      expect.arrayContaining(["salaryMin", "salaryMax"]),
+    );
+  });
+
+  it("drops a currency the email only spells inside another word", () => {
+    const decade = "Hi Paul, a decade-old Initech team pays $150k a year.";
+    const facts = { ...STATED, salaryMin: 150_000, salaryMax: 150_000, salaryCurrency: "CAD" };
+    expect(
+      checkRecruiterFacts(facts, decade).dropped.filter((f) => f.startsWith("salary")),
+    ).toEqual(["salaryMin", "salaryMax", "salaryCurrency", "salaryPeriod"]);
+  });
+
+  it("drops a pay period the email doesn't state", () => {
+    expect(checkRecruiterFacts({ ...STATED, salaryPeriod: "hour" }, EMAIL).dropped).toEqual([
+      "salaryPeriod",
+    ]);
+  });
+
+  it("reads a shared k, decimals and a coded range as the amounts they write", () => {
+    const shapes = "Pay: $150-180k a year, or 142.3k - 150,500 USD a year.";
+    const keep = (min: number, max: number, currency: string) =>
+      checkRecruiterFacts(
+        { ...STATED, salaryMin: min, salaryMax: max, salaryCurrency: currency },
+        shapes,
+      ).dropped.filter((f) => f.startsWith("salary"));
+    expect([keep(150_000, 180_000, "USD"), keep(142_300, 150_500, "USD")]).toEqual([[], []]);
+  });
+
+  it("doesn't read a number inside a word as pay", () => {
+    const km = "Hi Paul, the office is 150km away and pays $90k a year.";
+    expect(checkRecruiterFacts({ ...STATED, salaryMin: 150_000 }, km).dropped).toContain(
+      "salaryMin",
+    );
+  });
+
+  it("keeps on site and remotely as the email writes them", () => {
+    const onSite = "Hi Paul, the role at Initech is on site in Chicago.";
+    const remotely = "Hi Paul, you would work remotely for Initech.";
+    expect([
+      checkRecruiterFacts({ ...STATED, remote: "onsite" }, onSite).facts.remote,
+      checkRecruiterFacts({ ...STATED, remote: "remote" }, remotely).facts.remote,
+    ]).toEqual(["onsite", "remote"]);
+  });
+
+  it("drops remote when the email also names working on site", () => {
+    const both = "Senior Backend Engineer at Initech. Not remote: onsite in Chicago.";
+    expect(checkRecruiterFacts(STATED, both).facts.remote).toBeNull();
+  });
+
+  it("adds the red flags plain code finds, even when the model reports none", () => {
+    const scam =
+      "Welcome aboard! Please send a $300 equipment deposit by gift card, and reply with your bank account number.";
+    expect(
+      checkRecruiterFacts({ ...STATED, redFlags: [] }, scam).facts.redFlags.map((f) => f.kind),
+    ).toEqual(["upfront_fee", "sensitive_data"]);
+  });
 });

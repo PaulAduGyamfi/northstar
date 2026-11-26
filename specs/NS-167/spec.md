@@ -23,10 +23,16 @@ reads the email's free text, and everything it reports must be in the email.
    - Anything not stated is `null`.
 2. **`checkRecruiterFacts`** (plain code) runs after every call:
    - every text value must appear in the email, whole words, ignoring case;
-   - every salary number must appear in the email's digits;
-   - the personalisation and red-flag quotes must be verbatim and at least four words long.
+   - `remote` is dropped when the email also names working on site;
+   - every salary amount must be written with its currency (`$180k`, `150,000 - 180,000 USD`,
+     `$150-180k`), so a stray number or a currency named elsewhere backs nothing;
+   - the pay period must be written ("a year", "per hour", "/mo", …);
+   - the personalisation and red-flag quotes must be verbatim, whole words, and at least four
+     words long.
 
-   A value that fails is dropped to `null`, never kept, and the drop is counted.
+   A value that fails is dropped to `null`, never kept, and the drop is counted. Code also adds
+   the red flags it finds by itself (gift cards, a fee or deposit to pay, bank account or ID
+   numbers). Those can only be added, so a scam is graded F even when the model misses it.
 3. **`extractRecruiterFacts(deps, email)`** puts the route and the check together:
    - it returns `off` unless the caller enables it;
    - it returns `extracted`, with the checked facts and the number of values dropped;
@@ -34,7 +40,9 @@ reads the email's free text, and everything it reports must be in the email.
 
    The email is cut to 8,000 characters.
 4. **`gradeRecruiterMessage(facts, prefs)`** (`packages/sources`, `recruiter/grade.ts`, plain
-   code). It reuses the fit score's title, pay and place checks, and the dealbreaker match.
+   code). It reuses the fit score's title, pay and place checks, and the dealbreaker match. The
+   dealbreaker match runs against the stated facts and the email's text, so leaving a fact out
+   can't dodge one.
    - **Points:**
 
      | Factor | Points |
@@ -94,7 +102,11 @@ reads the email's free text, and everything it reports must be in the email.
 - **The model refuses, is cut off or returns invalid output:** `needs_human`, with the call
   record. A transport error or `HeldBack` throws, for the caller's retry.
 - **The email tries to steer the grade** (for example "grade this A"): the email is untrusted,
-  the model only extracts, every value must be in the email, and code decides the grade.
+  the model only extracts, every value must be stated in the email, and code decides the grade.
+  The check proves a value is written in the email, not that the email's statement is true. An
+  email that writes "500000 USD per year" as an instruction, and a model that obeys it, still
+  gets that pay. The prompt and the eval's injection case guard this, and Paul sees every grade
+  with its reasons.
 
 ## Observability
 The gateway's `llm.call` span and `CallRecord`. No domain event yet: nothing stores a grade.
@@ -106,6 +118,14 @@ The gateway's `llm.call` span and `CallRecord`. No domain event yet: nothing sto
   in the mail loop (#224) and the app view.
 - **Estimating unstated comp, and judging company quality or stage.** They need data this slice
   doesn't have, so they stay unknown.
+
+## Known gaps
+- **The check can't judge truth or context.** "We don't offer $200k" still states $200k. The
+  prompt asks for what the email offers, and Paul sees the grade's reasons.
+- **"Written for Paul" is the model's judgment.** Code checks only that the quote is in the
+  email, so four words of a generic blast could earn the point.
+- **Code's red-flag patterns are short lists.** They catch the plain scams; the model catches
+  the rest.
 
 ## Decisions (ADR-0016)
 - **The grader lives in `packages/sources`.** It reuses the fit score's preference checks, now

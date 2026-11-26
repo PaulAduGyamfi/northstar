@@ -66,6 +66,9 @@ function gradeFor(points: number): Grade {
 export function gradeRecruiterMessage(
   facts: RecruiterFactsInput,
   prefs: PreferenceValues,
+  // The email as the route saw it. Dealbreakers are matched against it too, so leaving a fact
+  // out ("a crypto exchange" with no company) can't dodge one. It is only matched, never kept.
+  email = "",
 ): RecruiterGrade {
   // The facts as a job, so the Fit Score's own checks read them.
   const job: ScorableJob = {
@@ -80,9 +83,9 @@ export function gradeRecruiterMessage(
     seniority: facts.seniority,
     requirements: [],
     niceToHaves: [],
-    // Dealbreakers are matched against what the email stated, not its whole text.
+    // Dealbreakers are matched against the stated facts and the email itself.
     description:
-      [facts.company, facts.location, facts.seniority].filter(Boolean).join("\n") || null,
+      [facts.company, facts.location, facts.seniority, email].filter(Boolean).join("\n") || null,
   };
   const [, title] = titleFit(job, prefs);
   const pay = payCheck(job, prefs);
