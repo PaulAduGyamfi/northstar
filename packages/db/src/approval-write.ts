@@ -821,6 +821,29 @@ export async function verifyApproval(
   });
 }
 
+// The request a decision belongs to (NS-211), read-only. A gateway holds only the decision id it
+// was handed; when verifyApproval refuses with ContentChanged, this gives it the request id
+// withdrawApproval needs. Scoped by candidate: another candidate's decision is NotFound. It
+// proves nothing about the approval: withdrawApproval re-checks everything itself.
+export async function requestOfDecision(
+  db: Db,
+  input: { candidateId: CandidateId; decisionId: string },
+): Promise<Result<{ requestId: string }, NotFound>> {
+  return inSpan("approval.request_of", {}, async () => {
+    if (!Uuid.safeParse(input.decisionId).success) return err({ kind: "NotFound" });
+    const [row] = await db
+      .select({ requestId: approvalDecision.requestId })
+      .from(approvalDecision)
+      .where(
+        and(
+          eq(approvalDecision.id, input.decisionId),
+          eq(approvalDecision.candidateId, input.candidateId),
+        ),
+      );
+    return row ? ok({ requestId: row.requestId }) : err({ kind: "NotFound" });
+  });
+}
+
 // The Postgres error code (SQLSTATE) of a failed query; Drizzle wraps driver errors in a cause.
 function pgCode(error: unknown): string | null {
   const own = (error as { code?: unknown }).code;

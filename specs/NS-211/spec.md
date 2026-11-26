@@ -39,7 +39,7 @@ the old content forever, and its subject can never be requested again.
 
 ## Acceptance criteria
 - [ ] `requestOfDecision` finds a decision's request, returns `NotFound` for an unknown id, and
-      `NotFound` for another candidate's decision (`approval.test.ts`).
+      `NotFound` for another candidate's decision (`approval-withdraw.test.ts`).
 - [ ] On fakes: a `ContentChanged` refusal withdraws once with the new package hash and still
       throws `NotApprovedError("ContentChanged")`; a `FileChanged` withdraws nothing; another Gate
       refusal withdraws nothing; a refused withdrawal is on the span and still throws.

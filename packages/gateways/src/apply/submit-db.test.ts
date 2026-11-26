@@ -17,7 +17,13 @@ import {
   packageSubject,
   UNDO_WINDOW_MS,
 } from "@northstar/domain";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { trace } from "@opentelemetry/api";
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FormDriver, PageState } from "./driver.js";
 import { dbPorts } from "./ports.js";
 import { NotApprovedError, submitApplication } from "./submit.js";
@@ -30,12 +36,24 @@ const NOW = new Date("2026-11-25T12:00:00Z");
 const after = (ms: number) => new Date(NOW.getTime() + ms);
 const PNG = new Uint8Array([137, 80, 78, 71]);
 
+// Spans, so a test can read what the gateway recorded (NS-211).
+const exporter = new InMemorySpanExporter();
+beforeAll(() => {
+  trace.setGlobalTracerProvider(
+    new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] }),
+  );
+});
+afterAll(() => {
+  trace.disable();
+});
+
 let db: Db;
 let close: () => Promise<void>;
 let candidateId: CandidateId;
 let pkg: ReturnType<typeof makePackage>;
 
 beforeEach(async () => {
+  exporter.reset();
   ({ db, close } = await createTestDb());
   const seeded = await seedApplication(db, "awaiting_approval");
   candidateId = CandidateId.parse(seeded.candidateId);
@@ -47,16 +65,17 @@ afterEach(async () => {
   await close();
 });
 
-// Paul approves this package; the clock then moves past the undo window unless told not to.
-async function approve(pastUndoWindow = true): Promise<string> {
+// Paul approves this package (or `p`); the clock then moves past the undo window unless told not
+// to.
+async function approve(pastUndoWindow = true, p: typeof pkg = pkg): Promise<string> {
   const requested = await requestApproval(db, {
     candidateId,
     kind: "application_package",
-    subject: packageSubject(pkg),
-    contentSha256: packageSha256(pkg),
+    subject: packageSubject(p),
+    contentSha256: packageSha256(p),
     facts: null,
     actor: "agent:apply",
-    idempotencyKey: `test:${pkg.packageId}`,
+    idempotencyKey: `test:${packageSha256(p)}`,
   });
   if (!requested.ok) throw new Error(requested.error.kind);
   const decided = await decideApprovals(db, {
@@ -211,6 +230,88 @@ describe("submitApplication on the real write paths", () => {
       },
       "awaiting_approval",
       [],
+    ]);
+  });
+});
+
+describe("an approval whose package changed, on the real write paths (NS-211)", () => {
+  const editedPackage = () =>
+    makePackage("greenhouse", {
+      applicationId: pkg.applicationId,
+      fields: { ...pkg.fields, question_1001: "No" },
+    });
+  const withdrawnEvents = async () =>
+    (await db.select().from(schema.domainEvent)).filter((e) => e.type === "approval.withdrawn");
+  const withdrawSpan = () =>
+    exporter.getFinishedSpans().find((s) => s.name === "apply.submit")?.attributes[
+      "northstar.apply.withdraw"
+    ];
+
+  it("withdraws the approval and claims nothing when the package was edited", async () => {
+    const decisionId = await approve();
+    await expect(
+      submitApplication(ports(), { candidateId, decisionId, package: editedPackage() }),
+    ).rejects.toEqual(new NotApprovedError("ContentChanged"));
+    expect([(await withdrawnEvents()).length, await ledger(), withdrawSpan()]).toEqual([
+      1,
+      [],
+      "withdrawn",
+    ]);
+  });
+
+  it("refuses the old decision id afterwards, even for the original package", async () => {
+    const decisionId = await approve();
+    await expect(
+      submitApplication(ports(), { candidateId, decisionId, package: editedPackage() }),
+    ).rejects.toThrow(NotApprovedError);
+    await expect(
+      submitApplication(ports(), { candidateId, decisionId, package: pkg }),
+    ).rejects.toEqual(new NotApprovedError("Withdrawn"));
+  });
+
+  it("submits the edited package under a new approval for the same subject", async () => {
+    const oldDecisionId = await approve();
+    const edited = editedPackage();
+    await expect(
+      submitApplication(ports(), { candidateId, decisionId: oldDecisionId, package: edited }),
+    ).rejects.toThrow(NotApprovedError);
+    const newDecisionId = await approve(false, edited);
+    await setGateClock(db, after(2 * UNDO_WINDOW_MS));
+    const result = await submitApplication(ports(), {
+      candidateId,
+      decisionId: newDecisionId,
+      package: edited,
+    });
+    expect([result.ok && result.value.outcome, await ledger()]).toEqual([
+      "submitted",
+      [{ status: "submitted", reason: null }],
+    ]);
+  });
+
+  it("records UndoWindowOpen on the span and still throws when the edit comes inside the undo window", async () => {
+    const decisionId = await approve(false);
+    await expect(
+      submitApplication(ports(), { candidateId, decisionId, package: editedPackage() }),
+    ).rejects.toEqual(new NotApprovedError("ContentChanged"));
+    expect([withdrawSpan(), (await withdrawnEvents()).length, await ledger()]).toEqual([
+      "UndoWindowOpen",
+      0,
+      [],
+    ]);
+  });
+
+  it("withdraws nothing when only the stored resume bytes changed", async () => {
+    const decisionId = await approve();
+    const result = await submitApplication(
+      dbPorts(db, {
+        readFile: async () => new Uint8Array([1, 2, 3]),
+        openDriver: driver(confirmed),
+      }),
+      { candidateId, decisionId, package: pkg },
+    );
+    expect([result, (await withdrawnEvents()).length]).toEqual([
+      { ok: false, error: { kind: "FileChanged", file: "resume" } },
+      0,
     ]);
   });
 });

@@ -30,6 +30,8 @@ export type FakeWorld = {
   reports: { dependency: string; outcome: CallOutcome; probeToken: string | null }[];
   // The switches and breakers it asked about, in order.
   checks: string[];
+  // Every withdrawal the gateway asked the Gate for (NS-211).
+  withdrawals: { requestId: string; newContentSha256: string }[];
   // A decision id for this package; with a refusal, the Gate refuses it that way.
   approve: (pkg: ApplicationPackage, refusal?: "Rejected" | "Undone" | "UndoWindowOpen") => string;
 };
@@ -45,10 +47,20 @@ export function fakeWorld(script: {
   switchesOff?: string[];
   // The breaker's answer (allowed, no probe, by default); a throw stands for Postgres down.
   breaker?: (dependency: string) => Promise<CallDecision>;
+  // How the Gate refuses a withdrawal (it accepts one by default).
+  withdrawRefusal?: "NotApproved" | "UndoWindowOpen" | "AlreadyClosed";
 }): FakeWorld {
   let status: ApplicationStatus = script.initialStatus ?? "awaiting_approval";
   type GateRefusal = "Rejected" | "Undone" | "UndoWindowOpen";
-  const approvals = new Map<string, { subject: string; hash: string; refusal?: GateRefusal }>();
+  type Approval = {
+    requestId: string;
+    subject: string;
+    hash: string;
+    refusal?: GateRefusal;
+    withdrawn?: boolean;
+  };
+  const approvals = new Map<string, Approval>();
+  const withdrawals: FakeWorld["withdrawals"] = [];
   const submissions: SubmissionView[] = [];
   const proofs: ProofView[] = [];
   const keys = new Map<string, SubmissionView>();
@@ -92,6 +104,7 @@ export function fakeWorld(script: {
       const a = approvals.get(input.decisionId);
       if (!a) return err({ kind: "NotFound" as const });
       if (a.subject !== input.subject) return err({ kind: "SubjectMismatch" as const });
+      if (a.withdrawn) return err({ kind: "Withdrawn" as const });
       if (a.hash !== input.contentSha256) return err({ kind: "ContentChanged" as const });
       if (a.refusal === "UndoWindowOpen") {
         return err({ kind: "UndoWindowOpen" as const, effectiveAt: new Date(0) });
@@ -99,10 +112,29 @@ export function fakeWorld(script: {
       if (a.refusal) return err({ kind: a.refusal });
       return ok({
         decisionId: input.decisionId,
-        requestId: randomUUID(),
+        requestId: a.requestId,
         decidedBy: "user" as const,
         effectiveAt: new Date(0),
       });
+    },
+    requestOfDecision: async (input) => {
+      const a = approvals.get(input.decisionId);
+      return a ? ok({ requestId: a.requestId }) : err({ kind: "NotFound" as const });
+    },
+    // Like the Gate: a gateway withdrawal needs an approval whose content really changed.
+    withdrawApproval: async (input) => {
+      if (input.by !== "gateway") throw new Error("the gateway only withdraws as a gateway");
+      withdrawals.push({ requestId: input.requestId, newContentSha256: input.newContentSha256 });
+      if (script.withdrawRefusal === "UndoWindowOpen") {
+        return err({ kind: "UndoWindowOpen" as const, effectiveAt: new Date(0) });
+      }
+      if (script.withdrawRefusal) return err({ kind: script.withdrawRefusal });
+      const entry = [...approvals.entries()].find(([, a]) => a.requestId === input.requestId);
+      if (!entry) return err({ kind: "NotFound" as const });
+      const [decisionId, a] = entry;
+      if (a.hash === input.newContentSha256) return err({ kind: "ContentUnchanged" as const });
+      a.withdrawn = true;
+      return ok({ withdrawalId: randomUUID(), requestId: input.requestId, decisionId });
     },
     claimSubmission: async (input) => {
       const key = `application:${input.applicationId}:submit`;
@@ -188,9 +220,14 @@ export function fakeWorld(script: {
     driverCalls,
     reports,
     checks,
+    withdrawals,
     approve: (pkg, refusal) => {
       const id = randomUUID();
-      const record = { subject: packageSubject(pkg), hash: packageSha256(pkg) };
+      const record = {
+        requestId: randomUUID(),
+        subject: packageSubject(pkg),
+        hash: packageSha256(pkg),
+      };
       approvals.set(id, refusal ? { ...record, refusal } : record);
       return id;
     },
