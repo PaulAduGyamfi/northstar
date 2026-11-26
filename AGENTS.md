@@ -602,7 +602,11 @@ Exists now:
   named in `POST /vault/reveal/options` (`{ tenantKey }`): an assertion made for one tenant can't
   reveal another. The boundary test scans the whole repository (`.cjs` and `.jsx` too) and fails
   any `apps/api` file other than `vault-reveal.ts`, its test and `bin.ts` that imports
-  `@northstar/gateways`. No page yet.
+  `@northstar/gateways`. Since NS-246 (slice 1) also the page: a "Reveal password" button per
+  tenant on Settings → Accounts (`apps/web`, `src/reveal.ts`, `reveal-button.tsx`) runs the passkey
+  prompt against those routes, shows the password once in that row's component state, and clears
+  it after 30 seconds, on Hide or when Paul leaves the page; never storage, a cookie or the URL.
+  The three database guards from #290 are still to come.
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write

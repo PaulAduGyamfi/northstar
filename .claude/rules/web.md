@@ -39,9 +39,12 @@ are CSS variables in `apps/web/app/globals.css`.
 - Browser calls to the app's own API (`/api/*`) go through `apiFetch` (`src/client-fetch.ts`,
   NS-176): a 15 s limit. A POST that timed out may still have been applied, so its message is
   `TIMED_OUT_MESSAGE` ("may have gone through"), never "nothing was done".
-- Settings → Accounts (NS-198) never shows an account email or password: rows are built field by
-  field (`accountRows`, `noticeRows` in `src/accounts.ts`), and a notice's text is fetched only
-  when Paul asks for it.
+- Settings → Accounts (NS-198) never shows an account email: rows are built field by field
+  (`accountRows`, `noticeRows` in `src/accounts.ts`), and a notice's text is fetched only when
+  Paul asks for it. A password shows only when Paul clicks "Reveal password" (NS-246): a fresh
+  passkey check through `revealPassword` (`src/reveal.ts`, the API's `/vault/reveal` routes), held
+  only in that row's component state, and cleared after `MASK_AFTER_MS` (30 s), on Hide or when he
+  leaves the page (`startMaskTimer`). Never put it in storage, a cookie, the URL or a log.
 - The run inspector (NS-154) fetches a feed line's run (`GET /feed/run`) only when Paul asks, and
   shows it as plain text through `src/run.ts` (`callLine`, `totalsLine`).
 - Pipeline filters (NS-207) live in the URL (`parseFilters`, `filterQuery` in `src/pipeline.ts`)
