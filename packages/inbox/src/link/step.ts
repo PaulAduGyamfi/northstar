@@ -51,7 +51,7 @@ export type LinkStepDeps = {
   }) => Promise<{ recorded: boolean }>;
 };
 
-export type SkipReason = "unstamped" | "verification_window" | "verification";
+export type SkipReason = "spam" | "unstamped" | "verification_window" | "verification";
 
 export type StepResult =
   | { kind: "skipped"; reason: SkipReason }
@@ -61,6 +61,9 @@ export type StepResult =
 // Labels Gmail puts on mail it didn't receive: Paul's own sent mail and drafts. Their headers
 // are whatever their author wrote.
 const UNSTAMPED_LABELS = new Set(["SENT", "DRAFT"]);
+// Gmail delivered these, but its own filter or Paul put them in spam or trash: never linked or
+// queued (#293 item 2), so a spam message can't land in Paul's confirm queue as `no_match`.
+const SPAM_LABELS = new Set(["SPAM", "TRASH"]);
 // Domains whose addresses reach one mailbox however the dots in the local part are written, all
 // read as `canonical`. For Gmail: googlemail.com is gmail.com, and dots don't count.
 export type DotlessDomains = { domains: ReadonlySet<string>; canonical: string };
@@ -151,6 +154,9 @@ export async function linkNewMessage(
 }
 
 async function decideAndRecord(deps: LinkStepDeps, mail: MessageHeaders): Promise<StepResult> {
+  if ((mail.labelIds ?? []).some((l) => SPAM_LABELS.has(l))) {
+    return { kind: "skipped", reason: "spam" };
+  }
   if (!isStampedDelivery(mail, deps.mailbox)) return { kind: "skipped", reason: "unstamped" };
   // The Catcher first (INB-012): mail an open window is waiting for is its own, never linked.
   const windows = await deps.openWindows();

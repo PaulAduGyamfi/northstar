@@ -356,8 +356,18 @@ Exists now:
   Callers pass only mail that passed the INB-002 pre-filter (`isJobMail`), or mail to a known tag.
 
   Its candidates come from `readLinkCandidates` (`packages/db`): open applications and their ATS
-  names. No company domains or tenant keys are stored yet, so the sender step never links. No
-  producer (poller) or gateway use yet (#224).
+  names. No company domains or tenant keys are stored yet, so the sender step never links (where
+  they come from is Paul's call). Since NS-247 (slice 1):
+  - The step skips mail labelled `SPAM` or `TRASH` (`spam`) before it reads anything.
+  - `pollNewMail` (`src/link/poll.ts`) is its producer. It lists received mail after the caller's
+    `since`, less an hour of overlap; the query leaves out sent mail, drafts, spam, trash and
+    chats.
+  - It handles at most 200 messages a run (`MAX_PER_POLL`), oldest first. Only mail that passes
+    `isJobMail`, or goes to one of Paul's known tags, reaches the step.
+  - It reports counts, `truncated` and `nextSince` for the caller's next tick. A failed read stops
+    the run at that message.
+  - The cursor is in memory for now (a stored one needs a migration). No caller runs it on a
+    schedule yet (#230), and no gateway uses it.
   Since NS-164 also `classifyLinkedMail` (`src/triage.ts`, INB-003/012): one linked message to
   its classification by the backfill's rules (verified senders only) or the `mail-classify`
   route, with the provenance check. Verification mail from any sender (a verification subject

@@ -205,6 +205,20 @@ describe("linkNewMessage", () => {
     expect(recorded).toEqual([]);
   });
 
+  it.each([["SPAM"], ["TRASH"]])(
+    "skips tagged mail Gmail filed in %s, reading and recording nothing",
+    async (label) => {
+      let reads = 0;
+      const count = async () => {
+        reads++;
+        return [];
+      };
+      const { deps, recorded } = fakeDeps({ openWindows: count, readTags: count });
+      const result = await linkNewMessage(deps, mail({ labelIds: [label, "UNREAD"] }));
+      expect([result, recorded, reads]).toEqual([{ kind: "skipped", reason: "spam" }, [], 0]);
+    },
+  );
+
   it("reads nothing from the database for mail it skips as unstamped", async () => {
     let reads = 0;
     const count = async () => {
