@@ -42,8 +42,8 @@ export type MessageHeaders = {
   // Gmail's own receive time (internalDate), not the forgeable Date header.
   receivedAt: Date;
   // Gmail's labels on the message (SENT, DRAFT, INBOX, …), set by Gmail, never by the sender.
-  // Absent only where a caller built the headers itself; the mail-link step then skips the
-  // message, since it can't tell whether Gmail delivered it (#224).
+  // Absent when the message has none (Gmail leaves an empty list out), such as mail a filter
+  // archived and marked read. Sent mail and drafts always carry SENT or DRAFT (#224).
   labelIds?: readonly string[];
 };
 
@@ -284,7 +284,8 @@ function headersOf(m: GmailMessage): MessageHeaders {
     deliveredTo: deliveredTo(m),
     authenticationResults: authenticationResults(m),
     receivedAt: new Date(Number(m.internalDate)),
-    // Only strings: anything else in the array is dropped rather than trusted.
+    // Only strings: anything else in the array is dropped rather than trusted. Gmail leaves an
+    // empty list out of its JSON, so a message with no labels has no field here either.
     ...(Array.isArray(m.labelIds)
       ? { labelIds: m.labelIds.filter((l): l is string => typeof l === "string") }
       : {}),

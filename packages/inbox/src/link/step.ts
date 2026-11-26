@@ -8,6 +8,10 @@ import { type LinkCandidate, type MatchResult, matchMail, type TagRow } from "./
 // message is skipped unless Gmail delivered it to Paul's own mailbox. Next, the Verification
 // Catcher's mail is left alone. Then matchMail decides, and its decision is recorded once. No
 // body is ever fetched here, and a link never changes a status (INB-004, P1).
+//
+// Callers pass only mail that passed the INB-002 job-mail pre-filter (`isJobMail`), or mail to a
+// known tag (INB-009: a tagged message always passes it). Anything else stamped and untagged
+// would land in Paul's confirm queue as `no_match`.
 
 // Each ATS's own sender domains, by the ATS names jobs store. They count toward senderVerified
 // only: a shared ATS domain never picks an application by itself (matchMail).
@@ -81,13 +85,13 @@ export function mailboxKey(address: string): string | null {
   return local === "" ? null : `${local}@${domain}`;
 }
 
-// Whether Gmail delivered this message to Paul's mailbox (INB-011). Labels must be known and
-// include neither SENT nor DRAFT, and the top Delivered-To (the one Gmail adds) must be Paul's
-// own address. Inserted or imported mail can't be told apart from its labels; such mail whose
+// Whether Gmail delivered this message to Paul's mailbox (INB-011). Its labels must include
+// neither SENT nor DRAFT (no labels at all is mail a filter archived: Gmail leaves an empty list
+// out, and Sent mail and drafts always carry theirs), and the top Delivered-To (the one Gmail
+// adds) must be Paul's own address. Inserted or imported mail can't be told apart from its labels; such mail whose
 // author wrote Paul's address still passes, and only Paul's own authorized apps can add it.
 export function isStampedDelivery(mail: MessageHeaders, mailbox: string): boolean {
-  if (mail.labelIds === undefined) return false;
-  if (mail.labelIds.some((l) => UNSTAMPED_LABELS.has(l))) return false;
+  if ((mail.labelIds ?? []).some((l) => UNSTAMPED_LABELS.has(l))) return false;
   if (mail.deliveredTo === null) return false;
   const own = mailboxKey(mailbox);
   return own !== null && mailboxKey(mail.deliveredTo) === own;

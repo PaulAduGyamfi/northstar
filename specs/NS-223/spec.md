@@ -11,11 +11,12 @@ This slice adds the step that takes one new job-mail message from "Gmail has it"
 queued for Paul", and the database read it needs. Producers (a poller) and form filling come later.
 
 ## Behavior
-- `linkNewMessage(deps, mail)` in `packages/inbox` (`src/link/loop.ts`), plain code, headers only:
+- `linkNewMessage(deps, mail)` in `packages/inbox` (`src/link/step.ts`), plain code, headers only:
   1. **Unstamped mail is skipped** (#224 item 3, INB-011):
-     - mail whose labels are unknown, or include `SENT` or `DRAFT`;
-     - mail whose top `Delivered-To`, with any `+…` part removed, isn't Paul's own mailbox
-       address (`deps.mailbox`, read once by the caller from Gmail's `users.getProfile`).
+     - mail whose labels include `SENT` or `DRAFT`;
+     - mail whose top `Delivered-To` isn't Paul's own mailbox address, compared with any `+…`
+       part removed and, on gmail.com and googlemail.com, dots dropped and googlemail read as
+       gmail (Gmail delivers all of those to one mailbox); printable ASCII only (`deps.mailbox`, read once by the caller from Gmail's `users.getProfile`).
 
      Nothing is stored for skipped mail.
   2. **The Verification Catcher goes first** (INB-012). Mail that matches an open verification
@@ -50,14 +51,26 @@ queued for Paul", and the database read it needs. Producers (a poller) and form 
   tenant tags narrow to nothing and queue as `unknown_tag`, as `matchMail` already does.
 - **Headers only.** The body is never fetched here. Both cases where the issue allows a body fetch
   (an open window for the sender, or verification-looking headers) are skipped before matching.
-- **Unknown labels fail closed.** A `MessageHeaders` built without `labelIds`, which only fixtures
-  do, counts as unstamped.
+- **No labels means no labels.** Gmail leaves an empty label list out of its JSON, so mail with
+  none (such as mail a filter archived and marked read) has no `labelIds`. The step treats that as
+  delivered mail, since Sent mail and drafts always carry `SENT` or `DRAFT`. `Delivered-To` must
+  still be Paul's own address. (The first draft skipped such mail, a silent drop the reviewer
+  found. Making the client always return `[]` would have changed an existing test's exact
+  assertion, so the step reads a missing list as empty instead.)
+- **Callers pre-filter.** The step doesn't run the INB-002 job-mail pre-filter. Its caller (the
+  future poller) passes only mail that passed `isJobMail`, or mail to a known tag, so personal mail
+  never reaches Paul's confirm queue.
+- **A body-only code isn't caught here.** Mail with a verification code only in its body, a
+  neutral subject and no open window can still be linked by tag. Only Gmail ids are stored, and
+  triage (`classifyLinkedMail`) skips it by its body before anything reads it.
+- **`windowMatches` takes headers only** (`verify/catcher.ts`), so the step can ask it before any
+  body is fetched. It never read the body. This file wasn't in the plan.
 
 ## Acceptance criteria
 - [ ] Tagged mail Gmail delivered to Paul's address links to its application and is recorded once
       (a second run records nothing). This is tested with a fake Gmail message and PGlite.
-- [ ] Sent and draft mail, mail with unknown labels, and mail whose top `Delivered-To` is another
-      mailbox are skipped, and nothing is stored.
+- [ ] Sent and draft mail, and mail whose top `Delivered-To` is another mailbox or missing, are
+      skipped, and nothing is stored. Mail with no labels (archived by a filter) still links.
 - [ ] Mail matching an open verification window, or with a verification subject from any sender
       (an employer's own domain too), is skipped and nothing is stored.
 - [ ] Mail in an already-linked thread links by `thread`. Untagged mail from a new thread queues

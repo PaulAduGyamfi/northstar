@@ -61,6 +61,26 @@ describe("gmail client with a breaker", () => {
     expect(reports).toEqual([]);
   });
 
+  it("reads the profile through the breaker too: nothing is sent while it is open", async () => {
+    const { guard } = guardWith({ allowed: false, retryAt: RETRY_AT, lastError: null });
+    const gmail = fakeGmail([], { emailAddress: "candidate@example.com" });
+    const error = await clientFor(gmail, guard)
+      .profileAddress()
+      .catch((e: unknown) => e);
+    expect(error).toEqual(new HeldBack("breaker", "gmail", RETRY_AT));
+    expect(gmail.requests).toEqual([]);
+  });
+
+  it("reports a profile read's server error that outlasts the retries as Gmail's failure", async () => {
+    const { guard, reports } = guardWith();
+    const gmail = fakeGmail([], {
+      emailAddress: "candidate@example.com",
+      failures: Array.from({ length: 6 }, () => ({ status: 503 })),
+    });
+    await expect(clientFor(gmail, guard).profileAddress()).rejects.toThrow("after 5 retries");
+    expect(reports.map((r) => r.outcome)).toEqual([{ ok: false, error: "GmailError" }]);
+  });
+
   it("reports a server error that outlasts the retries as Gmail's failure", async () => {
     const { guard, reports } = guardWith();
     const gmail = fakeGmail([message], {

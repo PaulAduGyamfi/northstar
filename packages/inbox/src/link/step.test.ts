@@ -103,6 +103,13 @@ describe("linkNewMessage", () => {
     ]);
   });
 
+  it("links tagged mail that has no labels at all, such as mail a filter archived", async () => {
+    const { deps } = fakeDeps();
+    // Gmail leaves an empty label list out of its JSON, so the client gives no field at all.
+    const { labelIds: _none, ...archived } = mail();
+    expect((await linkNewMessage(deps, archived)).kind).toBe("linked");
+  });
+
   it("links mail in a thread already linked to one application", async () => {
     const { deps } = fakeDeps({ readLinkedThreads: async () => new Map([[OTHER, ["t1"]]]) });
     expect(await linkNewMessage(deps, mail({ deliveredTo: MAILBOX }))).toEqual({
@@ -140,16 +147,9 @@ describe("linkNewMessage", () => {
     });
   });
 
-  // Headers with no labels at all, as a caller that built them itself would pass.
-  const unlabelled = (): MessageHeaders => {
-    const { labelIds: _dropped, ...rest } = mail();
-    return rest;
-  };
-
   it.each<[string, () => MessageHeaders]>([
     ["sent mail", () => mail({ labelIds: ["SENT"] })],
     ["a draft", () => mail({ labelIds: ["DRAFT", "INBOX"] })],
-    ["mail with unknown labels", unlabelled],
     ["mail with no Delivered-To", () => mail({ deliveredTo: null })],
     [
       "mail delivered to another mailbox",
