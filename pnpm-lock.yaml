@@ -228,6 +228,18 @@ importers:
         specifier: 2.12.1
         version: 2.12.1(@opentelemetry/api@1.9.1)
 
+  packages/pipeline:
+    dependencies:
+      '@northstar/db':
+        specifier: workspace:*
+        version: link:../db
+      '@northstar/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@northstar/profile':
+        specifier: workspace:*
+        version: link:../profile
+
   packages/profile:
     dependencies:
       '@northstar/db':
