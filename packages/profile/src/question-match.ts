@@ -156,6 +156,7 @@ export function questionConcepts(question: string): Set<string> {
       // one letter and never a name.
       concepts.add(NAME);
     } else if (FILLER.has(word)) {
+      continue;
     } else {
       // Any other word stands for itself, without a plural "s" ("problems" → "problem").
       concepts.add(word.length > 3 && /[^s]s$/.test(word) ? word.slice(0, -1) : word);
