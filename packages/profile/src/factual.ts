@@ -116,14 +116,22 @@ export type FactualAnswer =
 // Words a yes/no question starts with ("Are you…", "Do you…", "Have you…").
 const YES_NO_START =
   /^(are|is|do|does|did|will|would|have|has|had|can|could|should|shall|may|were|was)\b/i;
-// A choice between named options ("remote, hybrid or on-site") is not a yes/no question.
-const CHOICE = /\bor\b/i;
+// The arrangements a choice question names ("remote, hybrid or on-site").
+const ARRANGEMENT_WORDS = [/\bremote\b/i, /\bhybrid\b/i, /\bon[\s-]?site\b|\bin[\s-]office\b/i];
+// A question listing things ("Canada and the United States", "Go, Rust", "Go/Rust").
+const LIST = /\band\b|\bor\b|[,/&+;]/i;
 
 // Whole-word, case-insensitive: "Go" is in "with Go?" but not in "Google", "C" not in "C++".
-function names(question: string, qualifier: string): boolean {
+const nameRegex = (qualifier: string, flags: string) => {
   const escaped = qualifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}+#])`, "iu").test(question);
+  return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}+#])`, flags);
+};
+function names(question: string, qualifier: string): boolean {
+  return nameRegex(qualifier, "iu").test(question);
 }
+// The question with the qualifier's text taken out ("Smith & Jones" is one company, not a list).
+const removeName = (question: string, qualifier: string) =>
+  question.replace(nameRegex(qualifier, "giu"), " ");
 
 const ARRANGEMENT_LABEL: Record<string, string> = {
   remote: "Remote",
@@ -142,7 +150,10 @@ function render(field: FactualField, question: string, value: string): string | 
   }
   // "Do you have 5+ years of Go?" or "Are you comfortable on-site?" asks yes/no of a value Paul
   // stored as a number or a word: answering would mean deciding for him.
-  if (startsYesNo && !CHOICE.test(text)) return null;
+  // Only a choice naming two or more arrangements is not yes/no; "5 or more years?" still is.
+  const choice =
+    field === "work_arrangement" && ARRANGEMENT_WORDS.filter((w) => w.test(text)).length >= 2;
+  if (startsYesNo && !choice) return null;
   if (field === "work_arrangement") return ARRANGEMENT_LABEL[value] ?? null;
   return value;
 }
@@ -162,6 +173,10 @@ export function answerFactual(question: string, settings: readonly Setting[]): F
     const distinct = new Set(named.map((s) => s.qualifier.toLowerCase()));
     if (distinct.size !== 1) return { status: "unanswered", reason: "no_qualifier", canonical };
     setting = named[named.length - 1];
+    // "Canada and the United States", "Go and Kubernetes": the stored value covers only one of
+    // them, so answering would claim the rest. The qualifier's own text is taken out first.
+    if (setting && LIST.test(removeName(question, setting.qualifier)))
+      return { status: "unanswered", reason: "no_qualifier", canonical };
   } else {
     setting = forField[forField.length - 1];
   }

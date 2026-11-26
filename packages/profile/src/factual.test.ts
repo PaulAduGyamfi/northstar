@@ -121,6 +121,38 @@ describe("answerFactual", () => {
     expect(a.status === "unanswered" && a.reason).toBe("no_qualifier");
   });
 
+  it("does not answer authorization for a stored country listed with another", () => {
+    const a = answerFactual(
+      "Are you legally authorized to work in Canada and the United States?",
+      settings,
+    );
+    expect(a.status === "unanswered" && a.reason).toBe("no_qualifier");
+  });
+
+  it("does not answer years for a stored skill listed with an unstored one", () => {
+    const a = answerFactual("How many years of experience do you have with Go and Kubernetes?", [
+      s("years_of_experience", "6", "Go"),
+    ]);
+    expect(a.status === "unanswered" && a.reason).toBe("no_qualifier");
+  });
+
+  it("answers for a stored qualifier whose own name holds a separator", () => {
+    const a = answerFactual("Have you previously been employed by Smith & Jones?", [
+      s("previously_employed", "no", "Smith & Jones"),
+    ]);
+    expect(a.status === "answered" && a.answer).toBe("No");
+  });
+
+  it("never gives a number to a yes/no question with an 'or' in it", () => {
+    const a = answerFactual("Have you worked with Go for 5 or more years?", settings);
+    expect(a.status === "unanswered" && a.reason).toBe("no_qualifier");
+  });
+
+  it("calls a yes/no question over a number of years a form mismatch", () => {
+    const a = answerFactual("Do you have more than 5 years of experience with Go?", settings);
+    expect(a.status === "unanswered" && a.reason).toBe("form_mismatch");
+  });
+
   it("calls a narrative question not factual", () => {
     const a = answerFactual("Tell us about yourself.", settings);
     expect(a).toEqual({ status: "unanswered", reason: "not_factual", canonical: null });

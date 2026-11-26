@@ -101,7 +101,9 @@ export async function answerCommand(deps: SettingsDeps, question: string): Promi
   }
   const s = result.setting;
   deps.print(result.answer);
-  deps.print(`Matched: ${result.canonical.text} (confidence ${result.confidence})`);
+  // Two decimals, as the recorded event has it.
+  const confidence = Math.round(result.confidence * 100) / 100;
+  deps.print(`Matched: ${result.canonical.text} (confidence ${confidence})`);
   deps.print(`From: ${s.qualifier ? `${s.field} (${s.qualifier})` : s.field}`);
   deps.print("Check it before it goes on a form.");
   if (isField(s.field))
