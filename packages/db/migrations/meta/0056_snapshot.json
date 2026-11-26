@@ -1,5 +1,5 @@
 {
-  "id": "e68cfdd9-7e27-4293-a269-bd9e30781358",
+  "id": "af921b44-05bf-46c4-8694-8c5d7ac70624",
   "prevId": "580e6ed2-f6e1-4fae-9f23-df76e49e70c3",
   "version": "7",
   "dialect": "postgresql",
@@ -4789,7 +4789,24 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "vault_access_reveal_once": {
+          "name": "vault_access_reveal_once",
+          "columns": [
+            {
+              "expression": "decision_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"vault_access\".\"purpose\" = 'reveal_to_user'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "vault_access_candidate_id_candidate_id_fk": {
           "name": "vault_access_candidate_id_candidate_id_fk",

@@ -19,34 +19,36 @@ the key in the API, and the page) is a follow-up issue.
 
 ## Behavior
 1. **packages/domain:** `vault_reveal` joins `APPROVAL_KINDS`. It is never auto-approvable.
-   `revealContentSha256(tenantKey)` is the content hash a reveal request must carry.
-2. **packages/db** (one migration):
+   `revealContentSha256(tenantKey)` is the content hash a reveal request carries.
+2. **packages/db** (migrations 0056, generated, and 0057, the trigger):
    - The kind CHECK allows `vault_reveal`.
-   - The decision trigger makes a `vault_reveal` decision take effect at once (no undo window:
-     a reveal has nothing to cancel), and refuses a policy decision on it (already true: only
-     application packages).
-   - `openSealedSecret` accepts actor `user` with purpose `reveal_to_user`, and only that pair.
-     For that purpose the decision must be Paul's approval of a `vault_reveal` request whose
-     content hash is `revealContentSha256(tenantKey)`, and it must not have opened anything
-     before (single use). Any other decision, or a reuse, is `NotApproved`. The access is audited
-     in `vault_access` and `vault.opened` like any other.
-   - Agents can't use a reveal approval for their own purposes: a `vault_reveal` decision opens
-     nothing under any other purpose.
-3. **packages/gateways:** `revealTenantPassword(ports, masterKey, { candidateId, tenantKey,
-   decisionId })`, exported, returns a `VaultSecret` through `useTenantPassword` with actor `user`
-   and purpose `reveal_to_user`. `open.ts` stays private, and the boundary test stays green.
-4. **ADR-0024** records 1a, 2a, the zero undo window, the binding and single use.
+   - The `vault_access` actor CHECK pairs `user` with `reveal_to_user` only.
+   - A unique index lets a reveal decision open once.
+   - The decision trigger makes a `vault_reveal` decision take effect at once (no undo window).
+   - `revealSealedSecret(db, { candidateId, tenantKey })`, in one transaction:
+     - the vault must be unlocked and the tenant must have a secret;
+     - it files a `vault_reveal` as `system` and records Paul's approval;
+     - it records one access by `user` for `reveal_to_user`, with `vault.opened`.
+     The decision id never leaves it.
+   - `requestApproval` refuses `vault_reveal`, the Queue never lists one, and `decideApprovals`
+     answers `NotFound`. `openSealedSecret` refuses actor `user`, purpose `reveal_to_user` and
+     any reveal decision.
+3. **packages/gateways:** `revealTenantPassword(ports, masterKey, { candidateId, tenantKey })`
+   and `dbRevealPorts(db)`, exported. `open.ts` stays private. The boundary test allows only the
+   vault's own files to name the reveal path.
+4. **ADR-0024** records all of this.
 
 ## Acceptance criteria
-- [ ] A `vault_reveal` approval by Paul takes effect at once; other kinds still wait 2 minutes.
-- [ ] A reveal opens the tenant's password once and writes one `vault_access` row; a second
-      reveal under the same decision is `NotApproved`.
-- [ ] A reveal decision for another tenant, an application approval, a rejected or withdrawn
-      reveal, and a locked vault are refused.
-- [ ] A reveal decision can't open the vault for an agent's purpose, and actor `user` can't use
-      any purpose but `reveal_to_user`.
-- [ ] `@northstar/gateways` exports `revealTenantPassword`, still no decrypt function, and the
-      boundary test is green.
+- [ ] A reveal is filed by `system`, approved by Paul, effective at once, and names its tenant;
+      an application approval still waits 2 minutes.
+- [ ] Each reveal writes one `vault_access` row and one `vault.opened` under its own decision.
+- [ ] A locked vault or a tenant with no secret is refused, and nothing is filed.
+- [ ] No one can request a `vault_reveal` through the Gate; the Queue never shows one, can't
+      decide it, and it can't be undone.
+- [ ] `openSealedSecret` opens nothing under a reveal decision, and refuses Paul's actor and the
+      reveal purpose; the database refuses a second reveal access and a mismatched pair.
+- [ ] `@northstar/gateways` decrypts through `revealTenantPassword`, exports no other opening,
+      and the boundary test is green, including its new reveal check.
 - [ ] `pnpm turbo run lint typecheck test build --force` exits 0, and `checks` is green.
 
 ## Failure modes
@@ -66,8 +68,10 @@ the password once and masks it again.
 - **No undo window for `vault_reveal`:** the undo window exists to cancel something before it goes
   out; a reveal has nothing to cancel, and a 2-minute wait would defeat the 60-second passkey
   check. Recorded in ADR-0024 (amends ADR-0017 for this kind only).
-- **Binding and single use:** a reveal decision names its tenant through its content hash and
-  opens at most once, so one passkey check reveals one password once.
-- **Schema change:** one migration (the kind CHECK and the decision trigger).
+- **One transaction for a reveal:** the security review found that a queue-filed reveal plus a
+  caller-supplied decision id let an agent's request become a reveal. Now nothing outside
+  `revealSealedSecret` makes or uses one.
+- **Schema change:** migration 0056 (the kind and actor CHECKs, the reveal-once index) and 0057
+  (the decision trigger).
 - **Split into two slices:** the API and page need the passkey flow and key loading, which are
   reviewed better on their own.

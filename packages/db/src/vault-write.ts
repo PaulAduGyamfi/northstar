@@ -1,12 +1,5 @@
 import { randomUUID } from "node:crypto";
-import {
-  type CandidateId,
-  err,
-  ok,
-  parseDomainEvent,
-  type Result,
-  revealContentSha256,
-} from "@northstar/domain";
+import { type CandidateId, err, ok, parseDomainEvent, type Result } from "@northstar/domain";
 import { isSpanContextValid, type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
@@ -15,6 +8,7 @@ import {
   approvalUndo,
   approvalWithdrawal,
 } from "./approval-schema.js";
+import { approveRevealWithin } from "./approval-write.js";
 import type { Db } from "./db.js";
 import { currentState } from "./kill-switch-write.js";
 import { domainEvent } from "./schema.js";
@@ -169,7 +163,7 @@ export async function storeSealedSecret(
 export type OpenInput = {
   candidateId: CandidateId;
   tenantKey: string;
-  // `agent:<name>`: the code asking; or `user` for Paul's own reveal (purpose `reveal_to_user`).
+  // `agent:<name>`: the code asking. Paul's own reveal is revealSealedSecret, not this.
   actor: string;
   // A fixed code such as `sign_in` or `create_account`.
   purpose: string;
@@ -213,17 +207,11 @@ async function liveApproval(
   return row !== undefined;
 }
 
-// Does this decision authorize this opening? An agent's purpose needs any live approval but a
-// reveal's; a reveal needs Paul's approval of a `vault_reveal` request for this very tenant that
-// has opened nothing before (ADR-0024: one passkey check, one tenant, one use). Runs after
-// liveApproval, which holds the decision's row lock, so two reveals can't both pass.
-async function fitsPurpose(tx: Tx, input: OpenInput): Promise<boolean> {
+// A reveal approval (ADR-0024) never opens anything here: revealSealedSecret uses its own,
+// inside the transaction that made it. Runs after liveApproval, which holds the row lock.
+async function isRevealDecision(tx: Tx, input: OpenInput): Promise<boolean> {
   const [row] = await tx
-    .select({
-      kind: approvalRequest.kind,
-      contentSha256: approvalRequest.contentSha256,
-      decidedBy: approvalDecision.decidedBy,
-    })
+    .select({ kind: approvalRequest.kind })
     .from(approvalDecision)
     .innerJoin(approvalRequest, eq(approvalRequest.id, approvalDecision.requestId))
     .where(
@@ -232,32 +220,72 @@ async function fitsPurpose(tx: Tx, input: OpenInput): Promise<boolean> {
         eq(approvalDecision.candidateId, input.candidateId),
       ),
     );
-  if (!row) return false;
-  const isReveal = input.purpose === REVEAL_PURPOSE;
-  // A reveal approval never opens anything for an agent, and an agent's approval never reveals.
-  if ((row.kind === "vault_reveal") !== isReveal) return false;
-  if (!isReveal) return true;
-  if (row.decidedBy !== "user") return false;
-  if (row.contentSha256 !== revealContentSha256(input.tenantKey)) return false;
-  const [used] = await tx
-    .select({ id: vaultAccess.id })
-    .from(vaultAccess)
-    .where(
-      and(
-        eq(vaultAccess.candidateId, input.candidateId),
-        eq(vaultAccess.decisionId, input.decisionId),
-      ),
-    )
-    .limit(1);
-  return used === undefined;
+  return row?.kind === "vault_reveal";
 }
 
-// Who may ask for which purpose: an agent for its own fixed codes, Paul only to reveal.
-function validActorPurpose(input: OpenInput): string | null {
-  if (!PURPOSE.test(input.purpose)) return "purpose";
-  if (input.actor === REVEAL_ACTOR) return input.purpose === REVEAL_PURPOSE ? null : "purpose";
-  if (!ACTOR.test(input.actor)) return "actor";
-  return input.purpose === REVEAL_PURPOSE ? "actor" : null;
+// The newest sealed version of a tenant's secret, or none.
+async function newestSecret(tx: Tx, candidateId: CandidateId, tenantKey: string) {
+  const [row] = await tx
+    .select()
+    .from(vaultSecret)
+    .where(and(eq(vaultSecret.candidateId, candidateId), eq(vaultSecret.tenantKey, tenantKey)))
+    .orderBy(desc(vaultSecret.version))
+    .limit(1);
+  return row;
+}
+
+// Records one access and its event, then hands out the sealed bytes (CRD-003).
+async function recordAccess(
+  tx: Tx,
+  span: Span,
+  input: OpenInput,
+  row: typeof vaultSecret.$inferSelect,
+): Promise<SealedVersion> {
+  const [access] = await tx
+    .insert(vaultAccess)
+    .values({
+      candidateId: input.candidateId,
+      secretId: row.id,
+      actor: input.actor,
+      purpose: input.purpose,
+      decisionId: input.decisionId,
+    })
+    .returning({ id: vaultAccess.id });
+  if (!access) throw new Error("vault_access insert returned no row");
+  await appendEvent(tx, span, {
+    candidateId: input.candidateId,
+    secretId: row.id,
+    type: "vault.opened",
+    actor: input.actor,
+    payload: {
+      tenant: row.tenantKey,
+      version: row.version,
+      purpose: input.purpose,
+      decisionId: input.decisionId,
+    },
+    idempotencyKey: `vault_access:${access.id}`,
+  });
+  return {
+    secretId: row.id,
+    tenantKey: row.tenantKey,
+    version: row.version,
+    masterKeyId: row.masterKeyId,
+    wrappedKeyIv: new Uint8Array(row.wrappedKeyIv),
+    wrappedKey: new Uint8Array(row.wrappedKey),
+    wrappedKeyTag: new Uint8Array(row.wrappedKeyTag),
+    iv: new Uint8Array(row.iv),
+    ciphertext: new Uint8Array(row.ciphertext),
+    tag: new Uint8Array(row.tag),
+  };
+}
+
+// Shares the lock setKillSwitch takes to flip `vault`, so a lock that commits first is seen here,
+// and one that comes later waits for this open to finish. True while the vault is unlocked.
+async function vaultOpen(tx: Tx, candidateId: CandidateId): Promise<boolean> {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock_shared(hashtext(${`kill_switch:${candidateId}:${VAULT_SUBSYSTEM}`}))`,
+  );
+  return currentState(tx, candidateId, VAULT_SUBSYSTEM);
 }
 
 // Hands out the newest sealed version of a tenant's secret for decryption in the Apply Gateway,
@@ -270,73 +298,68 @@ export async function openSealedSecret(
   if (!TENANT_KEY.test(input.tenantKey)) {
     return err({ kind: "InvalidVaultInput", field: "tenantKey" });
   }
-  const bad = validActorPurpose(input);
-  if (bad !== null) return err({ kind: "InvalidVaultInput", field: bad });
+  // Agents only: Paul's reveal goes through revealSealedSecret (ADR-0024).
+  if (!ACTOR.test(input.actor)) return err({ kind: "InvalidVaultInput", field: "actor" });
+  if (!PURPOSE.test(input.purpose) || input.purpose === REVEAL_PURPOSE) {
+    return err({ kind: "InvalidVaultInput", field: "purpose" });
+  }
   return inSpan(
     "db.vault.open",
     input.tenantKey,
     (span): Promise<Result<SealedVersion, VaultLocked | SecretNotFound | NotApproved>> =>
       db.transaction(async (tx) => {
-        // Shares the lock setKillSwitch takes to flip `vault`, so a lock that commits first is
-        // seen here, and one that comes later waits for this open to finish.
-        await tx.execute(
-          sql`select pg_advisory_xact_lock_shared(hashtext(${`kill_switch:${input.candidateId}:${VAULT_SUBSYSTEM}`}))`,
-        );
-        if (!(await currentState(tx, input.candidateId, VAULT_SUBSYSTEM))) {
+        if (!(await vaultOpen(tx, input.candidateId))) {
           return err({ kind: "VaultLocked" as const });
         }
         if (!(await liveApproval(tx, input.candidateId, input.decisionId))) {
           return err({ kind: "NotApproved" as const });
         }
-        if (!(await fitsPurpose(tx, input))) return err({ kind: "NotApproved" as const });
-        const [row] = await tx
-          .select()
-          .from(vaultSecret)
-          .where(
-            and(
-              eq(vaultSecret.candidateId, input.candidateId),
-              eq(vaultSecret.tenantKey, input.tenantKey),
-            ),
-          )
-          .orderBy(desc(vaultSecret.version))
-          .limit(1);
+        if (await isRevealDecision(tx, input)) return err({ kind: "NotApproved" as const });
+        const row = await newestSecret(tx, input.candidateId, input.tenantKey);
         if (!row) return err({ kind: "SecretNotFound" as const });
-        const [access] = await tx
-          .insert(vaultAccess)
-          .values({
-            candidateId: input.candidateId,
-            secretId: row.id,
-            actor: input.actor,
-            purpose: input.purpose,
-            decisionId: input.decisionId,
-          })
-          .returning({ id: vaultAccess.id });
-        if (!access) throw new Error("vault_access insert returned no row");
-        await appendEvent(tx, span, {
-          candidateId: input.candidateId,
-          secretId: row.id,
-          type: "vault.opened",
-          actor: input.actor,
-          payload: {
-            tenant: row.tenantKey,
-            version: row.version,
-            purpose: input.purpose,
-            decisionId: input.decisionId,
-          },
-          idempotencyKey: `vault_access:${access.id}`,
-        });
-        return ok({
-          secretId: row.id,
-          tenantKey: row.tenantKey,
-          version: row.version,
-          masterKeyId: row.masterKeyId,
-          wrappedKeyIv: new Uint8Array(row.wrappedKeyIv),
-          wrappedKey: new Uint8Array(row.wrappedKey),
-          wrappedKeyTag: new Uint8Array(row.wrappedKeyTag),
-          iv: new Uint8Array(row.iv),
-          ciphertext: new Uint8Array(row.ciphertext),
-          tag: new Uint8Array(row.tag),
-        });
+        return ok(await recordAccess(tx, span, input, row));
+      }),
+  );
+}
+
+// Paul reveals one of his own passwords (NS-182, CRD-002, ADR-0024). In one transaction: the
+// vault must be unlocked and the tenant must have a secret; then a `vault_reveal` is filed by
+// `system`, approved by Paul (effective at once) and used for this one access, audited like any
+// other. The decision id never leaves this function, so no caller can reuse or swap one in. The
+// only caller is packages/gateways' revealTenantPassword, behind the API's fresh passkey check
+// (slice 2); a boundary test keeps it that way.
+export async function revealSealedSecret(
+  db: Db,
+  input: { candidateId: CandidateId; tenantKey: string },
+): Promise<Result<SealedVersion, InvalidVaultInput | VaultLocked | SecretNotFound>> {
+  if (!TENANT_KEY.test(input.tenantKey)) {
+    return err({ kind: "InvalidVaultInput", field: "tenantKey" });
+  }
+  return inSpan(
+    "db.vault.reveal",
+    input.tenantKey,
+    (span): Promise<Result<SealedVersion, VaultLocked | SecretNotFound>> =>
+      db.transaction(async (tx) => {
+        if (!(await vaultOpen(tx, input.candidateId))) {
+          return err({ kind: "VaultLocked" as const });
+        }
+        const row = await newestSecret(tx, input.candidateId, input.tenantKey);
+        if (!row) return err({ kind: "SecretNotFound" as const });
+        const decisionId = await approveRevealWithin(tx, span, input.candidateId, input.tenantKey);
+        return ok(
+          await recordAccess(
+            tx,
+            span,
+            {
+              candidateId: input.candidateId,
+              tenantKey: input.tenantKey,
+              actor: REVEAL_ACTOR,
+              purpose: REVEAL_PURPOSE,
+              decisionId,
+            },
+            row,
+          ),
+        );
       }),
   );
 }

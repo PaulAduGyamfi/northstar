@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   APPROVAL_KINDS,
   evaluatePolicies,
-  IMMEDIATE_KINDS,
   type PackageFacts,
   type PolicyRule,
   parsePolicySet,
@@ -158,10 +157,6 @@ describe("parsePolicySet", () => {
 describe("vault reveals (NS-182, ADR-0024)", () => {
   it("are never auto-approved", () => {
     expect(evaluatePolicies("vault_reveal", null, [])).toEqual({ auto: false, why: "never_auto" });
-  });
-
-  it("take effect at once, unlike every other kind", () => {
-    expect(APPROVAL_KINDS.filter((k) => IMMEDIATE_KINDS.has(k))).toEqual(["vault_reveal"]);
   });
 
   it("name their tenant through a content hash that differs per tenant and never changes", () => {

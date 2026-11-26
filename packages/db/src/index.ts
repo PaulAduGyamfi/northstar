@@ -385,6 +385,7 @@ export {
   openSealedSecret,
   REVEAL_ACTOR,
   REVEAL_PURPOSE,
+  revealSealedSecret,
   type SealedSecret,
   type SealedVersion,
   type SecretNotFound,

@@ -135,11 +135,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `vault` kill switch and that the decision is a live approval, and records the access, in the
   same transaction before handing a row out. Only `vaultAccess` is exported; sealed rows never
   leave `vault-write.ts`.
-  Since NS-182 (ADR-0024) a `vault_reveal` decision takes effect at once (migration 0057's
-  trigger), and `openSealedSecret` with actor `user` and purpose `reveal_to_user` (the only pair a
-  CHECK allows for `user`) needs Paul's approval of a `vault_reveal` request whose content hash is
-  `revealContentSha256(tenantKey)`, unused in `vault_access`. A reveal approval opens nothing for
-  an agent's purpose.
+  Since NS-182 (ADR-0024) Paul's reveal is `revealSealedSecret` only: one transaction that
+  files a `vault_reveal` (by `system`), approves it for Paul (effective at once, migration 0057)
+  and records one access by `user` for `reveal_to_user`. Never request, list or decide a
+  `vault_reveal` anywhere else; `openSealedSecret` refuses that actor, purpose and kind, and the
+  database pairs `user` with `reveal_to_user` only and lets a reveal decision open once.
 - The positioning thesis (NS-127, stored since NS-155) is `positioning_thesis` and
   `positioning_thesis_atom`, append-only (a trigger), each version citing at least one atom (a
   deferred trigger), written only through `thesis-write.ts`, which also requires the atoms to be

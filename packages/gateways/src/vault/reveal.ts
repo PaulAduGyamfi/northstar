@@ -1,24 +1,46 @@
-import { REVEAL_ACTOR, REVEAL_PURPOSE } from "@northstar/db";
+import {
+  type Db,
+  type InvalidVaultInput,
+  revealSealedSecret,
+  type SealedVersion,
+  type SecretNotFound,
+  type VaultLocked,
+} from "@northstar/db";
 import type { CandidateId, Result } from "@northstar/domain";
 import type { MasterKey } from "./key.js";
-import { type OpenError, type OpenPorts, useTenantPassword } from "./open.js";
+import { openSecret, type VaultKeyMismatch, type VaultTampered } from "./open.js";
 import type { VaultSecret } from "./secret.js";
 
 // Revealing one of Paul's vault passwords to him (NS-182, CRD-002, ADR-0024). The one opening
-// this package exports, and it can do only this: the actor is always `user` and the purpose
-// always `reveal_to_user`, so the database lets it open only under Paul's `vault_reveal`
-// approval for this tenant, once. The caller (the API, after a fresh passkey check) passes the
-// decision id; the decrypt itself stays in open.ts, which nothing outside this package imports.
+// this package exports. The database files, approves and uses a one-time `vault_reveal` for this
+// tenant in one transaction (revealSealedSecret), so no decision id passes through any caller.
+// Its only caller is the API, after a WebAuthn assertion made within 60 seconds (slice 2); the
+// boundary test fails if anything else names it. The decrypt stays in open.ts.
+
+export type RevealPorts = {
+  revealSealedSecret: (
+    input: Parameters<typeof revealSealedSecret>[1],
+  ) => Promise<Result<SealedVersion, InvalidVaultInput | VaultLocked | SecretNotFound>>;
+};
+
+export type RevealError =
+  | InvalidVaultInput
+  | VaultLocked
+  | SecretNotFound
+  | VaultKeyMismatch
+  | VaultTampered;
+
 export async function revealTenantPassword(
-  ports: OpenPorts,
+  ports: RevealPorts,
   masterKey: MasterKey,
-  input: { candidateId: CandidateId; tenantKey: string; decisionId: string },
-): Promise<Result<VaultSecret, OpenError>> {
-  return useTenantPassword(ports, masterKey, {
-    candidateId: input.candidateId,
-    tenantKey: input.tenantKey,
-    actor: REVEAL_ACTOR,
-    purpose: REVEAL_PURPOSE,
-    decisionId: input.decisionId,
-  });
+  input: { candidateId: CandidateId; tenantKey: string },
+): Promise<Result<VaultSecret, RevealError>> {
+  const sealed = await ports.revealSealedSecret(input);
+  if (!sealed.ok) return sealed;
+  return openSecret(masterKey, input.candidateId, sealed.value);
+}
+
+// The reveal's port on the real write path.
+export function dbRevealPorts(db: Db): RevealPorts {
+  return { revealSealedSecret: (input) => revealSealedSecret(db, input) };
 }

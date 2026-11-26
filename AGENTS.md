@@ -388,11 +388,12 @@ Exists now:
   never exported; a boundary test fails if anything outside `packages/gateways/src` imports it.
   Secrets come back as `VaultSecret`, which prints `[redacted]`. No caller yet (NS-124), and no
   password-manager mirror yet (CRD-004, Q-16).
-  Since NS-182 (slice 1, ADR-0024, Proposed) also Paul's own reveal: a `vault_reveal` approval
-  kind that takes effect at once (no undo window), names one tenant by its content hash
-  (`revealContentSha256`) and opens once; `openSealedSecret` lets actor `user` use only purpose
-  `reveal_to_user` and only under such an approval; `revealTenantPassword` is the one opening
-  `@northstar/gateways` exports. No API route or page yet (slice 2).
+  Since NS-182 (slice 1, ADR-0024, Proposed) also Paul's own reveal: `revealSealedSecret`
+  (`packages/db`) files a `vault_reveal` approval (effective at once, naming the tenant by
+  `revealContentSha256`), approves it for Paul and uses it once, in one transaction; the Gate
+  refuses that kind everywhere else. `revealTenantPassword` is the one opening
+  `@northstar/gateways` exports, and the boundary test allows only the vault's files to name it.
+  No API route or page yet (slice 2).
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write
