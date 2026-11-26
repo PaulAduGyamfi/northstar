@@ -644,8 +644,11 @@ Exists now:
   `confirmedBy`, and a model's pick always counts as `new` for the Gate, never `bank_exact` or
   `bank_high_confidence`. The negation check runs on the normalized label (curly quotes, NFKC).
   `filePackage` files the package with the Gate (`requestApproval`, actor `system`, key
-  `package:<packageId>`); it never submits. No caller, form questions from the ATS or stored
-  resume files yet.
+  `package:<packageId>`); it never submits. Since NS-227 (slice 4) also `formQuestions`
+  (`form.ts`): a stored Greenhouse form as `FormQuestion`s. The standard contact, resume and cover
+  letter fields (and their paste-in alternatives) and hidden fields are not questions; it flags a
+  required cover letter or phone, and lists a required upload it can't fill as `unsupported`.
+  Choices are the option labels. No caller yet (slice 5).
 - `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
   (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
   decision as an `approval` signal (or `withdrawn`), then runs the `submitApplication` activity
