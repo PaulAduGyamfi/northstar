@@ -194,7 +194,9 @@ async function findReplay(tx: Tx, event: DomainEvent): Promise<TransitionResult 
   const sameMove =
     row.aggregate === event.aggregate &&
     row.type === event.type &&
-    row.payload.from === event.payload.from;
+    row.payload.from === event.payload.from &&
+    // A repeat must say the same about how it went out (INB-007).
+    row.payload.submittedVia === event.payload.submittedVia;
   if (!sameMove) {
     throw new Rollback({ kind: "IdempotencyKeyReused", idempotencyKey: event.idempotencyKey });
   }

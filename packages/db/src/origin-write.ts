@@ -15,6 +15,9 @@ import {
 import { and, eq, inArray, like } from "drizzle-orm";
 import type { Db } from "./db.js";
 import { appendEvent, inSpan } from "./resilience-event.js";
+
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
 import { application, domainEvent, job } from "./schema.js";
 
 // Application origin (NS-188, INB-007) and the credit report (INB-010). Origin is stored in
@@ -22,40 +25,82 @@ import { application, domainEvent, job } from "./schema.js";
 // `submittedVia` in the move to `submitted` (transitionApplication). Email matching writes neither.
 
 export type JobNotFound = { kind: "JobNotFound" };
+// The key already names another event (or this one for another job): nothing is created.
+export type IdempotencyKeyReused = { kind: "IdempotencyKeyReused" };
+// Applications start in the pipeline (INB-007 b: `submitted_via` is written with the move to
+// `submitted`), except one Paul sent outside Northstar, which starts at `submitted` by hand.
+export type InvalidStart = { kind: "InvalidStart" };
+
+const ENTRY_STATUSES: readonly ApplicationStatus[] = [
+  "discovered",
+  "scored",
+  "queued",
+  "package_ready",
+  "awaiting_approval",
+];
+
+const UNIQUE_VIOLATION = "23505";
+const codeOf = (error: unknown): unknown =>
+  (error as { code?: unknown }).code ?? (error as { cause?: { code?: unknown } }).cause?.code;
+
+type CreateInput = {
+  candidateId: CandidateId;
+  jobId: string;
+  status: ApplicationStatus;
+  startedBy: StartedBy;
+  // Only with status `submitted`, and only `by_hand`.
+  submittedVia?: SubmittedVia;
+  idempotencyKey: string;
+};
+type Created = { applicationId: string; replayed: boolean };
+type CreateError = JobNotFound | IdempotencyKeyReused | InvalidStart;
+
+// The application an earlier call with this key created, if the key names exactly that.
+async function replayOf(
+  tx: Tx | Db,
+  input: CreateInput,
+): Promise<Result<Created, IdempotencyKeyReused> | null> {
+  const [before] = await tx
+    .select({
+      aggregate: domainEvent.aggregate,
+      type: domainEvent.type,
+      payload: domainEvent.payload,
+    })
+    .from(domainEvent)
+    .where(
+      and(
+        eq(domainEvent.candidateId, input.candidateId),
+        eq(domainEvent.idempotencyKey, input.idempotencyKey),
+      ),
+    );
+  if (!before) return null;
+  const same =
+    before.type === "application.created" &&
+    before.aggregate.startsWith("application:") &&
+    before.payload.jobId === input.jobId;
+  if (!same) return err({ kind: "IdempotencyKeyReused" });
+  return ok({ applicationId: before.aggregate.slice("application:".length), replayed: true });
+}
 
 // Creates an application with its first event and who started it, in one transaction. Repeating
 // the same idempotency key hands back the first application and writes nothing.
 export async function createApplication(
   db: Db,
-  input: {
-    candidateId: CandidateId;
-    jobId: string;
-    status: ApplicationStatus;
-    startedBy: StartedBy;
-    idempotencyKey: string;
-  },
-): Promise<Result<{ applicationId: string; replayed: boolean }, JobNotFound>> {
+  input: CreateInput,
+): Promise<Result<Created, CreateError>> {
+  // Checked at run time too: these values become the origin forever (ADR-0012).
+  if (!isStartedBy(input.startedBy)) return err({ kind: "InvalidStart" });
+  const byHand = input.status === "submitted" && input.submittedVia === "by_hand";
+  const entry = ENTRY_STATUSES.includes(input.status) && input.submittedVia === undefined;
+  if (!byHand && !entry) return err({ kind: "InvalidStart" });
   return inSpan(
     "db.application.create",
     { "northstar.origin.started_by": input.startedBy },
-    (span) =>
-      db.transaction(
-        async (tx): Promise<Result<{ applicationId: string; replayed: boolean }, JobNotFound>> => {
-          const [before] = await tx
-            .select({ aggregate: domainEvent.aggregate })
-            .from(domainEvent)
-            .where(
-              and(
-                eq(domainEvent.candidateId, input.candidateId),
-                eq(domainEvent.idempotencyKey, input.idempotencyKey),
-              ),
-            );
-          if (before) {
-            return ok({
-              applicationId: before.aggregate.replace(/^application:/, ""),
-              replayed: true,
-            });
-          }
+    async (span) => {
+      try {
+        return await db.transaction(async (tx): Promise<Result<Created, CreateError>> => {
+          const replay = await replayOf(tx, input);
+          if (replay) return replay;
           const [owned] = await tx
             .select({ id: job.id })
             .from(job)
@@ -72,13 +117,26 @@ export async function createApplication(
             type: "application.created",
             actor: "system",
             reason: "",
-            payload: { to: input.status, startedBy: input.startedBy },
+            payload: {
+              to: input.status,
+              jobId: input.jobId,
+              startedBy: input.startedBy,
+              ...(byHand ? { submittedVia: "by_hand" } : {}),
+            },
             idempotencyKey: input.idempotencyKey,
             at: row.createdAt,
           });
           return ok({ applicationId: row.id, replayed: false });
-        },
-      ),
+        });
+      } catch (error) {
+        // Two calls racing with one key: the loser's event hits the unique key; hand back the
+        // winner's application, as transitionApplication does.
+        if (codeOf(error) !== UNIQUE_VIOLATION) throw error;
+        const replay = await replayOf(db, input);
+        if (replay) return replay;
+        throw error;
+      }
+    },
   );
 }
 
@@ -102,7 +160,9 @@ function foldOrigin(rows: readonly OriginRow[]): Origin {
     if (r.type === "application.created" && isStartedBy(r.payload.startedBy)) {
       startedBy = r.payload.startedBy;
     }
-    if (r.type === "application.submitted" && isSubmittedVia(r.payload.submittedVia)) {
+    // Created already submitted (Paul applied outside Northstar), or moved there.
+    const carries = r.type === "application.created" || r.type === "application.submitted";
+    if (carries && isSubmittedVia(r.payload.submittedVia)) {
       submittedVia = r.payload.submittedVia;
     }
   }
@@ -180,7 +240,10 @@ export async function readCreditReport(db: Db, candidateId: CandidateId): Promis
     const counts = report[originBucket(origin.startedBy, origin.submittedVia)];
     const reached = (type: string) => events.some((e) => e.type === type);
     counts.applications += 1;
-    if (reached("application.submitted")) counts.submitted += 1;
+    const createdSubmitted = events.some(
+      (e) => e.type === "application.created" && e.payload.to === "submitted",
+    );
+    if (reached("application.submitted") || createdSubmitted) counts.submitted += 1;
     if (reached("application.in_process")) counts.inProcess += 1;
     if (reached("application.offer")) counts.offer += 1;
   }

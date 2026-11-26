@@ -80,7 +80,12 @@ describe("createApplication", () => {
     const events = await db.select().from(domainEvent);
     expect([row?.status, events.map((e) => [e.type, e.payload])]).toEqual([
       "awaiting_approval",
-      [["application.created", { to: "awaiting_approval", startedBy: "northstar" }]],
+      [
+        [
+          "application.created",
+          { to: "awaiting_approval", jobId: row?.jobId, startedBy: "northstar" },
+        ],
+      ],
     ]);
   });
 
@@ -96,11 +101,82 @@ describe("createApplication", () => {
     const first = await createApplication(db, input);
     const second = await createApplication(db, input);
     const apps = await db.select().from(application);
+    const createdEvents = (await db.select().from(domainEvent)).filter(
+      (e) => e.type === "application.created",
+    );
     expect([
       first.ok && second.ok && first.value.applicationId === second.value.applicationId,
       second.ok && second.value.replayed,
       apps.length,
-    ]).toEqual([true, true, 2]);
+      createdEvents.length,
+    ]).toEqual([true, true, 2, 1]);
+  });
+});
+
+describe("createApplication's guards", () => {
+  it("refuses a key another event already used, instead of handing back its id", async () => {
+    const id = await created("northstar", "create:taken");
+    await walk(id, "approved", []);
+    const reused = await createApplication(db, {
+      candidateId,
+      jobId: await newJob(),
+      status: "awaiting_approval",
+      startedBy: "northstar",
+      idempotencyKey: `${id}:submitted`,
+    });
+    expect(reused.ok ? "created" : reused.error.kind).toBe("IdempotencyKeyReused");
+  });
+
+  it("refuses the same key for another job", async () => {
+    await created("northstar", "create:job");
+    const other = await createApplication(db, {
+      candidateId,
+      jobId: await newJob(),
+      status: "awaiting_approval",
+      startedBy: "northstar",
+      idempotencyKey: "create:job",
+    });
+    expect(other.ok ? "created" : other.error.kind).toBe("IdempotencyKeyReused");
+  });
+
+  it("refuses to start an application past submitted, or at submitted unless Paul sent it by hand", async () => {
+    const attempt = async (status: "in_process" | "submitted", submittedVia?: "by_hand" | "auto") =>
+      createApplication(db, {
+        candidateId,
+        jobId: await newJob(),
+        status: status as never,
+        startedBy: "outside",
+        idempotencyKey: `create:${status}:${submittedVia}`,
+        ...(submittedVia ? { submittedVia: submittedVia as never } : {}),
+      });
+    const results = [
+      await attempt("in_process"),
+      await attempt("submitted"),
+      await attempt("submitted", "auto"),
+    ];
+    expect(results.map((r) => (r.ok ? "created" : r.error.kind))).toEqual([
+      "InvalidStart",
+      "InvalidStart",
+      "InvalidStart",
+    ]);
+  });
+
+  it("records an application Paul sent outside Northstar as submitted by hand", async () => {
+    const result = await createApplication(db, {
+      candidateId,
+      jobId: await newJob(),
+      status: "submitted",
+      startedBy: "outside",
+      submittedVia: "by_hand",
+      idempotencyKey: "create:outside",
+    });
+    if (!result.ok) throw new Error(result.error.kind);
+    const id = ApplicationId.parse(result.value.applicationId);
+    const report = await readCreditReport(db, candidateId);
+    expect([await readOrigin(db, candidateId, id), report.outside.submitted]).toEqual([
+      { startedBy: "outside", submittedVia: "by_hand" },
+      1,
+    ]);
   });
 });
 
