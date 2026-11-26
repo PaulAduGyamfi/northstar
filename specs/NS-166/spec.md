@@ -30,9 +30,10 @@ nothing to Gmail.
    - his evidence: approved stories and atoms, chosen by `selectEvidence` over the email's words;
    - whether times are allowed.
 
-   It uses no tools. Its prompt is `packages/prompts/prompts/reply-draft/v2.md`, which lists the
-   framing vocabulary, and a test checks that the list matches the code's. `v1` used a
-   blocklist; it was replaced before it shipped and is never loaded. Each sentence
+   It uses no tools. Its prompt is `packages/prompts/prompts/reply-draft/v3.md`, which lists the
+   framing sentences, and a test checks that the list matches the code's. `v1` (a blocklist) and
+   `v2` (a word list) were replaced before they shipped, after the security reviews. They stay
+   locked, because committed versions are never edited, and are never loaded. Each sentence
    of the output is one of two kinds:
    - a **claim**, which cites evidence items with verbatim quotes;
    - **framing** ("Thanks for reaching out."), which cites nothing.
@@ -40,14 +41,28 @@ nothing to Gmail.
    - Claims are checked by the answer-draft rules (`validateAnswerDraft`): verbatim whole-word
      quotes of at least two words, numbers from the sentence's own quotes, and names from the
      items it cites.
-   - A claim may not add a commitment word (accept, decline, agree, sign, relocate, salary,
-     pay, sponsorship, visa, clearance, offer, contract, notice, available, start, …) that its
-     own quotes don't hold.
-   - Framing is a closed set. Every word must be in `FRAMING_WORDS`, a fixed vocabulary of
-     greetings, thanks and next steps with no "yes", "no" or "accept", or else be the sender's
-     first name, which code parses from the From header (`greetingName`). Framing is at most 25
-     words a sentence and 3 sentences a draft. So framing can't state a fact, figure, time,
-     name, link or commitment, whatever the email says.
+   - A claim may not add, outside its own quotes:
+     - a commitment word, matched by its start so inflections and joins count (accept, decline,
+       agree, sign, relocate, salary, pay, paid, sponsor, visa, clearance, offer, contract,
+       notice, withdraw, available, start, consent, join, resign, begin, immediate, onsite,
+       remote, and yes, no, ok, okay, sure, deal, confirm);
+     - a time word;
+     - a link or address;
+     - a symbol;
+     - a letter outside the Latin script.
+   - No sentence may hold an invisible character.
+   - **Framing is a fixed set of whole sentences** (`framingSentences`):
+     - a greeting (`Hi {name},`, `Hi,` …);
+     - a thank-you;
+     - a greeting with a thank-you;
+     - a next step or sign-off (`I'll send my availability shortly.`, `I'll get back to you
+       soon.`, `I'd be glad to talk more.`, `Thanks again.`, `Best regards,`).
+
+     `{name}` is the sender's first name, which code parses from the From header
+     (`greetingName`). It must be one capitalised word of letters only, and never a word that
+     answers or commits ("Yes", "Accept"), because the sender chooses it. There are at most 3
+     framing sentences. So framing can't state a fact, figure, time, name or link, and can't say
+     yes, whatever the email says.
    - A draft needs at least one sentence. Failures name the sentence and the problem, never the
      text.
 4. **`draftReply(deps, request)`** (`reply/draft.ts`). It mirrors `draftAnswer`:
@@ -71,12 +86,12 @@ nothing to Gmail.
 ## Acceptance criteria
 - [ ] `replyNeed` maps all nine kinds as above, and an unknown kind to `none` (unit tests).
 - [ ] The validator:
-  - passes a draft whose claims are cited and whose framing is in the vocabulary;
-  - fails a claim with an invented number, name or commitment word;
-  - fails framing that holds a number, a time, any name but the sender's, a link or a commitment
-    (the security review's five injected sentences);
+  - passes a draft whose claims are cited and whose framing is allowed;
+  - fails a claim with an invented number, name, commitment word, time, link, symbol or
+    lookalike letter, and any sentence with an invisible character;
+  - fails framing that isn't an allowed sentence, including allowed words that say yes;
+  - fails a greeting with a sender name that answers or commits;
   - fails a fourth framing sentence;
-  - fails a framing sentence over 25 words;
   - names failures without text.
 - [ ] `draftReply`:
   - is off by default;
@@ -97,7 +112,7 @@ nothing to Gmail.
   tools. The validator rejects:
   - any claim not cited from Paul's evidence;
   - any claim that adds a commitment word;
-  - any framing word outside the fixed vocabulary.
+  - any framing sentence outside the fixed set.
 
 ## Observability
 The gateway's `llm.call` span and `CallRecord`. There is no domain event yet: no caller stores a
@@ -110,12 +125,14 @@ draft (a later slice files it with the Gate).
 - **Scheduling slots (RPL-003).** They wait for NS-169.
 - **Follow-up nudges after silence (RPL-004).** They come in the next slice.
 - Thank-you notes (RPL-005).
+- **RPL-001's application context and answer bank.** The draft uses only Paul's stories, his atoms
+  and his voice for now.
 
 ## Known gaps
-- **Framing can still sound willing.** For example, "I'd be glad to talk more" replying to "can
-  you start Monday?". It can't name a date, term or fact, and Paul approves every draft.
-- **Claims can add lowercase words their quotes lack.** The answer-draft rules check only
-  numbers, capitalised names and (here) commitment words.
+- **`I'd be glad to talk more.` can still sound willing**, for example in reply to "can you start
+  Monday?". It names no date, term or fact, and Paul approves every draft.
+- **Claims can add lowercase words their quotes lack** that aren't on the lists, such as a
+  synonym like "come aboard". The lists catch the plain terms, and Paul approves every draft.
 - **The email's wording chooses which evidence the drafter sees** (`selectEvidence`). The
   approval view (RPL-002) should say which stories a draft uses.
 - **`followUps` are model text shaped by the email.** They are shown to Paul only, as questions
@@ -125,4 +142,7 @@ draft (a later slice files it with the Gate).
 - **Placement in `packages/profile`.** The draft rests on Paul's stories and atoms, and the
   answer-draft checks live there. `packages/inbox` isn't a dependency of it.
 - **Framing sentences** are allowed, unlike in answers, because a reply needs a greeting. They
-  are bounded by the plain-code rules above.
+  are a fixed set of whole sentences, after two security reviews showed that a blocklist and
+  then a word list let an email make framing say yes.
+- **Prompt versions 1 and 2 stay in the lock, unused.** Committed prompt versions are never
+  edited, so the fixes went into `v3`.

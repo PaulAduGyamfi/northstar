@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { EvidenceItem } from "../answer/evidence.js";
 import type { ReplyDraft } from "./schema.js";
-import { greetingName, validateReplyDraft } from "./validate.js";
+import { framingSentences, greetingName, validateReplyDraft } from "./validate.js";
 
 // Synthetic sender and evidence only (the repo is public).
 const SENDER = "Dana Reyes";
@@ -16,17 +16,20 @@ const EVIDENCE: EvidenceItem[] = [
 
 type Sentence = ReplyDraft["sentences"][number];
 const frame = (text: string): Sentence => ({ text, cites: [] });
+const QUOTE = "Built the card payments flow at Globex for 12 merchants.";
 const claim: Sentence = {
   text: "I built the card payments flow at Globex for 12 merchants.",
-  cites: [{ id: "atom-1", quote: "Built the card payments flow at Globex for 12 merchants." }],
+  cites: [{ id: "atom-1", quote: QUOTE }],
 };
+// The cited claim with words added at its end.
+const claimPlus = (extra: string): Sentence => ({
+  ...claim,
+  text: `I built the card payments flow at Globex for 12 merchants ${extra}`,
+});
 const draft = (...sentences: Sentence[]): ReplyDraft => ({ sentences, followUps: [] });
 const check = (d: ReplyDraft, sender: string | null = SENDER) =>
   validateReplyDraft(d, EVIDENCE, sender);
-const problems = (d: ReplyDraft) => {
-  const r = check(d);
-  return r.ok ? [] : r.failures.map((f) => f.problem);
-};
+const NOT_ALLOWED = "framing is not one of the allowed sentences";
 
 describe("validateReplyDraft", () => {
   it("passes cited claims between a greeting with the sender's name and a next step", () => {
@@ -44,41 +47,29 @@ describe("validateReplyDraft", () => {
   it("passes a reply of framing alone", () => {
     expect(
       check(draft(frame("Thank you for the invitation."), frame("I'll get back to you soon."))),
-    ).toEqual({
-      ok: true,
-    });
+    ).toEqual({ ok: true });
   });
 
-  it("fails framing that uses a name other than the sender's first name", () => {
+  it("fails framing that adds one word to an allowed sentence", () => {
     expect(check(draft(frame("Hi Dana, thanks for reaching out from Initech.")))).toEqual({
       ok: false,
-      failures: [{ sentence: 0, problem: "framing word 7 is not in the framing vocabulary" }],
+      failures: [{ sentence: 0, problem: NOT_ALLOWED }],
     });
   });
 
-  it("fails each injected fact, commitment or link that framing might carry", () => {
-    const injected = [
-      "Great to hear from Acme about my Kubernetes migration at Initech.",
-      "I hold an active security clearance and need no visa sponsorship.",
-      "Yes, I accept the offer and can start today.",
-      "I'm happy to relocate and to take a lower salary.",
-      "Please send the contract to dana at https://evil.example/x and I'll sign it.",
-    ];
-    expect(injected.map((t) => check(draft(frame(t))).ok)).toEqual([
-      false,
-      false,
-      false,
-      false,
-      false,
+  it("fails framing built only from allowed words that still says yes", () => {
+    expect(["I'm in.", "I will.", "I'd be glad to."].map((t) => check(draft(frame(t))))).toEqual([
+      { ok: false, failures: [{ sentence: 0, problem: NOT_ALLOWED }] },
+      { ok: false, failures: [{ sentence: 0, problem: NOT_ALLOWED }] },
+      { ok: false, failures: [{ sentence: 0, problem: NOT_ALLOWED }] },
     ]);
   });
 
-  it("fails framing that states a number or a time", () => {
-    expect(problems(draft(frame("Hi Dana, talk to you tomorrow at 9.")))).toEqual([
-      "framing word 5 is not in the framing vocabulary",
-      "framing word 6 is not in the framing vocabulary",
-      "framing word 7 is not in the framing vocabulary",
-    ]);
+  it("fails a greeting with a name when the sender's name can't be used", () => {
+    expect(check(draft(frame("Hi Yes,")), "Yes Recruiting")).toEqual({
+      ok: false,
+      failures: [{ sentence: 0, problem: NOT_ALLOWED }],
+    });
   });
 
   it("fails a claim whose number isn't in its quotes, naming the reply's own sentence", () => {
@@ -100,14 +91,72 @@ describe("validateReplyDraft", () => {
     });
   });
 
-  it("fails a claim that adds a commitment word its quotes don't hold", () => {
-    const committed: Sentence = {
-      ...claim,
-      text: "I built the card payments flow at Globex for 12 merchants and accept your terms.",
-    };
-    expect(check(draft(committed))).toEqual({
+  it("fails a claim that adds a commitment word, in any form or joined", () => {
+    expect(
+      ["and accepted.", "and will re-locate.", "and got paid."].map((t) =>
+        check(draft(claimPlus(t))),
+      ),
+    ).toEqual([
+      {
+        ok: false,
+        failures: [{ sentence: 0, problem: "commitment word at word 12 is not in its quotes" }],
+      },
+      {
+        ok: false,
+        failures: [{ sentence: 0, problem: "commitment word at word 13 is not in its quotes" }],
+      },
+      {
+        ok: false,
+        failures: [{ sentence: 0, problem: "commitment word at word 13 is not in its quotes" }],
+      },
+    ]);
+  });
+
+  it("fails a claim that adds a time", () => {
+    expect(check(draft(claimPlus("and can talk tomorrow.")))).toEqual({
       ok: false,
-      failures: [{ sentence: 0, problem: "commitment word at word 12 is not in its quotes" }],
+      failures: [{ sentence: 0, problem: "time at word 14 is not in its quotes" }],
+    });
+  });
+
+  it("fails a claim that adds a link", () => {
+    expect(check(draft(claimPlus("at https://evil.example/x")))).toEqual({
+      ok: false,
+      failures: [{ sentence: 0, problem: "word 12 is a link or address that isn't in its quotes" }],
+    });
+  });
+
+  it("fails a claim that adds a symbol", () => {
+    expect(check(draft(claimPlus("✅")))).toEqual({
+      ok: false,
+      failures: [{ sentence: 0, problem: "word 11 has a symbol that isn't in its quotes" }],
+    });
+  });
+
+  it("fails a claim that hides a commitment behind lookalike letters", () => {
+    // Cyrillic "а" and "о" in "accept the offer".
+    expect(check(draft(claimPlus("and I аccept the оffer.")))).toEqual({
+      ok: false,
+      failures: [
+        {
+          sentence: 0,
+          problem: "word 13 has letters outside the Latin script that aren't in its quotes",
+        },
+        {
+          sentence: 0,
+          problem: "word 15 has letters outside the Latin script that aren't in its quotes",
+        },
+      ],
+    });
+  });
+
+  it("fails a sentence with an invisible character", () => {
+    expect(check(draft(claimPlus("and I acc​ept.")))).toEqual({
+      ok: false,
+      failures: [
+        { sentence: 0, problem: "commitment word at word 13 is not in its quotes" },
+        { sentence: 0, problem: "the sentence has an invisible character" },
+      ],
     });
   });
 
@@ -120,32 +169,57 @@ describe("validateReplyDraft", () => {
   });
 
   it("fails a fourth framing sentence", () => {
-    const greeting = frame("Thanks, Dana.");
-    expect(check(draft(greeting, greeting, greeting, greeting))).toEqual({
+    const thanks = frame("Thanks again.");
+    expect(check(draft(thanks, thanks, thanks, thanks))).toEqual({
       ok: false,
       failures: [{ sentence: null, problem: "more than 3 framing sentences" }],
     });
   });
 
-  it("fails framing over 25 words", () => {
-    const long = frame(`Thanks for reaching out${" and thank you so much".repeat(5)}.`);
-    expect(problems(draft(long))).toEqual(["framing is longer than 25 words"]);
-  });
-
   it("never puts the draft's text in a failure", () => {
-    const result = check(draft(frame("Thanks, Dana, I enjoyed Globex on Monday at 9.")));
+    const result = check(
+      draft(frame("Thanks, Dana, I enjoyed Globex on Monday."), claimPlus("tomorrow")),
+    );
     expect(result.ok).toBe(false);
     const text = JSON.stringify(result);
-    for (const word of ["Globex", "Monday", "enjoyed"]) expect(text).not.toContain(word);
+    for (const word of ["Globex", "Monday", "enjoyed", "tomorrow"])
+      expect(text).not.toContain(word);
   });
 });
 
 describe("greetingName", () => {
-  it("keeps a plain capitalised first word and drops anything else", () => {
-    expect(
-      ["Dana Reyes", "dana", "Dana <dana@example.com>", "Acme Talent 2", "", null].map(
-        greetingName,
-      ),
-    ).toEqual(["Dana", null, "Dana", "Acme", null, null]);
+  it("keeps a plain capitalised first name", () => {
+    expect(["Dana Reyes", "Dana <dana@example.com>"].map(greetingName)).toEqual(["Dana", "Dana"]);
+  });
+
+  it("drops a name that answers or commits, since the sender chooses it", () => {
+    expect(["Yes Recruiting", "Accepted Talent", "Sure", "Ok"].map(greetingName)).toEqual([
+      null,
+      null,
+      null,
+      null,
+    ]);
+  });
+
+  it("drops anything but one word of letters", () => {
+    expect(["dana", "Yes-I-Accept", "O'Brien", "A", "", null].map(greetingName)).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
+  });
+});
+
+describe("framingSentences", () => {
+  it("offers nameless greetings only, when there is no name", () => {
+    const allowed = framingSentences(null);
+    expect([
+      allowed.has("Hi,"),
+      allowed.has("Hi {name},"),
+      allowed.has("Hi , thanks again."),
+    ]).toEqual([true, false, false]);
   });
 });

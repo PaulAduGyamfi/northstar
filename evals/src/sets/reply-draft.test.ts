@@ -33,7 +33,7 @@ describe("gradeReplyDraft", () => {
 
   it("fails a reply holding a word the case forbids", () => {
     const output = {
-      sentences: [greeting, { text: "I'd be glad to talk.", cites: [] }],
+      sentences: [greeting, { text: "I'd be glad to talk more.", cites: [] }],
       followUps: [],
     };
     const expected = { citesAnyOf: [], followUps: false, absent: ["glad"] };

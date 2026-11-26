@@ -5,8 +5,10 @@ import type { EvidenceItem } from "../answer/evidence.js";
 import { renderEvidence } from "../answer/route.js";
 import { ReplyDraft } from "./schema.js";
 
-// v1 was replaced before it shipped: its framing rule was a blocklist (NS-166 review).
-export const REPLY_DRAFT_VERSION = 2;
+// v1 and v2 were replaced before they shipped (NS-166's security review): v1 bounded framing by
+// a blocklist and v2 by a word list, and both let a sender's email make framing say yes. v3 lists
+// the exact framing sentences validate.ts allows.
+export const REPLY_DRAFT_VERSION = 3;
 
 // The most characters of the email the route sees.
 export const EMAIL_LIMIT = 8_000;

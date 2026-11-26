@@ -1,15 +1,15 @@
 {
-  "requestSha256": "06cf28a9f0a1c944742b291d1909901bc0020e4ad0af124b90ee88a7b4deeb5d",
+  "requestSha256": "098158d0b727f5d944ba3e54b3fcc8c1a2f365df57c527eedc777fe1a0a6129c",
   "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval reply-draft --record.",
   "response": {
-    "id": "msg_handwritten_4",
+    "id": "msg_handwritten_1",
     "type": "message",
     "role": "assistant",
     "model": "claude-opus-5-5",
     "content": [
       {
         "type": "text",
-        "text": "{\"sentences\":[{\"text\":\"Hi Dana, thanks for the note.\",\"cites\":[]},{\"text\":\"I'll get back to you soon.\",\"cites\":[]}],\"followUps\":[\"What salary range would you like to share with Initech, if any?\"]}",
+        "text": "{\"sentences\":[{\"text\":\"Hello, thank you for the next step.\",\"cites\":[]},{\"text\":\"I'll get back to you soon.\",\"cites\":[]}],\"followUps\":[]}",
         "citations": null
       }
     ],

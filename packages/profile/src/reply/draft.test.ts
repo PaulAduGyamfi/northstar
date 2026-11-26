@@ -18,7 +18,7 @@ const UNRELATED: EvidenceItem = { id: "atom-9", kind: "atom", text: "Wrote the o
 const record: CallRecord = {
   route: "reply-draft",
   promptId: "reply-draft",
-  promptVersion: 1,
+  promptVersion: 3,
   modelRequested: "claude-opus-5-5",
   modelServed: "claude-opus-5-5",
   effort: "medium",

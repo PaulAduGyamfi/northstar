@@ -1,5 +1,5 @@
 {
-  "requestSha256": "4c9f19fdb5ee5e4f746c9b709a4e430e4820dc022e4d31b80f72e811b2539af9",
+  "requestSha256": "a402c0a3abb272a948cb725d87c82f38e4ec2ddedda8820d7ce23cc79a920daf",
   "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval reply-draft --record.",
   "response": {
     "id": "msg_handwritten_3",
