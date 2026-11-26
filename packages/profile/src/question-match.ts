@@ -86,7 +86,7 @@ const CONCEPTS: Record<string, readonly string[]> = {
 };
 
 // Words that flip a yes/no question's answer.
-const NEGATION = /\b(?:without|not|no|never)\b|n't\b/i;
+export const NEGATION = /\b(?:without|not|no|never)\b|n't\b/i;
 
 // "us" after these verbs is the reader of the form ("Tell us about…"), not the company ("Why us?").
 const ADDRESS_VERBS = new Set(["tell", "give", "show", "send", "let"]);
@@ -175,7 +175,15 @@ const WORDINGS: ReadonlyArray<{ question: CanonicalQuestion; concepts: Set<strin
   );
 
 export type QuestionMatch =
-  | { status: "matched"; canonical: CanonicalQuestion; confidence: number }
+  | {
+      status: "matched";
+      canonical: CanonicalQuestion;
+      confidence: number;
+      // Set only by confirmQuestion (NS-137) when the model, not code, chose the canonical
+      // question. Such a match is never reuse for the Gate's policy (bank_exact or
+      // bank_high_confidence): its confidence is the lexical score of a question code had left new.
+      confirmedBy?: "model";
+    }
   | {
       status: "new";
       reason: "empty" | "below_threshold" | "ambiguous" | "negated";
@@ -186,17 +194,28 @@ export type QuestionMatch =
 // Two decimals, so a confidence shows as 0.86 rather than 0.857142…
 const round = (n: number) => Math.round(n * 100) / 100;
 
-// Maps a form question to a canonical question with a confidence score (ANS-002).
-export function matchQuestion(question: string): QuestionMatch {
+// Every canonical question with its best score over its wordings, highest first (ties keep the
+// catalog's order). Empty when the question has no concepts.
+export function rankCanonical(
+  question: string,
+): Array<{ canonical: CanonicalQuestion; score: number }> {
   const concepts = questionConcepts(question);
-  if (concepts.size === 0) return { status: "new", reason: "empty", confidence: 0, nearest: null };
-  // Each canonical question's best score over its wordings.
+  if (concepts.size === 0) return [];
   const best = new Map<CanonicalQuestion, number>();
   for (const w of WORDINGS) {
     const score = dice(concepts, w.concepts);
     if (score > (best.get(w.question) ?? -1)) best.set(w.question, score);
   }
-  const ranked = [...best.entries()].sort((a, b) => b[1] - a[1]);
+  return [...best.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([canonical, score]) => ({ canonical, score }));
+}
+
+// Maps a form question to a canonical question with a confidence score (ANS-002).
+export function matchQuestion(question: string): QuestionMatch {
+  const scored = rankCanonical(question);
+  if (scored.length === 0) return { status: "new", reason: "empty", confidence: 0, nearest: null };
+  const ranked = scored.map((r) => [r.canonical, r.score] as const);
   const [top, runnerUp] = ranked;
   if (top === undefined || top[1] === 0) {
     return { status: "new", reason: "below_threshold", confidence: 0, nearest: null };
