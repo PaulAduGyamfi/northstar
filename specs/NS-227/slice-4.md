@@ -1,6 +1,6 @@
 # NS-227 (slice 4): A stored form, as the questions a package answers
 
-Status: in progress
+Status: built
 Requirements: APPLY-001 (assemble the package from the form), APPLY-006 (what code can't fill
 goes to Paul)
 Rules that apply: ADR-0016, `.claude/rules/gateways.md`, `.claude/rules/tests.md`. Parent: #112,
@@ -33,11 +33,11 @@ questions at all: the adapter fills the standard ones from the contact and the f
 2. Export it from `packages/pipeline`; the AGENTS.md note.
 
 ## Acceptance criteria
-- [ ] Standard fields, hidden fields and optional uploads give no question.
-- [ ] A required cover letter and a required phone are flagged.
-- [ ] A required unknown upload is `unsupported`.
-- [ ] Text and selects become questions with labels as choices.
-- [ ] `pnpm turbo run lint typecheck test build` passes.
+- [x] Standard fields, hidden fields and optional uploads give no question.
+- [x] A required cover letter and a required phone are flagged.
+- [x] A required unknown upload is `unsupported`.
+- [x] Text and selects become questions with labels as choices.
+- [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Out of scope (rest of #235)
 - The caller (slice 5): reading the inputs, `formSeenBefore`, choosing `packageId`, filing, the
