@@ -198,6 +198,11 @@ Exists now:
   codes, or several links) to a pick before it becomes `needs_human`; `modelPick` backs it with the
   `verification-extract` route, which only returns the index of a candidate plain code found
   (never a code or link), and a chosen link still passes `checkLink`. Off by default.
+  Since NS-148 also `pollWindow` (`src/verify/poll.ts`): while a window is open it lists the
+  window's sender domains since it opened every 5 s (read-only, in-memory token; no Gmail push,
+  decided on #89), offers only new messages to the catcher (10 a tick) and stops on `verified`,
+  `needs_human` or the window's end (`timed_out`, then `catcher.timeout`). A failed tick, or an
+  open `gmail` breaker, just waits for the next. No caller yet (the gateway session, NS-151).
   Since NS-150 also `isVerificationMail` (headers) and `hasVerificationCode` (body), which the
   funnel backfill uses to drop ATS verification mail before it is classified, sent to the model
   or stored (VER-005).
