@@ -47,3 +47,5 @@ are CSS variables in `apps/web/app/globals.css`.
 - Pipeline filters (NS-207) live in the URL (`parseFilters`, `filterQuery` in `src/pipeline.ts`)
   and are applied by the API, never only in the browser. Today's counts (`src/today.ts`) come from
   the same lists their pages show; one that can't be read says so, never 0.
+- Pipeline metrics (NS-208, `/pipeline/metrics`, `src/metrics.ts`): every rate shows its count,
+  and one with too few data points reads "not enough data yet", never a percentage (DX-003).

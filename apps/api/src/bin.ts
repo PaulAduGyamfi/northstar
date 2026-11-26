@@ -11,6 +11,7 @@ import {
   listPasskeys,
   listTenants,
   loadDbConfig,
+  readApplicationHistories,
   readApplicationTimeline,
   readConsentPolicy,
   readConsentText,
@@ -35,6 +36,7 @@ import {
   setKillSwitch,
   soleCandidate,
 } from "@northstar/db";
+import { pipelineMetrics } from "@northstar/domain";
 import {
   type CallGuard,
   createAnthropicClient,
@@ -193,6 +195,8 @@ try {
   const pipeline = pipelineEndpoints({
     list: async (filter) => listApplications(db, await candidateId(), filter),
     timeline: async (id) => readApplicationTimeline(db, await candidateId(), id),
+    // The funnel and breakdowns (NS-208): plain code over the status histories.
+    metrics: async () => pipelineMetrics(await readApplicationHistories(db, await candidateId())),
   });
   // One set of sessions for the sign-in key and passkeys, so both open the same kind of session
   // and their failures count toward one throttle (ADR-0022).
