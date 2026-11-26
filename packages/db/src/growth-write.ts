@@ -4,6 +4,7 @@ import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import type { Db } from "./db.js";
 import {
   growthCheckIn,
+  growthMilestone,
   growthPlan,
   growthReview,
   growthSettings,
@@ -28,6 +29,10 @@ export type GrowthTrackInput = {
   target: string | null;
   untouchedDays: number;
   next: { title: string; minutes: number } | null;
+  // GRW-001/002 (NS-232); each only when Paul's file gives it.
+  goal?: string;
+  doneWhen?: string;
+  milestones?: { title: string; doneOn: string | null }[];
 };
 
 export type GrowthTrackView = GrowthTrackInput & { lastTouchedAt: Date | null };
@@ -54,6 +59,15 @@ const sha256 = (tracks: readonly GrowthTrackInput[]) =>
           t.untouchedDays,
           t.next?.title ?? null,
           t.next?.minutes ?? null,
+          // Only when given: a file without them hashes as it did before NS-232, so it isn't
+          // stored again as a new version.
+          ...(t.goal !== undefined || t.doneWhen !== undefined || t.milestones?.length
+            ? [
+                t.goal ?? null,
+                t.doneWhen ?? null,
+                (t.milestones ?? []).map((m) => [m.title, m.doneOn]),
+              ]
+            : []),
         ]),
       ),
     )
@@ -67,6 +81,13 @@ async function guarded<T>(name: string, fn: () => Promise<T>): Promise<T> {
   } catch {
     throw new Error(`${name} failed`);
   }
+}
+
+// The stored row id of the track at a file position; the insert returns one per track.
+function trackIdAt(ids: Map<number, string>, position: number): string {
+  const id = ids.get(position);
+  if (id === undefined) throw new Error("growth_track insert returned no row for a position");
+  return id;
 }
 
 // Stores Paul's tracks file as the next version; the same tracks as the newest store nothing.
@@ -98,22 +119,38 @@ export async function setGrowthTracks(
           .returning({ id: growthTrackSet.id, createdAt: growthTrackSet.createdAt });
         if (!set) throw new Error("growth_track_set insert returned no row");
         if (input.tracks.length > 0) {
-          await tx.insert(growthTrack).values(
-            input.tracks.map((t, position) => ({
+          const rows = await tx
+            .insert(growthTrack)
+            .values(
+              input.tracks.map((t, position) => ({
+                candidateId: input.candidateId,
+                setId: set.id,
+                position,
+                key: t.key,
+                name: t.name,
+                type: t.type,
+                status: t.status,
+                priority: t.priority,
+                targetDate: t.target,
+                untouchedDays: t.untouchedDays,
+                nextTitle: t.next?.title ?? null,
+                nextMinutes: t.next?.minutes ?? null,
+                goal: t.goal ?? null,
+                doneWhen: t.doneWhen ?? null,
+              })),
+            )
+            .returning({ id: growthTrack.id, position: growthTrack.position });
+          const idAt = new Map(rows.map((r) => [r.position, r.id]));
+          const milestones = input.tracks.flatMap((t, position) =>
+            (t.milestones ?? []).map((m, i) => ({
               candidateId: input.candidateId,
-              setId: set.id,
-              position,
-              key: t.key,
-              name: t.name,
-              type: t.type,
-              status: t.status,
-              priority: t.priority,
-              targetDate: t.target,
-              untouchedDays: t.untouchedDays,
-              nextTitle: t.next?.title ?? null,
-              nextMinutes: t.next?.minutes ?? null,
+              trackId: trackIdAt(idAt, position),
+              position: i,
+              title: m.title,
+              doneOn: m.doneOn,
             })),
           );
+          if (milestones.length > 0) await tx.insert(growthMilestone).values(milestones);
         }
         const active = input.tracks.filter((t) => t.status === "active").length;
         await appendEvent(tx, span, {
@@ -158,6 +195,32 @@ async function readTracks(
     .where(and(eq(growthTrack.candidateId, candidateId), eq(growthTrack.setId, set.id)))
     .orderBy(asc(growthTrack.position));
   const keys = rows.map((r) => r.key);
+  // Milestones of these track rows, in order (NS-232).
+  const ids = rows.map((r) => r.id);
+  const milestoneRows =
+    ids.length === 0
+      ? []
+      : await db
+          .select({
+            trackId: growthMilestone.trackId,
+            title: growthMilestone.title,
+            doneOn: growthMilestone.doneOn,
+          })
+          .from(growthMilestone)
+          .where(
+            and(
+              eq(growthMilestone.candidateId, candidateId),
+              inArray(growthMilestone.trackId, ids),
+            ),
+          )
+          .orderBy(asc(growthMilestone.trackId), asc(growthMilestone.position));
+  const milestonesOf = new Map<string, { title: string; doneOn: string | null }[]>();
+  for (const m of milestoneRows) {
+    milestonesOf.set(m.trackId, [
+      ...(milestonesOf.get(m.trackId) ?? []),
+      { title: m.title, doneOn: m.doneOn },
+    ]);
+  }
   const touches =
     keys.length === 0
       ? []
@@ -201,6 +264,10 @@ async function readTracks(
           ? { title: r.nextTitle, minutes: r.nextMinutes }
           : null,
       lastTouchedAt: last.get(r.key) ?? null,
+      // Only when stored, as the file gave them (NS-232).
+      ...(r.goal !== null ? { goal: r.goal } : {}),
+      ...(r.doneWhen !== null ? { doneWhen: r.doneWhen } : {}),
+      ...(milestonesOf.has(r.id) ? { milestones: milestonesOf.get(r.id) } : {}),
     })),
   };
 }
