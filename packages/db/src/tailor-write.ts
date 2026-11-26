@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { CandidateId } from "@northstar/domain";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
+import { atomLineEdit } from "./audit-schema.js";
 import type { Db } from "./db.js";
 import { education, experienceAtom, profileSource, role, skill } from "./profile-schema.js";
 import { appendEvent, inSpan } from "./resilience-event.js";
@@ -64,6 +65,30 @@ export async function readTailorInput(
     .where(and(eq(job.id, jobId), eq(job.candidateId, candidateId)));
   if (!row) return { ok: false, error: { kind: "JobNotFound" } };
   if (row.status !== "ready") return { ok: false, error: { kind: "JobNotReady" } };
+  const current = await readResumeMaster(db, candidateId);
+  if (!current) return { ok: false, error: { kind: "NoProfile" } };
+  return {
+    ok: true,
+    value: {
+      profileSourceId: current.profileSourceId,
+      master: current.master,
+      job: {
+        id: row.id,
+        title: row.title,
+        requirements: row.requirements,
+        niceToHaves: row.niceToHaves,
+      },
+    },
+  };
+}
+
+// The current resume import as a master, or null when there is none. Each atom's line is its
+// newest edit by Paul (NS-190, atom_line_edit) when he has accepted one, else the imported quote;
+// the atom row itself never changes. Shared by the tailor (above) and the audit (audit-write.ts).
+export async function readResumeMaster(
+  db: Db,
+  candidateId: CandidateId,
+): Promise<{ profileSourceId: string; master: TailorMaster } | null> {
   const [source] = await db
     .select({ id: profileSource.id })
     .from(profileSource)
@@ -75,7 +100,7 @@ export async function readTailorInput(
         isNull(profileSource.supersededAt),
       ),
     );
-  if (!source) return { ok: false, error: { kind: "NoProfile" } };
+  if (!source) return null;
   const roles = await db
     .select({
       id: role.id,
@@ -116,19 +141,35 @@ export async function readTailorInput(
     .where(eq(skill.sourceId, source.id))
     // Skills have no stored order: by name, so the same import always hashes the same.
     .orderBy(asc(skill.name));
+  const edits = await newestLines(db, candidateId, source.id);
   return {
-    ok: true,
-    value: {
-      profileSourceId: source.id,
-      master: { roles, education: schools, atoms, skills: skills.map((s) => s.name) },
-      job: {
-        id: row.id,
-        title: row.title,
-        requirements: row.requirements,
-        niceToHaves: row.niceToHaves,
-      },
+    profileSourceId: source.id,
+    master: {
+      roles,
+      education: schools,
+      atoms: atoms.map((a) => ({ ...a, sourceQuote: edits.get(a.id) ?? a.sourceQuote })),
+      skills: skills.map((s) => s.name),
     },
   };
+}
+
+// Each atom of the import's newest edited line (NS-190), by atom id.
+async function newestLines(
+  db: Db,
+  candidateId: CandidateId,
+  sourceId: string,
+): Promise<Map<string, string>> {
+  const rows = await db
+    .selectDistinctOn([atomLineEdit.atomId], {
+      atomId: atomLineEdit.atomId,
+      line: atomLineEdit.line,
+    })
+    .from(atomLineEdit)
+    .innerJoin(experienceAtom, eq(experienceAtom.id, atomLineEdit.atomId))
+    .where(and(eq(atomLineEdit.candidateId, candidateId), eq(experienceAtom.sourceId, sourceId)))
+    // Newest first per atom; the id breaks a same-instant tie so the pick is stable.
+    .orderBy(atomLineEdit.atomId, desc(atomLineEdit.createdAt), desc(atomLineEdit.id));
+  return new Map(rows.map((r) => [r.atomId, r.line]));
 }
 
 // What the event reports: counts and flags computed by the caller, never text.
