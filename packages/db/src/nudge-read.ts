@@ -13,7 +13,7 @@ import { application } from "./schema.js";
 
 // What the follow-up nudge check needs (RPL-004, NS-237 slice 3), read-only: each of the
 // candidate's applications in a nudge stage with its status, when it last moved, its newest linked
-// message and whether a reply draft is already filed for that message. Ids and times only, never
+// message from a verified sender and whether a reply draft is already filed for that message. Ids and times only, never
 // a subject, sender or body.
 
 const NUDGE_STATUSES: ApplicationStatus[] = Object.values(NUDGE_STAGES).flat();
@@ -44,12 +44,17 @@ export async function readNudgeCandidates(
         and(
           eq(mailLink.candidateId, candidateId),
           isNotNull(mailLink.applicationId),
+          // Only mail from a verified sender (INB-011) counts: it is the one a nudge replies to and
+          // the one that resets the silence. A tag can be written to by anyone, so unverified mail
+          // could pick the recipient or hold nudges off.
+          eq(mailLink.senderVerified, true),
           inArray(
             mailLink.applicationId,
             apps.map((a) => a.id),
           ),
         ),
       )
+      // Two messages received in the same instant are ordered by Gmail id, only so the pick is fixed.
       .orderBy(desc(mailLink.receivedAt), desc(mailLink.gmailMessageId));
     const newest = new Map<string, (typeof links)[number]>();
     for (const l of links) {
@@ -82,6 +87,8 @@ export async function readNudgeCandidates(
                 gmailMessageId: mail.gmailMessageId,
                 threadId: mail.threadId,
                 receivedAt: mail.receivedAt,
+                // No classification is stored yet (#224): until it is, nothing is due.
+                kind: null,
               },
         replyFiled: mail !== null && filedIds.has(mail.gmailMessageId),
       };

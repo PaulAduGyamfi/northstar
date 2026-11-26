@@ -2,7 +2,7 @@ import { type Db, fileReplyDraft, readReplyDraft, schema } from "@northstar/db";
 import { createTestDb } from "@northstar/db/testing";
 import { CandidateId } from "@northstar/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { NUDGE_SENTENCES, nudgeBody, nudgePackage } from "./nudge.js";
+import { displayName, NUDGE_SENTENCES, nudgeBody, nudgePackage } from "./nudge.js";
 import { isCommitmentWord } from "./validate.js";
 
 // A follow-up nudge as the Gate's reply package (NS-237 slice 3). Synthetic mail only.
@@ -20,7 +20,6 @@ const nudge = (over: Partial<Parameters<typeof nudgePackage>[0]> = {}) =>
     gmailMessageId: "18c3f0a2b4d6e8f0",
     threadId: "18c3f0a2b4d6e8aa",
     inbound: INBOUND,
-    senderName: "Jo Recruiter",
     stage: "applied",
     ...over,
   });
@@ -64,6 +63,32 @@ describe("nudgePackage", () => {
       words.filter((w) => w !== "" && isCommitmentWord(w)),
       Object.values(NUDGE_SENTENCES).filter((t) => /\d|@|:\/\/|www\./.test(t)),
     ]).toEqual([[], []]);
+  });
+
+  it("greets the From header's own first name, and nobody when the reply goes to a Reply-To", () => {
+    const greeting = (inbound: Parameters<typeof nudgePackage>[0]["inbound"]) => {
+      const r = nudge({ inbound });
+      return r.ok ? r.value.body.slice(0, r.value.body.indexOf(",") + 1) : null;
+    };
+    expect([
+      greeting({ ...INBOUND, from: '"Dana Reyes" <dana@acme.example>' }),
+      greeting({ ...INBOUND, from: "dana@acme.example" }),
+      greeting({ ...INBOUND, replyTo: "talent@acme.example" }),
+      displayName("Jo Recruiter <jo@acme.example>"),
+      displayName("<jo@acme.example>"),
+    ]).toEqual(["Hi Dana,", "Hi,", "Hi,", "Jo Recruiter", null]);
+  });
+
+  it("refuses a recipient nobody reads, whatever the spelling", () => {
+    const to = (from: string) => nudge({ inbound: { ...INBOUND, from } });
+    expect([
+      to("Acme Careers <no-reply@acme.example>"),
+      to("noreply@acme.example"),
+      to("Do-Not-Reply@acme.example"),
+      to("donotreply+jobs@acme.example"),
+      to("noreply.talent@acme.example"),
+      to("noreplyteam@acme.example").ok,
+    ]).toEqual([...Array(5).fill({ ok: false, error: { kind: "NoReplyAddress" } }), true]);
   });
 
   it("flags a Reply-To on another domain, and refuses a sender that isn't one address", () => {

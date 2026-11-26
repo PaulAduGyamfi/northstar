@@ -20,7 +20,10 @@ fact, so there's nothing for a model to invent.
   - `nudgesDue(candidates, days, now)` works out which applications are due. An application is due
     when all of these hold:
     - its status is in a stage;
-    - it has a linked message to reply on;
+    - it has a linked message from a verified sender to reply on, and that message is a
+      `confirmation` or `info_other` (`NUDGE_AFTER_KINDS`). These are the kinds that leave the next
+      move to the company. Mail waiting on Paul (a question, an assessment, scheduling), a rejection,
+      an offer or an unclassified message gets no nudge;
     - no reply draft is filed for that message;
     - the newest of its last status move and its newest linked mail is at least that stage's days
       ago.
@@ -29,15 +32,19 @@ fact, so there's nothing for a model to invent.
 - **`packages/db`, `nudge-read.ts`:** `readNudgeCandidates(db, candidateId)` reads, for each of the
   candidate's applications in a nudge stage:
   - its status and the time of its last status move;
-  - its newest linked message (Gmail id, thread, received time);
+  - its newest linked message from a verified sender (Gmail id, thread, received time). The kind is
+    null until classifications are stored (#224);
   - whether a `reply_draft` exists for that message.
 
   It reads ids and times only.
 - **`packages/profile`, `reply/nudge.ts`:** `nudgePackage({ gmailMessageId, threadId, inbound,
   stage })` builds the reply package for a nudge.
   - The envelope comes from `replyEnvelope` and the flag from `replyToOtherDomain`.
-  - The body is a fixed text per stage: a greeting with `greetingName`'s first name where there is
-    one, one fixed follow-up sentence and a sign-off.
+  - A no-reply recipient (`no-reply@`, `noreply@`, `do-not-reply@`, `donotreply@`, with an
+    optional tag) is refused (`NoReplyAddress`).
+  - The body is a fixed text per stage: "Hi," or "Hi <first name>,", one fixed follow-up sentence
+    and "Thank you.". The first name is the From header's own display name through
+    `greetingName`. There is none when the reply goes to a Reply-To.
   - There are no cites and no follow-ups. `fileReplyDraft` files it as an `email_reply` like any
     reply.
 
@@ -58,6 +65,17 @@ fact, so there's nothing for a model to invent.
   through the typed config.
 - An application with no linked thread isn't nudged: there is nothing to reply on, and new mail
   goes through the writer later.
+- Only mail from a verified sender counts, both as the message replied on and as activity. Anyone
+  can write to a tagged address, so unverified mail could otherwise choose the recipient or hold
+  nudges off.
+- A nudge follows only a message that leaves the next move to the company (`NUDGE_AFTER_KINDS`).
+  Classifications aren't stored yet, so `readNudgeCandidates` gives `kind: null` and nothing is due
+  until #224 stores them.
+- Known gap: when Paul has replied to the newest message and the company then goes quiet, there is
+  no nudge. The Gate keys one live reply per Gmail message, so a second reply on that message needs
+  its own subject. This is left for a later slice of #263.
+- The diff is about 750 lines of code and tests, over the ~300 line guide: one rule with its reader,
+  its package and their tests.
 
 ## Out of scope
 - The caller in the mail loop (#224), the Gmail writer (ADR-0025, item 2), outreach follow-ups

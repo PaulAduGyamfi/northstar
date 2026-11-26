@@ -10,17 +10,14 @@ const mailAt = (n: number) => ({
   gmailMessageId: "18c3f0a2b4d6e8f0",
   threadId: "18c3f0a2b4d6e8aa",
   receivedAt: daysAgo(n),
+  kind: "confirmation" as const,
 });
 
 const app = (over: Partial<NudgeCandidate> = {}): NudgeCandidate => ({
   applicationId: "app-a",
   status: "submitted",
   lastMoveAt: daysAgo(10),
-  lastMail: {
-    gmailMessageId: "18c3f0a2b4d6e8f0",
-    threadId: "18c3f0a2b4d6e8aa",
-    receivedAt: daysAgo(9),
-  },
+  lastMail: mailAt(9),
   replyFiled: false,
   ...over,
 });
@@ -81,6 +78,21 @@ describe("nudgesDue", () => {
         NOW,
       ).length,
     ]).toEqual([[["app-a", "interview", 5]], [], 1]);
+  });
+
+  it("nudges only after a confirmation or a plain note, never on Paul's turn, an ending or an unknown kind", () => {
+    const kind = (k: NonNullable<NudgeCandidate["lastMail"]>["kind"]) =>
+      due(app({ lastMail: { ...mailAt(9), kind: k } })).length;
+    expect([
+      kind("confirmation"),
+      kind("info_other"),
+      kind("scheduling"),
+      kind("assessment"),
+      kind("recruiter_inbound"),
+      kind("rejection"),
+      kind("offer"),
+      kind(null),
+    ]).toEqual([1, 1, 0, 0, 0, 0, 0, 0]);
   });
 
   it("never nudges with a draft already filed, with no thread, or outside a nudge stage", () => {

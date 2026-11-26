@@ -30,21 +30,43 @@ export function nudgeBody(stage: NudgeStage, senderName: string | null): string 
   return `${name === null ? "Hi," : `Hi ${name},`} ${NUDGE_SENTENCES[stage]} Thank you.`;
 }
 
+// A recipient nobody reads ("no-reply@", "noreply@", "do-not-reply@", "donotreply@", with an
+// optional +tag): a nudge there reaches no one, so it isn't filed.
+const NO_REPLY = /^(?:no-?reply|do-?not-?reply)(?:[+._-][^@]*)?@/i;
+export type NoReplyAddress = { kind: "NoReplyAddress" };
+
+// The display name in a From header ('"Jo Recruiter" <jo@…>' or 'Jo Recruiter <jo@…>'), or null.
+// greetingName then keeps only a plain first name.
+export function displayName(from: string): string | null {
+  const at = from.indexOf("<");
+  if (at <= 0) return null;
+  const name = from
+    .slice(0, at)
+    .trim()
+    .replace(/^"(.*)"$/, "$1")
+    .trim();
+  return name === "" ? null : name;
+}
+
 export function nudgePackage(input: {
   gmailMessageId: string;
   threadId: string;
   inbound: InboundHeaders;
-  senderName: string | null;
   stage: NudgeStage;
-}): Result<ReplyPackage, InvalidReply> {
+}): Result<ReplyPackage, InvalidReply | NoReplyAddress> {
   const envelope = replyEnvelope(input.inbound);
   if (!envelope.ok) return envelope;
+  if (NO_REPLY.test(envelope.value.to)) return { ok: false, error: { kind: "NoReplyAddress" } };
+  // The greeting greets the sender named in the From header the reply answers, never a name the
+  // caller passes. With a Reply-To, the reply goes elsewhere, so no name is used.
+  const from = input.inbound.from;
+  const senderName = input.inbound.replyTo === null && from !== null ? displayName(from) : null;
   return parseReplyPackage({
     gmailMessageId: input.gmailMessageId,
     threadId: input.threadId,
     envelope: envelope.value,
     replyToOtherDomain: replyToOtherDomain(input.inbound),
-    body: nudgeBody(input.stage, input.senderName),
+    body: nudgeBody(input.stage, senderName),
     cites: [],
     followUps: [],
   });

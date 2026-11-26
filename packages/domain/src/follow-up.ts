@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ApplicationStatus } from "./application-status.js";
+import type { MailKind } from "./mail-status.js";
 import type { Result } from "./result.js";
 
 // Follow-up nudges (RPL-004, NS-237 slice 3): which applications have gone quiet long enough to
@@ -32,13 +33,24 @@ export function parseNudgeDays(input: unknown): Result<NudgeDays, InvalidNudgeDa
   return { ok: false, error: { kind: "InvalidNudgeDays", fields } };
 }
 
+// The kinds of newest message after which it is the company's turn: a confirmation or a plain
+// note. Mail that waits on Paul (a question, an assessment, scheduling) gets a reply from him, not a
+// nudge; a rejection or an offer ends the wait; an unclassified message is never guessed at.
+export const NUDGE_AFTER_KINDS: readonly MailKind[] = ["confirmation", "info_other"];
+
 // One application as the nudge check sees it: its status, when it last moved, and its newest
 // linked message (the one a nudge replies on), if any.
 export type NudgeCandidate = {
   applicationId: string;
   status: ApplicationStatus;
   lastMoveAt: Date;
-  lastMail: { gmailMessageId: string; threadId: string; receivedAt: Date } | null;
+  // kind: the message's stored classification (INB-003), or null until it is classified (#224).
+  lastMail: {
+    gmailMessageId: string;
+    threadId: string;
+    receivedAt: Date;
+    kind: MailKind | null;
+  } | null;
   // A reply draft is already filed for lastMail (one live reply per message, the Gate's subject).
   replyFiled: boolean;
 };
@@ -74,6 +86,8 @@ export function nudgesDue(
     const stage = stageOf(c.status);
     // No thread means nothing to reply on; a filed draft means one already waits or was decided.
     if (stage === null || c.lastMail === null || c.replyFiled) continue;
+    // Only when the newest message leaves the next move to the company.
+    if (c.lastMail.kind === null || !NUDGE_AFTER_KINDS.includes(c.lastMail.kind)) continue;
     // Silence is counted from the newest sign of life: a status move or a linked message.
     const lastActivity = Math.max(c.lastMoveAt.getTime(), c.lastMail.receivedAt.getTime());
     const silentDays = Math.floor((now.getTime() - lastActivity) / DAY_MS);

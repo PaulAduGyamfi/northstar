@@ -59,12 +59,39 @@ async function newApplication(
 
 const at = (day: number) => new Date(Date.UTC(2026, 10, day, 12));
 
-async function link(owner: CandidateId, applicationId: string, id: string, day: number) {
+async function link(
+  owner: CandidateId,
+  applicationId: string,
+  id: string,
+  day: number,
+  senderVerified = true,
+) {
   await recordMailLink(db, {
     candidateId: owner,
     message: { id, threadId: "18c3f0a2b4d6e8aa", receivedAt: at(day) },
-    decision: { kind: "linked", applicationId, step: "tag", senderVerified: true },
+    decision: { kind: "linked", applicationId, step: "tag", senderVerified },
   });
+}
+
+async function fileDraft(owner: CandidateId, gmailMessageId: string) {
+  const filed = await fileReplyDraft(db, {
+    candidateId: owner,
+    reply: {
+      gmailMessageId,
+      threadId: "18c3f0a2b4d6e8aa",
+      envelope: {
+        to: "jo@acme.example",
+        subject: "Re: Your application",
+        inReplyTo: "<m2@acme.example>",
+        references: ["<m2@acme.example>"],
+      },
+      replyToOtherDomain: false,
+      body: "Hi Jo, thank you.",
+      cites: [],
+      followUps: [],
+    },
+  });
+  if (!filed.ok) throw new Error(filed.error.kind);
 }
 
 describe("readNudgeCandidates", () => {
@@ -103,6 +130,7 @@ describe("readNudgeCandidates", () => {
           gmailMessageId: "18c3f0a2b4d6e802",
           threadId: "18c3f0a2b4d6e8aa",
           receivedAt: at(4),
+          kind: null,
         },
         replyFiled: false,
       },
@@ -113,24 +141,7 @@ describe("readNudgeCandidates", () => {
   it("marks the newest message filed once a reply draft is filed for it", async () => {
     const acme = await newApplication(candidateId, "acme", "submitted");
     await link(candidateId, acme, "18c3f0a2b4d6e802", 4);
-    const filed = await fileReplyDraft(db, {
-      candidateId,
-      reply: {
-        gmailMessageId: "18c3f0a2b4d6e802",
-        threadId: "18c3f0a2b4d6e8aa",
-        envelope: {
-          to: "jo@acme.example",
-          subject: "Re: Your application",
-          inReplyTo: "<m2@acme.example>",
-          references: ["<m2@acme.example>"],
-        },
-        replyToOtherDomain: false,
-        body: "Hi Jo, thank you.",
-        cites: [],
-        followUps: [],
-      },
-    });
-    if (!filed.ok) throw new Error(filed.error.kind);
+    await fileDraft(candidateId, "18c3f0a2b4d6e802");
     expect((await readNudgeCandidates(db, candidateId)).map((r) => r.replyFiled)).toEqual([true]);
   });
 
@@ -139,5 +150,35 @@ describe("readNudgeCandidates", () => {
     const theirs = await newApplication(other, "umbrella", "submitted");
     await link(other, theirs, "18c3f0a2b4d6e8c1", 4);
     expect(await readNudgeCandidates(db, candidateId)).toEqual([]);
+  });
+
+  it("checks the filed flag on the newest message only, and only the candidate's own drafts", async () => {
+    const acme = await newApplication(candidateId, "acme", "submitted");
+    await link(candidateId, acme, "18c3f0a2b4d6e801", 2);
+    await link(candidateId, acme, "18c3f0a2b4d6e802", 4);
+    // A queued link (no application) changes nothing.
+    await recordMailLink(db, {
+      candidateId,
+      message: { id: "18c3f0a2b4d6e8f9", threadId: "18c3f0a2b4d6e8aa", receivedAt: at(8) },
+      decision: { kind: "queued", reason: "no_match" },
+    });
+    // A draft on the older message, and another candidate's draft on the newest.
+    await fileDraft(candidateId, "18c3f0a2b4d6e801");
+    await fileDraft(await newCandidate(), "18c3f0a2b4d6e802");
+    const [row] = await readNudgeCandidates(db, candidateId);
+    expect([row?.lastMail?.gmailMessageId, row?.replyFiled]).toEqual(["18c3f0a2b4d6e802", false]);
+  });
+
+  it("counts only mail from a verified sender: unverified mail neither replies nor resets", async () => {
+    const acme = await newApplication(candidateId, "acme", "submitted");
+    await link(candidateId, acme, "18c3f0a2b4d6e801", 2);
+    await link(candidateId, acme, "18c3f0a2b4d6e809", 9, false);
+    const [row] = await readNudgeCandidates(db, candidateId);
+    expect(row?.lastMail).toEqual({
+      gmailMessageId: "18c3f0a2b4d6e801",
+      threadId: "18c3f0a2b4d6e8aa",
+      receivedAt: at(2),
+      kind: null,
+    });
   });
 });
