@@ -1,0 +1,27 @@
+{
+  "requestSha256": "a402c0a3abb272a948cb725d87c82f38e4ec2ddedda8820d7ce23cc79a920daf",
+  "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval reply-draft --record.",
+  "response": {
+    "id": "msg_handwritten_3",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-5-5",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"sentences\":[{\"text\":\"Hi Dana, thanks for the note.\",\"cites\":[]},{\"text\":\"I owned the move of our billing jobs off an old server that kept failing.\",\"cites\":[{\"id\":\"s-migration\",\"quote\":\"I owned the move.\"},{\"id\":\"s-migration\",\"quote\":\"The billing jobs ran on one old server that kept failing.\"}]},{\"text\":\"I moved the jobs to a queue one at a time, and failed billing runs stopped.\",\"cites\":[{\"id\":\"s-migration\",\"quote\":\"I moved the jobs to a queue one at a time\"},{\"id\":\"s-migration\",\"quote\":\"Failed billing runs stopped.\"}]}],\"followUps\":[]}",
+        "citations": null
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  }
+}

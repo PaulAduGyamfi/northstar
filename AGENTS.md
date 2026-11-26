@@ -205,6 +205,23 @@ Exists now:
     When on, a failing draft becomes `needs_human`.
 
   It has no caller, CLI or storage yet.
+- Reply drafts (NS-166, RPL-001) in `packages/profile/src/reply/`:
+  - `replyNeed` (`packages/domain`) decides from the mail's kind whether it gets a reply:
+    recruiter, assessment and follow-up mail does; interview and scheduling mail gets one with no
+    times (until Calendar, NS-169); confirmations, rejections, offers and other mail get none.
+  - The `reply-draft` route drafts from the email (untrusted) and `selectEvidence`'s items.
+  - `validateReplyDraft` checks each claim like an answer sentence. A claim may not add, outside
+    its quotes, a commitment word (accept, salary, start, … by stem), a time, a link, a symbol
+    or a lookalike letter. No sentence may hold an invisible character or an unusual space.
+  - A sentence that cites nothing is framing. There are at most 3, and each must be one of the
+    fixed sentences in `framingSentences`: a greeting, a thank-you or a next step. The only name
+    is the sender's first name, from `greetingName`, which is parsed by code and never a word
+    that answers or commits.
+  - `draftReply` is off by default (hand-written fixtures). A failing draft becomes
+    `needs_human`.
+
+  No caller, storage, Gate filing or Gmail draft yet. ADR-0025 (Proposed) decides the
+  `gmail.compose` scope for drafts, which are never sent.
 - Factual answers (NS-141, ANS-001) from Paul's profile settings, plain code, no model:
   `profile_setting` in `packages/db` (`settings-write.ts`: `setProfileSetting`,
   `readProfileSettings`, `recordFactualAnswer`; append-only, newest wins, setting the same value

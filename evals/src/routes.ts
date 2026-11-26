@@ -5,6 +5,7 @@ import { mailClassifyEval } from "./sets/mail-classify.js";
 import { positioningThesisEval } from "./sets/positioning-thesis.js";
 import { profileExtractEval } from "./sets/profile-extract.js";
 import { questionConfirmEval } from "./sets/question-confirm.js";
+import { replyDraftEval } from "./sets/reply-draft.js";
 import { resumeTailorEval } from "./sets/resume-tailor.js";
 import { storyDraftEval } from "./sets/story-draft.js";
 import { verificationExtractEval } from "./sets/verification-extract.js";
@@ -19,6 +20,7 @@ export const registry: Readonly<Record<string, RegisteredEval>> = {
   "positioning-thesis": positioningThesisEval,
   "profile-extract": profileExtractEval,
   "question-confirm": questionConfirmEval,
+  "reply-draft": replyDraftEval,
   "resume-tailor": resumeTailorEval,
   "story-draft": storyDraftEval,
   "verification-extract": verificationExtractEval,
