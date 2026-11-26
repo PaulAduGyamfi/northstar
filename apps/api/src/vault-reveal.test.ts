@@ -303,4 +303,13 @@ describe("revealing a vault password", () => {
     expect(res.status).toBe(401);
     expect(await accessRows()).toBe(0);
   });
+
+  it("uses up a challenge tried for the wrong tenant, so it can't then reveal its own", async () => {
+    const options = await post("/vault/reveal/options", { tenantKey: "workday:globex" });
+    const response = auth.signIn(challengeOf(options));
+    await post("/vault/reveal", { tenantKey: TENANT, response });
+    const again = await post("/vault/reveal", { tenantKey: "workday:globex", response });
+    expect(again.status).toBe(401);
+    expect(await accessRows()).toBe(0);
+  });
 });

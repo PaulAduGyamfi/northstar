@@ -9,6 +9,7 @@ import * as gateways from "../index.js";
 // it, and the package's public entry doesn't export it.
 
 const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url));
+const LOCAL_ONLY = ["data", "private", "build", "coverage"];
 
 // Every TypeScript and JavaScript source in the repo, skipping builds, dependencies and dot
 // folders (NS-245: the whole tree, so a file in a new top-level folder can't slip past).
@@ -22,6 +23,9 @@ async function sources(dir: string): Promise<string[]> {
   }
   for (const e of entries) {
     if (e.name === "node_modules" || e.name === "dist" || e.name.startsWith(".")) continue;
+    // Gitignored top-level folders (Paul's data and local build output): not code, and scanning
+    // them would fail on his machine but not in CI.
+    if (dir === repoRoot && LOCAL_ONLY.includes(e.name)) continue;
     const path = join(dir, e.name);
     if (e.isDirectory()) out.push(...(await sources(path)));
     else if (/\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/.test(e.name)) out.push(path);
@@ -37,7 +41,7 @@ const allSources = (): Promise<string[]> => sources(repoRoot);
 // An import, re-export, side-effect import or require of @northstar/gateways, or of its folder
 // by a relative path (NS-245).
 const IMPORTS_GATEWAYS =
-  /(from\s+|import\s+|import\s*\(\s*|require\s*\(\s*)["'](@northstar\/gateways|[^"']*packages\/gateways)(\/[^"']*)?["']/;
+  /(from\s+|import\s+|import\s*\(\s*|require\s*\(\s*)["'][^"']*(@northstar\/gateways|packages\/gateways)(\/[^"']*)?["']/;
 
 // Files (relative to the repo root) where a pattern is found, outside the allowed ones.
 async function offenders(pattern: RegExp, allowed: (rel: string) => boolean): Promise<string[]> {
@@ -132,12 +136,14 @@ describe("the vault's decrypt boundary (CRD-002)", () => {
   it("the gateways import check would catch each way to import it", () => {
     expect([
       IMPORTS_GATEWAYS.test(`import { loadVaultKey } from "@northstar/gateways";`),
+      IMPORTS_GATEWAYS.test(`import * as g from "@northstar/gateways";`),
       IMPORTS_GATEWAYS.test(`export * from "@northstar/gateways";`),
+      IMPORTS_GATEWAYS.test(`import g from "../../node_modules/@northstar/gateways";`),
       IMPORTS_GATEWAYS.test(`import "@northstar/gateways/src/vault/reveal.js";`),
       IMPORTS_GATEWAYS.test(`const g = await import("@northstar/gateways");`),
       IMPORTS_GATEWAYS.test(`const g = require("../../../packages/gateways/src/index.js");`),
       IMPORTS_GATEWAYS.test(`import { x } from "@northstar/db";`),
-    ]).toEqual([true, true, true, true, true, false]);
+    ]).toEqual([true, true, true, true, true, true, true, false]);
   });
 
   it("the reveal check would catch a caller", () => {

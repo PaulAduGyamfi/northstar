@@ -19,9 +19,9 @@ Two findings from NS-230's security review:
   `apps` and `evals`), and `.cjs` and `.jsx` files too. Nothing is added to the reveal allow-list.
 
 ## Acceptance criteria
-- [ ] A challenge issued for one tenant can't reveal another (401, no `vault_access` row).
-- [ ] The boundary test catches a namespace import of `@northstar/gateways` in another API file.
-- [ ] `pnpm turbo run lint typecheck test build` passes.
+- [x] A challenge issued for one tenant can't reveal another (401, no `vault_access` row).
+- [x] The boundary test catches a namespace import of `@northstar/gateways` in another API file.
+- [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Out of scope (follow-ups)
 - The Settings → Accounts "Reveal" button (`apps/web`).
