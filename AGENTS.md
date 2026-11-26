@@ -62,9 +62,10 @@ Exists now:
   path for status changes (`transitionApplication`: status + event in one transaction) and
   `readEventsAfter`. `domain_event` is append-only (ADR-0012). Tests run on in-process PGlite.
   Since NS-212 the apps connect as `northstar_app` (migration 0065: owns nothing, no login until
-  Paul gives it a password; only SELECT and INSERT on tables a `*_reject_change` trigger guards,
-  never TRUNCATE), and `db:migrate` runs as the owner from `DATABASE_MIGRATION_URL`
-  (`loadMigrationConfig`).
+  Paul gives it a password, no temporary tables; on tables a `*_reject_change` trigger guards only
+  SELECT, INSERT and UPDATE on one column so `FOR UPDATE` locks work, which the trigger still
+  refuses; never TRUNCATE), and `db:migrate` runs as the owner from `DATABASE_MIGRATION_URL`
+  (`loadMigrationConfig`, read only by `src/migrate.ts`).
   Since NS-188 also application origin (INB-007), stored in events: `createApplication`
   (`origin-write.ts`) writes the row and `application.created` with `startedBy` in one
   transaction; a move to `submitted` must carry `submittedVia` (`auto` or `approved` from the

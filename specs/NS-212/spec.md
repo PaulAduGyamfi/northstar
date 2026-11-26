@@ -20,9 +20,16 @@ that can't even ask to update or delete the append-only rows.
 - Migration `0065` (custom SQL):
   - creates `northstar_app` as `NOLOGIN` if it doesn't exist;
   - grants `USAGE` on schema `public` and `USAGE, SELECT` on its sequences;
+  - strips any other power from the role (`NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION
+    NOBYPASSRLS`), even when Paul made it by hand;
+  - revokes `TEMPORARY` on the database from `PUBLIC` and the role: the guard triggers name their
+    tables without a schema, and a session's temporary table of the same name would answer them;
   - defines `northstar_grant_app_role()`, which grants on every table in `public`:
     - `SELECT, INSERT` on an append-only table: one with a trigger on UPDATE or DELETE that runs
-      a `*_reject_change` function;
+      a `*_reject_change` function; plus `UPDATE` on its first column when that trigger refuses
+      UPDATE, because Postgres needs UPDATE on a column for `SELECT … FOR UPDATE` (the Gate, the
+      vault, tenants, passkeys, handoffs and verification windows lock rows) and the trigger
+      still refuses any real update;
     - `SELECT, INSERT, UPDATE, DELETE` on every other table;
     - never `TRUNCATE`, `REFERENCES`, `TRIGGER` or ownership;
   - runs it once, and revokes its `EXECUTE` from `PUBLIC`.
@@ -37,7 +44,8 @@ that can't even ask to update or delete the append-only rows.
 ## Paul's one-time step (printed in the PR)
 1. Put the current owner URL in `.env` as `DATABASE_MIGRATION_URL`.
 2. `pnpm --filter @northstar/db db:migrate` (creates the role).
-3. In psql as the owner: `ALTER ROLE northstar_app LOGIN PASSWORD '…';`
+3. In psql as the owner: `ALTER ROLE northstar_app LOGIN;` then `\password northstar_app` (keeps
+   the password out of psql's history).
 4. Change `DATABASE_URL` in `.env` to connect as `northstar_app` with that password.
 
 ## Acceptance criteria
@@ -46,6 +54,9 @@ that can't even ask to update or delete the append-only rows.
 - [ ] As `northstar_app` (`SET ROLE`): an insert into `domain_event` works; an update or delete
       of it is refused (insufficient privilege); `ALTER TABLE domain_event DISABLE TRIGGER ALL`
       and `TRUNCATE` are refused; an application's status moves through `transitionApplication`.
+- [ ] As `northstar_app`: the Gate runs (request, approve, verify, withdraw, undo), every table
+      can be locked `FOR UPDATE`, and a temporary table is refused.
+- [ ] The role has no other power and belongs to no role.
 - [ ] `loadMigrationConfig` reads `DATABASE_MIGRATION_URL`, and its error names the setting only.
 - [ ] `drizzle-kit generate` prints "No schema changes".
 - [ ] `pnpm turbo run lint typecheck test build` passes.
@@ -59,10 +70,20 @@ that can't even ask to update or delete the append-only rows.
 ## Observability
 None new: permission errors surface as the queries' own errors in the existing spans.
 
+## Limits (for Paul)
+- The apps still load the whole root `.env`, which holds the owner's `DATABASE_MIGRATION_URL` and
+  `POSTGRES_PASSWORD`. So the role stops bugs, not a compromised process that reads its own
+  environment. Moving the owner's credentials out of the file the apps load is follow-up #257.
+- `northstar.locked_edit` (migration 0004, Paul's `editLockedFact`) is a setting any session can
+  set, so the role can still change locked facts through it. Unchanged by this ticket.
+- `apply_submission`, `role`, `education`, `story` and `story_atom` keep UPDATE and DELETE: their
+  own guard triggers decide what may change, and the role can't disable them.
+
 ## Out of scope
 - Setting the password or LOGIN (Paul), and any change to the compose stack.
 - Running the whole test suite as `northstar_app` (existing tests assert the triggers' own
-  refusals, which the role's missing privileges would answer first).
+  refusals, which the role's missing privileges would answer first). Instead the Gate's flow and
+  a row lock on every table run as the role.
 
 ## Open questions
 - None.
