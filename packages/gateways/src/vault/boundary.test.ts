@@ -9,7 +9,7 @@ import * as gateways from "../index.js";
 // it, and the package's public entry doesn't export it.
 
 const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url));
-const LOCAL_ONLY = ["data", "private", "build", "coverage"];
+const LOCAL_ONLY = ["data", "private", "exports", "build", "coverage"];
 
 // Every TypeScript and JavaScript source in the repo, skipping builds, dependencies and dot
 // folders (NS-245: the whole tree, so a file in a new top-level folder can't slip past).
