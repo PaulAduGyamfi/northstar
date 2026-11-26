@@ -114,6 +114,12 @@ Exists now:
   (`renderResumePdf` with pdf-lib, `renderResumeDocx` with docx; ADR-0020). `tailorToPages`
   keeps the most lines that fit the page budget, measured on the PDF (1 page by default), and
   `preSendScoreFromPdf` runs the ATS check on what `pdfToText` reads back from the PDF.
+  Since NS-146 also storage and a command: `tailorForJob` (`tailor/run.ts`) reads the current
+  resume import and a ready job (`readTailorInput`, `packages/db`), fits one page, applies Paul's
+  `--drop` toggles (added skills only), validates, scores on the PDF and diffs, then stores a
+  version per job in append-only `tailored_resume` (`tailor-write.ts`: `saveTailoredResume`,
+  `readTailoredResumes`; the same content stores nothing). Its `resume.tailored` event carries
+  ids, counts and flags only. No files stored yet (NS-161).
   Since NS-159 also the resume audit (`audit/`, AUD-001/002), plain code with no model or
   database yet:
   - `auditResume(master, targets)` scores impact, verbs, ATS re-parse, length, keyword coverage
@@ -389,6 +395,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/profile profile facts check` | compare the imported resume's roles with the official record and list every mismatch (exits 1 on any). Paul only: it prints his real employment facts; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile thesis draft` | up to three positioning theses that pass the deterministic check, with the atoms each cites; says so while drafting is off. Paul only: it reads his real profile; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile thesis set "<text>" --atoms <id,id>` / `profile thesis show` | check a thesis against the cited atoms, roles and skills and save it as a new version (a failure saves nothing) / print the current one. Paul only: needs `DATABASE_URL`; agents never run them |
+| repo root | `pnpm --filter @northstar/profile profile tailor <job-id> [--drop <skill,skill>]` | tailor the resume to a ready job (plain code, no model): prints the diff, what it doesn't claim, the pre-send score and the validator result, and stores a new version (unchanged content stores nothing); `--drop` turns off skills the tailor added. Paul only: it prints his real profile, needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile settings set <field> <value> [--for <qualifier>]` / `profile settings show` | store an answer to a factual question (`work_authorization --for <country>`, `years_of_experience --for <skill>`, `previously_employed --for <company>`; yes/no, whole years, `YYYY-MM-DD`, `remote\|hybrid\|onsite`, https links, short text) / list the current ones. Paul only: his real data, needs `DATABASE_URL`; agents never run them |
 | repo root | `pnpm --filter @northstar/profile profile answer "<question>"` | answer a form question from the settings: prints the answer, the canonical question and the setting used, or why it can't. Paul only: needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel backfill [--since YYYY-MM-DD] [--max-messages N]` | sign in to Gmail read-only (browser consent every run), rebuild the funnel from job mail since `--since` (default 2026-02-01); prints the model-call count and estimated cost first and stops at `--max-messages` (default 500). Safe to rerun. Paul only: his real mail, needs `DATABASE_URL`, `GOOGLE_OAUTH_CLIENT_*` and `ANTHROPIC_API_KEY`; agents never run it |

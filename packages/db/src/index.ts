@@ -276,6 +276,20 @@ export {
   saveApprovedStory,
   startInterview,
 } from "./story-write.js";
+export * as tailorSchema from "./tailor-schema.js";
+// Tailored resumes (NS-146, TLR-001/003/005).
+export {
+  readTailoredResumes,
+  readTailorInput,
+  type SaveTailoredInput,
+  saveTailoredResume,
+  type TailoredVersion,
+  type TailorInput,
+  type TailorInputError,
+  type TailorJobView,
+  type TailorMaster,
+  type TailorSummary,
+} from "./tailor-write.js";
 export {
   type AccountActor,
   beginAccountCreation,

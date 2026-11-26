@@ -23,6 +23,7 @@ import {
   settingsSetCommand,
   settingsShowCommand,
 } from "./settings-cli.js";
+import { parseDrop, type TailorCliDeps, tailorCommand } from "./tailor-cli.js";
 import { type ThesisDraftResult, thesisProblems } from "./thesis-draft.js";
 
 // Everything main() touches, injected so tests run with no database, model or file.
@@ -55,13 +56,15 @@ export type CliDeps = {
   readLinkedinExport: (folder: string) => Promise<LinkedinFiles | null>;
   storeImport: (input: Omit<ProfileImportInput, "candidateId">) => Promise<ImportReport>;
   readLinkedinRoles: () => Promise<SourceRole[] | null>;
-} & SettingsDeps;
+} & SettingsDeps &
+  TailorCliDeps;
 
 const USAGE =
   'usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check | profile thesis draft | profile thesis set "<text>" --atoms <id,id> | profile thesis show | profile import-linkedin <folder>';
 // Their own line for the NS-141 commands: the line above stays as it was.
 const SETTINGS_USAGE =
   'usage: profile settings set <field> <value> [--for <qualifier>] | profile settings show | profile answer "<question>"';
+const TAILOR_USAGE = "usage: profile tailor <job-id> [--drop <skill,skill>]";
 
 // `profile import-resume <path>`, `profile show`, `profile interview` and `profile stories`.
 // Import output is counts only, never resume text; `show`, `interview` and `stories` show Paul's
@@ -111,6 +114,15 @@ export async function main(deps: CliDeps): Promise<number> {
   }
   if (command === "answer" && path && path.trim().length > 0 && flags.length === 0)
     return answerCommand(deps, path);
+  // Tailoring a stored job (NS-146).
+  if (command === "tailor" && path) {
+    const drop = parseDrop(flags);
+    if (drop) return tailorCommand(deps, path, drop);
+  }
+  if (command === "tailor") {
+    deps.print(TAILOR_USAGE);
+    return 1;
+  }
   deps.print(command === "settings" || command === "answer" ? SETTINGS_USAGE : USAGE);
   return 1;
 }
