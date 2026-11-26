@@ -1,4 +1,4 @@
-import type { FeedItem, SetKillSwitchResult } from "@northstar/db";
+import type { FeedItem, FeedNames, SetKillSwitchResult } from "@northstar/db";
 import type { SystemHealth } from "@northstar/domain";
 import { z } from "zod";
 import { type AnyEndpoint, endpoint } from "./endpoint.js";
@@ -14,6 +14,8 @@ export type SystemPorts = {
   feedBefore: (before: bigint | undefined, limit: number) => Promise<FeedItem[]>;
   // Oldest first, after a position: what a live feed adds.
   feedAfter: (after: bigint, limit: number) => Promise<FeedItem[]>;
+  // The job title and company behind the page's job and application aggregates (NS-189).
+  feedNames: (aggregates: string[]) => Promise<Map<string, FeedNames>>;
   setSwitch: (input: {
     subsystem: string;
     enabled: boolean;
@@ -65,9 +67,22 @@ const Feed = z.object({
       type: z.string(),
       actor: z.string(),
       line: z.string(),
+      // Shown next to the line, never inside it (NS-189). Null when the event names no job.
+      jobTitle: z.string().nullable(),
+      company: z.string().nullable(),
     }),
   ),
 });
+
+// A page's names, or none when they can't be read: the lines still show (fail small, ADR-0007).
+async function namesOf(ports: SystemPorts, items: FeedItem[]): Promise<Map<string, FeedNames>> {
+  if (items.length === 0) return new Map();
+  try {
+    return await ports.feedNames([...new Set(items.map((i) => i.aggregate))]);
+  } catch {
+    return new Map();
+  }
+}
 
 const Flip = z.object({
   subsystem: z.string().min(1).max(100),
@@ -114,15 +129,19 @@ export function systemEndpoints(ports: SystemPorts): AnyEndpoint[] {
         after === undefined
           ? await ports.feedBefore(before, limit)
           : await ports.feedAfter(after, limit);
+      const names = await namesOf(ports, items);
       return {
         ok: true,
         body: {
+          // Fields picked by name: the aggregate id is looked up, never returned.
           items: items.map((i) => ({
             position: i.position.toString(),
             occurredAt: i.occurredAt.toISOString(),
             type: i.type,
             actor: i.actor,
             line: i.line,
+            jobTitle: names.get(i.aggregate)?.jobTitle ?? null,
+            company: names.get(i.aggregate)?.company ?? null,
           })),
         },
       };

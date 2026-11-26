@@ -365,6 +365,20 @@
       "when": 1795665863872,
       "tag": "0051_passkeys_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1795668684359,
+      "tag": "0052_voice_profile",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1795668685697,
+      "tag": "0053_voice_append_only",
+      "breakpoints": true
     }
   ]
 }

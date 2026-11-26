@@ -107,6 +107,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   the event's `reason`. So keep `reason` a plain sentence with no names, ids, URLs or secrets, and
   give a new event type a template in `feed.ts`, or (like the fresh-job alerts, NS-163) a
   `reason` built only from numbers and fixed words.
+  Names (NS-189) are read at display time only: `readFeedNames` maps `job:<id>` and
+  `application:<id>` aggregates to the candidate's own job title and company. Never copy them
+  into an event, a `reason` or a span (its span carries a count only).
 - The submission ledger (NS-120) is `apply_submission` and `submission_proof`, written only
   through `apply-write.ts`. A trigger lets a submission row finish only once, and proof is
   append-only. `listStaleClaims` reads the claims in progress past `CLAIM_STALE_AFTER_MS` by the
@@ -150,6 +153,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   increase (0 may repeat, for platform passkeys); a unique index stops two uses claiming one
   non-zero count. Credential ids and public keys never go into events, spans or logs:
   `passkey.registered` carries the row id only.
+- The voice profile (NS-185, ANS-007/008) is `voice_profile` (one row per version),
+  `voice_review` (Paul's keep/drop per version; the newest counts) and `voice_edit` (an approved
+  answer's deleted phrases only, one row per approval `subject`), append-only (triggers), written only through `voice-write.ts`.
+  Never store a sample, draft or approved text. Phrases are from Paul's writing: `voice.measured`
+  and `voice.reviewed` carry versions and counts only.
 - The pipeline reads (NS-168, `pipeline-read.ts`) are read-only: `listApplications` and
   `readApplicationTimeline`. A timeline is the application's own events plus events whose payload
   names it (`applicationId`); its lines come only from `feedLine`. So an event about an

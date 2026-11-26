@@ -14,6 +14,7 @@ import {
   readDedupeCandidates,
   readFeed,
   readFeedAfter,
+  readFeedNames,
   readPasskey,
   readPreferences,
   readScorableJobs,
@@ -147,6 +148,8 @@ try {
     health: async () => readSystemHealth(db, await candidateId()),
     feedBefore: async (before, limit) => readFeed(db, await candidateId(), { before, limit }),
     feedAfter: async (after, limit) => readFeedAfter(db, await candidateId(), { after, limit }),
+    // Names from Paul's own job rows only, read per page and never stored (NS-189).
+    feedNames: async (aggregates) => readFeedNames(db, await candidateId(), aggregates),
     // system.ts sets the actor to Paul; the candidate is always the server's own.
     setSwitch: async (input) => setKillSwitch(db, { ...input, candidateId: await candidateId() }),
   });

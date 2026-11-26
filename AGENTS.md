@@ -180,7 +180,12 @@ Exists now:
   - `draftAnswer` takes an `avoid` list: it tells the model, and a draft that still has one of
     those phrases becomes `needs_human` (`voice`).
 
-  No storage, review flow or CLI yet.
+  Since NS-185 also storage (`packages/db`, `voice-schema.ts`, `voice-write.ts`, append-only):
+  versioned `voice_profile` (measurements and phrases, never sample text), Paul's keep/drop
+  `voice_review` (every phrase decided; the newest reviewed version counts) and `voice_edit` (only
+  the phrases he deleted from a draft, once per approval `subject`). `loadVoice` (`voice/store.ts`)
+  gives `draftAnswer` its guide and avoid list, `recordEdit` stores an edit's deleted phrases, and
+  `avoidedFromDeleted` learns from them. No CLI (#220) or caller yet.
 - `packages/inbox/` (NS-113): read-only Gmail (ADR-0014: `gmail.readonly`, desktop OAuth with
   PKCE, token in memory for one run, never stored), the job-mail pre-filter (headers only; ATS
   senders, job phrases, same-thread follow-ups), confirmation rules, and the `mail-classify` route
@@ -309,7 +314,10 @@ Exists now:
   Since NS-153 they're in the app: the API's `GET /system/health`, `GET /feed` and
   `POST /system/kill-switches` (session only; a flip is Paul's, ADR-0002), the web app's
   `/health` page with kill-switch toggles, the nav's health dot, and a feed on Today that polls
-  every 3 s (no pushed stream yet).
+  every 3 s (no pushed stream yet). Since NS-189 each `GET /feed` item also carries `jobTitle`
+  and `company` (or `null`), read per page by `readFeedNames` from Paul's own job rows for
+  `job:<id>` and `application:<id>` aggregates; never stored in events or put in the line text.
+  The web feed shows them after the line as plain text (`feedSubject`).
 - `packages/gateways/` (NS-120): the Apply Gateway, the only code that submits an application
   (ADR-0002). `submitApplication` checks the approval with the Gate at the moment it acts (no
   verified approval throws `NotApprovedError`), re-hashes the package and its files, claims the

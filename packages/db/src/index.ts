@@ -125,7 +125,14 @@ export {
   type SetFactsResult,
   setEmploymentFacts,
 } from "./facts-write.js";
-export { type FeedItem, MAX_FEED_PAGE, readFeed, readFeedAfter } from "./feed-read.js";
+export {
+  type FeedItem,
+  type FeedNames,
+  MAX_FEED_PAGE,
+  readFeed,
+  readFeedAfter,
+  readFeedNames,
+} from "./feed-read.js";
 export * as fitSchema from "./fit-schema.js";
 export {
   FIT_METHODS,
@@ -364,6 +371,16 @@ export {
   VAULT_SUBSYSTEM,
   type VaultLocked,
 } from "./vault-write.js";
+export * as voiceSchema from "./voice-schema.js";
+// Paul's voice profile, its review and his draft edits (NS-185).
+export {
+  readReviewedVoice,
+  readVoiceEdits,
+  recordVoiceEdit,
+  reviewVoiceProfile,
+  saveVoiceProfile,
+  type VoiceMeasures,
+} from "./voice-write.js";
 export {
   addWatch,
   dueWatches,

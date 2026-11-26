@@ -166,6 +166,7 @@ export {
 export { normalize, type ProvenanceFailure, validateProvenance } from "./validate.js";
 export {
   AVOID_AFTER,
+  avoidedFromDeleted,
   avoidedPhrases,
   deletedPhrases,
   type Edit,
@@ -180,3 +181,4 @@ export {
   renderVoiceGuide,
   type VoiceProfile,
 } from "./voice/measure.js";
+export { loadVoice, recordEdit, type StoredVoice } from "./voice/store.js";
