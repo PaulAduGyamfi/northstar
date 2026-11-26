@@ -84,4 +84,13 @@ export {
   type VerificationExtractInput,
   verificationExtractRoute,
 } from "./verify/model-pick.js";
+export {
+  MAX_PER_TICK,
+  POLL_INTERVAL_MS,
+  type PollDeps,
+  type PollGmail,
+  type PollResult,
+  pollWindow,
+  windowQuery,
+} from "./verify/poll.js";
 export { VerificationSecret } from "./verify/secret.js";
