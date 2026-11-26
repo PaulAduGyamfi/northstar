@@ -112,7 +112,7 @@ export {
   recordCallOutcome,
 } from "./breaker-write.js";
 export { soleCandidate } from "./candidate.js";
-export { type DbConfig, loadDbConfig } from "./config.js";
+export { type DbConfig, loadDbConfig, loadMigrationConfig } from "./config.js";
 export { connectDb } from "./connect.js";
 // The tenant registry and consent policy (NS-124): one account per tenant (ACC-006), and every
 // accepted notice kept with its text (ACC-008).

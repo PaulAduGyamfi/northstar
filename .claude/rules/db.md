@@ -29,6 +29,12 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
 
 - Migrations are generated (`db:generate`; `--custom` for SQL Drizzle can't express, such as
   extensions and triggers), reviewed and committed. Never edit an applied migration; add a new one.
+- The apps connect as `northstar_app` (NS-212, migration 0065), which owns nothing. A migration
+  that adds a table, or an append-only trigger, ends with `SELECT northstar_grant_app_role();`:
+  it grants SELECT and INSERT on tables a `*_reject_change` trigger guards on UPDATE or DELETE,
+  and SELECT, INSERT, UPDATE and DELETE on the rest (never TRUNCATE). An append-only trigger's
+  function must be named `<something>_reject_change`. `app-role.test.ts` fails on any table
+  whose grants don't match.
 - Backward-compatible changes: expand, migrate, contract (RES-011).
 - The database guards the data: NOT NULL, CHECK, foreign keys and unique constraints
   (requisition dedupe, idempotency keys) in the schema, not only in TypeScript.

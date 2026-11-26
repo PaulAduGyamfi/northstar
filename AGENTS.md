@@ -61,6 +61,10 @@ Exists now:
 - `packages/db/` (NS-105): Drizzle schema, committed migrations (`migrations/`), the one write
   path for status changes (`transitionApplication`: status + event in one transaction) and
   `readEventsAfter`. `domain_event` is append-only (ADR-0012). Tests run on in-process PGlite.
+  Since NS-212 the apps connect as `northstar_app` (migration 0065: owns nothing, no login until
+  Paul gives it a password; only SELECT and INSERT on tables a `*_reject_change` trigger guards,
+  never TRUNCATE), and `db:migrate` runs as the owner from `DATABASE_MIGRATION_URL`
+  (`loadMigrationConfig`).
   Since NS-188 also application origin (INB-007), stored in events: `createApplication`
   (`origin-write.ts`) writes the row and `application.created` with `startedBy` in one
   transaction; a move to `submitted` must carry `submittedVia` (`auto` or `approved` from the
@@ -587,7 +591,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `docker compose -f docker-compose.yml ps` | each service's health and ports |
 | repo root | `docker compose down` | stop the stack, **keep the data** (Paul runs it; agents ask). Never `down -v` (deletes every volume) |
 | repo root | `pnpm --filter @northstar/db db:generate` | new migration from `packages/db/src/schema.ts` (no database needed); prints "No schema changes" when migrations match |
-| repo root | `pnpm --filter @northstar/db db:migrate` | apply pending migrations to `DATABASE_URL`, which Node loads from the root `.env` (Paul, outside the sandbox, stack up). Builds `domain` and `db` first |
+| repo root | `pnpm --filter @northstar/db db:migrate` | apply pending migrations as the tables' owner, `DATABASE_MIGRATION_URL`, which Node loads from the root `.env` (Paul, outside the sandbox, stack up). Builds `domain` and `db` first. The apps use `DATABASE_URL`, the `northstar_app` role (NS-212) |
 | repo root | `pnpm --filter @northstar/api start` | build and run the API on 127.0.0.1:`NORTHSTAR_API_PORT` (8787), reading the root `.env`; refuses to start until `NORTHSTAR_SIGNIN_KEY_SHA256` and `DATABASE_URL` are set (Paul) |
 | repo root | `pnpm --filter @northstar/web build` / `pnpm --filter @northstar/web start` | build and serve the web app on 127.0.0.1:3100; open it at `http://northstar.localhost:3100` (`NORTHSTAR_WEB_ORIGIN`, ADR-0018). It doesn't read the root `.env`: export `NORTHSTAR_API_ORIGIN` (default `http://127.0.0.1:8787`) in the shell before build and start if the API's port changed. `pnpm --filter @northstar/web dev` while developing |
 | repo root | `pnpm --filter @northstar/extension build` | build the browser extension into `apps/extension/dist`; load that folder in `chrome://extensions` ("Load unpacked"), then paste the extension token in its options (Paul). The API needs `NORTHSTAR_EXTENSION_TOKEN_SHA256` and `DATABASE_URL` for captures |
