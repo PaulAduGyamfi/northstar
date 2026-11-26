@@ -167,3 +167,24 @@ export const deadLetterResolution = pgTable(
     }),
   ],
 );
+
+// LLM spend (NS-176 slice 2, RES-009, ADR-0021): one row per model reply, append-only (migration
+// trigger), written only through spend-write.ts. Micro-dollars, so sums stay exact integers. The
+// route name only: never a prompt, input or output.
+export const llmSpend = pgTable(
+  "llm_spend",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    candidateId: candidateId(),
+    route: text("route").notNull(),
+    costMicroUsd: bigint("cost_micro_usd", { mode: "number" }).notNull(),
+    spentAt: timestamp("spent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "llm_spend_route_format",
+      sql`${t.route} ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length(${t.route}) <= 64`,
+    ),
+    check("llm_spend_cost_nonnegative", sql`${t.costMicroUsd} >= 0`),
+  ],
+);

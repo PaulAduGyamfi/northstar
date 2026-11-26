@@ -5,6 +5,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import {
   addWatch,
   connectDb,
+  dbSpendMeter,
   dueWatches,
   listJobs,
   listWatches,
@@ -35,6 +36,7 @@ import {
   createAnthropicClient,
   createLlmGateway,
   type LlmGateway,
+  loadLlmBudget,
   loadLlmConfig,
 } from "@northstar/llm";
 import { sql } from "drizzle-orm";
@@ -71,6 +73,14 @@ try {
         // The route's agent:<route> switch and the anthropic breaker (NS-174), on the same
         // stored switches and breakers board polling uses.
         guard: dbPollGuard(db, candidateId),
+        budget: {
+          // The LLM spend cap (NS-176, ADR-0021): low routes pause first, fresh ones run longest.
+          caps: loadLlmBudget({
+            LLM_DAILY_CAP_USD: process.env.LLM_DAILY_CAP_USD,
+            LLM_MONTHLY_CAP_USD: process.env.LLM_MONTHLY_CAP_USD,
+          }),
+          meter: dbSpendMeter(db, () => candidateId),
+        },
       });
       return gateway.call(route, input);
     },

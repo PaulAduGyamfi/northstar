@@ -49,6 +49,9 @@ export function verificationExtractRoute(): Route<VerificationExtractInput, Veri
     effort: "low",
     maxTokens: 500,
     timeoutMs: 30_000,
+    // On the path from a new posting (or a verification code) to Paul: runs past the spend cap up
+    // to its ceiling (ADR-0021).
+    priority: "fresh",
     output: VerificationChoice,
     render: (input) => ({
       stable: [],

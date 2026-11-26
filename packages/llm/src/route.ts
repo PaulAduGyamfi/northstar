@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import type { RoutePriority } from "./budget.js";
 
 export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 
@@ -18,6 +19,9 @@ export type Route<Input, Output> = {
   // Per-attempt timeout (RES-005). The SDK retries 408/409/429/5xx up to twice, each attempt
   // with this timeout, so the worst case is about 3 × timeoutMs plus backoff.
   timeoutMs: number;
+  // How the spend cap treats it (ADR-0021): `fresh` runs past the cap up to a ceiling, `low`
+  // pauses first. Default `normal`.
+  priority?: RoutePriority;
   // Checked again on arrival; the JSON schema sent to the API is made from it.
   output: z.ZodType<Output>;
   // `stable` blocks are cached and must not vary per call. `volatile` is the per-call request,

@@ -1,4 +1,5 @@
 import { type Attributes, SpanStatusCode, trace } from "@opentelemetry/api";
+import { budgetHold, type LlmBudget, type SpendMeter } from "./budget.js";
 import type { MessagesClient } from "./client.js";
 import { LlmTransportError, toTransportError } from "./errors.js";
 import { admit, type CallGuard, type GuardOutcome, HeldBack } from "./guard.js";
@@ -24,9 +25,12 @@ export function createLlmGateway(deps: {
   client: MessagesClient;
   now: () => number;
   guard?: CallGuard;
+  // The spend cap (NS-176, ADR-0021). Without one, spend is neither checked nor recorded.
+  budget?: { caps: LlmBudget; meter: SpendMeter };
 }): LlmGateway {
   const tracer = trace.getTracer("@northstar/llm");
   const guard = deps.guard;
+  const budget = deps.budget;
 
   return {
     call(route, input) {
@@ -46,6 +50,24 @@ export function createLlmGateway(deps: {
           // Built before the breaker is asked, so a bug in building it can't leave a probe
           // unreported (the breaker would stay half-open until the probe window ends).
           const { params, options } = buildRequest(route, input);
+          // The spend cap first: a held-back call takes no breaker probe. A meter that throws
+          // (the database down) holds the call back, like the guard (fail safe).
+          if (budget) {
+            const priority = route.priority ?? "normal";
+            let cap: "daily" | "monthly" | "unknown" | null;
+            try {
+              cap = budgetHold(await budget.meter.spent(), budget.caps, priority);
+            } catch {
+              cap = "unknown";
+            }
+            if (cap !== null) {
+              span.setAttributes({
+                "northstar.llm.held_by": "budget",
+                "northstar.llm.priority": priority,
+              });
+              throw new HeldBack("budget", cap);
+            }
+          }
           if (guard) {
             const admission = await admit(guard, {
               subsystem: agentSwitch(route.name),
@@ -76,6 +98,16 @@ export function createLlmGateway(deps: {
           // Any reply, a refusal or a cut-off one included, is the API working.
           await report({ ok: true });
           const record = callRecord(route, message, deps.now() - started);
+          // Spend is recorded for every reply, a refusal included: it was billed. Failing to
+          // record is noted, never thrown (the reply is already here).
+          if (budget) {
+            if (record.costUsd === null) span.setAttribute("northstar.llm.unpriced", true);
+            try {
+              await budget.meter.record(route.name, record.costUsd ?? 0);
+            } catch {
+              span.setAttribute("northstar.llm.spend_record_failed", true);
+            }
+          }
           const outcome = interpretMessage(route, message, record);
           span.setAttributes({
             ...recordAttributes(record),

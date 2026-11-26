@@ -29,6 +29,9 @@ export function jobExtractRoute(): Route<JobExtractInput, JobExtract> {
     effort: "low",
     maxTokens: 3_000,
     timeoutMs: 90_000,
+    // On the path from a new posting (or a verification code) to Paul: runs past the spend cap up
+    // to its ceiling (ADR-0021).
+    priority: "fresh",
     output: JobExtract,
     render: (input) => ({ stable: [], volatile: untrustedBlock("page", renderPage(input)) }),
   };

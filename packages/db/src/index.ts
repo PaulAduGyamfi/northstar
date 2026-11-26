@@ -271,6 +271,8 @@ export {
   type SettingRefusal,
   setProfileSetting,
 } from "./settings-write.js";
+// LLM spend for the spend cap (NS-176, ADR-0021).
+export { dbSpendMeter, readLlmSpend, recordLlmSpend } from "./spend-write.js";
 export * as storySchema from "./story-schema.js";
 export { COMPETENCIES, type Competency } from "./story-schema.js";
 export {

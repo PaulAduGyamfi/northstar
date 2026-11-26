@@ -92,6 +92,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `liveness-write.ts`: one row per attempt (`open`, `closed` or `unavailable`). A job is closed
   only when its two newest answers (unavailable skipped) are `closed`; `readScorableJobs` leaves
   closed jobs out. `job.closed` / `job.reopened` carry the job id and ATS, never a URL or title.
+- LLM spend (NS-176, ADR-0021) is `llm_spend`, append-only (a trigger), written only through
+  `spend-write.ts`: a route name and micro-dollars per reply, never a prompt, input or output.
+  `readLlmSpend` sums by the UTC day and month.
 - One agent at a time changes this package's schema or migrations (ADR-0016): parallel agents
   renumbering migrations caused replacement PRs. Before adding a migration, merge the latest
   `main` and generate it then.

@@ -90,6 +90,9 @@ export function jobMatchRoute(): Route<JobMatchInput, JobMatchOutput> {
     effort: "medium",
     maxTokens: 4_000,
     timeoutMs: 90_000,
+    // On the path from a new posting (or a verification code) to Paul: runs past the spend cap up
+    // to its ceiling (ADR-0021).
+    priority: "fresh",
     output: JobMatchOutput,
     render: (input) => ({
       stable: [],

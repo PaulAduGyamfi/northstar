@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import {
   acquireCall,
   connectDb,
+  dbSpendMeter,
   isSubsystemOn,
   knownGmailIds,
   latestFactsCheck,
@@ -28,6 +29,7 @@ import {
   type CallGuard,
   createAnthropicClient,
   createLlmGateway,
+  loadLlmBudget,
   loadLlmConfig,
 } from "@northstar/llm";
 import { sql } from "drizzle-orm";
@@ -95,6 +97,14 @@ try {
             ),
             now: () => performance.now(),
             guard,
+            budget: {
+              // The LLM spend cap (NS-176, ADR-0021): low routes pause first, fresh ones run longest.
+              caps: loadLlmBudget({
+                LLM_DAILY_CAP_USD: process.env.LLM_DAILY_CAP_USD,
+                LLM_MONTHLY_CAP_USD: process.env.LLM_MONTHLY_CAP_USD,
+              }),
+              meter: dbSpendMeter(db, () => candidateId),
+            },
           }),
           route: mailClassifyRoute(),
           store: {
