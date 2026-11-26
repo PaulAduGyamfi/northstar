@@ -138,7 +138,18 @@ describe("mapPackage", () => {
       sr.postingIdOf("/ExampleCorp/7440001234567"),
       sr.postingIdOf("/ExampleCorp/7440001234567-backend-engineer"),
       sr.postingIdOf("/ExampleCorp/backend-engineer"),
-    ]).toEqual(["7440001234567", "7440001234567", null]);
+      sr.postingIdOf("/ExampleCorp/07440001234567"),
+    ]).toEqual(["7440001234567", "7440001234567", null, null]);
+  });
+
+  it("doesn't take a SmartRecruiters job page whose description thanks applicants for a confirmation", () => {
+    const sr = adapterFor("smartrecruiters");
+    expect(
+      sr.isConfirmation({
+        url: "https://jobs.smartrecruiters.com/ExampleCorp/7440001234567-backend-engineer",
+        html: "<html><body><p>About the role. Thank you for applying!</p><form></form></body></html>",
+      }),
+    ).toBe(false);
   });
 
   it("calls the form changed when a cover letter has nowhere to go", () => {

@@ -13,15 +13,12 @@ export const smartrecruiters: AtsAdapter = {
     ...(c.phone === null ? {} : { phoneNumber: c.phone }),
   }),
   // `/<Company>/<id>[-title-slug]`, the shape packages/sources' detectAts reads.
-  postingIdOf: capture(/^\/[^/]+\/(\d{1,20})(?:-[^/]*)?\/?$/),
+  // No leading zero, so "0744…" and "744…" can't be two postings (two requisition keys).
+  postingIdOf: capture(/^\/[^/]+\/([1-9]\d{0,19})(?:-[^/]*)?\/?$/),
   resumeField: "resume",
   coverLetterField: "coverLetter",
-  isConfirmation: ({ url, html }) => {
-    const text = pageText(html);
-    return (
-      new URL(url).pathname.endsWith("/success") ||
-      text.includes("thank you for applying") ||
-      text.includes("application received")
-    );
-  },
+  // The success page AND its message: the text alone could come from a job description the
+  // employer wrote ("Thank you for applying!"), on a form page re-rendered after a failed submit.
+  isConfirmation: ({ url, html }) =>
+    new URL(url).pathname.endsWith("/success") && pageText(html).includes("thank you for applying"),
 };
