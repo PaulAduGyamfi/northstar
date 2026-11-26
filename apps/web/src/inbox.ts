@@ -7,7 +7,7 @@ import { APPLICATION_STATUSES, STATUS_WORDS } from "./pipeline";
 // Gmail ids, counts, steps and flags only: no subject, sender or body exists to show.
 
 const Thread = z.object({
-  gmailThreadId: z.string(),
+  gmailThreadId: z.string().regex(/^[0-9a-f]{1,32}$/),
   gmailUrl: z.string(),
   messages: z.number(),
   lastReceivedAt: z.string(),
@@ -28,7 +28,7 @@ const Application = z.object({
 export type InboxApplicationView = z.infer<typeof Application>;
 
 const Queued = z.object({
-  gmailThreadId: z.string(),
+  gmailThreadId: z.string().regex(/^[0-9a-f]{1,32}$/),
   gmailUrl: z.string(),
   messages: z.number(),
   lastReceivedAt: z.string(),
@@ -81,9 +81,10 @@ const received = (at: string, nowMs: number) => {
   const waited = waitedFor(at, nowMs);
   return waited === "just now" ? "last one just now" : `last one ${waited} ago`;
 };
+// Only an https link to Gmail itself: safeHref parses it, and the host must be exactly Gmail's.
 const gmailHref = (url: string) => {
   const href = safeHref(url);
-  return href?.startsWith("https://mail.google.com/") ? href : null;
+  return href !== null && new URL(href).hostname === "mail.google.com" ? href : null;
 };
 
 export function threadRows(a: InboxApplicationView, nowMs: number): ThreadRow[] {
