@@ -51,8 +51,12 @@ Exists now:
   `parseCheckIn` (track, time, minutes, optional percent; no free text), `applyCheckIns` (moves
   each track's last touch forward, which feeds the next `planWeek`), `trackDashboard` (minutes
   against plan, days since touched, at risk, a week streak that never resets mid-week, percent per
-  week still needed) and `weeklyReview` (moved, not reached, a neutral log; UX-032). No storage,
-  auto-detected progress or page yet.
+  week still needed) and `weeklyReview` (moved, not reached, a neutral log; UX-032). Since NS-214
+  stored (`packages/db`: append-only `growth_check_in`, one per client idempotency key, and
+  `growth_review`, one per week; a check-in also moves the track's last touch for the planner)
+  and in the app: the API's `GET /growth`, `POST /growth/check-ins` and `POST /growth/review`
+  (session only, `apps/api/src/growth.ts`) and the web app's Grow tab (`/grow`). `weekStartOf`
+  lives here now. No auto-detected progress or heatmap yet.
   Since NS-164 also `mailStatusChange` (`mail-status.ts`, INB-004/011): a linked email's kind
   gives a target status (confirmation → `confirmed`; assessment, interview request, scheduling →
   `in_process`; offer; rejection), taken only as a `nextStatus` move. It applies by itself only on
@@ -514,7 +518,8 @@ Exists now:
   Pipeline also filters by company, fit band, source (the job's ATS, or `other`) and creation day,
   applied in `listApplications`' SQL and kept in the URL, has a table view, and Today shows counts
   of approvals waiting and needs-your-hands items (`src/today.ts`), with interviews, follow-ups
-  and growth blocks marked not set up yet. Since NS-208 also `/pipeline/metrics`: the funnel (found →
+  and growth blocks marked not set up yet. Since NS-214 also the Grow tab (`/grow`, `src/grow.ts`:
+  each track's week in words, a check-in form, last week's review). Since NS-208 also `/pipeline/metrics`: the funnel (found →
   applied → heard back → interviewing → offer), median days to apply and to the first reply, and
   reply rates by source, fit band and time from posting to applying, each with its count and a
   Wilson interval, or "not enough data yet" under 20 (`pipelineMetrics` in `packages/domain`,

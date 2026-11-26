@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import type { CandidateId } from "@northstar/domain";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import type { Db } from "./db.js";
 import {
+  growthCheckIn,
   growthPlan,
+  growthReview,
   growthSettings,
   growthTouch,
   growthTrack,
@@ -164,7 +166,26 @@ async function readTracks(
           .from(growthTouch)
           .where(and(eq(growthTouch.candidateId, candidateId), inArray(growthTouch.trackKey, keys)))
           .groupBy(growthTouch.trackKey);
-  const last = new Map(touches.map((t) => [t.key, new Date(t.at)]));
+  // A check-in is a touch too (NS-214, GRW-005): the planner sees it.
+  const checkIns =
+    keys.length === 0
+      ? []
+      : await db
+          .select({
+            key: growthCheckIn.trackKey,
+            at: sql<Date>`max(${growthCheckIn.checkedInAt})`,
+          })
+          .from(growthCheckIn)
+          .where(
+            and(eq(growthCheckIn.candidateId, candidateId), inArray(growthCheckIn.trackKey, keys)),
+          )
+          .groupBy(growthCheckIn.trackKey);
+  const last = new Map<string, Date>();
+  for (const t of [...touches, ...checkIns]) {
+    const at = new Date(t.at);
+    const seen = last.get(t.key);
+    if (seen === undefined || at > seen) last.set(t.key, at);
+  }
   return {
     version: set.version,
     tracks: rows.map((r) => ({
@@ -340,4 +361,187 @@ export async function saveWeekPlan(
       }),
     ),
   );
+}
+
+// The plan stored for a week (YYYY-MM-DD, a Monday), or null.
+export async function readWeekPlan(
+  db: Db,
+  candidateId: CandidateId,
+  weekStart: string,
+): Promise<{ trackSetVersion: number; plan: Record<string, unknown> } | null> {
+  const [row] = await guarded("growth.read", () =>
+    db
+      .select({ trackSetVersion: growthPlan.trackSetVersion, plan: growthPlan.plan })
+      .from(growthPlan)
+      .where(and(eq(growthPlan.candidateId, candidateId), eq(growthPlan.weekStart, weekStart))),
+  );
+  return row ?? null;
+}
+
+export type CheckInInput = {
+  candidateId: CandidateId;
+  key: string;
+  minutes: number;
+  percent: number | null;
+  // From the client, one per form: a double submit stores one check-in.
+  idempotencyKey: string;
+  at?: Date;
+};
+
+export type StoredCheckIn = { key: string; at: Date; minutes: number; percent: number | null };
+
+// Stores one check-in (NS-214, GRW-005) on a current track. A repeated idempotency key stores
+// nothing and says so; an unknown track key stores nothing.
+export async function recordCheckIn(
+  db: Db,
+  input: CheckInInput,
+): Promise<
+  { ok: true; status: "recorded" | "replayed" } | { ok: false; error: { kind: "UnknownTrack" } }
+> {
+  const current = await readGrowthTracks(db, input.candidateId);
+  if (!current?.tracks.some((t) => t.key === input.key)) {
+    return { ok: false, error: { kind: "UnknownTrack" } };
+  }
+  return guarded("growth.check_in", () =>
+    inSpan("growth.check_in", { "northstar.growth.minutes": input.minutes }, (span) =>
+      db.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(growthCheckIn)
+          .values({
+            candidateId: input.candidateId,
+            trackKey: input.key,
+            minutes: input.minutes,
+            percent: input.percent,
+            idempotencyKey: input.idempotencyKey,
+            ...(input.at ? { checkedInAt: input.at } : {}),
+          })
+          .onConflictDoNothing({
+            target: [growthCheckIn.candidateId, growthCheckIn.idempotencyKey],
+          })
+          .returning({ id: growthCheckIn.id, at: growthCheckIn.checkedInAt });
+        if (!row) return { ok: true as const, status: "replayed" as const };
+        await appendEvent(tx, span, {
+          candidateId: input.candidateId,
+          aggregate: `growth_check_in:${row.id}`,
+          type: "growth.checked_in",
+          actor: "user",
+          reason: "Paul logged time on a growth track",
+          // The row id and minutes only: the key is Paul's word for the track.
+          payload: { checkInId: row.id, minutes: input.minutes },
+          idempotencyKey: `growth-check-in:${row.id}`,
+          at: row.at,
+        });
+        return { ok: true as const, status: "recorded" as const };
+      }),
+    ),
+  );
+}
+
+// Check-ins since a time, oldest first.
+export async function readCheckIns(
+  db: Db,
+  candidateId: CandidateId,
+  since: Date,
+): Promise<StoredCheckIn[]> {
+  const rows = await guarded("growth.read", () =>
+    db
+      .select()
+      .from(growthCheckIn)
+      .where(and(eq(growthCheckIn.candidateId, candidateId), gte(growthCheckIn.checkedInAt, since)))
+      .orderBy(asc(growthCheckIn.checkedInAt), asc(growthCheckIn.id)),
+  );
+  return rows.map((r) => ({
+    key: r.trackKey,
+    at: r.checkedInAt,
+    minutes: r.minutes,
+    percent: r.percent,
+  }));
+}
+
+export type StoredReview = {
+  weekStart: string;
+  moved: { key: string; minutes: number; plannedMinutes: number }[];
+  notReached: string[];
+};
+
+const reviewOf = (weekStart: string, review: Record<string, unknown>): StoredReview => ({
+  weekStart,
+  moved: (review.moved ?? []) as StoredReview["moved"],
+  notReached: (review.notReached ?? []) as string[],
+});
+
+// One week's review (NS-214, GRW-007), stored once: a second call returns the first.
+export async function saveWeekReview(
+  db: Db,
+  input: {
+    candidateId: CandidateId;
+    weekStart: string;
+    moved: StoredReview["moved"];
+    notReached: string[];
+  },
+): Promise<StoredReview & { status: "reviewed" | "existing" }> {
+  return guarded("growth.reviewed", () =>
+    inSpan("growth.reviewed", { "northstar.growth.moved": input.moved.length }, (span) =>
+      db.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(growthReview)
+          .values({
+            candidateId: input.candidateId,
+            weekStart: input.weekStart,
+            review: { moved: input.moved, notReached: input.notReached },
+          })
+          .onConflictDoNothing({ target: [growthReview.candidateId, growthReview.weekStart] })
+          .returning({ id: growthReview.id, createdAt: growthReview.createdAt });
+        if (!row) {
+          const [theirs] = await tx
+            .select()
+            .from(growthReview)
+            .where(
+              and(
+                eq(growthReview.candidateId, input.candidateId),
+                eq(growthReview.weekStart, input.weekStart),
+              ),
+            );
+          if (!theirs) throw new Error("growth_review insert returned no row");
+          return { ...reviewOf(theirs.weekStart, theirs.review), status: "existing" as const };
+        }
+        await appendEvent(tx, span, {
+          candidateId: input.candidateId,
+          aggregate: `growth_review:${row.id}`,
+          type: "growth.reviewed",
+          actor: "user",
+          reason: "Paul reviewed a week of growth time",
+          payload: {
+            reviewId: row.id,
+            weekStart: input.weekStart,
+            moved: input.moved.length,
+            notReached: input.notReached.length,
+          },
+          idempotencyKey: `growth-reviewed:${input.weekStart}`,
+          at: row.createdAt,
+        });
+        return {
+          weekStart: input.weekStart,
+          moved: input.moved,
+          notReached: input.notReached,
+          status: "reviewed" as const,
+        };
+      }),
+    ),
+  );
+}
+
+// The stored review of a week, or null.
+export async function readWeekReview(
+  db: Db,
+  candidateId: CandidateId,
+  weekStart: string,
+): Promise<StoredReview | null> {
+  const [row] = await guarded("growth.read", () =>
+    db
+      .select()
+      .from(growthReview)
+      .where(and(eq(growthReview.candidateId, candidateId), eq(growthReview.weekStart, weekStart))),
+  );
+  return row ? reviewOf(row.weekStart, row.review) : null;
 }

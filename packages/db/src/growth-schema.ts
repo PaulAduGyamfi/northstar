@@ -6,6 +6,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  real,
   text,
   timestamp,
   unique,
@@ -139,5 +140,51 @@ export const growthPlan = pgTable(
   (t) => [
     unique("growth_plan_week_unique").on(t.candidateId, t.weekStart),
     check("growth_plan_monday", sql`extract(isodow from ${t.weekStart}) = 1`),
+  ],
+);
+
+// GRW-005's check-ins (NS-214): a session Paul logged against a track, by key like growth_touch.
+// No free text. The client's idempotency key makes a double submit store one row.
+export const growthCheckIn = pgTable(
+  "growth_check_in",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    candidateId: candidateRef(),
+    trackKey: text("track_key").notNull(),
+    checkedInAt: timestamp("checked_in_at", { withTimezone: true }).notNull().defaultNow(),
+    minutes: integer("minutes").notNull(),
+    // A course's completion, when Paul knows it.
+    percent: real("percent"),
+    idempotencyKey: text("idempotency_key").notNull(),
+  },
+  (t) => [
+    unique("growth_check_in_idempotency_unique").on(t.candidateId, t.idempotencyKey),
+    check("growth_check_in_key_format", sql`${t.trackKey} ~ '^[a-z0-9][a-z0-9-]{0,39}$'`),
+    check("growth_check_in_minutes_range", sql`${t.minutes} between 1 and 600`),
+    check(
+      "growth_check_in_percent_range",
+      sql`${t.percent} is null or (${t.percent} >= 0 and ${t.percent} <= 100)`,
+    ),
+    check(
+      "growth_check_in_idempotency_shape",
+      sql`${t.idempotencyKey} ~ '^[A-Za-z0-9_:-]{8,100}$'`,
+    ),
+  ],
+);
+
+// GRW-007's review of one week (NS-214), stored once: what moved (key, minutes, planned minutes)
+// and the planned track keys with no check-in.
+export const growthReview = pgTable(
+  "growth_review",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    candidateId: candidateRef(),
+    weekStart: date("week_start").notNull(),
+    review: jsonb("review").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("growth_review_week_unique").on(t.candidateId, t.weekStart),
+    check("growth_review_monday", sql`extract(isodow from ${t.weekStart}) = 1`),
   ],
 );
