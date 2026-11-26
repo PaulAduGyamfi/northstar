@@ -14,13 +14,18 @@ const HASH = "62af8704764faf8ea82fc61ce9c4c3908b6cb97d463a634e9e587d7c885db0ef";
 const WEB = "http://northstar.localhost:3100";
 const T = new Date("2026-11-25T12:00:00Z");
 
-const item = (position: bigint, line: string): FeedItem => ({
+const item = (position: bigint, line: string, aggregate = "kill_switch:k1"): FeedItem => ({
   position,
   occurredAt: T,
   type: "kill_switch.set",
   actor: "user",
   line,
+  aggregate,
 });
+
+// Synthetic job and application aggregates the fake names port knows (NS-189).
+const JOB = "job:00000000-0000-4000-8000-000000000001";
+const APP = "application:00000000-0000-4000-8000-000000000002";
 
 const HEALTH: SystemHealth = {
   overall: "degraded",
@@ -41,21 +46,26 @@ let cookie: string;
 let calls: unknown[];
 let health: () => Promise<SystemHealth>;
 let switchResult: SetKillSwitchResult;
+let page: FeedItem[];
+let feedNames: SystemPorts["feedNames"];
 
 beforeEach(async () => {
   calls = [];
   health = async () => HEALTH;
   switchResult = { ok: true, changed: true };
+  page = [item(9n, "You switched off auto_apply"), item(8n, "Paused anthropic")];
+  feedNames = async () => new Map();
   const ports: SystemPorts = {
     health: () => health(),
     feedBefore: async (before, limit) => {
       calls.push(["before", before, limit]);
-      return [item(9n, "You switched off auto_apply"), item(8n, "Paused anthropic")];
+      return page;
     },
     feedAfter: async (after, limit) => {
       calls.push(["after", after, limit]);
       return [item(10n, "You switched on auto_apply")];
     },
+    feedNames: (aggregates) => feedNames(aggregates),
     setSwitch: async (input) => {
       calls.push(["switch", input]);
       return switchResult;
@@ -145,6 +155,8 @@ describe("GET /feed", () => {
           type: "kill_switch.set",
           actor: "user",
           line: "You switched off auto_apply",
+          jobTitle: null,
+          company: null,
         },
         {
           position: "8",
@@ -152,9 +164,65 @@ describe("GET /feed", () => {
           type: "kill_switch.set",
           actor: "user",
           line: "Paused anthropic",
+          jobTitle: null,
+          company: null,
         },
       ],
     });
+    expect(calls).toEqual([["before", undefined, 20]]);
+  });
+
+  it("returns each line's job title and company as their own fields, leaving the line as it was", async () => {
+    page = [item(9n, "Scored a job 91", JOB), item(8n, "Queued an application", APP)];
+    feedNames = async (aggregates) => {
+      calls.push(["names", aggregates]);
+      return new Map([
+        [JOB, { jobTitle: "Backend Engineer", company: "Example Corp" }],
+        [APP, { jobTitle: "Data Engineer", company: null }],
+      ]);
+    };
+    const res = await get("/feed");
+    const items = JSON.parse(res.body).items;
+    expect(items.map((i: Record<string, unknown>) => [i.line, i.jobTitle, i.company])).toEqual([
+      ["Scored a job 91", "Backend Engineer", "Example Corp"],
+      ["Queued an application", "Data Engineer", null],
+    ]);
+    expect(calls).toEqual([
+      ["before", undefined, 20],
+      ["names", [JOB, APP]],
+    ]);
+  });
+
+  it("never returns the aggregate id itself", async () => {
+    page = [item(9n, "Scored a job 91", JOB)];
+    const res = await get("/feed");
+    expect(res.body).not.toContain(JOB.slice(4));
+    expect(Object.keys(JSON.parse(res.body).items[0])).not.toContain("aggregate");
+  });
+
+  it("still returns the lines, without names, when the names can't be read", async () => {
+    page = [item(9n, "Scored a job 91", JOB)];
+    feedNames = async () => {
+      throw new Error("database unavailable");
+    };
+    const res = await get("/feed");
+    expect(res.status).toBe(200);
+    expect(
+      JSON.parse(res.body).items.map((i: Record<string, unknown>) => [
+        i.line,
+        i.jobTitle,
+        i.company,
+      ]),
+    ).toEqual([["Scored a job 91", null, null]]);
+  });
+
+  it("doesn't ask for names when the page is empty", async () => {
+    page = [];
+    feedNames = async (aggregates) => {
+      calls.push(["names", aggregates]);
+      return new Map();
+    };
+    await get("/feed");
     expect(calls).toEqual([["before", undefined, 20]]);
   });
 
