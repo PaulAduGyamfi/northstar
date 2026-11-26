@@ -80,6 +80,30 @@ describe("the submitApplication activity", () => {
     });
   });
 
+  it("waits until the undo window's end when a changed package's withdrawal was refused (NS-234)", async () => {
+    const activities = createApplyActivities(async () => {
+      throw new NotApprovedError("ContentChanged", new Date("2026-11-26T08:01:30Z"));
+    }, now);
+    await expect(activities.submitApplication(args)).resolves.toEqual({
+      kind: "refused",
+      refusal: "UndoWindowOpen",
+      // 90 s to the window's end, plus a second for clock skew.
+      waitMs: 91_000,
+    });
+  });
+
+  it("fails without retry for a changed package once its approval is withdrawn", async () => {
+    const activities = createApplyActivities(async () => {
+      throw new NotApprovedError("ContentChanged");
+    }, now);
+    const failure = await activities.submitApplication(args).catch((error: unknown) => error);
+    expect(failure).toMatchObject({
+      type: NOT_APPROVED,
+      nonRetryable: true,
+      message: "ContentChanged",
+    });
+  });
+
   it("lets any other gateway error through for the retry policy", async () => {
     const boom = new Error("database down");
     const activities = createApplyActivities(async () => {

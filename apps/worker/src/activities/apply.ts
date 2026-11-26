@@ -12,6 +12,9 @@ import { NOT_APPROVED, type SubmitStep, UNDO_WINDOW_OPEN } from "../workflows/ty
 // approval itself, claims the submission once and drives the form (ADR-0002). This wrapper only
 // turns its answer into plain data the workflow can decide on.
 
+// Extra wait past the undo window's end (NS-234), for clock skew between worker and database.
+const CLOCK_MARGIN_MS = 1_000;
+
 // What the workflow passes in. Activity arguments cross Temporal as JSON, so the candidate id is
 // checked again here rather than trusted as branded.
 export type SubmitArgs = { candidateId: string; decisionId: string; package: unknown };
@@ -41,6 +44,19 @@ export function createApplyActivities(submit: Submit, now: () => Date = () => ne
         // workflow waits it out and asks again (.claude/rules/gateways.md: never a silent drop).
         if (error instanceof NotApprovedError && error.reason === UNDO_WINDOW_OPEN) {
           return { kind: "refused", refusal: UNDO_WINDOW_OPEN, waitMs: null };
+        }
+        // The package changed inside the undo window (NS-234): the gateway's withdrawal was
+        // refused until the window ends, so wait for it and call again. The next call withdraws
+        // the approval, then ends as not_approved, which NS-226 records as a dead letter.
+        if (
+          error instanceof NotApprovedError &&
+          error.reason === "ContentChanged" &&
+          error.retryAt instanceof Date
+        ) {
+          // A second past the window: the Gate decides by the database's clock, and a worker
+          // clock running ahead would otherwise come back just before the window ends.
+          const waitMs = Math.max(0, error.retryAt.getTime() - now().getTime()) + CLOCK_MARGIN_MS;
+          return { kind: "refused", refusal: UNDO_WINDOW_OPEN, waitMs };
         }
         if (error instanceof NotApprovedError) {
           // The message is the Gate's refusal kind (Rejected, Undone...), which the workflow
