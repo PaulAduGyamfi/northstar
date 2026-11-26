@@ -20,6 +20,8 @@ const PAGE_SIZE = 250;
 // A runaway paging loop stops here (60 days of a busy calendar is well under 10 pages).
 const MAX_PAGES = 20;
 const MAX_RETRIES = 5;
+// Google's Retry-After is honoured up to this many seconds (the Gmail client's rule).
+const MAX_RETRY_AFTER_S = 60;
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 const RATE_LIMIT_REASONS = new Set([
   "rateLimitExceeded",
@@ -73,10 +75,16 @@ async function errorReason(res: Response): Promise<string | null> {
   }
   const error = (body as { error?: Record<string, unknown> } | null)?.error;
   if (!error || typeof error !== "object") return null;
+  const details = Array.isArray(error.details) ? error.details : [];
+  const info = details.find(
+    (d: { "@type"?: unknown }) =>
+      typeof d?.["@type"] === "string" && d["@type"].endsWith("google.rpc.ErrorInfo"),
+  ) as { reason?: unknown } | undefined;
   const legacy = Array.isArray(error.errors)
     ? (error.errors[0] as { reason?: unknown } | undefined)
     : undefined;
-  for (const candidate of [legacy?.reason, error.status]) {
+  // Most specific first: ErrorInfo's reason, then the legacy reason, then the status word.
+  for (const candidate of [info?.reason, legacy?.reason, error.status]) {
     if (typeof candidate === "string" && REASON_WORD.test(candidate)) return candidate;
   }
   return null;
@@ -118,6 +126,30 @@ function toEvent(raw: unknown): CalendarEvent | null {
   };
 }
 
+// Only GET on the primary events URL, with exactly EVENT_FIELDS and the known parameters.
+const ALLOWED_PARAMS = new Set([
+  "timeMin",
+  "timeMax",
+  "singleEvents",
+  "orderBy",
+  "maxResults",
+  "fields",
+  "pageToken",
+]);
+export function requestAllowed(url: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.origin + parsed.pathname !== EVENTS) return false;
+  if (parsed.username !== "" || parsed.password !== "" || parsed.hash !== "") return false;
+  if (parsed.searchParams.get("fields") !== EVENT_FIELDS) return false;
+  if (parsed.searchParams.getAll("fields").length !== 1) return false;
+  return [...parsed.searchParams.keys()].every((k) => ALLOWED_PARAMS.has(k));
+}
+
 export function createCalendarClient(deps: CalendarDeps): CalendarClient {
   const tracer = trace.getTracer("@northstar/inbox");
   const backoff = (attempt: number) => 500 * 2 ** attempt + Math.floor(deps.random() * 250);
@@ -125,6 +157,9 @@ export function createCalendarClient(deps: CalendarDeps): CalendarClient {
 
   // One GET with retries. Records the final status and retry count on the span.
   async function send(url: string, span: Span): Promise<unknown> {
+    // A runtime check beside the boundary scan: only the primary calendar's events, with exactly
+    // the limited fields, ever go out.
+    if (!requestAllowed(url)) throw new CalendarError("refused: not the primary events read", 0);
     for (let attempt = 0; ; attempt++) {
       let res: Response;
       try {
@@ -143,7 +178,14 @@ export function createCalendarClient(deps: CalendarDeps): CalendarClient {
       }
       span.setAttribute("http.response.status_code", res.status);
       span.setAttribute("calendar.retries", attempt);
-      if (res.ok) return res.json();
+      if (res.ok) {
+        try {
+          return await res.json();
+        } catch {
+          // The parse error can quote the body (event titles): never pass it on.
+          throw new CalendarError("Calendar answered 200 with a body that isn't JSON", 200);
+        }
+      }
       const reason = await errorReason(res);
       const said = `Calendar answered ${res.status}${reason ? ` (${reason})` : ""}`;
       // Google sends rate limits as 403 too; those are retried, other 403s aren't.
@@ -155,7 +197,14 @@ export function createCalendarClient(deps: CalendarDeps): CalendarClient {
       if (attempt >= MAX_RETRIES) {
         throw fault(new CalendarError(`${said} after ${MAX_RETRIES} retries`, res.status));
       }
-      await deps.sleep(rateLimited ? rateBackoff(attempt) : backoff(attempt));
+      const retryAfter = Number(res.headers.get("retry-after"));
+      await deps.sleep(
+        Number.isFinite(retryAfter) && retryAfter > 0
+          ? Math.min(retryAfter, MAX_RETRY_AFTER_S) * 1000
+          : rateLimited
+            ? rateBackoff(attempt)
+            : backoff(attempt),
+      );
     }
   }
 
@@ -194,6 +243,7 @@ export function createCalendarClient(deps: CalendarDeps): CalendarClient {
       tracer.startActiveSpan("calendar.list", async (span) => {
         try {
           const windowMs = timeMax.getTime() - timeMin.getTime();
+          // A plain Error: a bad window is the caller's bug, not Calendar's answer.
           if (!(windowMs > 0) || windowMs > MAX_WINDOW_DAYS * DAY_MS) {
             throw new Error("the window must run forward and span at most 60 days");
           }
@@ -222,6 +272,11 @@ export function createCalendarClient(deps: CalendarDeps): CalendarClient {
             pageToken = typeof page.nextPageToken === "string" ? page.nextPageToken : undefined;
             pages++;
           } while (pageToken && pages < MAX_PAGES);
+          // Never a silent partial list: more pages than the cap is an error, not a result.
+          if (pageToken) {
+            span.setAttribute("calendar.truncated", true);
+            throw new CalendarError(`Calendar had more than ${MAX_PAGES} pages`, 200);
+          }
           // Counts only: never a title or an address.
           span.setAttribute("calendar.count", events.length);
           span.setAttribute("calendar.skipped", skipped);

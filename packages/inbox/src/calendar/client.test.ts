@@ -1,6 +1,7 @@
 import { type CallGuard, type GuardDecision, type GuardOutcome, HeldBack } from "@northstar/llm";
 import { describe, expect, it } from "vitest";
 import { detectInterview } from "../interview/detect.js";
+import { GmailLabelAccess } from "../labels/access.js";
 import { GmailAccess } from "../oauth.js";
 import { CalendarAccess } from "./access.js";
 import {
@@ -9,11 +10,12 @@ import {
   createCalendarClient,
   EVENT_FIELDS,
   MAX_WINDOW_DAYS,
+  requestAllowed,
 } from "./client.js";
 
 // The read-only Calendar client (NS-240, ADR-0026) on a fake fetch. Synthetic events only.
 
-const TOKEN = "ya29.test-calendar-token";
+const TOKEN = "test-calendar-token";
 const FROM = new Date("2026-12-01T00:00:00Z");
 const TO = new Date("2026-12-15T00:00:00Z");
 
@@ -30,7 +32,8 @@ const timed = (id: string, summary: string, over: Item = {}): Item => ({
 });
 
 // A fake Calendar API: pages of items, then scripted failures before them.
-function fakeCalendar(pages: Item[][], failures: { status: number; body?: string }[] = []) {
+type Failure = { status: number; body?: string; headers?: Record<string, string> } | "drop";
+function fakeCalendar(pages: Item[][], failures: Failure[] = []) {
   const requests: { url: URL; method: string; authorization: string | null }[] = [];
   const queue = [...failures];
   const fetchFn = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -41,7 +44,13 @@ function fakeCalendar(pages: Item[][], failures: { status: number; body?: string
       authorization: new Headers(init?.headers).get("authorization"),
     });
     const failure = queue.shift();
-    if (failure) return new Response(failure.body ?? "{}", { status: failure.status });
+    if (failure === "drop") throw new TypeError("fetch failed");
+    if (failure) {
+      return new Response(failure.body ?? "{}", {
+        status: failure.status,
+        ...(failure.headers ? { headers: failure.headers } : {}),
+      });
+    }
     const page = Number(url.searchParams.get("pageToken") ?? "0");
     const next = page + 1 < pages.length ? String(page + 1) : undefined;
     return Response.json({ items: pages[page] ?? [], ...(next ? { nextPageToken: next } : {}) });
@@ -177,6 +186,61 @@ describe("listEvents", () => {
     expect(cal.requests).toEqual([]);
   });
 
+  it("allows a window of exactly 60 days", async () => {
+    const cal = fakeCalendar([[]]);
+    const timeMax = new Date(FROM.getTime() + MAX_WINDOW_DAYS * 86_400_000);
+    await expect(client(cal).listEvents({ timeMin: FROM, timeMax })).resolves.toEqual([]);
+  });
+
+  it("throws rather than return a partial list when there are more than 20 pages", async () => {
+    const cal = fakeCalendar(Array.from({ length: 21 }, () => []));
+    await expect(client(cal).listEvents({ timeMin: FROM, timeMax: TO })).rejects.toThrow(
+      "Calendar had more than 20 pages",
+    );
+  });
+
+  it("waits for Google's Retry-After, capped at 60 seconds", async () => {
+    sleeps.length = 0;
+    const cal = fakeCalendar(
+      [[]],
+      [
+        { status: 429, headers: { "retry-after": "7" } },
+        { status: 503, headers: { "retry-after": "600" } },
+      ],
+    );
+    await client(cal).listEvents({ timeMin: FROM, timeMax: TO });
+    expect(sleeps).toEqual([7000, 60_000]);
+  });
+
+  it("retries a 403 rate limit with the longer backoff", async () => {
+    sleeps.length = 0;
+    const body = JSON.stringify({
+      error: { code: 403, errors: [{ reason: "rateLimitExceeded" }] },
+    });
+    const cal = fakeCalendar([[]], [{ status: 403, body }]);
+    await client(cal).listEvents({ timeMin: FROM, timeMax: TO });
+    expect(sleeps).toEqual([2000]);
+  });
+
+  it("retries a dropped connection and then reads the events", async () => {
+    sleeps.length = 0;
+    const cal = fakeCalendar([[timed("e1", "Interview")]], ["drop"]);
+    const events = await client(cal).listEvents({ timeMin: FROM, timeMax: TO });
+    expect([events.length, sleeps]).toEqual([1, [500]]);
+  });
+
+  it("names a 200 that isn't JSON without quoting the body", async () => {
+    const fetchFn = (async () =>
+      new Response("Interview with Globex: secret-title", { status: 200 })) as typeof fetch;
+    const error = await client({ fetch: fetchFn, requests: [] })
+      .listEvents({ timeMin: FROM, timeMax: TO })
+      .catch((e: unknown) => e);
+    expect([error instanceof CalendarError, (error as Error).message]).toEqual([
+      true,
+      "Calendar answered 200 with a body that isn't JSON",
+    ]);
+  });
+
   it("retries a 503 with backoff and then reads the events", async () => {
     sleeps.length = 0;
     const cal = fakeCalendar([[timed("e1", "Interview")]], [{ status: 503 }]);
@@ -250,6 +314,27 @@ describe("the calendar breaker", () => {
   });
 });
 
+describe("requestAllowed", () => {
+  const base = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+  const ok = `${base}?timeMin=a&fields=${encodeURIComponent(EVENT_FIELDS)}`;
+
+  it("allows the primary events read with the limited fields", () => {
+    expect(requestAllowed(ok)).toBe(true);
+  });
+
+  it.each([
+    ["another calendar", ok.replace("primary", "other%40example.com")],
+    ["another endpoint", ok.replace("/events", "/events/e1")],
+    ["another host", ok.replace("www.googleapis.com", "evil.example")],
+    ["wider fields", `${base}?fields=items`],
+    ["no fields", `${base}?timeMin=a`],
+    ["an extra parameter", `${ok}&q=interview`],
+    ["a repeated fields parameter", `${ok}&fields=items`],
+  ])("refuses %s", (_name, url) => {
+    expect(requestAllowed(url)).toBe(false);
+  });
+});
+
 describe("CalendarAccess", () => {
   it("prints a mask, never the token", () => {
     const access = new CalendarAccess(TOKEN);
@@ -266,6 +351,11 @@ describe("CalendarAccess", () => {
     takesCalendar(new GmailAccess(TOKEN));
     // @ts-expect-error a Calendar token can't read mail
     takesGmail(new CalendarAccess(TOKEN));
+    const takesLabels = (_a: GmailLabelAccess) => true;
+    // @ts-expect-error a label-writer token can't read the calendar
+    takesCalendar(new GmailLabelAccess(TOKEN));
+    // @ts-expect-error a Calendar token can't write labels
+    takesLabels(new CalendarAccess(TOKEN));
     expect(true).toBe(true);
   });
 });

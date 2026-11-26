@@ -2,7 +2,7 @@
 
 Status: draft (autonomous lane, ADR-0016)
 Requirements: CAL-001 (read), CAL-002 · ADR-0026 (Proposed), ADR-0014, ADR-0007
-Rules that apply: `.claude/rules/gateways.md`, `.claude/rules/tests.md`. Issue #271 (Parent: #120).
+Rules that apply: `.claude/rules/tests.md`. Issue #271 (Parent: #120).
 
 ## Why
 NS-169 built `detectInterview`, which turns one calendar event into a proposed interview, but
