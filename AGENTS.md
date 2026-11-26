@@ -371,6 +371,11 @@ Exists now:
   - The consent policy (`auto` by default, or `ask_per_tenant`; `decideConsent` always declines
     marketing) and `consent_record`, every accepted notice with its text and SHA-256.
   - The API's `GET /accounts` lists tenants and statuses, never the email or URL.
+  - Since NS-198 also Settings → Accounts in the app (`/settings/accounts`, linked from Today):
+    each tenant's status in words, the consent policy (`GET`/`POST /settings/consent-policy`,
+    session only, Paul's change), and the accepted notices (`GET /accounts/consents`, never the
+    text; `GET /accounts/consents/text` gives one notice's text on request). `listConsentRecords`
+    and `readConsentText` in `packages/db` read them.
 
   No account creation, sign-in or Workday adapter yet: they need the browser driver (NS-142).
 - The credential vault (NS-122, ADR-0010, CRD-001/002/003/005): append-only `vault_secret`
