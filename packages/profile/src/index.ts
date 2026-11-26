@@ -54,6 +54,8 @@ export {
   parseOfficialRecord,
   type RecordLineError,
 } from "./facts.js";
+// Factual answers from Paul's settings (NS-141), used by package assembly (NS-161).
+export { answerFactual, type FactualAnswer, type Setting } from "./factual.js";
 export { type ImportDeps, type ImportResult, importResume } from "./import.js";
 export {
   type Choice,
