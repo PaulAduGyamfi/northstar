@@ -1,7 +1,14 @@
 import type { SaveTailoredInput } from "@northstar/db";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { renderResumePdf } from "./pdf.js";
 import { type TailorRunDeps, tailorForJob } from "./run.js";
 import { sampleJob, sampleMaster } from "./test/master.js";
+
+// Pass-through spy on the PDF renderer, so a test can see which resume the scored PDF came from.
+vi.mock("./pdf.js", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./pdf.js")>();
+  return { ...original, renderResumePdf: vi.fn(original.renderResumePdf) };
+});
 
 // Tailoring a stored job end to end (NS-146). Fakes for the database; the sample master and job.
 
@@ -51,6 +58,21 @@ describe("tailorForJob", () => {
       saved[0]?.droppedSkills,
       saved[0]?.summary.droppedSkills,
     ]).toEqual([false, undefined, ["terraform"], 1]);
+  });
+
+  it("scores the PDF rendered after the toggles, not the one before", async () => {
+    const { deps } = fake();
+    const render = vi.mocked(renderResumePdf);
+    render.mockClear();
+    await tailorForJob(deps, JOB_ID, ["Terraform"]);
+    const last = render.mock.calls.at(-1)?.[0];
+    expect(last?.skills.some((s) => s.name === "Terraform")).toBe(false);
+  });
+
+  it("counts a skill dropped twice in different case once", async () => {
+    const { deps, saved } = fake();
+    await tailorForJob(deps, JOB_ID, ["Terraform", "terraform"]);
+    expect([saved[0]?.droppedSkills, saved[0]?.summary.droppedSkills]).toEqual([["Terraform"], 1]);
   });
 
   it("refuses to turn off a skill the master lists, and saves nothing", async () => {

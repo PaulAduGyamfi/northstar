@@ -42,8 +42,16 @@ export type TailorRun =
 export async function tailorForJob(
   deps: TailorRunDeps,
   jobId: string,
-  drop: readonly string[],
+  requested: readonly string[],
 ): Promise<TailorRun> {
+  // "Terraform,terraform" is one toggle: the event's count must match the stored list.
+  const seen = new Set<string>();
+  const drop = requested.filter((name) => {
+    const key = name.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   const input = await deps.readInput(jobId);
   if (!input.ok) return { kind: "refused", reason: input.error.kind };
   const master: MasterResume = input.value.master;

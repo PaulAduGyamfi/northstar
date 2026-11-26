@@ -35,7 +35,7 @@ export const tailoredResume = pgTable(
     score: jsonb("score").$type<Record<string, unknown>>().notNull(),
     // Added skills Paul turned off (TLR-003's toggles), lowercased and sorted.
     droppedSkills: text("dropped_skills").array().notNull(),
-    // SHA-256 of import, resume and toggles: saving what the newest version holds stores nothing.
+    // SHA-256 of import, resume, toggles and score: saving what the newest version holds stores nothing.
     contentSha256: text("content_sha256").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

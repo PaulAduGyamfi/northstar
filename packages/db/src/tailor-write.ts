@@ -113,7 +113,9 @@ export async function readTailorInput(
   const skills = await db
     .select({ name: skill.name })
     .from(skill)
-    .where(eq(skill.sourceId, source.id));
+    .where(eq(skill.sourceId, source.id))
+    // Skills have no stored order: by name, so the same import always hashes the same.
+    .orderBy(asc(skill.name));
   return {
     ok: true,
     value: {
@@ -175,7 +177,10 @@ export async function saveTailoredResume(
 ): Promise<{ version: number; saved: boolean }> {
   const dropped = [...new Set(input.droppedSkills.map((s) => s.toLowerCase()))].sort();
   const contentSha256 = createHash("sha256")
-    .update(stable({ source: input.profileSourceId, resume: input.resume, dropped }))
+    // The score too: a changed job title or requirement changes it, so it isn't left stale.
+    .update(
+      stable({ source: input.profileSourceId, resume: input.resume, dropped, score: input.score }),
+    )
     .digest("hex");
   try {
     return await inSpan(

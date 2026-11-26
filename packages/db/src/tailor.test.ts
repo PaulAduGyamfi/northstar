@@ -165,6 +165,13 @@ describe("saveTailoredResume", () => {
     ]);
   });
 
+  it("stores a new version when the score changes for the same resume", async () => {
+    await importProfile(candidateId);
+    const source = await sourceId();
+    await save({}, source);
+    expect(await save({ score: { title: "exact" } }, source)).toEqual({ version: 2, saved: true });
+  });
+
   it("reads versions newest first, with the toggles lowercased", async () => {
     await importProfile(candidateId);
     const source = await sourceId();
