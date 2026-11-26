@@ -90,7 +90,8 @@ Exists now:
   ("iOS", "2FA", "ex-Globex", "l'Oréal"); a capitalised word is still backed whole. All-lowercase
   names are not caught. Since NS-216 a number with a listed unit ("1M", "5GB", "200kW") is a
   quantity, not a name; its digits face the number rule and its scale must be in the same quotes
-  ("5 thousand" doesn't back "5B"). Stories
+  ("5 thousand" doesn't back "5B"). Since NS-201 only quotes that pass back a part's
+  digit numbers. Stories
   are stored only when Paul approves them, then locked by a trigger (`packages/db`,
   `story-schema.ts`).
   Since NS-112 also the employment-facts check (DX-011): Paul's official HR record
