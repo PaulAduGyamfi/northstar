@@ -63,6 +63,9 @@ function deps(
     readSettings: async () => [],
     recordFactualUse: async () => {},
     runTailor: async () => ({ kind: "refused", reason: "NoProfile" }),
+    runAudit: async () => ({ kind: "refused", reason: "NoProfile" }),
+    acceptSuggestion: async () => ({ kind: "refused", reason: "NoAudit" }),
+    rejectSuggestion: async () => ({ kind: "refused", reason: "NoAudit" }),
   };
   return { d, printed, interviewedAtoms };
 }

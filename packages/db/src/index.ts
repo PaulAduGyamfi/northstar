@@ -89,6 +89,21 @@ export {
   type WithdrawResult,
   withdrawApproval,
 } from "./approval-write.js";
+export * as auditSchema from "./audit-schema.js";
+// Resume audits, Paul's decisions and his edited lines (NS-190, AUD-001/002).
+export {
+  type AuditDecideError,
+  type AuditDecideInput,
+  type AuditInput,
+  type AuditView,
+  decideSuggestion,
+  readAuditInput,
+  readLatestAudit,
+  rejectedKeys,
+  type SaveAuditInput,
+  type StoredSuggestion,
+  saveResumeAudit,
+} from "./audit-write.js";
 export {
   acquireCall,
   type BreakerView,
@@ -319,6 +334,7 @@ export {
 export * as tailorSchema from "./tailor-schema.js";
 // Tailored resumes (NS-146, TLR-001/003/005).
 export {
+  readResumeMaster,
   readTailoredResumes,
   readTailorInput,
   type SaveTailoredInput,

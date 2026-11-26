@@ -135,6 +135,12 @@ Exists now:
     points to `profile facts`, because dates are locked.
   - `applySuggestion` swaps in Paul's own new line for that one atom. It refuses anything else:
     a role, a term, a multi-line text, or another role's employer, title or year.
+  Since NS-190 also storage and a command (AUD-002): `runAudit`, `acceptSuggestion` and
+  `rejectSuggestion` (`audit/run.ts`) over append-only `resume_audit`, its suggestions, Paul's
+  decisions and `atom_line_edit` (`packages/db`, `audit-write.ts`). A rejected suggestion stays
+  out of later runs on the same import. An accepted line is checked by `applySuggestion`, then
+  becomes the atom's newest edit: `readTailorInput` and the audit use it, the atom's imported
+  quote never changes, and scoring, stories and the thesis still cite the imported quote.
 - The answer bank (GH-59, ANS-005/006) in `packages/db` (`answer-schema.ts`, `answer-write.ts`):
   append-only `bank_answer` (versioned per canonical question), `bank_answer_citation` and
   `bank_answer_use`. `saveApprovedAnswer` stores an answer only with a live Gate approval by Paul
@@ -457,6 +463,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/profile profile thesis draft` | up to three positioning theses that pass the deterministic check, with the atoms each cites; says so while drafting is off. Paul only: it reads his real profile; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile thesis set "<text>" --atoms <id,id>` / `profile thesis show` | check a thesis against the cited atoms, roles and skills and save it as a new version (a failure saves nothing) / print the current one. Paul only: needs `DATABASE_URL`; agents never run them |
 | repo root | `pnpm --filter @northstar/profile profile tailor <job-id> [--drop <skill,skill>]` | tailor the resume to a ready job (plain code, no model): prints the diff, what it doesn't claim, the pre-send score and the validator result, and stores a new version (unchanged content stores nothing); `--drop` turns off skills the tailor added. Paul only: it prints his real profile, needs `DATABASE_URL`; agents never run it |
+| repo root | `pnpm --filter @northstar/profile profile audit` / `profile audit accept <key> "<new line>"` / `profile audit reject <key>` | audit the current resume against the search preferences' titles and ready jobs' requirements and store the run (leaving out suggestions rejected on this import) / accept one line suggestion with Paul's own line (checked like `applySuggestion`; the tailor uses it from then on) / reject one. Paul only: it prints his real resume, needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile settings set <field> <value> [--for <qualifier>]` / `profile settings show` | store an answer to a factual question (`work_authorization --for <country>`, `years_of_experience --for <skill>`, `previously_employed --for <company>`; yes/no, whole years, `YYYY-MM-DD`, `remote\|hybrid\|onsite`, https links, short text) / list the current ones. Paul only: his real data, needs `DATABASE_URL`; agents never run them |
 | repo root | `pnpm --filter @northstar/profile profile answer "<question>"` | answer a form question from the settings: prints the answer, the canonical question and the setting used, or why it can't. Paul only: needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel backfill [--since YYYY-MM-DD] [--max-messages N]` | sign in to Gmail read-only (browser consent every run), rebuild the funnel from job mail since `--since` (default 2026-02-01); prints the model-call count and estimated cost first and stops at `--max-messages` (default 500). Safe to rerun. Paul only: his real mail, needs `DATABASE_URL`, `GOOGLE_OAUTH_CLIENT_*` and `ANTHROPIC_API_KEY`; agents never run it |
