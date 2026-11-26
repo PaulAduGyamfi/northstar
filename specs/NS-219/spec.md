@@ -1,6 +1,6 @@
 # NS-219 (slice 1): Spend-cap holds on Health
 
-Status: building
+Status: built
 Requirements: RES-009 (LLM spend cap), RES-013 (System Health), ADR-0021 (Proposed), UX-043
 Rules that apply: ADR-0016, `.claude/rules/web.md`, `.claude/rules/llm.md`,
 `.claude/rules/tests.md`. Parent: #127. Part of #212.
@@ -19,7 +19,7 @@ unnoticed for days.
 - **API `GET /system/spend`** (`apps/api/src/spend.ts`, `auth: "session"`): today's and this
   month's spend in US dollars, each cap or `null`, and the paused priorities. 503 when spend
   can't be read. Wired in `bin.ts` to the same caps (`loadLlmBudget`) and stored spend
-  (`readLlmSpend`) the gateway uses.
+  (`dbSpendMeter`, over `readLlmSpend`) the gateway uses.
 - **Web `/health`, a "Model spend" card** (`src/spend.ts`): "Today: $1.20 of the $5.00 daily cap"
   (or "no daily cap"), the same for the month, and one line per paused priority in plain words:
   which work is paused, which cap and share, and when it starts again ("tomorrow (UTC)", "next
@@ -27,13 +27,13 @@ unnoticed for days.
   "Spend can't be read right now." Amounts in dollars and cents.
 
 ## Acceptance criteria
-- [ ] `pausedPriorities` lists exactly the priorities `budgetHold` holds, with their cap (tests at
+- [x] `pausedPriorities` lists exactly the priorities `budgetHold` holds, with their cap (tests at
       each share's edge).
-- [ ] The API answers 401 without a session, the figures and paused list with one, 503 when spend
+- [x] The API answers 401 without a session, the figures and paused list with one, 503 when spend
       can't be read (API tests).
-- [ ] The page's words for usage, each paused priority and each cap, and "nothing paused" (web
+- [x] The page's words for usage, each paused priority and each cap, and "nothing paused" (web
       tests).
-- [ ] `pnpm turbo run lint typecheck test build` passes.
+- [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Out of scope (rest of #212)
 - Bounded concurrency per worker pool: there's no worker process yet (#230); its limits arrive

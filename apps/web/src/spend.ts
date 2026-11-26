@@ -27,6 +27,8 @@ const WORK = {
 
 // The share of a cap each priority may reach (ADR-0021's HOLD_AT), in words.
 const SHARE = { low: "80% of the", normal: "the", fresh: "125% of the" } as const;
+// The same shares as numbers (HOLD_AT in packages/llm; the web app holds no server package).
+const HOLD_SHARE = { low: 0.8, normal: 1, fresh: 1.25 } as const;
 
 const dollars = (usd: number) => `$${usd.toFixed(2)}`;
 
@@ -39,7 +41,10 @@ const usageLine = (label: string, spent: number, cap: number | null, kind: strin
 export function spendView(s: Spend): { usage: string[]; paused: string[]; summary: string } {
   const paused = s.paused.map(({ priority, cap }) => {
     const when = cap === "daily" ? "Today's" : "This month's";
-    const resumes = cap === "daily" ? "tomorrow (UTC)" : "next month (UTC)";
+    // A daily hold lifts tomorrow only if the monthly cap won't still hold this priority then.
+    const monthlyHolds =
+      s.monthlyCapUsd !== null && s.monthUsd >= s.monthlyCapUsd * HOLD_SHARE[priority];
+    const resumes = cap === "daily" && !monthlyHolds ? "tomorrow (UTC)" : "next month (UTC)";
     return `Paused: ${WORK[priority]}. ${when} spend reached ${SHARE[priority]} ${cap} cap. It starts again ${resumes}, or sooner if you raise the cap.`;
   });
   return {

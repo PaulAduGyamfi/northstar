@@ -53,4 +53,11 @@ describe("spendView", () => {
       summary: "Some model work is paused by the spend cap.",
     });
   });
+
+  it("says next month when the monthly cap would still hold after the daily one resets", () => {
+    const both = { ...body, todayUsd: 8, dailyCapUsd: 10, monthUsd: 85, monthlyCapUsd: 100 };
+    expect(spendView({ ...both, paused: [{ priority: "low", cap: "daily" }] }).paused).toEqual([
+      "Paused: sorting job mail. Today's spend reached 80% of the daily cap. It starts again next month (UTC), or sooner if you raise the cap.",
+    ]);
+  });
 });
