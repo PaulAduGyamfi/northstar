@@ -1,12 +1,11 @@
 import {
   type CandidateId,
+  isSafeCompany,
   type PackageFacts,
   packageSha256,
   packageSubject,
   parsePackage,
 } from "@northstar/domain";
-import { and, eq, inArray } from "drizzle-orm";
-import { bankAnswer } from "./answer-schema.js";
 import { type RequestError, type RequestResult, requestApproval } from "./approval-write.js";
 import type { Db } from "./db.js";
 import { readPackageInputs } from "./package-read.js";
@@ -16,7 +15,8 @@ import { readPackageInputs } from "./package-read.js";
 // confused producer can't make a package match one of Paul's auto-approve rules.
 
 // A producer's claim that one filled field reuses a banked answer, with its own reading of how
-// closely the form's question matched (the question canon lives in packages/profile).
+// closely the form's question matched (the question canon lives in packages/profile). Which
+// question the answer belongs to is the producer's too: the Gate checks the text, not the match.
 export type BankClaim = {
   fieldName: string;
   answerId: string;
@@ -29,12 +29,21 @@ export type BankClaim = {
 // ever drift, a claim fails to verify and counts as new, which only sends more to Paul.
 const SLOT = /\{([^{}]*)\}/g;
 const CHOICE_KINDS: ReadonlySet<string> = new Set(["select", "multi_select"]);
+// Fields a banked answer can fill: no hidden or upload field, as formQuestions (packages/pipeline).
+const ANSWERABLE_KINDS: ReadonlySet<string> = new Set([
+  "text",
+  "textarea",
+  "select",
+  "multi_select",
+]);
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const words = (text: string) => text.split(/\s+/).filter((w) => w.length > 0).length;
 
-// A banked template with its company slot filled, or null when it has another slot or no company.
+// A banked template with its company slot filled, or null when it has another slot, or the
+// company is missing or not a plain short name (job data is untrusted: isSafeCompany).
 function fill(template: string, company: string): string | null {
   for (const [, slot] of template.matchAll(SLOT)) {
-    if (slot !== "company" || company === "") return null;
+    if (slot !== "company" || company === "" || !isSafeCompany(company)) return null;
   }
   return template.replace(SLOT, () => company);
 }
@@ -59,10 +68,26 @@ export async function requestPackageApproval(
   if (!inputs) {
     return { ok: false, error: { kind: "InvalidRequest", fields: ["package.applicationId"] } };
   }
-  // Two claims for one field would leave which one counts to chance: refuse them.
+  // The package must be for this application's own job, contact details and resume file: fit and
+  // form-seen-before are read for that job, and an auto-approved package goes out unseen.
+  const mismatched = [
+    // The posting is one of the job's stored sources, compared as the Apply Gateway does.
+    inputs.sources.some(
+      (s) => s.ats === pkg.ats && s.postingId?.toLowerCase() === pkg.postingId.toLowerCase(),
+    )
+      ? null
+      : "package.postingId",
+    sameContact(inputs.contact, pkg.contact) ? null : "package.contact",
+    inputs.resume?.pdfSha256 === pkg.resume.sha256 ? null : "package.resume",
+  ].filter((f): f is string => f !== null);
+  if (mismatched.length > 0) {
+    return { ok: false, error: { kind: "InvalidRequest", fields: mismatched } };
+  }
+  // Two claims for one field would leave which one counts to chance: refuse them, and any claim
+  // not shaped as one (the Gate checks its input, never the database's error).
   const claims = new Map<string, BankClaim>();
   for (const claim of input.claims) {
-    if (claims.has(claim.fieldName)) {
+    if (claims.has(claim.fieldName) || !wellFormed(claim)) {
       return { ok: false, error: { kind: "InvalidRequest", fields: ["claims"] } };
     }
     claims.set(claim.fieldName, claim);
@@ -72,30 +97,17 @@ export async function requestPackageApproval(
   // this package's form.
   const form = inputs.form?.ats === pkg.ats ? inputs.form : null;
   const kinds = new Map(form?.questions.map((q) => [q.fieldName, q.kind]) ?? []);
-  const ids = [...new Set([...claims.values()].map((c) => c.answerId))];
-  const banked =
-    ids.length === 0
-      ? []
-      : await db
-          .select({
-            id: bankAnswer.id,
-            version: bankAnswer.version,
-            shortText: bankAnswer.shortText,
-            longText: bankAnswer.longText,
-          })
-          .from(bankAnswer)
-          .where(and(eq(bankAnswer.candidateId, input.candidateId), inArray(bankAnswer.id, ids)));
   const company = inputs.companyName?.trim() ?? "";
 
-  // A claim counts only when the field's value is exactly Paul's approved text for it.
-  const verified = (
-    fieldName: string,
-    value: string | string[],
-    claim: BankClaim | undefined,
-  ): boolean => {
+  // A claim counts only when the field's value is exactly Paul's approved text for it, in the
+  // newest version of that answer (inputs.bank holds only the newest per canonical question).
+  const verified = (fieldName: string, value: string | string[], claim: BankClaim): boolean => {
     // A banked answer is one text: a list of picked choices is never one.
-    if (!claim || typeof value !== "string" || !kinds.has(fieldName)) return false;
-    const row = banked.find((b) => b.id === claim.answerId && b.version === claim.version);
+    if (typeof value !== "string" || !ANSWERABLE_KINDS.has(kinds.get(fieldName) ?? ""))
+      return false;
+    const row = inputs.bank.find(
+      (b) => b.answerId === claim.answerId && b.version === claim.version,
+    );
     const template = claim.variant === "long" ? row?.longText : row?.shortText;
     return typeof template === "string" && fill(template, company) === value;
   };
@@ -106,9 +118,10 @@ export async function requestPackageApproval(
   for (const [fieldName, value] of Object.entries(pkg.fields)) {
     const claim = claims.get(fieldName);
     answers.push({
-      source: verified(fieldName, value, claim) && claim ? claim.source : "new",
+      source: claim && verified(fieldName, value, claim) ? claim.source : "new",
       // A choice (or a list of picked choices) is no free text; any other field, or one the form
-      // doesn't list, counts its words.
+      // doesn't list, counts its words. A factual setting's value counts too: it is `new` anyway,
+      // so it never auto-approves either way.
       freeTextWords:
         typeof value !== "string" || CHOICE_KINDS.has(kinds.get(fieldName) ?? "")
           ? 0
@@ -123,6 +136,8 @@ export async function requestPackageApproval(
     formSeenBefore: form !== null && inputs.formSeenBefore,
     answers,
   };
+  // These reads run before requestApproval's own transaction: a fit or form stored in between
+  // only shows on the next package, and the request still pins this package's content.
   return requestApproval(db, {
     candidateId: input.candidateId,
     kind: "application_package",
@@ -132,4 +147,29 @@ export async function requestPackageApproval(
     actor: input.actor,
     idempotencyKey: input.idempotencyKey,
   });
+}
+
+function sameContact(
+  stored: { firstName: string; lastName: string; email: string; phone: string | null } | null,
+  given: { firstName: string; lastName: string; email: string; phone: string | null },
+): boolean {
+  return (
+    stored !== null &&
+    stored.firstName === given.firstName &&
+    stored.lastName === given.lastName &&
+    stored.email === given.email &&
+    stored.phone === given.phone
+  );
+}
+
+function wellFormed(claim: BankClaim): boolean {
+  return (
+    typeof claim.fieldName === "string" &&
+    claim.fieldName.length > 0 &&
+    UUID.test(claim.answerId) &&
+    Number.isInteger(claim.version) &&
+    claim.version >= 1 &&
+    (claim.variant === "long" || claim.variant === "short") &&
+    (claim.source === "bank_exact" || claim.source === "bank_high_confidence")
+  );
 }

@@ -138,8 +138,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   (read-only) and gives the newest round's package id.
   An application package goes to the Gate through `requestPackageApproval`
   (`package-approval.ts`, NS-213), which derives its facts from storage (`readPackageInputs`) and
-  verifies each bank claim against `bank_answer`'s text; new package producers use it, never
-  `requestApproval` with their own facts.
+  verifies each bank claim against the newest banked text (a `{company}` slot only with an
+  `isSafeCompany` name); the package must name the job's own posting, contact and newest tailored
+  PDF. New package producers use it, never `requestApproval` with their own facts. The question a
+  verified answer belongs to is still the producer's claim.
 - Stored files (NS-227, slice 2) are `stored_file`, append-only (a trigger), one row per candidate
   and SHA-256, written only through `file-write.ts` (`storeFileIn`, inside the caller's
   transaction; today only `saveTailoredResume`). CHECKs make the hash the bytes' own

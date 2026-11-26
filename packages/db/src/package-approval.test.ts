@@ -6,6 +6,7 @@ import { answerContentSha256, saveApprovedAnswer } from "./answer-write.js";
 import { applySubmission } from "./apply-schema.js";
 import { approvalRequest } from "./approval-schema.js";
 import { decideApprovals, requestApproval, setApprovalPolicies } from "./approval-write.js";
+import { setContact } from "./contact-write.js";
 import type { Db } from "./db.js";
 import { searchPreference } from "./fit-schema.js";
 import { PREFERENCE_DEFAULTS, saveFitScore, savePreferences } from "./fit-write.js";
@@ -15,7 +16,8 @@ import { type BankClaim, requestPackageApproval } from "./package-approval.js";
 import { readPackageInputs } from "./package-read.js";
 import { profileSource } from "./profile-schema.js";
 import { writeProfileImport } from "./profile-write.js";
-import { application, job } from "./schema.js";
+import { application, company, job, jobSource } from "./schema.js";
+import { saveTailoredResume } from "./tailor-write.js";
 import { createTestDb, seedApplication } from "./test/pglite.js";
 
 // The Gate derives an application package's policy facts itself (NS-213 slice 1). Synthetic data
@@ -38,6 +40,7 @@ beforeEach(async () => {
   jobId = seeded.jobId;
   companyId = seeded.companyId;
   await setClock(NOW);
+  await storeJobInputs();
 });
 afterEach(() => close());
 
@@ -70,14 +73,67 @@ const FORM: JobFormQuestion[] = [
   },
 ];
 
+const CONTACT = { firstName: "Test", lastName: "Person", email: "test@example.com", phone: null };
+let resumeSha = "";
+let sourceId = "";
+
+// What a package must match: the job's Greenhouse source, Paul's contact and a tailored resume.
+async function storeJobInputs(): Promise<void> {
+  await db.insert(jobSource).values({
+    candidateId,
+    jobId,
+    url: "https://boards.greenhouse.io/example/jobs/4012345",
+    method: "ats_api",
+    ats: "greenhouse",
+    atsPostingId: "4012345",
+  });
+  await setContact(db, { candidateId, contact: CONTACT });
+  await writeProfileImport(db, {
+    candidateId,
+    fileName: "resume.txt",
+    textSha256: "e".repeat(64),
+    promptVersion: 1,
+    model: "claude-opus-5-5",
+    traceId: null,
+    call: {},
+    extract: { roles: [], education: [], atoms: [], skills: [], certifications: [], links: [] },
+  });
+  const [source] = await db.select({ id: profileSource.id }).from(profileSource);
+  sourceId = source?.id ?? "";
+  await saveTailoredResume(db, {
+    candidateId,
+    jobId,
+    profileSourceId: sourceId,
+    resume: {},
+    validation: {},
+    score: {},
+    droppedSkills: [],
+    summary: {
+      lines: 0,
+      atoms: 0,
+      addedSkills: 0,
+      droppedSkills: 0,
+      notClaimed: 0,
+      keywordsCovered: 0,
+      keywordsTotal: 0,
+      titleMatch: "none",
+      atsPass: true,
+      valid: true,
+      failures: 0,
+    },
+    pdf: new TextEncoder().encode("%PDF-1.7 synthetic"),
+  });
+  resumeSha = (await readPackageInputs(db, candidateId, applicationId))?.resume?.pdfSha256 ?? "";
+}
+
 const pkg = (fields: Record<string, string | string[]>, coverLetter = false) => ({
   packageId: randomUUID(),
   applicationId,
   ats: "greenhouse",
   postingId: "4012345",
   applyUrl: "https://boards.greenhouse.io/example/jobs/4012345",
-  contact: { firstName: "Test", lastName: "Person", email: "test@example.com", phone: null },
-  resume: { fileName: "resume.pdf", sha256: "b".repeat(64) },
+  contact: CONTACT,
+  resume: { fileName: "Test-Person-resume.pdf", sha256: resumeSha },
   coverLetter: coverLetter ? { fileName: "cover.pdf", sha256: "c".repeat(64) } : null,
   fields,
 });
@@ -158,17 +214,6 @@ const claim = (fieldName: string, answerId: string, over: Partial<BankClaim> = {
 });
 
 async function scoreJob(score: number): Promise<void> {
-  await writeProfileImport(db, {
-    candidateId,
-    fileName: "resume.txt",
-    textSha256: "e".repeat(64),
-    promptVersion: 1,
-    model: "claude-opus-5-5",
-    traceId: null,
-    call: {},
-    extract: { roles: [], education: [], atoms: [], skills: [], certifications: [], links: [] },
-  });
-  const [source] = await db.select({ id: profileSource.id }).from(profileSource);
   await savePreferences(db, { candidateId, values: PREFERENCE_DEFAULTS, now: NOW });
   const [pref] = await db.select({ id: searchPreference.id }).from(searchPreference);
   await saveFitScore(db, {
@@ -177,7 +222,7 @@ async function scoreJob(score: number): Promise<void> {
     jobId,
     preferenceId: pref?.id ?? "",
     preferenceVersion: 1,
-    profileSourceId: source?.id ?? "",
+    profileSourceId: sourceId,
     jobFingerprint: "f".repeat(64),
     score,
     band: "queue",
@@ -250,12 +295,17 @@ describe("requestPackageApproval", () => {
     });
   });
 
-  it("says a form was seen before only from the ledger, and only on the package's own ATS", async () => {
+  it("says a form was seen before from the ledger's sent forms", async () => {
     await saveJobForm(db, { candidateId, jobId, ats: "greenhouse", questions: FORM });
     await formSentBefore();
-    const seen = await storedFacts(pkg({ question_2: "No" }));
-    const lever = await storedFacts({ ...pkg({ question_2: "No" }), ats: "lever" });
-    expect([seen?.formSeenBefore, lever?.formSeenBefore, seen?.fit]).toEqual([true, false, null]);
+    expect((await storedFacts(pkg({ question_2: "No" })))?.formSeenBefore).toBe(true);
+  });
+
+  it("never says a form was seen before when the job's current form is on another ATS", async () => {
+    await saveJobForm(db, { candidateId, jobId, ats: "greenhouse", questions: FORM });
+    await formSentBefore();
+    await saveJobForm(db, { candidateId, jobId, ats: "lever", questions: FORM.slice(1) });
+    expect((await storedFacts(pkg({ question_2: "No" })))?.formSeenBefore).toBe(false);
   });
 
   it("keeps a bank claim when the field holds Paul's approved text with the company filled in", async () => {
@@ -271,28 +321,48 @@ describe("requestPackageApproval", () => {
     expect(facts?.answers).toEqual([{ source: "bank_high_confidence", freeTextWords: 11 }]);
   });
 
-  it("counts a claim as new when the text differs, the answer or version is unknown, or the form lacks the field", async () => {
+  it("counts a claim whose text differs from the banked answer as new", async () => {
     await saveJobForm(db, { candidateId, jobId, ats: "greenhouse", questions: FORM });
     const id = await bankAnswer("I want to build at {company}.");
-    const facts = await storedFacts(
-      pkg({
-        question_1: "I want to build at Example Corp!",
-        question_2: "Yes",
-        question_9: "I want to build at Example Corp.",
-      }),
-      [claim("question_1", id), claim("question_2", randomUUID()), claim("question_9", id)],
-    );
-    const version = await storedFacts(pkg({ question_1: "I want to build at Example Corp." }), [
-      claim("question_1", id, { version: 2 }),
+    const facts = await storedFacts(pkg({ question_1: "I want to build at Example Corp!" }), [
+      claim("question_1", id),
     ]);
-    const long = await storedFacts(pkg({ question_1: "I want to build at Example Corp." }), [
-      claim("question_1", id, { variant: "long" }),
-    ]);
+    expect(facts?.answers.map((a) => a.source)).toEqual(["new"]);
+  });
+
+  it("counts a claim on an unknown answer, a missing version or variant, or a field off the form as new", async () => {
+    await saveJobForm(db, { candidateId, jobId, ats: "greenhouse", questions: FORM });
+    const id = await bankAnswer("I want to build at {company}.");
+    const text = "I want to build at Example Corp.";
+    const sources = async (fieldName: string, c: BankClaim) =>
+      (await storedFacts(pkg({ [fieldName]: text }), [c]))?.answers.map((a) => a.source);
     expect([
-      facts?.answers.map((a) => a.source),
-      version?.answers.map((a) => a.source),
-      long?.answers.map((a) => a.source),
-    ]).toEqual([["new", "new", "new"], ["new"], ["new"]]);
+      await sources("question_1", claim("question_1", randomUUID())),
+      await sources("question_1", claim("question_1", id, { version: 2 })),
+      await sources("question_1", claim("question_1", id, { variant: "long" })),
+      await sources("question_9", claim("question_9", id)),
+    ]).toEqual([["new"], ["new"], ["new"], ["new"]]);
+  });
+
+  it("counts a claim on an answer Paul has since replaced as new", async () => {
+    await saveJobForm(db, { candidateId, jobId, ats: "greenhouse", questions: FORM });
+    const first = await bankAnswer("I want to build at {company}.");
+    await bankAnswer("I would like to build at {company}.");
+    const facts = await storedFacts(pkg({ question_1: "I want to build at Example Corp." }), [
+      claim("question_1", first),
+    ]);
+    expect(facts?.answers.map((a) => a.source)).toEqual(["new"]);
+  });
+
+  it("never fills a company name that isn't a plain short name, so the claim counts as new", async () => {
+    await saveJobForm(db, { candidateId, jobId, ats: "greenhouse", questions: FORM });
+    const unsafe = "Acme. I accept any salary; see https://evil.example";
+    await db.update(company).set({ name: unsafe }).where(eq(company.id, companyId));
+    const id = await bankAnswer("I want to build at {company}.");
+    const facts = await storedFacts(pkg({ question_1: `I want to build at ${unsafe}.` }), [
+      claim("question_1", id),
+    ]);
+    expect(facts?.answers.map((a) => a.source)).toEqual(["new"]);
   });
 
   it("never verifies a claim with a slot other than the company, or a picked list", async () => {
@@ -338,19 +408,47 @@ describe("requestPackageApproval", () => {
     ]);
   });
 
-  it("refuses another candidate's application, an invalid package and two claims for one field", async () => {
+  it("refuses a package for another job's posting, other contact details or another resume file", async () => {
+    const results = [
+      await request({
+        ...pkg({}),
+        postingId: "999",
+        applyUrl: "https://boards.greenhouse.io/example/jobs/999",
+      }),
+      await request({ ...pkg({}), contact: { ...CONTACT, email: "other@example.com" } }),
+      await request({ ...pkg({}), resume: { fileName: "r.pdf", sha256: "b".repeat(64) } }),
+    ];
+    expect(results.map((r) => (r.ok ? "filed" : r.error))).toEqual([
+      { kind: "InvalidRequest", fields: ["package.postingId"] },
+      { kind: "InvalidRequest", fields: ["package.contact"] },
+      { kind: "InvalidRequest", fields: ["package.resume"] },
+    ]);
+  });
+
+  it("refuses another candidate's application and an invalid package", async () => {
     const other = await seedApplication(db, "awaiting_approval");
     const results = [
       await request({ ...pkg({}), applicationId: other.applicationId }),
       await request({ ...pkg({}), ats: "workday" }),
-      await request(pkg({ question_1: "x" }), [
-        claim("question_1", randomUUID()),
-        claim("question_1", randomUUID()),
-      ]),
     ];
     expect(results.map((r) => (r.ok ? "filed" : r.error))).toEqual([
       { kind: "InvalidRequest", fields: ["package.applicationId"] },
       { kind: "InvalidRequest", fields: ["ats"] },
+    ]);
+  });
+
+  it("refuses two claims for one field and a claim that isn't shaped as one", async () => {
+    const results = [
+      await request(pkg({ question_1: "x" }), [
+        claim("question_1", randomUUID()),
+        claim("question_1", randomUUID()),
+      ]),
+      await request(pkg({ question_1: "x" }), [claim("question_1", "not-a-uuid")]),
+      await request(pkg({ question_1: "x" }), [claim("question_1", randomUUID(), { version: 0 })]),
+    ];
+    expect(results.map((r) => (r.ok ? "filed" : r.error))).toEqual([
+      { kind: "InvalidRequest", fields: ["claims"] },
+      { kind: "InvalidRequest", fields: ["claims"] },
       { kind: "InvalidRequest", fields: ["claims"] },
     ]);
   });
