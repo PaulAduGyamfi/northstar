@@ -87,7 +87,7 @@ describe("nameCandidates", () => {
 
   it("checks only the pieces of a word that starts lower case", () => {
     expect([nameCandidates("iOS"), nameCandidates("ex-Globex")]).toEqual([
-      [{ name: "iOS", leading: true }],
+      [{ name: "iOS", leading: false }],
       [{ name: "Globex", leading: false }],
     ]);
   });

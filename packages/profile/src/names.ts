@@ -37,7 +37,8 @@ export function nameCandidates(word: string): NameCandidate[] {
   const whole = /^\p{Lu}/u.test(word) ? [{ name: word, leading: true }] : [];
   const pieces = nameParts(word).map((name, i) => ({
     name,
-    leading: i === 0 && word.startsWith(name),
+    // Grammar only capitalises a first letter: "iOS" or "3M" opening a sentence is no opener.
+    leading: i === 0 && word.startsWith(name) && /^\p{Lu}/u.test(name),
   }));
   // A piece that is the whole word is checked once, as the whole word when that was added.
   return [...whole, ...pieces.filter((p) => whole.length === 0 || p.name !== word)];

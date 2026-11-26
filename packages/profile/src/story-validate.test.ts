@@ -283,6 +283,11 @@ describe("names in story text", () => {
     ]);
   });
 
+  it("never takes a word that starts lower case as a sentence's opener", () => {
+    // The part's quotes say "ios" in lower case; "iOS" opening a sentence is still a name.
+    expect(unbackedNames("iOS shipped first.", "we shipped", "ios shipped first")).toEqual([0]);
+  });
+
   it("still needs a capitalised joined word backed whole, not just its pieces", () => {
     // Both names are real, but the compound isn't: before NS-202 this was refused too.
     expect(
