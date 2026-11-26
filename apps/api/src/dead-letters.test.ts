@@ -26,16 +26,21 @@ const LETTER: DeadLetterView = {
 let server: Server;
 let cookie: string;
 let calls: unknown[];
+// When true, the fake store throws, as Postgres down would.
+let failing: boolean;
 
 beforeEach(async () => {
   calls = [];
+  failing = false;
   const ports: DeadLetterPorts = {
     list: async () => {
       calls.push("list");
+      if (failing) throw new Error("database down");
       return [LETTER];
     },
     resolve: async (input) => {
       calls.push(["resolve", input]);
+      if (failing) throw new Error("database down");
       if (input.deadLetterId === RESOLVED) return { ok: false, error: { kind: "AlreadyResolved" } };
       if (input.deadLetterId !== L1) return { ok: false, error: { kind: "NotFound" } };
       return { ok: true, value: { kind: LETTER.kind, subject: LETTER.subject } };
@@ -128,6 +133,17 @@ describe("POST /dead-letters/resolve", () => {
     ]).toEqual([
       [404, { error: "not_found" }],
       [409, { error: "already_resolved" }],
+    ]);
+  });
+
+  it("answers 503 when the store can't be read or written", async () => {
+    failing = true;
+    const listed = await get("/dead-letters");
+    const resolved = await resolve({ deadLetterId: L1, action: "retry" });
+    expect([listed.status, resolved.status, JSON.parse(resolved.body)]).toEqual([
+      503,
+      503,
+      { error: "unavailable" },
     ]);
   });
 

@@ -1,6 +1,6 @@
 # NS-215: The dead-letter view in the app and its first producer
 
-Status: draft
+Status: built
 Requirements: RES-007 (dead letters are visible and resolvable), ADR-0007, UX-043 (keyboard-
 reachable buttons)
 Rules that apply: ADR-0016, `.claude/rules/db.md` (dead letters), `.claude/rules/web.md`,
@@ -25,10 +25,13 @@ carry a company or person's name into events and spans.
     resolves once as Paul (`actor: "user"`, whatever the body says), and answers what happens
     next. `not_found` (404), `already_resolved` (409).
 - **What happens next** for `apply.stale_sweep`:
-  - retry: the sweep runs again by itself every 5 minutes, so it picks the stuck claims up on its
-    next pass;
-  - skip: nothing more is done about this pass;
-  - hand off: the claims it couldn't close stay in the Apply ledger for Paul to look at.
+  - retry: nothing runs now; the sweep already tries again on every pass, and a new item shows if
+    it keeps failing;
+  - skip: nothing more is done about this pass; later passes still run;
+  - hand off: nothing runs now; there's no page for open claims yet, so Paul checks the Apply
+    ledger in the database if it keeps happening.
+  For this kind no action starts work: the sweep retries on its own. A later producer whose retry
+  does start work must still go through the Gate for anything outbound (Retry is not approval).
 - **Web** (`/health`, a "Stuck work" section, `src/dead-letters.ts`): each letter's kind and
   reason in words, the attempts and when it stopped, and Retry, Skip and Hand off buttons
   (keyboard-reachable). After a click, the answer's "what happens next" line shows and the list

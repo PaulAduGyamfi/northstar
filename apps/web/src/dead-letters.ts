@@ -32,10 +32,12 @@ const KINDS: Record<string, KindWords> = {
   "apply.stale_sweep": {
     what: "Closing stale application claims",
     next: {
+      // The sweep retries on its own every pass (apps/worker sweep.ts): no action starts work.
       retry:
-        "The sweep runs again by itself every 5 minutes, so it picks these claims up next pass.",
+        "Nothing runs now: the sweep already tries again on every pass, every few minutes. If it keeps failing, a new item shows here.",
       skip: "Nothing more is done about this pass. Later passes still run.",
-      hand_off: "The claims it couldn't close stay in the Apply ledger for you to look at.",
+      hand_off:
+        "Nothing runs now: the sweep keeps trying on its own passes. There's no page for open claims yet, so check the Apply ledger in the database if this keeps happening.",
     },
   },
 };
@@ -44,17 +46,21 @@ const REASONS: Record<string, string> = {
   sweep_failed: "every attempt failed",
 };
 
+// Own keys only: a code such as "constructor" must not find Object's built-ins.
+const own = <T>(map: Record<string, T>, key: string): T | undefined =>
+  Object.hasOwn(map, key) ? map[key] : undefined;
+
 // One letter as shown: what stopped, why, after how many attempts and when.
 export function letterLine(item: DeadLetterItem): { what: string; why: string } {
-  const what = KINDS[item.kind]?.what ?? item.kind;
-  const reason = REASONS[item.reasonCode] ?? item.reasonCode.replaceAll("_", " ");
+  const what = own(KINDS, item.kind)?.what ?? item.kind;
+  const reason = own(REASONS, item.reasonCode) ?? item.reasonCode.replaceAll("_", " ");
   const attempts = item.attempts === 1 ? "1 attempt" : `${item.attempts} attempts`;
   return { what, why: `Stopped after ${attempts}: ${reason}` };
 }
 
 // What happens next after an action, in words.
 export function nextStep(kind: string, action: DeadLetterAction): string {
-  const words = KINDS[kind]?.next[action];
+  const words = own(KINDS, kind)?.next[action];
   if (words) return words;
   return {
     retry: "Sent back to be tried again.",

@@ -85,6 +85,7 @@ export function StuckWork({ items }: { items: DeadLetterItem[] }) {
                       type="button"
                       className="secondary"
                       disabled={busy}
+                      aria-label={`${ACTION_LABELS[action]}: ${line.what}`}
                       onClick={() => void resolve(item, action)}
                     >
                       {ACTION_LABELS[action]}

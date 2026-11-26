@@ -19,6 +19,13 @@ describe("letterLine", () => {
     });
   });
 
+  it("never finds an object's built-in names as words", () => {
+    expect(letterLine({ ...ITEM, kind: "constructor", reasonCode: "constructor" })).toEqual({
+      what: "constructor",
+      why: "Stopped after 3 attempts: constructor",
+    });
+  });
+
   it("shows an unknown kind and reason as themselves", () => {
     expect(
       letterLine({ ...ITEM, kind: "llm.route:story-draft", reasonCode: "held_back", attempts: 1 }),
@@ -32,9 +39,9 @@ describe("letterLine", () => {
 describe("nextStep", () => {
   it("says what happens next for every action on the sweep", () => {
     expect(DEAD_LETTER_ACTIONS.map((a) => nextStep("apply.stale_sweep", a))).toEqual([
-      "The sweep runs again by itself every 5 minutes, so it picks these claims up next pass.",
+      "Nothing runs now: the sweep already tries again on every pass, every few minutes. If it keeps failing, a new item shows here.",
       "Nothing more is done about this pass. Later passes still run.",
-      "The claims it couldn't close stay in the Apply ledger for you to look at.",
+      "Nothing runs now: the sweep keeps trying on its own passes. There's no page for open claims yet, so check the Apply ledger in the database if this keeps happening.",
     ]);
   });
 
