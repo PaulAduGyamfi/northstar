@@ -17,7 +17,7 @@ carry a company or person's name into events and spans.
 - **Allowlist: not in this slice.** Limiting `recordDeadLetter` to a fixed list of kinds would
   change existing assertions in `dead-letter.test.ts`, which record and expect the invented kinds
   `apply.submit` and `llm.route:story-draft`. An assertion change stops for Paul (ADR-0016), so it
-  is a `needs:paul` follow-up. Until then the page shows an unknown kind as itself, in words.
+  is the `needs:paul` follow-up #261. Until then the page shows an unknown kind as itself, in words.
 - **API** (`apps/api/src/dead-letters.ts`, `auth: "session"`):
   - `GET /dead-letters`: the open letters, oldest first: id, kind, reason code, attempts, time.
     The subject is left out: it names a row, which the page has no use for.
@@ -53,7 +53,7 @@ carry a company or person's name into events and spans.
 - Running the sweep at once on retry (it runs every 5 minutes; an on-demand run needs the
   worker process, #230).
 - Other producers and their kinds.
-- The kind allowlist (the `needs:paul` follow-up above).
+- The kind allowlist (#261, `needs:paul`).
 
 ## Open questions
 - None.
