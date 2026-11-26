@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   independentWorkSection,
+  LINKEDIN_DESCRIPTION_MAX,
+  linkedinProjects,
   MAX_ANSWER_WORDS,
+  MAX_LINE,
+  MAX_LINES,
   parseIndependentWork,
   sinceFromFacts,
   twentySecondAnswer,
@@ -219,5 +223,79 @@ describe("twentySecondAnswer", () => {
 
   it("says there is nothing yet when there are no entries", () => {
     expect(twentySecondAnswer([], null)).toEqual({ ok: false, reason: "no_entries" });
+  });
+});
+
+describe("linkedinProjects", () => {
+  // Invented work only (the repo is public).
+  const entries = [
+    {
+      title: "Cloud certification",
+      start: "2026-01",
+      end: "2026-04",
+      link: null,
+      lines: ["Passed the associate exam"],
+    },
+    {
+      title: "Ledgerline",
+      start: "2026-02",
+      end: null,
+      link: "https://example.com/ledgerline",
+      lines: ["Built a budgeting app used by 40 testers", "Wrote its import from bank CSVs"],
+    },
+  ];
+
+  it("gives one project per entry, ongoing first, with its fields and verbatim lines", () => {
+    expect(linkedinProjects(entries)).toEqual([
+      {
+        name: "Ledgerline",
+        start: "Feb 2026",
+        end: null,
+        link: "https://example.com/ledgerline",
+        description:
+          "• Built a budgeting app used by 40 testers\n• Wrote its import from bank CSVs",
+        length: 76,
+        tooLong: false,
+      },
+      {
+        name: "Cloud certification",
+        start: "Jan 2026",
+        end: "Apr 2026",
+        link: null,
+        description: "• Passed the associate exam",
+        length: 27,
+        tooLong: false,
+      },
+    ]);
+  });
+
+  it("flags a description over LinkedIn's 2,000 characters with its length, and never cuts it", () => {
+    // Longer lines than the parser stores today: this exercises the guard for a later raise.
+    const long: WorkEntry = {
+      title: "Cloud certification",
+      start: "2026-01",
+      end: "2026-04",
+      link: null,
+      lines: Array.from({ length: 6 }, () => "x".repeat(400)),
+    };
+    const [project] = linkedinProjects([long]);
+    expect([project?.tooLong, project?.length, project?.description.length]).toEqual([
+      true,
+      2417,
+      2417,
+    ]);
+  });
+
+  it("keeps the largest description stored work can hold under LinkedIn's limit", () => {
+    const largest: WorkEntry = {
+      title: "t",
+      start: "2026-01",
+      end: null,
+      link: null,
+      lines: Array.from({ length: MAX_LINES }, () => "x".repeat(MAX_LINE)),
+    };
+    const [project] = linkedinProjects([largest]);
+    expect([project?.length, project?.tooLong]).toEqual([1217, false]);
+    expect(LINKEDIN_DESCRIPTION_MAX).toBe(2000);
   });
 });
