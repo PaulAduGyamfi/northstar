@@ -13,3 +13,5 @@ export {
 export { filePackage } from "./file.js";
 // A stored form as the questions a package answers (NS-227).
 export { type FormQuestions, formQuestions } from "./form.js";
+// The caller that assembles and files a package (NS-227).
+export { type PrepareResult, packageIdFor, preparePackage, resumeFileName } from "./prepare.js";

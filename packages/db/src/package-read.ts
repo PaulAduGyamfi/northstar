@@ -6,7 +6,7 @@ import { readContact } from "./contact-write.js";
 import type { Db } from "./db.js";
 import { fitScore } from "./fit-schema.js";
 import { type JobFormQuestion, jobForm } from "./job-form-schema.js";
-import { application, company, job, jobSource } from "./schema.js";
+import { application, company, domainEvent, job, jobSource } from "./schema.js";
 import { type ProfileSettingView, readProfileSettings } from "./settings-write.js";
 import { tailoredResume } from "./tailor-schema.js";
 
@@ -105,6 +105,36 @@ export async function readPackageInputs(
     form: form ?? null,
     fit: fit?.score ?? null,
     formSeenBefore: form ? await seenBefore(db, candidateId, jobId, form) : false,
+  };
+}
+
+// The package caller's earlier rounds on one application (NS-227 slice 6): each round starts
+// with its `queued -> package_ready` move, keyed `application:<id>:package:<packageId>:package_ready`
+// (preparePackage). `rounds` counts them; `lastPackageId` is the newest round's package id. A
+// rejected package sends the application back to queued, and the next round gets a new id.
+export async function readPackageRounds(
+  db: Db,
+  candidateId: CandidateId,
+  applicationId: string,
+): Promise<{ rounds: number; lastPackageId: string | null }> {
+  if (!UUID.test(applicationId)) return { rounds: 0, lastPackageId: null };
+  const prefix = `application:${applicationId}:package:`;
+  const rows = await db
+    .select({ key: domainEvent.idempotencyKey })
+    .from(domainEvent)
+    .where(
+      and(
+        eq(domainEvent.candidateId, candidateId),
+        eq(domainEvent.aggregate, `application:${applicationId}`),
+        // Only the round-opening move: the prefix, a uuid, then the status.
+        sql`${domainEvent.idempotencyKey} ~ ${`^${prefix}[0-9a-f-]{36}:package_ready$`}`,
+      ),
+    )
+    .orderBy(desc(domainEvent.position));
+  const newest = rows[0]?.key ?? null;
+  return {
+    rounds: rows.length,
+    lastPackageId: newest ? newest.slice(prefix.length, prefix.length + 36) : null,
   };
 }
 

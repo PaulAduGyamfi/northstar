@@ -663,7 +663,7 @@ Exists now:
   (`form.ts`): a stored Greenhouse form as `FormQuestion`s. The standard contact, resume and cover
   letter fields (and their paste-in alternatives) and hidden fields are not questions; it flags a
   required cover letter or phone, and lists a required upload it can't fill as `unsupported`.
-  Choices are the option labels. No caller yet (slice 6).
+  Choices are the option labels.
   Since NS-227 (slice 5) `packages/db` reads a package's inputs in one place:
   `readPackageInputs` (`package-read.ts`) gives the application and its company, the job's
   sources, contact, settings, the newest banked answer per canonical question, the newest tailored
@@ -673,6 +673,17 @@ Exists now:
   never count. `recordPackageNeedsHuman` (`package-write.ts`) writes `package.needs_human` on the
   application (not `application.*`, which the feed reads as a status move): reason codes and counts
   only, once per basis, with the feed line "The application package needs you: N items".
+  Since NS-227 (slice 6) also the caller, `preparePackage` (`prepare.ts`, plain code): for a
+  `queued` application (or one a crashed run left at `package_ready`) it reads
+  `readPackageInputs`, takes its Greenhouse source and form, stops on `no_ats_source`, `no_form`,
+  `no_contact`, `no_resume_file`, `no_phone`, `file_upload` or an unanswered question's reason
+  (`recordPackageNeedsHuman`, once per SHA-256 of its inputs). Otherwise it opens a round
+  (`queued → package_ready`), files the package and moves it to `awaiting_approval`. The id
+  (`packageIdFor`) is a v8 UUID from the application, the round (`readPackageRounds` in
+  `packages/db`, from its own events) and the package's hash, so a crashed round replays the same
+  Gate request and a round after a rejection gets a new one; a crashed round whose inputs changed
+  files nothing (`inputs_changed`). `autoApproved` only for a policy's approval at filing. The
+  resume goes as `<first>-<last>-resume.pdf`. Nothing calls it yet (the worker, #230).
 - `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
   (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
   decision as an `approval` signal (or `withdrawn`), then runs the `submitApplication` activity
