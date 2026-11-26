@@ -7,7 +7,8 @@ import { err, ok, type Result } from "./result.js";
 // so an approval of one version never lets another version out.
 
 // The ATSs with a deterministic adapter today (APPLY-002, P1).
-export const APPLY_ATS = ["greenhouse", "lever", "ashby"] as const;
+// SmartRecruiters since NS-173 (APPLY-002 P2).
+export const APPLY_ATS = ["greenhouse", "lever", "ashby", "smartrecruiters"] as const;
 export const ApplyAts = z.enum(APPLY_ATS);
 export type ApplyAts = z.infer<typeof ApplyAts>;
 
