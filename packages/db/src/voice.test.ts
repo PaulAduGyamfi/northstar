@@ -5,6 +5,7 @@ import { candidate, domainEvent } from "./schema.js";
 import { createTestDb, sqlState } from "./test/pglite.js";
 import { voiceEdit, voiceProfile, voiceReview } from "./voice-schema.js";
 import {
+  readNewestVoice,
   readReviewedVoice,
   readVoiceEdits,
   recordVoiceEdit,
@@ -159,6 +160,24 @@ describe("reviewVoiceProfile and readReviewedVoice", () => {
     expect(events.map((e) => [e.type, e.payload])[1]).toEqual([
       "voice.reviewed",
       { version: 1, kept: 1, dropped: 2 },
+    ]);
+  });
+});
+
+describe("readNewestVoice (NS-222)", () => {
+  it("reads nothing before a version, then the newest version, reviewed or not", async () => {
+    const none = await readNewestVoice(db, candidateId);
+    await saveVoiceProfile(db, { candidateId, measures: MEASURES });
+    await saveVoiceProfile(db, { candidateId, measures: { ...MEASURES, phrases: ["at the end"] } });
+    const unreviewed = await readNewestVoice(db, candidateId);
+    await reviewVoiceProfile(db, { candidateId, version: 2, keep: ["at the end"], drop: [] });
+    const reviewed = await readNewestVoice(db, candidateId);
+    const other = await readNewestVoice(db, await newCandidate());
+    expect([none, unreviewed, reviewed, other]).toEqual([
+      null,
+      { version: 2, phrases: ["at the end"], reviewed: false },
+      { version: 2, phrases: ["at the end"], reviewed: true },
+      null,
     ]);
   });
 });

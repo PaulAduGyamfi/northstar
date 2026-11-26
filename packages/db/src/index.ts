@@ -464,6 +464,7 @@ export {
 export * as voiceSchema from "./voice-schema.js";
 // Paul's voice profile, its review and his draft edits (NS-185).
 export {
+  readNewestVoice,
   readReviewedVoice,
   readVoiceEdits,
   recordVoiceEdit,
