@@ -179,6 +179,29 @@ describe("profile growth tracks and touch", () => {
     ]);
   });
 
+  it("lists a track's goal, definition of done and milestones under it", async () => {
+    const detailed: GrowthTrackView = {
+      ...(TRACKS[0] as GrowthTrackView),
+      goal: "Pass the associate exam",
+      doneWhen: "Certificate issued",
+      milestones: [
+        { title: "Sections 1-12", doneOn: "2026-11-20" },
+        { title: "Exam booked", doneOn: null },
+      ],
+    };
+    const { d, printed } = deps({
+      readGrowthTracks: async () => ({ version: 4, tracks: [detailed] }),
+    });
+    await growthCommand(d, ["tracks"]);
+    expect(printed).toEqual([
+      "cloud-cert: Cloud certification (cert, active, priority 4) · last touched 2026-11-25",
+      "  goal: Pass the associate exam",
+      "  done when: Certificate issued",
+      "  [x] Sections 1-12 (done 2026-11-20)",
+      "  [ ] Exam booked",
+    ]);
+  });
+
   it("records a touch, and refuses an unknown key", async () => {
     const { d, printed } = deps();
     expect([

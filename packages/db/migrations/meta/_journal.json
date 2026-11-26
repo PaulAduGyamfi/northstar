@@ -519,6 +519,20 @@
       "when": 1795711421136,
       "tag": "0073_profile_contact_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1795721722957,
+      "tag": "0074_growth_milestones",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1795721734696,
+      "tag": "0075_growth_milestone_append_only",
+      "breakpoints": true
     }
   ]
 }

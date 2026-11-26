@@ -73,4 +73,95 @@ describe("parseGrowthTracks", () => {
       error: [{ line: 1, problem: "the file has no tracks" }],
     });
   });
+
+  it("reads a track's goal, definition of done and milestones from the indented lines under it", () => {
+    const file = [
+      "cloud-cert | Cloud certification | cert | active | 4",
+      "  goal: Pass the associate exam",
+      "  done when: Certificate issued",
+      "  - Sections 1-12 | done 2026-11-20",
+      "  - Practice exams at 80%",
+      "  - Exam booked",
+      "side-app | Budget app | project | paused | 2",
+    ].join("\n");
+    expect(parseGrowthTracks(file)).toEqual({
+      ok: true,
+      value: [
+        {
+          key: "cloud-cert",
+          name: "Cloud certification",
+          type: "cert",
+          status: "active",
+          priority: 4,
+          target: null,
+          untouchedDays: 7,
+          next: null,
+          goal: "Pass the associate exam",
+          doneWhen: "Certificate issued",
+          milestones: [
+            { title: "Sections 1-12", doneOn: "2026-11-20" },
+            { title: "Practice exams at 80%", doneOn: null },
+            { title: "Exam booked", doneOn: null },
+          ],
+        },
+        {
+          key: "side-app",
+          name: "Budget app",
+          type: "project",
+          status: "paused",
+          priority: 2,
+          target: null,
+          untouchedDays: 7,
+          next: null,
+        },
+      ],
+    });
+  });
+
+  it("names every bad indented line and stores nothing", () => {
+    const file = [
+      "  goal: Before any track",
+      "ok | Fine | skill | active | 1",
+      "  goal: One",
+      "  goal: Two",
+      "  done when: ",
+      "  - Booked | done 2026-02-30",
+      "  - Booked | soon",
+      "  notes: anything",
+      `  - ${"x".repeat(201)}`,
+      `  goal: ${"y".repeat(301)}`,
+    ].join("\n");
+    expect(parseGrowthTracks(file)).toEqual({
+      ok: false,
+      error: [
+        { line: 1, problem: "an indented line must come under a track" },
+        { line: 4, problem: "goal is given twice for this track" },
+        { line: 5, problem: "the done when must be 1 to 300 characters" },
+        { line: 6, problem: "a milestone is: - <title> [| done YYYY-MM-DD]" },
+        { line: 7, problem: "a milestone is: - <title> [| done YYYY-MM-DD]" },
+        { line: 8, problem: 'an indented line is "goal: …", "done when: …" or "- <milestone>"' },
+        { line: 9, problem: "a milestone must be 1 to 200 characters" },
+        { line: 10, problem: "goal is given twice for this track" },
+      ],
+    });
+  });
+
+  it("allows at most 20 milestones a track", () => {
+    const file = [
+      "ok | Fine | skill | active | 1",
+      ...Array.from({ length: 21 }, (_, i) => `  - Step ${i + 1}`),
+    ].join("\n");
+    expect(parseGrowthTracks(file)).toEqual({
+      ok: false,
+      error: [{ line: 22, problem: "at most 20 milestones a track" }],
+    });
+  });
+
+  it("names only the bad track line, not the indented lines under it", () => {
+    const file = ["Bad Key | X | cert | active | 3", "  goal: Anything", "  - Step"].join("\n");
+    expect(parseGrowthTracks(file)).toEqual({
+      ok: false,
+      error: [{ line: 1, problem: "the key must be 1–40 lowercase letters, digits or dashes" }],
+    });
+  });
 });

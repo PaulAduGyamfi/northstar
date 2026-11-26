@@ -101,6 +101,14 @@ async function tracksShow(deps: GrowthCliDeps): Promise<number> {
     deps.print(
       `${t.key}: ${t.name} (${t.type}, ${t.status}, priority ${t.priority}) · last touched ${touched}`,
     );
+    // GRW-001/002 (NS-232): only what the file gave.
+    if (t.goal !== undefined) deps.print(`  goal: ${t.goal}`);
+    if (t.doneWhen !== undefined) deps.print(`  done when: ${t.doneWhen}`);
+    for (const m of t.milestones ?? []) {
+      deps.print(
+        `  ${m.doneOn === null ? "[ ]" : "[x]"} ${m.title}${m.doneOn ? ` (done ${m.doneOn})` : ""}`,
+      );
+    }
   }
   return 0;
 }

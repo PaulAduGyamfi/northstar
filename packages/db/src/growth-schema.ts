@@ -58,9 +58,22 @@ export const growthTrack = pgTable(
     untouchedDays: integer("untouched_days").notNull(),
     nextTitle: text("next_title"),
     nextMinutes: integer("next_minutes"),
+    // GRW-001 (NS-232): what the track is for and when it is finished, in Paul's words.
+    goal: text("goal"),
+    doneWhen: text("done_when"),
   },
   (t) => [
     unique("growth_track_key_unique").on(t.setId, t.key),
+    // For growth_milestone's same-candidate foreign key.
+    unique("growth_track_id_candidate_unique").on(t.id, t.candidateId),
+    check(
+      "growth_track_goal_shape",
+      sql`${t.goal} is null or (length(trim(${t.goal})) between 1 and 300 and ${t.goal} !~ '[[:cntrl:]]')`,
+    ),
+    check(
+      "growth_track_done_when_shape",
+      sql`${t.doneWhen} is null or (length(trim(${t.doneWhen})) between 1 and 300 and ${t.doneWhen} !~ '[[:cntrl:]]')`,
+    ),
     foreignKey({
       name: "growth_track_set_same_candidate_fk",
       columns: [t.setId, t.candidateId],
@@ -86,6 +99,32 @@ export const growthTrack = pgTable(
     check(
       "growth_track_next_pair",
       sql`(${t.nextTitle} is null) = (${t.nextMinutes} is null) and (${t.nextMinutes} is null or ${t.nextMinutes} >= 1)`,
+    ),
+  ],
+);
+
+// A track's milestones in order (GRW-002, NS-232), stored with its version: Paul's words.
+export const growthMilestone = pgTable(
+  "growth_milestone",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    candidateId: candidateRef(),
+    trackId: uuid("track_id").notNull(),
+    position: integer("position").notNull(),
+    title: text("title").notNull(),
+    doneOn: date("done_on"),
+  },
+  (t) => [
+    unique("growth_milestone_position_unique").on(t.trackId, t.position),
+    foreignKey({
+      name: "growth_milestone_track_same_candidate_fk",
+      columns: [t.trackId, t.candidateId],
+      foreignColumns: [growthTrack.id, growthTrack.candidateId],
+    }),
+    check("growth_milestone_position_range", sql`${t.position} between 0 and 19`),
+    check(
+      "growth_milestone_title_shape",
+      sql`length(trim(${t.title})) between 1 and 200 and ${t.title} !~ '[[:cntrl:]]'`,
     ),
   ],
 );

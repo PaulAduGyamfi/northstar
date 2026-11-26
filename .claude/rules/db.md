@@ -209,6 +209,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `saveWeekReview`, `readWeekReview`, `readWeekPlan`). A track's last touch is its newest touch or
   check-in. `growth.checked_in` carries the row id and minutes, `growth.reviewed` the id, week and
   two counts.
+  Since NS-232 also each track's `goal` and `done_when` (nullable; 1–300 characters, no control
+  characters) and append-only `growth_milestone` (per track row: position 0–19, title, optional
+  `done_on`; the same-candidate foreign key), stored with the version in one transaction. The
+  version's hash covers them only when given, so an older file isn't stored again. They are
+  Paul's words: no event, span or error carries them.
 - Mail tags and links (NS-158) are `mail_tag` (one tag per application or tenant, never reused)
   and `mail_link` (one decision per Gmail message: linked by a step, or queued with a reason),
   append-only, written only through `mail-link-write.ts`. They hold Gmail ids, tags, steps and

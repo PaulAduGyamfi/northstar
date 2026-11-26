@@ -6,6 +6,16 @@ import { parseGrowthTrack } from "@northstar/domain";
 //
 // e.g. `aws-saa | AWS Solutions Architect | cert | active | 4 | target 2027-02-01 | next 60 Practice exam 1`.
 // Blank lines and lines starting with `#` are skipped. A file with any bad line stores nothing.
+//
+// Since NS-232 (GRW-001/002) indented lines under a track belong to it:
+//
+//     goal: Pass the associate exam
+//     done when: Certificate issued
+//     - Practice exams at 80% | done 2026-11-20
+//     - Exam booked
+//
+// At most one goal and one definition of done (1–300 characters each) and 20 milestones in order
+// (a title of 1–200 characters, an optional real done date).
 
 export type TrackLine = {
   key: string;
@@ -17,7 +27,13 @@ export type TrackLine = {
   target: string | null;
   untouchedDays: number;
   next: { title: string; minutes: number } | null;
+  // Each only when the file gives it, so a file without indented lines reads as it did before.
+  goal?: string;
+  doneWhen?: string;
+  milestones?: Milestone[];
 };
+
+export type Milestone = { title: string; doneOn: string | null };
 
 export type TrackProblem = { line: number; problem: string };
 
@@ -25,12 +41,54 @@ const KEY = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const CONTROL = /\p{Cc}/u;
 const MAX_TRACKS = 50;
+const MAX_DETAIL = 300;
+const MAX_MILESTONE = 200;
+const MAX_MILESTONES = 20;
 
 // A real calendar day (2026-02-30 isn't).
 function realDay(d: string): boolean {
   if (!DAY.test(d)) return false;
   const ms = Date.parse(`${d}T00:00:00Z`);
   return !Number.isNaN(ms) && new Date(ms).toISOString().startsWith(d);
+}
+
+// One indented line of a track, added to it; a problem as a sentence, or null.
+function addDetail(track: TrackLine, raw: string): string | null {
+  if (CONTROL.test(raw)) return "a line can't hold a tab or other control character";
+  const goal = /^goal:\s*(.*)$/i.exec(raw);
+  const doneWhen = /^done when:\s*(.*)$/i.exec(raw);
+  const milestone = /^-\s*(.*)$/.exec(raw);
+  if (goal || doneWhen) {
+    const field = goal ? "goal" : "doneWhen";
+    const label = goal ? "goal" : "done when";
+    const text = ((goal ?? doneWhen)?.[1] ?? "").trim();
+    if (track[field] !== undefined) return `${label} is given twice for this track`;
+    if (text.length === 0 || text.length > MAX_DETAIL) {
+      return `the ${label} must be 1 to ${MAX_DETAIL} characters`;
+    }
+    track[field] = text;
+    return null;
+  }
+  if (milestone) {
+    const [title = "", option, ...extra] = (milestone[1] ?? "").split("|").map((p) => p.trim());
+    if (title.length === 0 || title.length > MAX_MILESTONE) {
+      return `a milestone must be 1 to ${MAX_MILESTONE} characters`;
+    }
+    let doneOn: string | null = null;
+    if (option !== undefined) {
+      const [word, day = "", ...more] = option.split(/\s+/);
+      if (word !== "done" || !realDay(day) || more.length > 0 || extra.length > 0) {
+        return "a milestone is: - <title> [| done YYYY-MM-DD]";
+      }
+      doneOn = day;
+    }
+    const milestones = track.milestones ?? [];
+    if (milestones.length >= MAX_MILESTONES) return `at most ${MAX_MILESTONES} milestones a track`;
+    milestones.push({ title, doneOn });
+    track.milestones = milestones;
+    return null;
+  }
+  return 'an indented line is "goal: …", "done when: …" or "- <milestone>"';
 }
 
 function parseLine(raw: string): TrackLine | string {
@@ -95,21 +153,34 @@ export function parseGrowthTracks(
   const problems: TrackProblem[] = [];
   const tracks: TrackLine[] = [];
   const seen = new Set<string>();
+  // The track the next indented line belongs to; "bad" after a track line with a problem, whose
+  // own line already names it.
+  let current: TrackLine | "bad" | null = null;
   text.split(/\r?\n/).forEach((raw, i) => {
     const line = i + 1;
     const trimmed = raw.trim();
     if (trimmed === "" || trimmed.startsWith("#")) return;
+    if (/^[ ]/.test(raw)) {
+      if (current === "bad") return;
+      const problem =
+        current === null ? "an indented line must come under a track" : addDetail(current, trimmed);
+      if (problem !== null) problems.push({ line, problem });
+      return;
+    }
     const parsed = parseLine(trimmed);
     if (typeof parsed === "string") {
       problems.push({ line, problem: parsed });
+      current = "bad";
       return;
     }
     if (seen.has(parsed.key)) {
       problems.push({ line, problem: "this key is already used above" });
+      current = "bad";
       return;
     }
     seen.add(parsed.key);
     tracks.push(parsed);
+    current = parsed;
   });
   if (tracks.length === 0 && problems.length === 0) {
     problems.push({ line: 1, problem: "the file has no tracks" });
