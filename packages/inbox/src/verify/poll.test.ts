@@ -46,7 +46,7 @@ function message(
   return {
     id,
     threadId: `t-${id}`,
-    from: "Acme Careers <no-reply@myworkday.com>",
+    from: "Acme Careers <no-reply@example.com>",
     senderDomain: "myworkday.com",
     subject: "Verify your email",
     deliveredTo: "candidate@example.com",
