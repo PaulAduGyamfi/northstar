@@ -30,7 +30,7 @@ const MAX_PAGE = 50;
 const MAX_POSITION = 9223372036854775807n;
 // A log position as the query string carries it (a bigint, never a negative or a fraction).
 // Past the column's range it is refused here, not by the database.
-const Position = z
+export const Position = z
   .string()
   .regex(/^\d{1,19}$/)
   .transform((s) => BigInt(s))

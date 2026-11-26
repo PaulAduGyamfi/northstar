@@ -333,6 +333,10 @@ Exists now:
   and `company` (or `null`), read per page by `readFeedNames` from Paul's own job rows for
   `job:<id>` and `application:<id>` aggregates; never stored in events or put in the line text.
   The web feed shows them after the line as plain text (`feedSubject`).
+  Since NS-154 also the run inspector (OBS-003): `readRun` (`run-read.ts`) gathers the events
+  with the same `traceId` as a feed line, oldest first (at most 200), each with its feed line, its
+  offset and its LLM call record copied field by field, plus totals; the API's `GET /feed/run`
+  serves it, and each feed line on Today has a "Show the run" button. No Temporal history yet.
 - `packages/gateways/` (NS-120): the Apply Gateway, the only code that submits an application
   (ADR-0002). `submitApplication` checks the approval with the Gate at the moment it acts (no
   verified approval throws `NotApprovedError`), re-hashes the package and its files, claims the

@@ -17,7 +17,8 @@ errors. The pieces exist (events carry a `traceId`; some carry an LLM call recor
    - returns null when the candidate has no event at that position;
    - an event without a `traceId` is a run of one step;
    - otherwise every event of the same candidate with the same `traceId`, oldest first, at most
-     200 (`truncated` says when there were more);
+     200: up to 100 at or before the clicked event and up to 100 after it, so the clicked event is
+     always shown (`truncated` says when there were more);
    - each step: position, time, type, actor, its feed line (`feedLine`, never stored text), the
      milliseconds since the run's first step, and its LLM call if the payload carries one. The call
      is copied field by field from `CallRecord`'s ids, versions and numbers (route, prompt id and
