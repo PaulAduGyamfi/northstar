@@ -28,6 +28,40 @@ describe("feedLine: human handoffs (NS-121)", () => {
   });
 });
 
+describe("feedLine: the Apply Gateway (NS-120, NS-160)", () => {
+  it("says an application is being submitted and was submitted, through which ATS", () => {
+    expect([
+      feedLine(ev("apply_submission.claimed", { ats: "greenhouse" })),
+      feedLine(ev("apply_submission.submitted", { ats: "ashby" })),
+    ]).toEqual([
+      "Submitting an application through a Greenhouse form",
+      "Submitted an application through an Ashby form",
+    ]);
+  });
+
+  it("says why an application stopped, in plain words", () => {
+    expect([
+      feedLine(ev("apply_submission.needs_human", { ats: "lever", reason: "captcha" })),
+      feedLine(ev("apply_submission.needs_human", { ats: "lever", reason: "outcome_unknown" })),
+    ]).toEqual([
+      "An application through a Lever form stopped at a CAPTCHA",
+      "An application through a Lever form stopped at an earlier attempt that never finished",
+    ]);
+  });
+
+  it("falls back to plain words for an unknown ATS or reason", () => {
+    expect(
+      feedLine(ev("apply_submission.needs_human", { ats: "Not A Name", reason: "<b>x</b>" })),
+    ).toBe("An application through a form stopped at a check it can't pass");
+  });
+
+  it("never reads a reason from Object's prototype", () => {
+    expect(feedLine(ev("apply_submission.needs_human", { reason: "constructor" }))).toBe(
+      "An application through a form stopped at a check it can't pass",
+    );
+  });
+});
+
 describe("feedLine: employer accounts and consent (NS-124)", () => {
   it("names the tenant and its ATS when one is registered", () => {
     expect(feedLine(ev("tenant.registered", { tenantKey: "workday:globex", ats: "workday" }))).toBe(
@@ -272,6 +306,9 @@ describe("feedLine: fallbacks and bad payloads", () => {
     // type should get a template here; until it does, its reason is shown.
     expect([...FEED_TYPES].sort()).toEqual([
       "application.*",
+      "apply_submission.claimed",
+      "apply_submission.needs_human",
+      "apply_submission.submitted",
       "approval.decided",
       "approval.policies_set",
       "approval.requested",

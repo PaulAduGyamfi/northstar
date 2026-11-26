@@ -58,6 +58,17 @@ const CHALLENGE_WORDS: Record<string, string> = {
   account: "an account sign-up",
 };
 
+// Why an application stopped for Paul, in plain words (NEEDS_HUMAN_REASONS, NS-120).
+const STOP_WORDS: Record<string, string> = {
+  ...CHALLENGE_WORDS,
+  unmapped_required: "a required question it can't answer",
+  form_changed: "a form that no longer matches the package",
+  no_confirmation: "no confirmation page after submitting",
+  driver_error: "a browser error, so it may or may not have gone out",
+  outcome_unknown: "an earlier attempt that never finished",
+  status_conflict: "an application that wasn't waiting for approval",
+};
+
 type Template = (p: Payload, e: FeedEvent) => string;
 
 const TEMPLATES: Record<string, Template> = {
@@ -227,6 +238,18 @@ const TEMPLATES: Record<string, Template> = {
     name(p, "withdrawnBy") === "gateway"
       ? "An approval was withdrawn because its content changed; it can be asked for again"
       : "You withdrew a request; it can be asked for again",
+  // The Apply Gateway (NS-120): the ATS and the reason code only, never a field value or URL.
+  "apply_submission.claimed": (p) => `Submitting an application through ${form(p)}`,
+  "apply_submission.submitted": (p) => `Submitted an application through ${form(p)}`,
+  "apply_submission.needs_human": (p) => {
+    const reason = name(p, "reason");
+    // Own keys only: "constructor" or "toString" must not reach Object's prototype.
+    const why =
+      reason !== undefined && Object.hasOwn(STOP_WORDS, reason)
+        ? STOP_WORDS[reason]
+        : "a check it can't pass";
+    return `An application through ${form(p)} stopped at ${why}`;
+  },
   "approval.policies_set": (p, e) => {
     const rules = count(p, "rules");
     const v = count(p, "version");
