@@ -209,8 +209,9 @@ Exists now:
   a DKIM pass aligned with From covers the application's domains (INB-011); shared ATS and
   freemail domains never pick an application. Tags and links are stored in `packages/db`
   (`mail-link-schema.ts`, `mail-link-write.ts`: `assignTag`, `readTags`, `readLinkedThreads`,
-  `recordMailLink`, `listConfirmQueue`; append-only). Links never change a status (P1). The Gmail
-  client reads only Gmail's own (top) `Delivered-To` (NS-188). No mail loop or gateway use yet
+  `recordMailLink`, `listConfirmQueue`; append-only). Links never change a status (P1). On mail Gmail
+  received, the client reads only the top `Delivered-To`, the one Gmail adds (NS-188); mail it
+  never stamped (Sent, drafts, inserted) must be skipped by the loop. No mail loop or gateway use yet
   (#224).
 - `packages/funnel/` (NS-113): the 9-month backfill, funnel records derived by plain code from
   `funnel_message` and `funnel_manual_row` (`packages/db`, `funnel-schema.ts`), the tracker CSV

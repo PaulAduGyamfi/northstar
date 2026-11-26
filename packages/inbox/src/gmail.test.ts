@@ -93,6 +93,16 @@ describe("gmail client", () => {
     expect(h.deliveredTo).toBe("candidate@example.com");
   });
 
+  it("reads the tag Gmail delivered to when its own Delivered-To carries one", async () => {
+    const tagged = {
+      ...message,
+      headers: { ...message.headers, "Delivered-To": "candidate+ns-abcdef@example.com" },
+      extraHeaders: [{ name: "Delivered-To", value: "someone@example.com" }],
+    };
+    const h = await client(fakeGmail([tagged])).getHeaders("m1");
+    expect(h.deliveredTo).toBe("candidate+ns-abcdef@example.com");
+  });
+
   it("reads Gmail's own Authentication-Results header even when another comes first", async () => {
     const forged = {
       ...message,

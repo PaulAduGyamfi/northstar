@@ -238,9 +238,11 @@ function authenticationResults(m: GmailMessage): string | null {
   return all.find((v) => GOOGLE_AUTHSERV.test(v)) ?? all[0] ?? null;
 }
 
-// Gmail's own Delivered-To (INB-011, NS-188): Gmail adds one at the top of each message it
-// delivers, above anything the sender or an earlier hop wrote, so the first is Gmail's and any
-// below it (a forwarded copy's, or one the sender put in) is never read for a tag.
+// Gmail's own Delivered-To (INB-011, NS-188): on mail Gmail received, it adds one at the top,
+// above anything the sender or an earlier hop wrote, so the first is Gmail's and any below it (a
+// forwarded copy's, or one the sender put in) is never read for a tag. Mail Gmail never stamped
+// (Sent, drafts, messages added by insert or import) has no trustworthy Delivered-To at all: the
+// mail-link loop must skip those and check the address is Paul's own mailbox (#224).
 function deliveredTo(m: GmailMessage): string | null {
   const first = (m.payload?.headers ?? []).find((h) => h.name.toLowerCase() === "delivered-to");
   return first?.value ?? null;
