@@ -66,6 +66,8 @@ function deps(
     runAudit: async () => ({ kind: "refused", reason: "NoProfile" }),
     acceptSuggestion: async () => ({ kind: "refused", reason: "NoAudit" }),
     rejectSuggestion: async () => ({ kind: "refused", reason: "NoAudit" }),
+    setIndependentWork: async () => ({ status: "set", version: 1, entries: 0, lines: 0 }),
+    readIndependentWork: async () => null,
   };
   return { d, printed, interviewedAtoms };
 }

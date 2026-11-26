@@ -25,6 +25,7 @@ export default defineConfig({
     "./src/passkey-schema.ts",
     "./src/voice-schema.ts",
     "./src/audit-schema.ts",
+    "./src/independent-work-schema.ts",
   ],
   out: "./migrations",
 });
