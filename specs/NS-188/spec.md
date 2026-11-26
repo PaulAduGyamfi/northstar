@@ -12,9 +12,17 @@ address on forms, the mail-link loop, `Delivered-To`) builds on NS-158's matcher
 
 ## Slices
 1. **Origin and the credit report (this PR).**
-2. **`Delivered-To` and the mail-link loop.**
-3. **The tagged address on forms:** waits for package assembly (NS-161, #112), which decides
-   what the form gets.
+2. **Gmail's own `Delivered-To` (this second PR):** the Gmail client reads only the top
+   `Delivered-To`, the one Gmail adds, and never a tagged one below it. The code already took the
+   first; slice 2 makes that rule explicit and pins it with tests. The issue asked for "Gmail's
+   own rather than the first one": on mail Gmail received they are the same header, because
+   Gmail prepends its stamp. Mail it never stamped (Sent, drafts, inserted) has none, so the loop
+   must skip it and check the base address is Paul's mailbox; that check lives with the loop in
+   #224, where it is used.
+3. **Moved to #224 (NS-223):** the mail-link loop (needs the Gmail push, NS-148 #89, and a
+   reader for match candidates), the tagged address on forms (needs package assembly, NS-161
+   #112) and the credit report's replied, screen and interview stages (need inbox
+   classification, NS-164 #115).
 
 ## Slice 1
 INB-007 says each origin value is a domain event and the latest one wins, so origin is stored as
