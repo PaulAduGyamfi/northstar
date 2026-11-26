@@ -30,10 +30,13 @@ decide anything code can.
     with no call.
   - Only `new` with reason `below_threshold` or `ambiguous` and at least one candidate calls the
     route, and only when `enabled` is true (off by default: the fixtures are hand-written).
+  - A negated question (`NEGATION`, as in package assembly) is returned as is.
   - A question whose nearest canonical question is factual is returned as is: it is never offered
     narrative stand-ins ("Are you authorized to work here and do you need sponsorship?").
   - A choice that is an index into the candidates becomes
-    `{ status: "matched", canonical, confidence }` (the lexical score) with `by: "model"`. Null,
+    `{ status: "matched", canonical, confidence, confirmedBy: "model" }` (the lexical score)
+    with `by: "model"`. A caller must never count such a match as reuse for the Gate's policy
+    (`bank_exact` or `bank_high_confidence`): an injected or mistaken pick must reach Paul. Null,
     an index out of range, a refusal, a truncated or invalid output leaves the lexical result
     (`by: "rules"`). A transport error or `HeldBack` throws, so the caller retries.
 - An eval set `evals/question-confirm/` (synthetic questions, one injection case, one "none"

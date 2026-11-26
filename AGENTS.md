@@ -111,8 +111,9 @@ Exists now:
   Since NS-137 also `confirmQuestion` (`question-confirm.ts`), with no embedding provider
   (decided on #62): for a question the matcher left new because it scored low or tied, the
   `question-confirm` route picks one of up to three close narrative or company-specific catalog
-  questions by index, or none, and code checks the index. Never for factual questions. Off by
-  default (hand-written fixtures); no caller yet.
+  questions by index, or none, and code checks the index. Never for factual or negated questions.
+  Its matches carry `confirmedBy: "model"` and must never count as reuse for the Gate's policy.
+  Off by default (hand-written fixtures); no caller yet.
   Since GH-59 also answer reuse (ANS-003): `adaptAnswer` fills a banked answer's `{company}`
   slot and picks the variant that fits the form's limit (never cuts it), `reuseNote` and
   `narrativeKindOf`.

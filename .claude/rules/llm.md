@@ -47,7 +47,9 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
   Use it only through `confirmQuestion`: it runs only for a question `matchQuestion` left new as
   `below_threshold` or `ambiguous`, never one nearest a factual question, and the model answers
   with an index into candidates code chose (`confirmCandidates`), which code checks. It is off
-  by default (`enabled: true` turns it on), because its fixtures are hand-written.
+  by default (`enabled: true` turns it on), because its fixtures are hand-written. A match it
+  returns carries `confirmedBy: "model"`: a caller must never count it as reuse for the Gate's
+  policy (`bank_exact` or `bank_high_confidence`), whatever its confidence.
 - A new route with no real recordings gets hand-written fixtures (ADR-0016 item 8). Write the
   expected outputs to `evals/<route>/handwritten.jsonl` and run
   `node evals/dist/handwrite-bin.js <route>` (after building `evals`). Each fixture is marked

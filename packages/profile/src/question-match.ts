@@ -86,7 +86,7 @@ const CONCEPTS: Record<string, readonly string[]> = {
 };
 
 // Words that flip a yes/no question's answer.
-const NEGATION = /\b(?:without|not|no|never)\b|n't\b/i;
+export const NEGATION = /\b(?:without|not|no|never)\b|n't\b/i;
 
 // "us" after these verbs is the reader of the form ("Tell us about…"), not the company ("Why us?").
 const ADDRESS_VERBS = new Set(["tell", "give", "show", "send", "let"]);
@@ -151,6 +151,7 @@ export function questionConcepts(question: string): Set<string> {
       // one letter and never a name.
       concepts.add(NAME);
     } else if (FILLER.has(word)) {
+      continue;
     } else {
       // Any other word stands for itself, without a plural "s" ("problems" → "problem").
       concepts.add(word.length > 3 && /[^s]s$/.test(word) ? word.slice(0, -1) : word);
@@ -174,7 +175,15 @@ const WORDINGS: ReadonlyArray<{ question: CanonicalQuestion; concepts: Set<strin
   );
 
 export type QuestionMatch =
-  | { status: "matched"; canonical: CanonicalQuestion; confidence: number }
+  | {
+      status: "matched";
+      canonical: CanonicalQuestion;
+      confidence: number;
+      // Set only by confirmQuestion (NS-137) when the model, not code, chose the canonical
+      // question. Such a match is never reuse for the Gate's policy (bank_exact or
+      // bank_high_confidence): its confidence is the lexical score of a question code had left new.
+      confirmedBy?: "model";
+    }
   | {
       status: "new";
       reason: "empty" | "below_threshold" | "ambiguous" | "negated";

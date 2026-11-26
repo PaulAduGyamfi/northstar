@@ -132,6 +132,15 @@ describe("confirmQuestion", () => {
     ]);
   });
 
+  it("makes no call for a negated question", async () => {
+    const { gateway, inputs } = gatewayAnswering(null);
+    const q = "Why would you not want to leave your job?";
+    expect([(await confirmQuestion({ gateway, enabled: true }, q)).by, inputs.length]).toEqual([
+      "rules",
+      0,
+    ]);
+  });
+
   it("makes no call when no candidate reaches the floor", async () => {
     const { gateway, inputs } = gatewayAnswering(null);
     const q = "What drew you to apply for this opening at Example Corp?";
@@ -160,7 +169,8 @@ describe("confirmQuestion", () => {
       result.match.status,
       result.match.status === "matched" && result.match.canonical.id,
       result.match.confidence,
-    ]).toEqual(["model", "matched", "why-this-role", 0.86]);
+      result.match.status === "matched" && result.match.confirmedBy,
+    ]).toEqual(["model", "matched", "why-this-role", 0.86, "model"]);
   });
 
   it("keeps the lexical result when the model chooses none", async () => {
