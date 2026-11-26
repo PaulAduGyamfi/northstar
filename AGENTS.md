@@ -502,7 +502,12 @@ Exists now:
   `revealContentSha256`), approves it for Paul and uses it once, in one transaction; the Gate
   refuses that kind everywhere else. `revealTenantPassword` is the one opening
   `@northstar/gateways` exports, and the boundary test allows only the vault's files to name it.
-  No API route or page yet (slice 2).
+  Since NS-230 also the API route (`apps/api/src/vault-reveal.ts`, the one API file the boundary
+  test allows): `POST /vault/reveal/options` and `POST /vault/reveal` (session only) need a
+  passkey assertion for the `reveal` ceremony made within a minute and used once (`passkeys.ts`),
+  then the `vault` switch on; only then the key is read from `VAULT_MASTER_KEY_FILE` for that one
+  reveal. At most 5 reveals a minute; a failed assertion counts toward the sign-in throttle; the
+  password goes in the response only. No page yet.
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write

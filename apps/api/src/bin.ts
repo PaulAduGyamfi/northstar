@@ -241,9 +241,9 @@ try {
   const passkeyStore = {
     list: async () => listPasskeys(db, await candidateId()),
     read: async (credentialId: string) => readPasskey(db, await candidateId(), credentialId),
-    save: async (input: Parameters<typeof savePasskey>[1] extends infer T
-      ? Omit<T, "candidateId">
-      : never) => savePasskey(db, { ...input, candidateId: await candidateId() }),
+    save: async (
+      input: Parameters<typeof savePasskey>[1] extends infer T ? Omit<T, "candidateId"> : never,
+    ) => savePasskey(db, { ...input, candidateId: await candidateId() }),
     recordUse: async (passkeyId: string, signCount: number) =>
       recordPasskeyUse(db, await candidateId(), passkeyId, signCount),
   };

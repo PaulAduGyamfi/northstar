@@ -93,8 +93,8 @@ describe("the vault's decrypt boundary (CRD-002)", () => {
   });
 
   // Paul's reveal (NS-182, ADR-0024) makes and uses its own approval, so whoever can call it can
-  // reveal. The API, after a fresh passkey check, is to be its only caller (slice 2 adds that
-  // file here); today nothing outside the vault and its tests may name it.
+  // reveal. Its only caller is the API's reveal route, after a fresh passkey check (NS-230,
+  // added with Paul's approval); nothing else outside the vault and its tests may name it.
   it("only the vault's own files name the reveal path", async () => {
     const allowed = [
       "packages/db/src/vault-write.ts",
@@ -105,6 +105,9 @@ describe("the vault's decrypt boundary (CRD-002)", () => {
       `${VAULT_DIR}reveal-db.test.ts`,
       `${VAULT_DIR}boundary.test.ts`,
       "packages/gateways/src/index.ts",
+      // The one API file: it checks the session, a passkey assertion made within a minute, the
+      // vault switch and the rate limit before it calls revealTenantPassword.
+      "apps/api/src/vault-reveal.ts",
     ];
     const found = await offenders(REVEAL, (rel) => allowed.includes(rel));
     expect(found).toEqual([]);

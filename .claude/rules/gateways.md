@@ -35,7 +35,8 @@ GitHub) don't exist yet: if you are about to create one outside its ticket, stop
   types it.
   Paul's own reveal (NS-182, ADR-0024) goes only through `revealTenantPassword`, the one opening
   the package exports. It makes its own approval, so its caller must be the API after a fresh
-  passkey check; the boundary test lists the only files that may name it.
+  passkey check; the boundary test lists the only files that may name it. Since NS-230 the one
+  API file is `apps/api/src/vault-reveal.ts`; adding any other needs Paul's approval.
 
 - Employer accounts (NS-124): before creating an account on a tenant, register it
   (`registerTenant`) and call `beginAccountCreation`. Only the caller it returns `creating` to may

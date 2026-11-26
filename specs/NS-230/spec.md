@@ -29,12 +29,12 @@ fresh passkey check.
   the reveal path.
 
 ## Acceptance criteria
-- [ ] 401 without a session; a refusal for a stale (over 60 s), missing, reused or
+- [x] 401 without a session; a refusal for a stale (over 60 s), missing, reused or
       wrong-ceremony assertion; 503 for a locked vault (switch off) with no key read.
-- [ ] One `vault_access` row per successful reveal (PGlite).
-- [ ] The password appears in the response only: never in a span attribute.
-- [ ] The boundary test allows exactly `apps/api/src/vault-reveal.ts` in the API.
-- [ ] `pnpm turbo run lint typecheck test build` passes.
+- [x] One `vault_access` row per successful reveal (PGlite).
+- [x] The password appears in the response only: never in a span attribute.
+- [x] The boundary test allows exactly `apps/api/src/vault-reveal.ts` in the API.
+- [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Out of scope (follow-ups)
 - The Settings → Accounts "Reveal" button and its passkey ceremony in the web app (slice 2).
