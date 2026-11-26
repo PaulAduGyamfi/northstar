@@ -29,6 +29,16 @@ export const MAX_ANSWER_WORDS = 55;
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 // Control characters (tabs and line breaks included): every field is one plain line.
 const CONTROL = /\p{Cc}/u;
+// Invisible formatting characters (NS-231 slice 3): a right-to-left override (U+202E) makes a line
+// read differently from what is stored, and a zero-width space or joiner hides inside a word.
+// `trim()` already drops one at either end of a line (an editor's byte-order mark), so only one
+// inside a field is refused.
+// Since its security review also line and paragraph separators (U+2028, U+2029: one stored line
+// shown as two) and the usual blank-looking characters that aren't formatting ones: the Hangul
+// fillers, the braille blank, the combining grapheme joiner and the variation selectors.
+// The joiner and the selectors are combining marks, so they sit outside the class.
+const FORMAT = /[\p{Cf}\p{Zl}\p{Zp}\u115f\u1160\u3164\uffa0\u2800]|\u034f|\p{Variation_Selector}/u;
+const formatProblem = (what: string) => `${what} can't hold an invisible formatting character`;
 
 // The database stores only links starting with exactly `https://` (case matters) and no control
 // characters, so the parser holds the same line: a file that parses always stores.
@@ -50,6 +60,7 @@ function parseHeader(raw: string): Omit<WorkEntry, "lines"> | string {
     return "a header is: Title | YYYY-MM | YYYY-MM or present [| https link]";
   }
   const [title = "", start = "", end = "", link] = parts;
+  if (FORMAT.test(title)) return formatProblem("the title");
   if (title.length === 0 || title.length > MAX_TITLE || CONTROL.test(title)) {
     return `the title must be 1 to ${MAX_TITLE} characters`;
   }
@@ -57,6 +68,7 @@ function parseHeader(raw: string): Omit<WorkEntry, "lines"> | string {
   if (end !== "present" && !MONTH.test(end)) return "the end must be YYYY-MM or present";
   // Same-format months compare as strings.
   if (end !== "present" && end < start) return "the end is before the start";
+  if (link !== undefined && FORMAT.test(link)) return formatProblem("the link");
   const parsedLink = link === undefined ? null : httpsLink(link);
   if (link !== undefined && parsedLink === null) {
     return "the link must be an https link with no user name or password";
@@ -81,6 +93,7 @@ export function parseIndependentWork(text: string): Result<WorkEntry[], WorkProb
     if (trimmed.startsWith("- ") || trimmed === "-") {
       const body = trimmed.slice(1).trim();
       if (current === null) problems.push({ line, problem: "a line comes before any header" });
+      else if (FORMAT.test(body)) problems.push({ line, problem: formatProblem("a line") });
       else if (body.length === 0 || body.length > MAX_LINE || CONTROL.test(body)) {
         problems.push({ line, problem: `a line must be 1 to ${MAX_LINE} characters` });
       } else current.lines.push(body);

@@ -1,0 +1,38 @@
+# NS-231 slice 3: refuse invisible formatting characters in independent work
+
+Status: built (autonomous lane, ADR-0016)
+Requirements: DX-010
+Rules that apply: ADR-0004, NFR-SEC-004, `.claude/rules/tests.md`.
+Issue #245 (Parent: #167). From slice 2's security review (optional item).
+
+## Why
+Paul's independent-work lines go verbatim into tailored resumes and LinkedIn copy. The parser
+already refuses control characters (`\p{Cc}`), but not invisible formatting characters
+(`\p{Cf}`): a right-to-left override (U+202E) can make a line read differently from what is
+stored, and a zero-width space (U+200B) can hide inside a word. Pasted text carries them more often
+than people notice. They should be refused when the file is read, so nothing stores them.
+
+## Behavior
+- **`parseIndependentWork`** refuses a title, a line or a link that holds any `\p{Cf}` character,
+  with its own message ("… can't hold an invisible formatting character"), the same way as any
+  other bad line: the file returns every problem and nothing is stored. After the security review
+  the same check also refuses line and paragraph separators (U+2028, U+2029: one stored line shown
+  as two in the LinkedIn copy) and the usual blank-looking characters that aren't formatting ones
+  (the Hangul fillers, the braille blank U+2800, the grapheme joiner U+034F, the variation
+  selectors). Accented and non-Latin text still reads. A zero-width joiner (U+200D, a `\p{Cf}`)
+  is refused too, so emoji joined sequences are.
+- **A byte-order mark at the very start of the file** (U+FEFF, which some editors save) is not
+  refused: each line is already trimmed, and JavaScript's `trim()` drops U+FEFF at either end, so
+  a saved file isn't refused on line 1. A U+FEFF inside a field is refused like any other
+  formatting character.
+
+## Out of scope
+- The database check on stored rows: it needs a migration, and `ns-237` holds `packages/db`.
+- The other files Paul gives (`site.ts`, `growth-file.ts`): their own issues, if wanted.
+
+## Acceptance criteria
+- [x] A title, a line and a link with U+202E, U+200B or U+2060 are each refused with the new
+      message and the line's number.
+- [x] A file starting with U+FEFF parses exactly as without it.
+- [x] A U+FEFF inside a line is refused.
+- [x] `pnpm turbo run lint typecheck test build --filter=@northstar/profile` passes.
