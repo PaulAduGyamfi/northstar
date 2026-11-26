@@ -1,4 +1,4 @@
-import { type Db, listPendingApprovals } from "@northstar/db";
+import { type Db, listPendingApprovals, setApprovalPolicies } from "@northstar/db";
 import { createTestDb, seedApplication } from "@northstar/db/testing";
 import { CandidateId } from "@northstar/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -53,6 +53,29 @@ describe("filePackage", () => {
         kind: "application_package",
         subject: `application_package:${input.packageId}`,
       }),
+    ]);
+  });
+
+  it("lets the Gate read the facts: a producer's fit and seen form can't auto-approve a package", async () => {
+    await setApprovalPolicies(db, {
+      candidateId,
+      rules: [
+        {
+          name: "any fit",
+          kind: "application_package",
+          minFit: 0,
+          allowHighConfidenceAnswers: true,
+          maxFreeTextWords: 1000,
+        },
+      ],
+    });
+    // The producer says fit 95 and a seen form; nothing stored says either.
+    input = { ...input, fit: 95, formSeenBefore: true };
+    const filed = await filePackage(db, candidateId, assembled());
+    if (!filed.ok) throw new Error(filed.error.kind);
+    expect([filed.value.decision, filed.value.outcome]).toEqual([
+      null,
+      { auto: false, why: [{ rule: "any fit", failed: ["fit", "form_seen_before"] }] },
     ]);
   });
 

@@ -205,7 +205,7 @@ function pickChoice(choices: readonly string[], value: string): string | null {
 }
 
 // The policy source of one answer (see HIGH_CONFIDENCE).
-function bankSource(source: AnswerSource): PackageFacts["answers"][number]["source"] {
+export function bankSource(source: AnswerSource): PackageFacts["answers"][number]["source"] {
   // Factual settings are marked for Paul's review (NS-141), so they never count as reuse.
   if (source.from === "setting") return "new";
   // The model chose the canonical question (NS-233): a mistaken or injected pick must never skip
