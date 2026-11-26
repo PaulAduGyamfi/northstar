@@ -119,6 +119,37 @@ describe("parseIndependentWork", () => {
     const result = parseIndependentWork("X | 2026-01 | present | https://me:pw@example.com\n- a");
     expect(result.ok).toBe(false);
   });
+
+  // NS-231 slice 3: a right-to-left override, a zero-width space or a word joiner would make a
+  // stored line read differently from what Paul sees, so the file is refused.
+  it("refuses an invisible formatting character in a title, a line or a link, with its line", () => {
+    const problemsOf = (file: string) => {
+      const r = parseIndependentWork(file);
+      return r.ok ? "accepted" : r.error;
+    };
+    const message = (what: string) => `${what} can't hold an invisible formatting character`;
+    expect([
+      problemsOf("Ledger‮line | 2026-01 | present\n- a"),
+      problemsOf("X | 2026-01 | present\n- Built​ it"),
+      problemsOf("X | 2026-01 | present | https://example.com/a⁠b\n- a"),
+    ]).toEqual([
+      [{ line: 1, problem: message("the title") }],
+      [
+        { line: 1, problem: "an entry needs a line" },
+        { line: 2, problem: message("a line") },
+      ],
+      [{ line: 1, problem: message("the link") }],
+    ]);
+  });
+
+  it("reads a file that starts with a byte-order mark exactly as one without it", () => {
+    expect(parseIndependentWork(`﻿${FILE}`)).toEqual(parseIndependentWork(FILE));
+  });
+
+  it("refuses a byte-order mark anywhere but the start of the file", () => {
+    const result = parseIndependentWork("X | 2026-01 | present\n- Built﻿ it");
+    expect(result.ok ? "accepted" : result.error.map((p) => p.line)).toEqual([1, 2]);
+  });
 });
 
 describe("independentWorkSection", () => {
