@@ -5,6 +5,7 @@ import { type CliDeps, main } from "./cli.js";
 import type { ImportResult } from "./import.js";
 import type { InterviewOutcome } from "./interview.js";
 import { SAMPLE_RESUME } from "./test/sample.js";
+import { VOICE_USAGE } from "./voice-cli.js";
 
 const record = {
   route: "profile-extract",
@@ -75,6 +76,10 @@ function deps(
     readGrowthSettings: async () => null,
     setGrowthSettings: async () => {},
     saveWeekPlan: async (input) => ({ ...input, status: "planned" }),
+    readSample: async () => "",
+    saveVoiceProfile: async () => ({ version: 1 }),
+    readNewestVoice: async () => null,
+    reviewVoiceProfile: async () => ({ ok: true, value: undefined }),
   };
   return { d, printed, interviewedAtoms };
 }
@@ -722,5 +727,12 @@ describe("profile import-site (NS-209)", () => {
       ],
       0,
     ]);
+  });
+});
+
+describe("profile voice (NS-222)", () => {
+  it("is routed to its own command, which prints its own usage", async () => {
+    const { d, printed } = deps(["voice"], { kind: "unchanged" });
+    expect([await main(d), printed]).toEqual([1, [VOICE_USAGE]]);
   });
 });

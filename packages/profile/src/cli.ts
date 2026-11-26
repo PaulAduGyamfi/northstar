@@ -28,6 +28,7 @@ import {
 import { parseSiteText } from "./site.js";
 import { parseDrop, type TailorCliDeps, tailorCommand } from "./tailor-cli.js";
 import { type ThesisDraftResult, thesisProblems } from "./thesis-draft.js";
+import { type VoiceCliDeps, voiceCommand } from "./voice-cli.js";
 import { type WorkCliDeps, workCommand } from "./work-cli.js";
 
 // Everything main() touches, injected so tests run with no database, model or file.
@@ -64,7 +65,8 @@ export type CliDeps = {
   TailorCliDeps &
   AuditCliDeps &
   WorkCliDeps &
-  GrowthCliDeps;
+  GrowthCliDeps &
+  VoiceCliDeps;
 
 const USAGE =
   'usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check | profile thesis draft | profile thesis set "<text>" --atoms <id,id> | profile thesis show | profile import-linkedin <folder>';
@@ -140,6 +142,8 @@ export async function main(deps: CliDeps): Promise<number> {
   if (command === "work") return workCommand(deps, deps.argv.slice(1));
   // Growth tracks, touches, settings and the week's plan (NS-210).
   if (command === "growth") return growthCommand(deps, deps.argv.slice(1));
+  // The voice profile from Paul's writing samples, and his review of its phrases (NS-222).
+  if (command === "voice") return voiceCommand(deps, deps.argv.slice(1));
   deps.print(command === "settings" || command === "answer" ? SETTINGS_USAGE : USAGE);
   return 1;
 }
