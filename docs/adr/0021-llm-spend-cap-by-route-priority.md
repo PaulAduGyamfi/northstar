@@ -27,14 +27,18 @@ RES-009 asks for per-day caps on LLM spend, and that when a cap is hit "low-prio
   the kill switch and breaker, it asks `meter.spent()` and, over the threshold, throws the
   existing retryable `HeldBack` with `by: "budget"`. After a reply it calls
   `meter.record(route, costUsd)`. A meter that fails holds the call back (fail safe), and a
-  failed record is noted on the span, never thrown (the reply is already here). An unpriced
-  model records 0 and sets `northstar.llm.unpriced` on the span.
+  failed record is kept in memory and written before the next call, which is held back until it
+  is, so failing writes can't switch the cap off. An unpriced model (a fallback the API chose, a
+  new id) is metered at the dearest known model's prices (`ceilingCostUsd`) and sets
+  `northstar.llm.unpriced` on the span: it can over-count, never pass unmetered.
 - **Storage.** `llm_spend` in `packages/db` (`spend-write.ts`), append-only: candidate, route,
   cost in micro-dollars, time. `readLlmSpend` sums today's and this month's. No domain event per
   call (the `llm.call` span already carries the cost); the hold is visible on the span and in the
   CLIs' held-back message.
 - **Wiring.** The funnel, profile and sources CLIs and the API pass a meter on the stored spend.
-  Evals pass none (replay costs nothing).
+  Evals pass none: replay costs nothing, and `--live` / `--record` (Paul only, on purpose) are
+  deliberately not capped. With no cap set the gateway reads no spend and holds nothing back, but
+  still records each reply's cost.
 
 ## Alternatives considered
 - One cap that stops every route: breaks freshness first (RES-009, SRC-013).
@@ -48,4 +52,7 @@ RES-009 asks for per-day caps on LLM spend, and that when a cap is hit "low-prio
 - Spend is metered only where a meter is wired; a new entry point must pass one.
 - The 80 / 100 / 125 % split is a starting point: Paul may move it once real spend is metered
   (NFR-CST-001, OBV-003).
+- Spend is read before a call and recorded after it, so calls running at the same time can each
+  pass just under a threshold: the overshoot is at most one call's cost per concurrent call,
+  small with today's one-at-a-time CLIs and captures.
 - Open question: a separate monthly ceiling per priority, if a month runs hot.

@@ -9,8 +9,6 @@ export type RoutePriority = "fresh" | "normal" | "low";
 // `null` means no cap.
 export type LlmBudget = { dailyUsd: number | null; monthlyUsd: number | null };
 
-export const NO_BUDGET: LlmBudget = { dailyUsd: null, monthlyUsd: null };
-
 // What has been spent so far, in US dollars, by UTC day and month.
 export type Spent = { todayUsd: number; monthUsd: number };
 

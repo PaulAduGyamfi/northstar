@@ -75,7 +75,12 @@ export async function admit(
 // from the fixed fields only (names and a date), so it is safe to print.
 export function describeHeldBack(held: HeldBack): string {
   if (held.by === "kill_switch") return `${held.what} is switched off`;
-  if (held.by === "budget") return `the ${held.what} LLM spend cap is reached for this route`;
+  if (held.by === "budget") {
+    if (held.what === "unknown") return "LLM spend couldn't be read (is the database up?)";
+    if (held.what === "unrecorded")
+      return "earlier LLM spend couldn't be recorded (is the database up?)";
+    return `the ${held.what} LLM spend cap is reached for this route`;
+  }
   if (held.by === "breaker") {
     const until = held.retryAt ? ` until ${held.retryAt.toISOString()}` : "";
     return `the ${held.what} breaker is open${until}`;

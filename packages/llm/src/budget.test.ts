@@ -1,4 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { trace } from "@opentelemetry/api";
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { budgetHold, loadLlmBudget, type SpendMeter, type Spent } from "./budget.js";
 import { createLlmGateway } from "./gateway.js";
 import { describeHeldBack, HeldBack } from "./guard.js";
@@ -8,6 +14,20 @@ import { okMessage } from "./test/responses.js";
 import { testRoute } from "./test/test-route.js";
 
 // The LLM spend cap (NS-176 slice 2, RES-009, ADR-0021). Fakes only; no network.
+
+const exporter = new InMemorySpanExporter();
+beforeAll(() => {
+  trace.setGlobalTracerProvider(
+    new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] }),
+  );
+});
+afterAll(() => {
+  trace.disable();
+});
+beforeEach(() => {
+  exporter.reset();
+});
+const spanAttrs = () => exporter.getFinishedSpans().find((s) => s.name === "llm.call")?.attributes;
 
 const CAPS = { dailyUsd: 10, monthlyUsd: null };
 const spent = (todayUsd: number, monthUsd = 0): Spent => ({ todayUsd, monthUsd });
@@ -129,9 +149,76 @@ describe("the gateway with a budget", () => {
     expect((await gateway.call(testRoute, INPUT)).kind).toBe("Ok");
   });
 
-  it("says plainly which cap held a route back", () => {
-    expect(describeHeldBack(new HeldBack("budget", "daily"))).toBe(
+  it("holds a low route back at 80 % and a fresh one at 125 %, through the gateway", async () => {
+    const run = async (usd: number, priority: "low" | "fresh") => {
+      const { m } = meter(spent(usd));
+      const gateway = createLlmGateway({
+        client: fakeClient([okMessage()]),
+        now: () => 0,
+        budget: { caps: CAPS, meter: m },
+      });
+      return gateway.call({ ...testRoute, priority }, INPUT).then(
+        (o) => o.kind,
+        (e: unknown) => (e instanceof HeldBack ? e.by : "error"),
+      );
+    };
+    expect([
+      await run(7.9, "low"),
+      await run(8, "low"),
+      await run(12.4, "fresh"),
+      await run(12.5, "fresh"),
+    ]).toEqual(["Ok", "budget", "Ok", "budget"]);
+  });
+
+  it("marks a held call's span with the hold and the route's priority", async () => {
+    const { m } = meter(spent(10));
+    const gateway = createLlmGateway({
+      client: fakeClient([okMessage()]),
+      now: () => 0,
+      budget: { caps: CAPS, meter: m },
+    });
+    await gateway.call(testRoute, INPUT).catch(() => undefined);
+    const attrs = spanAttrs();
+    expect([attrs?.["northstar.llm.held_by"], attrs?.["northstar.llm.priority"]]).toEqual([
+      "budget",
+      "normal",
+    ]);
+  });
+
+  it("marks the span when a cost couldn't be recorded, and when the reply was unpriced", async () => {
+    const { m } = meter(spent(0), "record");
+    const gateway = createLlmGateway({
+      client: fakeClient([okMessage({ model: "claude-unknown-9" })]),
+      now: () => 0,
+      budget: { caps: CAPS, meter: m },
+    });
+    await gateway.call(testRoute, INPUT);
+    const attrs = spanAttrs();
+    expect([
+      attrs?.["northstar.llm.spend_record_failed"],
+      attrs?.["northstar.llm.unpriced"],
+    ]).toEqual([true, true]);
+  });
+
+  it("reads no spend and holds nothing back when no cap is set, but still records", async () => {
+    const { m, recorded } = meter(spent(0), "spent");
+    const gateway = createLlmGateway({
+      client: fakeClient([okMessage()]),
+      now: () => 0,
+      budget: { caps: { dailyUsd: null, monthlyUsd: null }, meter: m },
+    });
+    expect([(await gateway.call(testRoute, INPUT)).kind, recorded.length]).toEqual(["Ok", 1]);
+  });
+
+  it("says plainly which cap held a route back, or that spend couldn't be read or recorded", () => {
+    expect([
+      describeHeldBack(new HeldBack("budget", "daily")),
+      describeHeldBack(new HeldBack("budget", "unknown")),
+      describeHeldBack(new HeldBack("budget", "unrecorded")),
+    ]).toEqual([
       "the daily LLM spend cap is reached for this route",
-    );
+      "LLM spend couldn't be read (is the database up?)",
+      "earlier LLM spend couldn't be recorded (is the database up?)",
+    ]);
   });
 });

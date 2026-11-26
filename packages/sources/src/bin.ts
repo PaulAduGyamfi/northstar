@@ -54,6 +54,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // Entry point for `pnpm --filter @northstar/sources jobs …`. The only place in this package that
 // reads process.env (DATABASE_URL, and ANTHROPIC_API_KEY only when a page needs the model).
 const { db, close } = connectDb(loadDbConfig(process.env));
+// The LLM spend caps, read at startup so a bad value shows at once (NS-176, ADR-0021).
+const llmBudget = loadLlmBudget({
+  LLM_DAILY_CAP_USD: process.env.LLM_DAILY_CAP_USD,
+  LLM_MONTHLY_CAP_USD: process.env.LLM_MONTHLY_CAP_USD,
+});
 // Set on `jobs run`'s first wait (waitOrStop below). Declared before main runs: a `let` declared
 // later in the module isn't initialized yet while the top-level await is still running.
 let stop: AbortController | undefined;
@@ -75,10 +80,7 @@ try {
         guard: dbPollGuard(db, candidateId),
         budget: {
           // The LLM spend cap (NS-176, ADR-0021): low routes pause first, fresh ones run longest.
-          caps: loadLlmBudget({
-            LLM_DAILY_CAP_USD: process.env.LLM_DAILY_CAP_USD,
-            LLM_MONTHLY_CAP_USD: process.env.LLM_MONTHLY_CAP_USD,
-          }),
+          caps: llmBudget,
           meter: dbSpendMeter(db, () => candidateId),
         },
       });

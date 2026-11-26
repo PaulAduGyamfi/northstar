@@ -70,7 +70,7 @@ const gatewayWith = (guard: CallGuard, meter: SpendMeter) =>
         LLM_DAILY_CAP_USD: process.env.LLM_DAILY_CAP_USD,
         LLM_MONTHLY_CAP_USD: process.env.LLM_MONTHLY_CAP_USD,
       }),
-      meter: meter,
+      meter,
     },
   });
 // Paul's keyboard, opened only for `interview` (an open readline keeps the process waiting).
