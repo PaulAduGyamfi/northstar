@@ -212,6 +212,31 @@ async function halfClosed(from: "awaiting_approval" | "submitting"): Promise<str
 }
 
 describe("sweepStaleClaims repairing a half-closed claim (NS-177)", () => {
+  it("doesn't count an application moved back to submitting later as repaired again", async () => {
+    await halfClosed("awaiting_approval");
+    await sweepStaleClaims(dbSweepPorts(db), candidateId);
+    // A later flow resumes the application (the state machine allows needs_human to submitting).
+    const resumed = await transitionApplication(db, {
+      candidateId,
+      applicationId: ApplicationId.parse(applicationId),
+      from: "needs_human",
+      to: "submitting",
+      actor: "user",
+      reason: "",
+      inputsSummary: "",
+      links: [],
+      idempotencyKey: "test:resume",
+    });
+    if (!resumed.ok) throw new Error(resumed.error.kind);
+    const once = await eventTypes();
+    const second = await sweepStaleClaims(dbSweepPorts(db), candidateId);
+    expect([second, await eventTypes(), await applicationStatus()]).toEqual([
+      [],
+      once,
+      "submitting",
+    ]);
+  });
+
   it("moves an application left at awaiting_approval to needs_human", async () => {
     const id = await halfClosed("awaiting_approval");
     const closed = await sweepStaleClaims(dbSweepPorts(db), candidateId);
@@ -236,7 +261,7 @@ describe("sweepStaleClaims repairing a half-closed claim (NS-177)", () => {
     ]).toEqual([[], 1, once]);
   });
 
-  it("reuses the gateway's move keys, so a move a repeat call already made isn't written again", async () => {
+  it("uses the gateway's move keys for the repaired moves", async () => {
     const id = await halfClosed("awaiting_approval");
     await sweepStaleClaims(dbSweepPorts(db), candidateId);
     const keys = await db

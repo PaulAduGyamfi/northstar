@@ -40,4 +40,21 @@ describe("sweepStaleClaims", () => {
     await expect(sweepStaleClaims(ports, CANDIDATE)).rejects.toBeInstanceOf(ApplyInvariantError);
     expect(recorded).toEqual(["sub-a", "sub-b"]);
   });
+
+  it("returns a claim whose move failed once and was repaired later in the same pass", async () => {
+    let failOnce = true;
+    const ports: SweepPorts = {
+      listStaleClaims: async () => [claim("sub-a", APP_A)],
+      listHalfClosedClaims: async () => [{ ...claim("sub-a", APP_A), status: "needs_human" }],
+      recordNeedsHuman: async (_c, id) => ok(claim(id, APP_A)),
+      transitionApplication: async () => {
+        if (failOnce) {
+          failOnce = false;
+          throw new Error("connection reset");
+        }
+        return ok({ replayed: false } as never);
+      },
+    };
+    expect(await sweepStaleClaims(ports, CANDIDATE)).toEqual(["sub-a"]);
+  });
 });
