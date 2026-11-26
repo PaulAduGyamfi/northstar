@@ -129,8 +129,11 @@ export function resumeTailorInput(
   job: TailorJob,
   base: TailoredResume,
 ): ResumeTailorInput {
+  // The independent-work section isn't the model's to reword or see: it is Paul's own lines,
+  // verbatim (NS-231), and leaving it out keeps the route's requests as they were.
+  const { independentWork: _work, ...rewordable } = base;
   return {
-    base,
+    base: rewordable,
     atoms: master.atoms.map((a) => ({ id: a.id, roleId: a.roleId, line: lineText(a) })),
     roles: master.roles.map((r) => ({ id: r.id, title: r.title, employer: r.employer })),
     skills: master.skills,
@@ -187,7 +190,12 @@ export async function tailorWithModel(
     case "Ok": {
       const failures = checkModelResume(outcome.output, master, job, base);
       if (failures.length > 0) return fallback("provenance", failures, outcome.record);
-      return { kind: "model", resume: outcome.output, record: outcome.record };
+      // The deterministic section goes back on as it was (the model never saw or wrote it).
+      const resume: TailoredResume =
+        base.independentWork === undefined
+          ? outcome.output
+          : { ...outcome.output, independentWork: base.independentWork };
+      return { kind: "model", resume, record: outcome.record };
     }
   }
 }

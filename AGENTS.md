@@ -197,7 +197,16 @@ Exists now:
   `twentySecondAnswer` (at most 55 words from the entries and the official record's last employer,
   with its sources). Stored in `packages/db` (`independent-work-schema.ts`,
   `independent-work-write.ts`: `setIndependentWork`, `readIndependentWork`; append-only, a
-  version per file). Not yet in tailored resumes, the PDF or LinkedIn.
+  version per file). Since NS-231 (slice 1) every tailored resume carries it:
+  - `tailorForJob` reads the newest version (`readWork`).
+  - `tailorResume` adds every entry and line verbatim as `independentWork`, each citing its stored
+    entry and line.
+  - The section renders under `PROJECTS` in the text, PDF and DOCX, and counts toward the page
+    budget (atom lines give way first).
+  - `validateTailoredResume` refuses any line that isn't the stored line it cites.
+
+  The `resume-tailor` route never sees or writes it: it is on the TypeScript type only, not the
+  route's Zod schema. Not yet in LinkedIn copy.
 - Answer drafting (NS-135, ANS-004) in `packages/profile/src/answer/`:
   - `selectEvidence` picks Paul's stories and atoms by the question's words (plain code).
   - The `answer-draft` route drafts from them.

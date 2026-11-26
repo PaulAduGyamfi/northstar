@@ -37,6 +37,7 @@ const tailored = (over: Partial<Extract<TailorRun, { kind: "tailored" }>> = {}):
   diff: {
     atoms: [{ atomId: atom?.id ?? "", status: "dropped", reworded: false }],
     skills: [{ name: "Terraform", status: "added" }],
+    work: [],
   },
   pages: 1,
   version: 2,

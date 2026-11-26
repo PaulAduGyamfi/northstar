@@ -235,6 +235,11 @@ try {
         {
           readInput: (id) => readTailorInput(db, candidateId, id),
           save: (input) => saveTailoredResume(db, { ...input, candidateId }),
+          // The independent-work section (NS-231): the newest stored version, entries as stored.
+          readWork: async () => {
+            const view = await readIndependentWork(db, candidateId);
+            return view === null ? null : { version: view.version, entries: view.entries };
+          },
         },
         jobId,
         drop,
