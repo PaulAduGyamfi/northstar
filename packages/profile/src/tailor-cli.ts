@@ -40,6 +40,14 @@ export async function tailorCommand(
     deps.print(`  ${a.status}${a.reworded ? ", reworded" : ""}: ${what.get(a.atomId) ?? a.atomId}`);
   for (const s of run.diff.skills.filter((x) => x.status !== "kept"))
     deps.print(`  skill ${s.status}: ${s.name}`);
+  // The independent-work entries this resume adds (NS-231), by their stored titles.
+  const titles = new Map(
+    (run.resume.independentWork?.entries ?? []).map((e) => [e.entry, e.title]),
+  );
+  for (const w of run.diff.work)
+    deps.print(
+      `  independent work added: ${titles.get(w.entry) ?? `entry ${w.entry}`} (${w.lines} line${w.lines === 1 ? "" : "s"})`,
+    );
   if (run.resume.notClaimed.length > 0)
     deps.print(`Not claimed: ${run.resume.notClaimed.join("; ")}`);
   const { title, keywords, ats } = run.score;

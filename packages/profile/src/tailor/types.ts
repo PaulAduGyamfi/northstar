@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { WorkEntry } from "../independent-work.js";
 
 // Resume tailoring (NS-117, TLR-001…004). The master resume is the profile graph's records; the
 // tailored resume only arranges and cites them (ADR-0004).
@@ -29,12 +30,31 @@ export type MasterAtom = {
   sourceQuote: string;
 };
 
-// Roles, education and atoms in resume order.
+// Paul's independent work since his last role (NS-196): the newest stored version of his own
+// file, entries and lines in file order. It has no resume line to quote, so its provenance is
+// the stored entry and line, not an atom (NS-231, DX-010).
+export type MasterWork = { version: number; entries: WorkEntry[] };
+
+// Roles, education and atoms in resume order, and the independent work when there is any.
 export type MasterResume = {
   roles: MasterRole[];
   education: MasterEducation[];
   atoms: MasterAtom[];
   skills: string[];
+  independentWork?: MasterWork | null;
+};
+
+// The independent-work part of a tailored resume (NS-231). Each line cites its stored entry and
+// line by position in that version, and is that line verbatim (validateTailoredResume checks).
+export type WorkSection = {
+  version: number;
+  entries: {
+    entry: number;
+    title: string;
+    start: string;
+    end: string | null;
+    lines: { line: number; text: string }[];
+  }[];
 };
 
 // What tailoring reads from a job (the fields `jobs add` stores).
@@ -71,4 +91,7 @@ export const TailoredResume = z.object({
   // "not claimed: Kubernetes (no evidence)": requirements nothing in the profile meets.
   notClaimed: z.array(z.string()),
 });
-export type TailoredResume = z.infer<typeof TailoredResume>;
+// The type adds the independent-work section, which only the deterministic tailor fills from the
+// master. The Zod schema doesn't: it is the model route's output, and parsing drops unknown keys,
+// so a model can never put a section in (and the route's recorded requests stay the same).
+export type TailoredResume = z.infer<typeof TailoredResume> & { independentWork?: WorkSection };

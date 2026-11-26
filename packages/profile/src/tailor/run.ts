@@ -8,7 +8,7 @@ import { applySkillToggles, diffResume, type ResumeDiff } from "./diff.js";
 import { preSendScoreFromPdf, tailorToPages } from "./fit.js";
 import { renderResumePdf } from "./pdf.js";
 import type { PreSendScore } from "./score.js";
-import type { MasterResume, TailoredResume, TailorJob } from "./types.js";
+import type { MasterResume, MasterWork, TailoredResume, TailorJob } from "./types.js";
 import { type TailorValidation, validateTailoredResume } from "./validate.js";
 
 // Tailoring a stored job end to end (NS-146, TLR-001/003/005): plain code, no model. Read the
@@ -22,6 +22,9 @@ export type TailorRunDeps = {
   save: (
     input: Omit<SaveTailoredInput, "candidateId">,
   ) => Promise<{ version: number; saved: boolean }>;
+  // Paul's newest stored independent work (readIndependentWork), or null before he sets any. Its
+  // section goes into every tailored resume (NS-231, DX-010).
+  readWork?: () => Promise<MasterWork | null>;
 };
 
 export type TailorRun =
@@ -55,7 +58,8 @@ export async function tailorForJob(
   });
   const input = await deps.readInput(jobId);
   if (!input.ok) return { kind: "refused", reason: input.error.kind };
-  const master: MasterResume = input.value.master;
+  const work = deps.readWork === undefined ? null : await deps.readWork();
+  const master: MasterResume = { ...input.value.master, independentWork: work };
   const job: TailorJob = {
     title: input.value.job.title,
     requirements: input.value.job.requirements,

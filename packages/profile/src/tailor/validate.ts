@@ -140,5 +140,46 @@ export function validateTailoredResume(
     }
   });
 
+  failures.push(...workFailures(resume, master));
   return failures.length === 0 ? { ok: true } : { ok: false, failures };
+}
+
+// The independent-work section (NS-231): every entry and line must be the stored one at the
+// position it cites, verbatim, in the version the master read. A line that isn't, or a section
+// with no stored work behind it, is blocked like a line with no atom (TLR-002). Failures name
+// positions only, never Paul's titles or lines.
+function workFailures(resume: TailoredResume, master: MasterResume): TailorFailure[] {
+  const section = resume.independentWork;
+  if (section === undefined) return [];
+  const work = master.independentWork;
+  if (!work) return [{ item: "independent work", problem: "no stored independent work" }];
+  if (section.version !== work.version) {
+    return [{ item: "independent work", problem: "is from another stored version" }];
+  }
+  const failures: TailorFailure[] = [];
+  const seen = new Set<number>();
+  section.entries.forEach((e, i) => {
+    const item = `independent work entry ${i}`;
+    const stored = work.entries[e.entry];
+    if (!Number.isInteger(e.entry) || stored === undefined) {
+      failures.push({ item, problem: "cites no stored entry" });
+      return;
+    }
+    if (seen.has(e.entry)) failures.push({ item, problem: "repeats a stored entry" });
+    seen.add(e.entry);
+    if (e.title !== stored.title || e.start !== stored.start || e.end !== stored.end) {
+      failures.push({ item, problem: "title or dates aren't the stored entry's" });
+    }
+    const lines = new Set<number>();
+    e.lines.forEach((l, j) => {
+      const at = `${item} line ${j}`;
+      if (!Number.isInteger(l.line) || stored.lines[l.line] !== l.text) {
+        failures.push({ item: at, problem: "isn't the stored line it cites" });
+      }
+      // A stored line shown twice states one claim twice, like an atom on two lines.
+      if (lines.has(l.line)) failures.push({ item: at, problem: "repeats a stored line" });
+      lines.add(l.line);
+    });
+  });
+  return failures;
 }

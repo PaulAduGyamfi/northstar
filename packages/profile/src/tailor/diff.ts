@@ -12,7 +12,10 @@ export type AtomChange = {
   reworded: boolean;
 };
 export type SkillChange = { name: string; status: "added" | "kept" | "removed" };
-export type ResumeDiff = { atoms: AtomChange[]; skills: SkillChange[] };
+// An independent-work entry the tailored resume adds (NS-231): the master resume has none, so
+// each one is new against it. Its stored position and line count, never its title or lines.
+export type WorkChange = { entry: number; lines: number };
+export type ResumeDiff = { atoms: AtomChange[]; skills: SkillChange[]; work: WorkChange[] };
 
 export function diffResume(master: MasterResume, resume: TailoredResume): ResumeDiff {
   // Where each atom sits in the tailored sections: index within its section, and its line.
@@ -52,7 +55,10 @@ export function diffResume(master: MasterResume, resume: TailoredResume): Resume
       .filter((s) => !present.has(s.toLowerCase()))
       .map((name): SkillChange => ({ name, status: "removed" })),
   ];
-  return { atoms, skills };
+  const work = (resume.independentWork?.entries ?? []).map(
+    (e): WorkChange => ({ entry: e.entry, lines: e.lines.length }),
+  );
+  return { atoms, skills, work };
 }
 
 // The keep/remove toggles on added skills (TLR-003): the resume without the added skills Paul
