@@ -22,7 +22,7 @@
     "@northstar/gateways": "workspace:*",
     "@northstar/llm": "workspace:*",
     "@northstar/sources": "workspace:*",
-    "@opentelemetry/api": "1.9.1",
+    "@opentelemetry/api": "1.10.0",
     "@simplewebauthn/server": "14.1.0",
     "zod": "4.6.7"
   },
