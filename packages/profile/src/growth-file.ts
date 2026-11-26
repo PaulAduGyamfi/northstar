@@ -56,6 +56,9 @@ function parseLine(raw: string): TrackLine | string {
       next === null
     ) {
       next = { minutes: Number(rest[0]), title: rest.slice(1).join(" ") };
+      if (next.title.length > 200) return "a next action's title must be at most 200 characters";
+    } else if ((word === "target" && target !== null) || (word === "next" && next !== null)) {
+      return `${word} is given twice`;
     } else {
       return `"${word}" isn't an option: use target YYYY-MM-DD, untouched <days> or next <minutes> <title>`;
     }

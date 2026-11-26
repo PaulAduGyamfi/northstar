@@ -79,6 +79,10 @@ export const growthTrack = pgTable(
     check("growth_track_untouched_range", sql`${t.untouchedDays} between 1 and 365`),
     // A next action has both a title and minutes, or neither.
     check(
+      "growth_track_next_title_shape",
+      sql`${t.nextTitle} is null or (length(trim(${t.nextTitle})) between 1 and 200 and ${t.nextTitle} !~ '[[:cntrl:]]')`,
+    ),
+    check(
       "growth_track_next_pair",
       sql`(${t.nextTitle} is null) = (${t.nextMinutes} is null) and (${t.nextMinutes} is null or ${t.nextMinutes} >= 1)`,
     ),
@@ -91,6 +95,8 @@ export const growthTouch = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     candidateId: candidateRef(),
+    // By key, not row: a key names the same track across versions of the file, so its touches
+    // carry over when Paul edits the file.
     trackKey: text("track_key").notNull(),
     touchedAt: timestamp("touched_at", { withTimezone: true }).notNull().defaultNow(),
   },

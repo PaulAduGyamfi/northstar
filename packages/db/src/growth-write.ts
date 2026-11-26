@@ -135,6 +135,14 @@ export async function readGrowthTracks(
   db: Db,
   candidateId: CandidateId,
 ): Promise<{ version: number; tracks: GrowthTrackView[] } | null> {
+  // Guarded too: a failed read's driver message would list the track keys it asked for.
+  return guarded("growth.read", () => readTracks(db, candidateId));
+}
+
+async function readTracks(
+  db: Db,
+  candidateId: CandidateId,
+): Promise<{ version: number; tracks: GrowthTrackView[] } | null> {
   const [set] = await db
     .select({ id: growthTrackSet.id, version: growthTrackSet.version })
     .from(growthTrackSet)
@@ -292,8 +300,27 @@ export async function saveWeekPlan(
             trackSetVersion: input.trackSetVersion,
             plan: input.plan,
           })
+          // Another run planned this week meanwhile: theirs stands, and is returned below.
+          .onConflictDoNothing({ target: [growthPlan.candidateId, growthPlan.weekStart] })
           .returning({ id: growthPlan.id, createdAt: growthPlan.createdAt });
-        if (!row) throw new Error("growth_plan insert returned no row");
+        if (!row) {
+          const [theirs] = await tx
+            .select()
+            .from(growthPlan)
+            .where(
+              and(
+                eq(growthPlan.candidateId, input.candidateId),
+                eq(growthPlan.weekStart, input.weekStart),
+              ),
+            );
+          if (!theirs) throw new Error("growth_plan insert returned no row");
+          return {
+            weekStart: theirs.weekStart,
+            trackSetVersion: theirs.trackSetVersion,
+            plan: theirs.plan,
+            status: "existing" as const,
+          };
+        }
         await appendEvent(tx, span, {
           candidateId: input.candidateId,
           aggregate: `growth_plan:${row.id}`,

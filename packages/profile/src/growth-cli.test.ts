@@ -97,6 +97,21 @@ describe("profile growth plan", () => {
     ]);
   });
 
+  it("puts a track untouched past its threshold at risk, and a fresh touch takes it off", async () => {
+    const withTouch = (at: string) => async () => ({
+      version: 3,
+      tracks: TRACKS.map((t) =>
+        t.key === "cloud-cert" ? { ...t, lastTouchedAt: new Date(at) } : t,
+      ),
+    });
+    const stale = deps({ readGrowthTracks: withTouch("2026-11-01T09:00:00Z") });
+    const fresh = deps({ readGrowthTracks: withTouch("2026-11-25T09:00:00Z") });
+    await growthCommand(stale.d, ["plan"]);
+    await growthCommand(fresh.d, ["plan"]);
+    const atRisk = (p: unknown[]) => (p[0] as { plan: { atRisk: string[] } }).plan.atRisk;
+    expect([atRisk(stale.plans), atRisk(fresh.plans)]).toEqual([["cloud-cert"], []]);
+  });
+
   it("shows the stored plan when the week is already planned", async () => {
     const { d, printed } = deps({
       saveWeekPlan: async (input) => ({

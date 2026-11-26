@@ -64,3 +64,6 @@ The three events above, each with a feed line; spans carry counts only.
   row ids and counts only.
 - **Weeks start Monday, UTC.**
 - **Schema change:** one migration with five append-only tables.
+- **Diff size:** about 1,450 lines (snapshots excluded), over the ~300 guide; about half are tests.
+- **Settings changes write no event:** they are Paul's own commands and change no plan already
+  made; the next plan reads them.

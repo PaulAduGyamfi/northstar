@@ -85,12 +85,19 @@ describe("growth tracks", () => {
   it("writes events with versions and counts, never a key, name or next action", async () => {
     await setGrowthTracks(db, { candidateId, tracks: TRACKS });
     await recordGrowthTouch(db, { candidateId, key: "cloud-cert" });
+    await saveWeekPlan(db, {
+      candidateId,
+      weekStart: "2026-11-23",
+      trackSetVersion: 1,
+      plan: PLAN,
+      counts: { focus: 1, maintenance: 0, atRisk: 0 },
+    });
     const events = await db.select().from(domainEvent);
     const text = JSON.stringify(events, (_k, v) => (typeof v === "bigint" ? String(v) : v));
     expect([
       events.map((e) => e.type),
       /cloud-cert|Cloud certification|Practice exam|side-app|Budget app/.test(text),
-    ]).toEqual([["growth.tracks_set", "growth.touched"], false]);
+    ]).toEqual([["growth.tracks_set", "growth.touched", "growth.planned"], false]);
   });
 });
 

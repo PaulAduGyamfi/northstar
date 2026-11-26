@@ -50,6 +50,7 @@ CREATE TABLE "growth_track" (
 	CONSTRAINT "growth_track_status_valid" CHECK ("growth_track"."status" in ('active', 'paused', 'backlogged', 'done')),
 	CONSTRAINT "growth_track_priority_range" CHECK ("growth_track"."priority" between 1 and 5),
 	CONSTRAINT "growth_track_untouched_range" CHECK ("growth_track"."untouched_days" between 1 and 365),
+	CONSTRAINT "growth_track_next_title_shape" CHECK ("growth_track"."next_title" is null or (length(trim("growth_track"."next_title")) between 1 and 200 and "growth_track"."next_title" !~ '[[:cntrl:]]')),
 	CONSTRAINT "growth_track_next_pair" CHECK (("growth_track"."next_title" is null) = ("growth_track"."next_minutes" is null) and ("growth_track"."next_minutes" is null or "growth_track"."next_minutes" >= 1))
 );
 --> statement-breakpoint

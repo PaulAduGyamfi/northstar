@@ -58,6 +58,15 @@ describe("parseGrowthTracks", () => {
     expect(result).toEqual({ ok: false, error: [{ line: 1, problem: "check untouchedDays" }] });
   });
 
+  it("says when an option is given twice", () => {
+    expect(
+      parseGrowthTracks("ok | Name | cert | active | 3 | target 2027-01-01 | target 2027-02-01"),
+    ).toEqual({
+      ok: false,
+      error: [{ line: 1, problem: "target is given twice" }],
+    });
+  });
+
   it("refuses a file with no tracks", () => {
     expect(parseGrowthTracks("# nothing\n")).toEqual({
       ok: false,
