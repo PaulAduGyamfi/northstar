@@ -302,7 +302,10 @@ Exists now:
   Since NS-153 they're in the app: the API's `GET /system/health`, `GET /feed` and
   `POST /system/kill-switches` (session only; a flip is Paul's, ADR-0002), the web app's
   `/health` page with kill-switch toggles, the nav's health dot, and a feed on Today that polls
-  every 3 s (no pushed stream yet).
+  every 3 s (no pushed stream yet). Since NS-189 each `GET /feed` item also carries `jobTitle`
+  and `company` (or `null`), read per page by `readFeedNames` from Paul's own job rows for
+  `job:<id>` and `application:<id>` aggregates; never stored in events or put in the line text.
+  The web feed shows them after the line as plain text (`feedSubject`).
 - `packages/gateways/` (NS-120): the Apply Gateway, the only code that submits an application
   (ADR-0002). `submitApplication` checks the approval with the Gate at the moment it acts (no
   verified approval throws `NotApprovedError`), re-hashes the package and its files, claims the

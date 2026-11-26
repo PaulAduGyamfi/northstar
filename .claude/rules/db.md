@@ -104,6 +104,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   the event's `reason`. So keep `reason` a plain sentence with no names, ids, URLs or secrets, and
   give a new event type a template in `feed.ts`, or (like the fresh-job alerts, NS-163) a
   `reason` built only from numbers and fixed words.
+  Names (NS-189) are read at display time only: `readFeedNames` maps `job:<id>` and
+  `application:<id>` aggregates to the candidate's own job title and company. Never copy them
+  into an event, a `reason` or a span (its span carries a count only).
 - The submission ledger (NS-120) is `apply_submission` and `submission_proof`, written only
   through `apply-write.ts`. A trigger lets a submission row finish only once, and proof is
   append-only. `listStaleClaims` reads the claims in progress past `CLAIM_STALE_AFTER_MS` by the

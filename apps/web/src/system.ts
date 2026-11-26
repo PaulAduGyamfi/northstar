@@ -27,9 +27,19 @@ const Line = z.object({
   type: z.string(),
   actor: z.string(),
   line: z.string(),
+  // The job the line is about (NS-189), from the API's join; null when it names none.
+  jobTitle: z.string().nullable(),
+  company: z.string().nullable(),
 });
 export type FeedLine = z.infer<typeof Line>;
 export const FeedBody = z.object({ items: z.array(Line) });
+
+// The label shown after a feed line: "Title at Company", whichever one is known, or nothing.
+// Rendered as text, never as HTML: the names come from job postings.
+export function feedSubject(l: Pick<FeedLine, "jobTitle" | "company">): string | null {
+  if (l.jobTitle && l.company) return `${l.jobTitle} at ${l.company}`;
+  return l.jobTitle || l.company || null;
+}
 
 export type ApiResult<T> =
   | { kind: "ok"; body: T }
