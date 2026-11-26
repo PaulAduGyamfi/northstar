@@ -14,13 +14,15 @@ import { SESSION_COOKIE } from "../../../src/session";
 import { dotStatus, HealthBody, readApi } from "../../../src/system";
 import { ConsentPolicyForm } from "./consent-policy-form";
 import { NoticeText } from "./notice-text";
+import { RevealButton } from "./reveal-button";
 
 // Asked for on every request: account statuses change as the gateway works, and it needs Paul's session.
 export const dynamic = "force-dynamic";
 
 // Settings → Accounts (NS-198, ACC-001, ACC-008): each employer account and its status in words,
-// the consent policy, and the notices accepted for Paul. Never an account email or password; a
-// notice's text only on request. Signed out redirects to sign-in.
+// the consent policy, and the notices accepted for Paul. Never an account email; a password only
+// when Paul reveals it with a fresh passkey check (NS-246), and a notice's text only on request.
+// Signed out redirects to sign-in.
 export default async function AccountsPage() {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   const deps = { apiOrigin: webConfig().apiOrigin, token, fetch };
@@ -72,6 +74,7 @@ export default async function AccountsPage() {
                   <span className="muted">
                     added {r.created}, last changed {r.changed}
                   </span>
+                  <RevealButton tenantKey={r.key} />
                 </li>
               ))}
             </ul>
