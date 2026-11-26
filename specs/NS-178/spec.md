@@ -49,5 +49,20 @@ can't be phished: the browser signs only for Northstar's own name.
 - [ ] Failed passkey sign-ins count toward the throttle.
 - [ ] The sign count is stored and only moves forward; credentials are scoped to the candidate.
 
+## Slice 2: the web app
+1. `src/passkey.ts`: the API's JSON options to `navigator.credentials` types and the answers back
+   to JSON, written by hand (the browsers' JSON helpers aren't everywhere yet), and
+   `signInWithPasskey` / `addPasskey`, which take the credentials container and fetch as
+   arguments. Every API answer and a cancelled browser dialog get a plain message; a timed-out
+   verify says it may have gone through (`TIMED_OUT_MESSAGE`).
+2. The sign-in page gets "Sign in with a passkey" next to the key form; Today gets "Add a
+   passkey", which asks for the sign-in key first. Both appear only where the browser has
+   WebAuthn.
+
+### Acceptance criteria (slice 2)
+- [ ] Options convert from base64url to bytes; the answers convert back to what the API reads.
+- [ ] Sign-in and adding report success, the API's refusals, a cancelled dialog and a timeout in
+      plain words; a wrong key stops before the browser's dialog.
+
 ## Out of scope
 Slice 2 (above). Removing a passkey (a later ticket, when there's a settings page).

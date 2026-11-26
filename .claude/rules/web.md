@@ -32,6 +32,9 @@ are CSS variables in `apps/web/app/globals.css`.
   undo countdown reads the API's `effectiveAt` (the database clock); the browser only counts down.
 - Application statuses are shown only through `STATUS_WORDS` (`src/pipeline.ts`, UX-020): every
   ending but an offer reads "closed" (UX-020, tokens.md).
+- Passkeys (NS-178, ADR-0022) go through `src/passkey.ts` (`signInWithPasskey`, `addPasskey`),
+  which takes the credentials container and fetch as arguments so tests need no browser. Adding
+  one always asks for the sign-in key again; the key form stays on the sign-in page.
 - Browser calls to the app's own API (`/api/*`) go through `apiFetch` (`src/client-fetch.ts`,
   NS-176): a 15 s limit. A POST that timed out may still have been applied, so its message is
   `TIMED_OUT_MESSAGE` ("may have gone through"), never "nothing was done".
