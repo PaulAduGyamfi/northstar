@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nameCandidates, nameParts } from "./names.js";
+import { nameCandidates, nameParts, unbackedUnits, unitBacked } from "./names.js";
 
 describe("nameParts", () => {
   it("takes a capitalised word as a name, as before", () => {
@@ -113,5 +113,41 @@ describe("number-plus-unit tokens (NS-216)", () => {
       ["S3"],
       ["5G"],
     ]);
+  });
+});
+
+describe("a unit's scale (NS-216)", () => {
+  it("is backed by the same unit after a number, in any case and spacing", () => {
+    expect([
+      unitBacked("M", "we served 1m users"),
+      unitBacked("GB", "a 5 gb cache"),
+      unitBacked("M", "we served 1M users"),
+    ]).toEqual([true, true, true]);
+  });
+
+  it("is backed by its word for K, M and B", () => {
+    expect([
+      unitBacked("K", "ten thousand users"),
+      unitBacked("M", "1 million users"),
+      unitBacked("B", "5 billion events"),
+    ]).toEqual([true, true, true]);
+  });
+
+  it("is not backed by a different scale, or by an m that ends I'm", () => {
+    expect([
+      unitBacked("B", "grew to 5 thousand users"),
+      unitBacked("M", "I'm proud of the 7 engineers"),
+      unitBacked("GB", "a 5 mb cache"),
+    ]).toEqual([false, false, false]);
+  });
+
+  it("finds the words whose unit the sources don't state", () => {
+    expect(unbackedUnits("We grew to 5B users and 2GB of logs.", "5 thousand users, 2 gb")).toEqual(
+      [3],
+    );
+  });
+
+  it("leaves a number with digits from another script a name", () => {
+    expect(nameParts("\u0667M")).toEqual(["\u0667M"]);
   });
 });

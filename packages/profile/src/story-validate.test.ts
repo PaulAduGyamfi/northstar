@@ -321,6 +321,23 @@ describe("names in story text", () => {
     }
   });
 
+  it("refuses a unit whose scale the part's quotes and the atom don't state", () => {
+    const d = draft({
+      result: {
+        text: "Late deliveries went from 12% to 3% for 2B parcels.",
+        quotes: ["Late deliveries went from 12% to 3% in the first month."],
+      },
+    });
+    const result = validateStoryDraft(d, { atom, answers });
+    expect(result).toMatchObject({ ok: false });
+    if (!result.ok) {
+      expect(result.failures).toContainEqual({
+        item: "result",
+        problem: "unit at word 8 is not in its quotes or the atom",
+      });
+    }
+  });
+
   it("reads a possessive as its name", () => {
     expect(unbackedNames("We fixed Example Freight's planner.", "at Example Freight", "")).toEqual(
       [],

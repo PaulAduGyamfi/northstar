@@ -17,16 +17,26 @@ saying "1M" where Paul said "1 million" became `needs_human`. Paul chose to exem
    - Units with no capital ("10k", "200ms") were never names.
    - A decimal is already cut at the dot ("1.5M" gives "1" and "5M"), so "5M" is the piece
      tested.
-2. **The number rule still applies.** The token's digits must still come from the sentence's own
+2. **The scale must be backed too** (`unbackedUnits`, from the security review). A unit is a
+   scale, so it must appear in the same sources as the digits: the same unit after a number
+   ("1M", "5 GB", any case), or for K, M and B its word ("thousand", "million", "billion").
+   - "5 thousand" can't become "5B", and "7 engineers" can't become "7M".
+   - Single letters aren't scale words: an "m" that ends "I'm" backs nothing.
+   - Only ASCII digits qualify. NFKC folds fullwidth digits, and digits from other scripts stay
+     names (the number rule can't see them).
+3. **The number rule still applies.** The token's digits must still come from the sentence's own
    quotes (answers), or from the part's quotes and the atom (stories). A "1M" can't appear unless
    a quote holds the number 1.
-3. **Still names:** "2FA", "macOS", "iOS", "S3", "4G" and "5G" (G is not on the list), and
+4. **Still names:** "2FA", "macOS", "iOS", "S3", "4G" and "5G" (G is not on the list), and
    all-caps acronyms.
 
 ## Decisions
 - **"3M" is exempt, like "1M".** Issue #203 says "3M the company" stays a name, but it has the same
   shape as "1M users". Plain code can't tell them apart, and keeping it would undo the exemption
-  Paul approved. Its digit still has to be backed by the number rule.
+  Paul approved. An invented "3M" employer is still refused unless the cited quotes hold "3M"
+  or "3 million", because the scale check requires it.
+- **"GW" is added to the unit list** beside kW and MW. "ms", from the issue's list, has no capital
+  and was never a name.
 - **The NS-202 test changes.** "needs a unit written with a capital to appear as written" in
   `story-validate.test.ts` now expects "1M" to pass when the quotes say "1 million". Paul approved
   this change on #203.

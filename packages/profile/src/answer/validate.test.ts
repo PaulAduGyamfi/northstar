@@ -331,6 +331,23 @@ describe("validateAnswerDraft", () => {
     ]);
   });
 
+  it("refuses a unit whose scale the quotes don't state (NS-216)", () => {
+    const item: EvidenceItem = { id: "atom-6", kind: "atom", text: "We grew to 5 thousand users." };
+    const draft: AnswerDraft = {
+      sentences: [
+        {
+          text: "We grew to 5B users.",
+          cites: [{ id: "atom-6", quote: "We grew to 5 thousand users." }],
+        },
+      ],
+      followUps: [],
+    };
+    expect(validateAnswerDraft(draft, [item], null)).toEqual({
+      ok: false,
+      failures: [{ sentence: 0, problem: "unit at word 3 is not in its quotes" }],
+    });
+  });
+
   describe("story titles", () => {
     // The title names a tool ("Kotlin") that none of the story's parts mention.
     const TITLED: EvidenceItem = {
