@@ -234,7 +234,11 @@ export async function saveTailoredResume(
       (span) =>
         db.transaction(async (tx) => {
           const [latest] = await tx
-            .select({ version: tailoredResume.version, sha: tailoredResume.contentSha256 })
+            .select({
+              version: tailoredResume.version,
+              sha: tailoredResume.contentSha256,
+              pdf: tailoredResume.pdfSha256,
+            })
             .from(tailoredResume)
             .where(
               and(
@@ -244,7 +248,9 @@ export async function saveTailoredResume(
             )
             .orderBy(desc(tailoredResume.version))
             .limit(1);
-          if (latest?.sha === contentSha256) {
+          // A version from before NS-227 has no PDF: the same content makes a new version with
+          // one (the table is append-only, so the old row can't be given it).
+          if (latest?.sha === contentSha256 && latest.pdf !== null) {
             span.setAttribute("northstar.tailor.saved", false);
             return { version: latest.version, saved: false };
           }

@@ -255,6 +255,41 @@ describe("the tailored resume's PDF (NS-227)", () => {
     ]).toEqual([[sha(PDF_A), sha(PDF_A)], 1]);
   });
 
+  it("gives a version from before NS-227 a PDF when the same content is saved again", async () => {
+    await importProfile(candidateId);
+    const source = await sourceId();
+    await save({}, source);
+    const [first] = await db
+      .select({ sha: tailoredResume.contentSha256 })
+      .from(tailoredResume)
+      .where(eq(tailoredResume.jobId, jobId));
+    // A second job holding an older version: the same content, no PDF.
+    const [older] = await db
+      .insert(job)
+      .values({
+        candidateId,
+        url: "https://jobs.example.com/older",
+        // Its status doesn't matter to saveTailoredResume.
+        status: "draft",
+      })
+      .returning({ id: job.id });
+    if (!first || !older) throw new Error("setup");
+    await db.insert(tailoredResume).values({
+      candidateId,
+      jobId: older.id,
+      version: 1,
+      profileSourceId: source,
+      resume: {},
+      validation: {},
+      score: {},
+      droppedSkills: [],
+      contentSha256: first.sha,
+    });
+    const again = await save({ jobId: older.id }, source);
+    const [newest] = await readTailoredResumes(db, candidateId, older.id);
+    expect([again, newest?.pdfSha256]).toEqual([{ version: 2, saved: true }, sha(PDF_A)]);
+  });
+
   it("puts the PDF's hash and size in the event, never its bytes", async () => {
     await importProfile(candidateId);
     await save({}, await sourceId());
@@ -321,9 +356,17 @@ describe("the tailored resume's PDF (NS-227)", () => {
     expect([
       await sqlState(db.update(storedFile).set({ contentType: "application/pdf" })),
       await sqlState(db.delete(storedFile)),
-      // CASCADE: a plain TRUNCATE is already refused by tailored_resume's foreign key (0A000).
-      await sqlState(db.execute(sql`truncate stored_file cascade`)),
-    ]).toEqual([RESTRICT_VIOLATION, RESTRICT_VIOLATION, RESTRICT_VIOLATION]);
+    ]).toEqual([RESTRICT_VIOLATION, RESTRICT_VIOLATION]);
+  });
+
+  it("refuses TRUNCATE on stored files by their own trigger", async () => {
+    // CASCADE, since a plain TRUNCATE is refused first by tailored_resume's foreign key (0A000);
+    // the message names the table, so tailored_resume's own trigger can't pass this for it.
+    const message = await db.execute(sql`truncate stored_file cascade`).then(
+      () => null,
+      (e: { message?: string; cause?: { message?: string } }) => e.cause?.message ?? e.message,
+    );
+    expect(message).toBe("stored_file is append-only: TRUNCATE is not allowed");
   });
 });
 
