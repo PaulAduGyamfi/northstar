@@ -368,8 +368,8 @@ Exists now:
   then 429, and `Host`, `x-forwarded-host`, `Origin` and content-type checks.
   Every endpoint that acts for Paul uses `auth: "session"`.
   Since NS-178 also passkeys (ADR-0022, Proposed; `passkeys.ts`, the only importer of
-  `@simplewebauthn/server`): `POST /auth/passkey/register/options|verify` (session only, so the
-  key bootstraps the first passkey and stays as recovery) and `/auth/passkey/sign-in/options|verify`
+  `@simplewebauthn/server`): `POST /auth/passkey/register/options|verify` (session plus the
+  sign-in key again, so the key bootstraps every passkey and stays as recovery) and `/auth/passkey/sign-in/options|verify`
   (no session; opens the same session, failures count toward the same throttle). Scoped to the
   web origin's host name, user verification required, challenges single use for 5 minutes.
   Credentials are in `packages/db` (`passkey-schema.ts`, `passkey-write.ts`: `savePasskey`,

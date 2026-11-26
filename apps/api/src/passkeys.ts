@@ -11,7 +11,7 @@ import { z } from "zod";
 import { sessionCookie } from "./auth.js";
 import type { ApiConfig } from "./config.js";
 import { type AnyEndpoint, endpoint } from "./endpoint.js";
-import type { Sessions } from "./sessions.js";
+import { keyMatches, type Sessions } from "./sessions.js";
 
 // Passkey registration and sign-in (NS-178, ADR-0022). The only importer of the WebAuthn library.
 // A passkey is bound to Northstar's own name, so a look-alike page can't use it. Registering one
@@ -42,26 +42,33 @@ export type PasskeyStore = {
 type Ceremony = "register" | "sign-in";
 
 // Challenges in memory, each answerable once within its time (ADR-0022): a replayed response
-// finds its challenge gone. A restart forgets them, which only means asking again.
+// finds its challenge gone. A restart forgets them, which only means asking again. One store per
+// ceremony, so a flood of sign-in requests (which need no session) can't push out the challenge of
+// a registration Paul is in the middle of.
 export function createChallenges(now: () => number) {
-  const live = new Map<string, { ceremony: Ceremony; expiresAt: number }>();
+  const stores: Record<Ceremony, Map<string, number>> = {
+    register: new Map(),
+    "sign-in": new Map(),
+  };
   return {
     // Raw bytes for the library (a string it would encode again); kept by their base64url form,
     // which is what the browser echoes back in clientDataJSON.
     issue(ceremony: Ceremony): Uint8Array<ArrayBuffer> {
       const bytes = new Uint8Array(randomBytes(32));
       const challenge = Buffer.from(bytes).toString("base64url");
+      const live = stores[ceremony];
       if (live.size >= MAX_CHALLENGES) {
         const oldest = live.keys().next().value;
         if (oldest !== undefined) live.delete(oldest);
       }
-      live.set(challenge, { ceremony, expiresAt: now() + CHALLENGE_TTL_MS });
+      live.set(challenge, now() + CHALLENGE_TTL_MS);
       return bytes;
     },
     consume(ceremony: Ceremony, challenge: string): boolean {
-      const entry = live.get(challenge);
+      const live = stores[ceremony];
+      const expiresAt = live.get(challenge);
       live.delete(challenge);
-      return entry !== undefined && entry.ceremony === ceremony && now() < entry.expiresAt;
+      return expiresAt !== undefined && now() < expiresAt;
     },
   };
 }
@@ -124,9 +131,17 @@ export function passkeyEndpoints(deps: {
     method: "POST",
     path: "/auth/passkey/register/options",
     auth: "session",
-    input: z.object({}),
+    // The sign-in key again (ADR-0022 item 2): a passkey outlives any session and can't be
+    // deleted, so a stolen cookie or a script on the page must not be enough to add one.
+    input: z.object({ key: z.string().min(1).max(512) }),
     output: Options,
-    handler: async () => {
+    handler: async ({ key }, { span }) => {
+      if (sessions.throttled()) return { ok: false, status: 429, error: "throttled" };
+      if (!keyMatches(key, config.signinKeySha256)) {
+        sessions.recordFailure();
+        span.setAttribute("northstar.passkey.outcome", "wrong_key");
+        return { ok: false, status: 401, error: "wrong_key" };
+      }
       const options = await generateRegistrationOptions({
         rpName: "Northstar",
         rpID,

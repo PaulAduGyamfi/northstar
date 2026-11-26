@@ -28,6 +28,7 @@ let sessions: Sessions;
 let cookie: string;
 let rows: Row[];
 let t: number;
+let refuseUse: boolean;
 
 function memoryStore(): PasskeyStore {
   return {
@@ -42,6 +43,8 @@ function memoryStore(): PasskeyStore {
       return { ok: true, value: { passkeyId } };
     },
     recordUse: async (passkeyId, signCount) => {
+      // As packages/db answers when a racing sign-in stored the same count first.
+      if (refuseUse) return { ok: false, error: { kind: "SignCountNotIncreased" } };
       const row = rows.find((r) => r.passkeyId === passkeyId);
       if (!row) return { ok: false, error: { kind: "NotFound" } };
       const forward = signCount > row.signCount || (signCount === 0 && row.signCount === 0);
@@ -55,6 +58,7 @@ function memoryStore(): PasskeyStore {
 beforeEach(async () => {
   rows = [];
   t = 0;
+  refuseUse = false;
   sessions = createSessions(() => t);
   cookie = `ns_session=${sessions.open().token}`;
   server = createServer();
@@ -89,7 +93,7 @@ const post = (path: string, body: unknown, withCookie: boolean): Promise<Sent> =
 const challengeOf = (res: Sent): string => JSON.parse(res.body).options.challenge;
 
 async function register(auth = fakeAuthenticator({ rpId: RP_ID, origin: WEB })) {
-  const options = await post("/auth/passkey/register/options", {}, true);
+  const options = await post("/auth/passkey/register/options", { key: "test-key" }, true);
   const response = auth.register(challengeOf(options));
   const verified = await post("/auth/passkey/register/verify", { response }, true);
   return { auth, options, response, verified };
@@ -111,9 +115,31 @@ const sessionCookie = (res: Sent): string | undefined =>
   );
 
 describe("registering a passkey", () => {
+  it("asks for the sign-in key again, so a session alone can't add a passkey", async () => {
+    const withoutKey = await post("/auth/passkey/register/options", {}, true);
+    const wrongKey = await post("/auth/passkey/register/options", { key: "not-the-key" }, true);
+    expect([withoutKey.status, wrongKey.status]).toEqual([400, 401]);
+  });
+
+  it("counts a wrong key at registration toward the sign-in throttle", async () => {
+    for (let i = 0; i < THROTTLE_LIMIT; i++) {
+      await post("/auth/passkey/register/options", { key: "not-the-key" }, true);
+    }
+    const right = await post("/auth/passkey/register/options", { key: "test-key" }, true);
+    expect(right.status).toBe(429);
+  });
+
+  it("refuses a sign-in challenge answered as a registration", async () => {
+    const auth = fakeAuthenticator({ rpId: RP_ID, origin: WEB });
+    const signInOptions = await post("/auth/passkey/sign-in/options", {}, false);
+    const response = auth.register(challengeOf(signInOptions));
+    const verified = await post("/auth/passkey/register/verify", { response }, true);
+    expect([verified.status, rows.length]).toEqual([400, 0]);
+  });
+
   it("needs Paul signed in: without a session both steps answer 401 and store nothing", async () => {
     const auth = fakeAuthenticator({ rpId: RP_ID, origin: WEB });
-    const options = await post("/auth/passkey/register/options", {}, false);
+    const options = await post("/auth/passkey/register/options", { key: "test-key" }, false);
     const verified = await post(
       "/auth/passkey/register/verify",
       { response: auth.register("AAAAAAAAAAAAAAAAAAAAAA") },
@@ -132,7 +158,9 @@ describe("registering a passkey", () => {
   });
 
   it("asks the authenticator to verify Paul and to keep a discoverable passkey", async () => {
-    const options = JSON.parse((await post("/auth/passkey/register/options", {}, true)).body);
+    const options = JSON.parse(
+      (await post("/auth/passkey/register/options", { key: "test-key" }, true)).body,
+    );
     expect(options.options.authenticatorSelection).toMatchObject({
       residentKey: "required",
       userVerification: "required",
@@ -147,7 +175,7 @@ describe("registering a passkey", () => {
 
   it("refuses a registration without user verification", async () => {
     const auth = fakeAuthenticator({ rpId: RP_ID, origin: WEB });
-    const options = await post("/auth/passkey/register/options", {}, true);
+    const options = await post("/auth/passkey/register/options", { key: "test-key" }, true);
     const response = auth.register(challengeOf(options), { userVerified: false });
     const verified = await post("/auth/passkey/register/verify", { response }, true);
     expect([verified.status, rows.length]).toEqual([400, 0]);
@@ -155,7 +183,9 @@ describe("registering a passkey", () => {
 
   it("lists the passkeys already registered so the browser won't add the same one twice", async () => {
     const { auth } = await register();
-    const options = JSON.parse((await post("/auth/passkey/register/options", {}, true)).body);
+    const options = JSON.parse(
+      (await post("/auth/passkey/register/options", { key: "test-key" }, true)).body,
+    );
     expect(options.options.excludeCredentials.map((c: { id: string }) => c.id)).toEqual([
       auth.credentialId,
     ]);
@@ -163,6 +193,24 @@ describe("registering a passkey", () => {
 });
 
 describe("signing in with a passkey", () => {
+  it("refuses a sign-in without user verification", async () => {
+    const { auth } = await register();
+    const { verified } = await signIn(auth, { userVerified: false });
+    expect([verified.status, sessionCookie(verified)]).toEqual([401, undefined]);
+  });
+
+  it("opens no session when the store refuses the count, and counts it as a failure", async () => {
+    const { auth } = await register();
+    refuseUse = true;
+    const results: Sent[] = [];
+    for (let i = 0; i < THROTTLE_LIMIT; i++) results.push((await signIn(auth)).verified);
+    const next = await post("/auth/passkey/sign-in/options", {}, false);
+    expect([results.map((r) => [r.status, sessionCookie(r)]), next.status]).toEqual([
+      Array.from({ length: THROTTLE_LIMIT }, () => [401, undefined]),
+      429,
+    ]);
+  });
+
   it("opens a session the rest of the API accepts", async () => {
     const { auth } = await register();
     const { verified } = await signIn(auth);

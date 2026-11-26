@@ -102,12 +102,15 @@ export function fakeAuthenticator(opts: { rpId: string; origin: string; counting
     },
 
     // What navigator.credentials.get() would return, as JSON. `counter` forces a sign count.
-    signIn(challenge: string, over: { origin?: string; counter?: number } = {}) {
+    signIn(
+      challenge: string,
+      over: { origin?: string; counter?: number; userVerified?: boolean } = {},
+    ) {
       if (over.counter !== undefined) counter = over.counter;
       else if (opts.counting !== false) counter += 1;
       const authenticatorData = Buffer.concat([
         sha256(opts.rpId),
-        Buffer.from([UP | UV]),
+        Buffer.from([UP | (over.userVerified === false ? 0 : UV)]),
         counterBytes(counter),
       ]);
       const clientDataJSON = clientData("webauthn.get", challenge, over.origin ?? opts.origin);

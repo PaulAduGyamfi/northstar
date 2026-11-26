@@ -18,28 +18,32 @@ can't be phished: the browser signs only for Northstar's own name.
 
 ## Slice 1
 1. **ADR-0022.** Passkeys become the primary sign-in. The sign-in key stays as the recovery path
-   and is the only way to register the first passkey. The RP ID is the web origin's host name
+   and is asked for again whenever a passkey is registered. The RP ID is the web origin's host name
    (`northstar.localhost`); the expected origin is `NORTHSTAR_WEB_ORIGIN`. User verification is
    required. Challenges live in memory, 5 minutes, single use.
 2. **Dependency.** `@simplewebauthn/server`, exact version, at least 14 days old, no install
    script, imported only by `apps/api`.
 3. **Storage** (`packages/db`, `passkey-schema.ts`, `passkey-write.ts`): `passkey_credential`
-   (candidate, credential id, public key, sign count, transports, created and last used). Rows
-   are never deleted. The sign count only moves forward, through `recordPasskeyUse`, which
+   (candidate, credential id, public key, sign count at registration, transports, created) and
+   `passkey_use` (one row per sign-in with its sign count and time, so "last used" is the newest
+   use). Both append-only. The sign count only moves forward, through `recordPasskeyUse`, which
    refuses a count that doesn't increase (a cloned authenticator), unless both are 0 (as
-   platform passkeys report). One migration.
+   platform passkeys report). Two migrations: the tables (0050) and their triggers (0051).
 4. **API** (`apps/api/src/passkeys.ts`):
-   - `POST /auth/passkey/register/options` and `/register/verify`: session only. Registering
-     needs Paul already signed in (by key or passkey).
+   - `POST /auth/passkey/register/options` and `/register/verify`: session only, and the options
+     step also asks for the sign-in key again (a wrong key counts toward the throttle). A passkey
+     outlives any session and can't be deleted yet, so a stolen session alone must not add one.
    - `POST /auth/passkey/sign-in/options` and `/sign-in/verify`: no session. A good assertion
      opens a session exactly like the key does. A bad one counts toward the sign-in throttle and
      answers 401.
    - Each verify consumes its challenge, so a replayed response is refused.
-   - Events: `passkey.registered` and `passkey.used`-style facts go on the `api.request` span
-     (outcome only); no credential id, public key or challenge in logs, spans or events.
+   - Observability: a `passkey.registered` domain event (row id only) goes to the feed; a
+     sign-in's outcome goes on the `api.request` span. No credential id, public key or challenge
+     in logs, spans or events.
 
 ### Acceptance criteria (slice 1)
-- [ ] A fake authenticator registers a passkey with a live session, and without one gets 401.
+- [ ] A fake authenticator registers a passkey with a live session and the sign-in key; without
+      a session, or without the right key, it gets 401 (400 when the key is missing).
 - [ ] That passkey signs in and gets a session cookie; a replayed response, a wrong origin, an
       unknown credential and a non-increasing sign count each get 401 and open no session.
 - [ ] Failed passkey sign-ins count toward the throttle.

@@ -8,7 +8,6 @@ export {
   endpoint,
   type Result,
 } from "./endpoint.js";
-export { createChallenges, type PasskeyStore, passkeyEndpoints } from "./passkeys.js";
 export { createApi, MAX_BODY_BYTES } from "./server.js";
 export {
   createSessions,
