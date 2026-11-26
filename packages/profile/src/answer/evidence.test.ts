@@ -31,6 +31,16 @@ describe("storyEvidence", () => {
       "Shipping the export before the deadline. A customer needed the export by Friday. I had to ship it. I cut the scope to CSV only. We shipped on Thursday.",
     );
   });
+
+  it("checks quotes and names against the four parts only, without the title", () => {
+    expect(deadlines.checkText).toBe(
+      "A customer needed the export by Friday. I had to ship it. I cut the scope to CSV only. We shipped on Thursday.",
+    );
+  });
+
+  it("gives an atom no separate text to check", () => {
+    expect(atomOther.checkText).toBeUndefined();
+  });
 });
 
 describe("selectEvidence", () => {

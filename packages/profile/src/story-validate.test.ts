@@ -254,6 +254,55 @@ describe("names in story text", () => {
     ).toEqual([3]);
   });
 
+  it("checks mixed-case names, joined names and names that start with a digit", () => {
+    // Positions: iOS at 3, ex-Globex at 6, planner/Initech at 8, 3M at 11.
+    expect(
+      unbackedNames(
+        "We shipped the iOS app for ex-Globex and planner/Initech users at 3M.",
+        "we shipped the app",
+        "",
+      ),
+    ).toEqual([3, 6, 8, 11]);
+  });
+
+  it("passes the same names when the answers or the atom hold them", () => {
+    expect(
+      unbackedNames(
+        "We shipped the iOS app for ex-Globex users at 3M.",
+        "the iOS app at Globex, then 3M",
+        "",
+      ),
+    ).toEqual([]);
+  });
+
+  it("lets only a sentence's first piece through as an opener", () => {
+    // The part's quotes hold "re-globex" in lower case. Before NS-202 that let the whole word
+    // through; now only its first piece is grammar, and "Globex" must be backed.
+    expect(unbackedNames("Re-Globex the planner.", "we planned", "re-globex the planner")).toEqual([
+      0,
+    ]);
+  });
+
+  it("never takes a word that starts lower case as a sentence's opener", () => {
+    // The part's quotes say "ios" in lower case; "iOS" opening a sentence is still a name.
+    expect(unbackedNames("iOS shipped first.", "we shipped", "ios shipped first")).toEqual([0]);
+  });
+
+  it("still needs a capitalised joined word backed whole, not just its pieces", () => {
+    // Both names are real, but the compound isn't: before NS-202 this was refused too.
+    expect(
+      unbackedNames("We built Globex-Initech together.", "at Globex, later Initech", ""),
+    ).toEqual([2]);
+  });
+
+  it("needs a unit written with a capital to appear as written", () => {
+    // "1M" counts as a name-shaped word: "1 million" in the sources doesn't back it (fail safe).
+    expect([
+      unbackedNames("We served 1M users.", "we served 1 million users", ""),
+      unbackedNames("We served 1M users.", "we served 1M users", ""),
+    ]).toEqual([[2], []]);
+  });
+
   it("reads a possessive as its name", () => {
     expect(unbackedNames("We fixed Example Freight's planner.", "at Example Freight", "")).toEqual(
       [],
