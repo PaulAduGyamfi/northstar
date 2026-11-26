@@ -1,4 +1,4 @@
-import { nameCandidates } from "../names.js";
+import { nameCandidates, unbackedUnits } from "../names.js";
 import { hasWhole, normalize, numbers, quotedIn } from "../validate.js";
 import type { EvidenceItem } from "./evidence.js";
 import type { AnswerDraft } from "./schema.js";
@@ -97,7 +97,11 @@ export function validateAnswerDraft(
       if (NUMBER_WORDS.has(lower) && !hasWhole(quoteText, lower)) {
         fail(`number at word ${position} is not in its quotes`);
       }
-      // The whole word, then each name piece (NS-202: "iOS", "ex-Globex", "3M"; never "I"); one
+      // A number's unit is a scale (NS-216): "5B" needs "billion" or a "5B" in the same quotes.
+      if (unbackedUnits(word, quoteText).length > 0) {
+        fail(`unit at word ${position} is not in its quotes`);
+      }
+      // The whole word, then each name piece (NS-202: "iOS", "ex-Globex", "2FA"; never "I"); one
       // failure per word at most.
       let unbacked = false;
       for (const { name, leading } of nameCandidates(word)) {
