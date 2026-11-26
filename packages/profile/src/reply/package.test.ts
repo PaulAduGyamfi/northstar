@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ReplyResult } from "./draft.js";
 import { replyPackage } from "./package.js";
 import type { ReplyDraft } from "./schema.js";
 
@@ -22,6 +23,14 @@ const DRAFT: ReplyDraft = {
   followUps: ["Which week suits you?"],
 };
 
+// What draftReply hands back for a checked draft (its call record is beside the point here).
+const drafted = (draft: ReplyDraft): Extract<ReplyResult, { kind: "drafted" }> => ({
+  kind: "drafted",
+  draft,
+  evidence: [],
+  record: {} as Extract<ReplyResult, { kind: "drafted" }>["record"],
+});
+
 const INBOUND = {
   from: "Jo Recruiter <jo@acme.example>",
   replyTo: null,
@@ -37,7 +46,7 @@ describe("replyPackage", () => {
         gmailMessageId: "18c3f0a2b4d6e8f0",
         threadId: "18c3f0a2b4d6e8aa",
         inbound: INBOUND,
-        draft: DRAFT,
+        drafted: drafted(DRAFT),
       }),
     ).toEqual({
       ok: true,
@@ -50,6 +59,7 @@ describe("replyPackage", () => {
           inReplyTo: "<m2@acme.example>",
           references: ["<m2@acme.example>"],
         },
+        replyToOtherDomain: false,
         body: "Hi Jo, I led the billing migration. I also cut costs.",
         cites: ["atom-1", "story-2"],
         followUps: ["Which week suits you?"],
@@ -63,8 +73,21 @@ describe("replyPackage", () => {
         gmailMessageId: "18c3f0a2b4d6e8f0",
         threadId: "18c3f0a2b4d6e8aa",
         inbound: { ...INBOUND, from: "a@acme.example, b@acme.example" },
-        draft: DRAFT,
+        drafted: drafted(DRAFT),
       }),
     ).toEqual({ ok: false, error: { kind: "InvalidReply", fields: ["from"] } });
+  });
+
+  it("flags a Reply-To on another domain than the sender's", () => {
+    const result = replyPackage({
+      gmailMessageId: "18c3f0a2b4d6e8f0",
+      threadId: "18c3f0a2b4d6e8aa",
+      inbound: { ...INBOUND, replyTo: "jobs@elsewhere.example" },
+      drafted: drafted(DRAFT),
+    });
+    expect(result.ok && [result.value.envelope.to, result.value.replyToOtherDomain]).toEqual([
+      "jobs@elsewhere.example",
+      true,
+    ]);
   });
 });

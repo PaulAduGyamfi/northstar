@@ -1,6 +1,6 @@
 {
-  "id": "eb03f47e-db4d-4765-85bc-f07ba1741288",
-  "prevId": "322ef35a-23bf-4178-9e1f-517e6597bdd1",
+  "id": "852eba37-8072-4313-8cc6-eb9f52f560ee",
+  "prevId": "f34c5f22-444a-4b5b-a7d7-7128078b7fbb",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3326,6 +3326,16 @@
           "columns": [
             "id",
             "candidate_id"
+          ],
+          "nullsNotDistinct": false
+        },
+        "approval_request_id_kind_content_unique": {
+          "name": "approval_request_id_kind_content_unique",
+          "columns": [
+            "id",
+            "candidate_id",
+            "kind",
+            "content_sha256"
           ],
           "nullsNotDistinct": false
         },
@@ -9096,6 +9106,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "request_kind": {
+          "name": "request_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'email_reply'"
+        },
         "gmail_message_id": {
           "name": "gmail_message_id",
           "type": "text",
@@ -9135,6 +9152,12 @@
         "body": {
           "name": "body",
           "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reply_to_other_domain": {
+          "name": "reply_to_other_domain",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true
         },
@@ -9184,12 +9207,16 @@
           "tableFrom": "reply_draft",
           "columnsFrom": [
             "request_id",
-            "candidate_id"
+            "candidate_id",
+            "request_kind",
+            "content_sha256"
           ],
           "tableTo": "approval_request",
           "columnsTo": [
             "id",
-            "candidate_id"
+            "candidate_id",
+            "kind",
+            "content_sha256"
           ],
           "onUpdate": "no action",
           "onDelete": "no action"
@@ -9207,6 +9234,10 @@
       },
       "policies": {},
       "checkConstraints": {
+        "reply_draft_request_kind": {
+          "name": "reply_draft_request_kind",
+          "value": "\"reply_draft\".\"request_kind\" = 'email_reply'"
+        },
         "reply_draft_gmail_ids_shape": {
           "name": "reply_draft_gmail_ids_shape",
           "value": "\"reply_draft\".\"gmail_message_id\" ~ '^[0-9a-f]{8,32}$' and \"reply_draft\".\"thread_id\" ~ '^[0-9a-f]{8,32}$'"

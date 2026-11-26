@@ -6,6 +6,7 @@ import {
   replyContentSha256,
   replyEnvelope,
   replySubject,
+  replyToOtherDomain,
 } from "./reply-draft.js";
 
 // A reply draft's envelope and hash (NS-237). Synthetic addresses only.
@@ -27,6 +28,7 @@ const PKG: ReplyPackage = {
     inReplyTo: "<m2@acme.example>",
     references: ["<m1@acme.example>", "<m2@acme.example>"],
   },
+  replyToOtherDomain: false,
   body: "Hi Jo, thank you for reaching out.",
   cites: [],
   followUps: [],
@@ -76,16 +78,32 @@ describe("replyEnvelope", () => {
       "<a@acme.example> <b@acme.example>",
       "Not an address",
       "Jo <jo@acme.example>\r\nBcc: x@evil.example",
+      "talent@acme.example, <x@evil.example>",
+      "<x@evil.example>, talent@acme.example",
+      "a@acme.example <b@evil.example>",
+      "jo%evil.example@acme.example",
     ].map((from) => replyEnvelope({ ...INBOUND, from }));
     expect(refusals).toEqual(
-      Array(4).fill({ ok: false, error: { kind: "InvalidReply", fields: ["from"] } }),
+      Array(8).fill({ ok: false, error: { kind: "InvalidReply", fields: ["from"] } }),
     );
+  });
+
+  it("allows a quoted display name with a comma around the one address", () => {
+    const result = replyEnvelope({ ...INBOUND, from: '"Recruiter, Jo" <jo@acme.example>' });
+    expect(result.ok && result.value.to).toBe("jo@acme.example");
   });
 
   it("refuses a bad Reply-To rather than answering From instead", () => {
     expect(replyEnvelope({ ...INBOUND, replyTo: "two@a.example, three@b.example" })).toEqual({
       ok: false,
       error: { kind: "InvalidReply", fields: ["replyTo"] },
+    });
+  });
+
+  it("refuses a subject that goes past 300 characters with its Re:", () => {
+    expect(replyEnvelope({ ...INBOUND, subject: "x".repeat(297) })).toEqual({
+      ok: false,
+      error: { kind: "InvalidReply", fields: ["subject"] },
     });
   });
 
@@ -105,10 +123,17 @@ describe("replyEnvelope", () => {
 });
 
 describe("the reply package", () => {
-  it("hashes the recipient, subject, thread headers and body, and nothing else", () => {
+  it("hashes what the writer uses: message, thread, recipient, subject, headers and body", () => {
     const base = replyContentSha256(PKG);
     expect([
-      base === replyContentSha256({ ...PKG, cites: ["atom-1"], followUps: ["When?"] }),
+      base ===
+        replyContentSha256({
+          ...PKG,
+          cites: ["atom-1"],
+          followUps: ["When?"],
+          replyToOtherDomain: true,
+        }),
+      base === replyContentSha256({ ...PKG, threadId: "18c3f0a2b4d6e8bb" }),
       base === replyContentSha256({ ...PKG, body: "Hi Jo." }),
       base === replyContentSha256({ ...PKG, envelope: { ...PKG.envelope, to: "x@acme.example" } }),
       base ===
@@ -117,7 +142,7 @@ describe("the reply package", () => {
           envelope: { ...PKG.envelope, references: ["<m2@acme.example>"] },
         }),
       /^[0-9a-f]{64}$/.test(base),
-    ]).toEqual([true, false, false, false, true]);
+    ]).toEqual([true, false, false, false, false, true]);
   });
 
   it("keys the Gate subject by the Gmail message id, as a stable version 8 UUID", () => {
@@ -136,5 +161,16 @@ describe("the reply package", () => {
       ok: false,
       error: { kind: "InvalidReply", fields: ["gmailMessageId", "body"] },
     });
+  });
+});
+
+describe("replyToOtherDomain", () => {
+  it("flags a Reply-To on another domain than From, and nothing else", () => {
+    expect([
+      replyToOtherDomain(INBOUND),
+      replyToOtherDomain({ ...INBOUND, replyTo: "talent@ACME.example" }),
+      replyToOtherDomain({ ...INBOUND, replyTo: "jobs@elsewhere.example" }),
+      replyToOtherDomain({ ...INBOUND, replyTo: "not an address" }),
+    ]).toEqual([false, false, true, true]);
   });
 });

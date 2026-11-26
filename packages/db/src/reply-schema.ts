@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   foreignKey,
   jsonb,
@@ -24,6 +25,9 @@ export const replyDraft = pgTable(
       .notNull()
       .references(() => candidate.id),
     requestId: uuid("request_id").notNull(),
+    // Always email_reply: with content_sha256 it joins the foreign key, so a row can only sit
+    // behind an email_reply request that pins this exact content.
+    requestKind: text("request_kind").notNull().default("email_reply"),
     gmailMessageId: text("gmail_message_id").notNull(),
     threadId: text("thread_id").notNull(),
     toAddress: text("to_address").notNull(),
@@ -31,6 +35,8 @@ export const replyDraft = pgTable(
     inReplyTo: text("in_reply_to").notNull(),
     references: jsonb("references").$type<string[]>().notNull(),
     body: text("body").notNull(),
+    // Reply-To names another domain than From (replyToOtherDomain, packages/domain).
+    replyToOtherDomain: boolean("reply_to_other_domain").notNull(),
     // The story and atom ids the draft cites, and the drafter's questions for Paul.
     cites: jsonb("cites").$type<string[]>().notNull(),
     followUps: jsonb("follow_ups").$type<string[]>().notNull(),
@@ -43,9 +49,15 @@ export const replyDraft = pgTable(
     unique("reply_draft_request_unique").on(t.requestId),
     foreignKey({
       name: "reply_draft_request_same_candidate_fk",
-      columns: [t.requestId, t.candidateId],
-      foreignColumns: [approvalRequest.id, approvalRequest.candidateId],
+      columns: [t.requestId, t.candidateId, t.requestKind, t.contentSha256],
+      foreignColumns: [
+        approvalRequest.id,
+        approvalRequest.candidateId,
+        approvalRequest.kind,
+        approvalRequest.contentSha256,
+      ],
     }),
+    check("reply_draft_request_kind", sql`${t.requestKind} = 'email_reply'`),
     check(
       "reply_draft_gmail_ids_shape",
       sql`${t.gmailMessageId} ~ '^[0-9a-f]{8,32}$' and ${t.threadId} ~ '^[0-9a-f]{8,32}$'`,

@@ -7,10 +7,13 @@ import { err, ok, type Result } from "./result.js";
 // approves covers exactly what a later writer puts in the Gmail draft: the recipient, subject,
 // thread headers and body.
 
-// A plain address, nothing around it: no display name, comment, list or route.
-const ADDRESS = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}$/;
-// One Message-ID: angle brackets around printable characters, no spaces.
-const MESSAGE_ID = /^<[\x21-\x3b\x3d\x3f-\x7e]{1,995}>$/;
+// A plain address, nothing around it: no display name, comment, list or route (no `%` relay
+// hack, no leading, trailing or doubled dot in the domain).
+const ADDRESS = /^[A-Za-z0-9._+-]{1,64}@(?:[A-Za-z0-9-]{1,63}\.)+[A-Za-z]{2,63}$/;
+// One Message-ID: angle brackets around printable characters with one @, no spaces.
+const ID_PART = "[\\x21-\\x3b\\x3d\\x3f\\x41-\\x7e]";
+const MESSAGE_ID = new RegExp(`^<${ID_PART}+@${ID_PART}+>$`);
+const MAX_MESSAGE_ID = 998;
 const CONTROL = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 const MAX_SUBJECT = 300;
 const MAX_REFERENCES = 20;
@@ -23,8 +26,11 @@ export const ReplyEnvelope = z
       .min(1)
       .max(MAX_SUBJECT)
       .refine((s) => !CONTROL.test(s)),
-    inReplyTo: z.string().regex(MESSAGE_ID),
-    references: z.array(z.string().regex(MESSAGE_ID)).min(1).max(MAX_REFERENCES),
+    inReplyTo: z.string().max(MAX_MESSAGE_ID).regex(MESSAGE_ID),
+    references: z
+      .array(z.string().max(MAX_MESSAGE_ID).regex(MESSAGE_ID))
+      .min(1)
+      .max(MAX_REFERENCES),
   })
   .strict();
 export type ReplyEnvelope = z.infer<typeof ReplyEnvelope>;
@@ -35,6 +41,9 @@ export const ReplyPackage = z
     gmailMessageId: z.string().regex(/^[0-9a-f]{8,32}$/),
     threadId: z.string().regex(/^[0-9a-f]{8,32}$/),
     envelope: ReplyEnvelope,
+    // Reply-To names another domain than From (replyToOtherDomain): the approval view flags it,
+    // since both headers are the sender's to set.
+    replyToOtherDomain: z.boolean(),
     // The checked draft's sentences (replyText in packages/profile).
     body: z
       .string()
@@ -73,12 +82,29 @@ export type InboundHeaders = {
 function singleAddress(header: string | null): string | null {
   if (header === null || CONTROL.test(header)) return null;
   const trimmed = header.trim();
-  const angled = trimmed.match(/<([^<>]*)>/g);
-  const candidate =
-    angled === null ? trimmed : angled.length === 1 ? (angled[0] ?? "").slice(1, -1) : "";
+  const angled = trimmed.match(/<[^<>]*>/g);
+  if (angled !== null && angled.length !== 1) return null;
+  const bracketed = angled?.[0];
+  if (bracketed !== undefined) {
+    // Around the one <address>, only a display name: a quoted one may hold a comma ("Doe, Jo"),
+    // but no other address, list or bracket may sit outside it.
+    const outside = trimmed.replace(bracketed, "").replace(/"(?:[^"\\]|\\.)*"/g, "");
+    if (/[@,<>]/.test(outside)) return null;
+  }
+  const candidate = bracketed === undefined ? trimmed : bracketed.slice(1, -1);
   // A comma or a second @ means more than one address.
   if (candidate.includes(",") || candidate.split("@").length !== 2) return null;
   return ADDRESS.test(candidate) && candidate.length <= 254 ? candidate : null;
+}
+
+// Whether the reply would go to another domain than the sender's own: Reply-To set to an address
+// whose domain differs from From's (or From has none). The sender sets both, so a spoofed mail
+// can point a reply anywhere; the approval view shows this flag beside the recipient.
+export function replyToOtherDomain(inbound: InboundHeaders): boolean {
+  if (inbound.replyTo === null) return false;
+  const domain = (address: string | null) => address?.split("@")[1]?.toLowerCase() ?? null;
+  const replyTo = domain(singleAddress(inbound.replyTo));
+  return replyTo === null || replyTo !== domain(singleAddress(inbound.from));
 }
 
 // The reply's envelope from the incoming headers alone (RPL-002): Reply-To, else From; "Re: " and
@@ -95,19 +121,31 @@ export function replyEnvelope(inbound: InboundHeaders): Result<ReplyEnvelope, In
   if (original === "" || CONTROL.test(original) || subject.length > MAX_SUBJECT)
     bad.push("subject");
   const messageId = inbound.messageId?.trim() ?? "";
-  if (!MESSAGE_ID.test(messageId)) bad.push("messageId");
+  const isId = (id: string) => id.length <= MAX_MESSAGE_ID && MESSAGE_ID.test(id);
+  if (!isId(messageId)) bad.push("messageId");
   const earlier = (inbound.references ?? "").split(/\s+/).filter((r) => r !== "");
-  if (earlier.some((r) => !MESSAGE_ID.test(r))) bad.push("references");
+  if (earlier.some((r) => !isId(r))) bad.push("references");
   if (bad.length > 0 || to === null) return err({ kind: "InvalidReply", fields: bad });
   const references = [...earlier.filter((r) => r !== messageId), messageId].slice(-MAX_REFERENCES);
   return ok({ to, subject, inReplyTo: messageId, references });
 }
 
-// What Paul approves: the recipient, subject, thread headers and body, in a fixed order.
+// What Paul approves: everything the Gmail draft writer uses (the message and thread it answers,
+// the recipient, subject, thread headers and body), in a fixed order.
 export function replyContentSha256(pkg: ReplyPackage): string {
   const { to, subject, inReplyTo, references } = pkg.envelope;
   return createHash("sha256")
-    .update(JSON.stringify([to, subject, inReplyTo, references, pkg.body]))
+    .update(
+      JSON.stringify([
+        pkg.gmailMessageId,
+        pkg.threadId,
+        to,
+        subject,
+        inReplyTo,
+        references,
+        pkg.body,
+      ]),
+    )
     .digest("hex");
 }
 

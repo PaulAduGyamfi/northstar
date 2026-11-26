@@ -13,7 +13,7 @@ import { replyDraft } from "./reply-schema.js";
 // exactly the recipient, subject, thread headers and body a later writer puts in the Gmail draft.
 // One message has one live reply (the subject is keyed by its Gmail id). Nothing here writes to
 // Gmail. The Gate's own `approval.requested` event is the feed line; the body, recipient and
-// subject never go into an event or span.
+// subject never go into an event, span or error.
 
 export type FiledReply = RequestResult & { stored: boolean };
 
@@ -27,39 +27,51 @@ export async function fileReplyDraft(
   }
   const reply = parsed.value;
   const sha = replyContentSha256(reply);
-  // A reply carries no policy facts: it always waits for Paul (only application packages can
-  // ever be auto-approved, ADR-0002).
-  const filed = await requestApproval(db, {
-    candidateId: input.candidateId,
-    kind: "email_reply",
-    subject: replySubject(reply.gmailMessageId),
-    contentSha256: sha,
-    facts: null,
-    actor: "system",
-    idempotencyKey: `reply:${reply.gmailMessageId}:${sha}`,
-  });
-  if (!filed.ok) return filed;
-  // After the request, keyed by it: a run that stopped in between stores the draft on its rerun,
-  // which replays the same request.
-  const inserted = await db
-    .insert(replyDraft)
-    .values({
+  // One transaction: the request and the draft behind it commit together, so Paul's queue never
+  // holds a reply request with nothing to show (the Gate's own transaction nests as a savepoint).
+  return db.transaction(async (tx) => {
+    const scoped = tx as unknown as Db;
+    // A reply carries no policy facts: it always waits for Paul (only application packages can
+    // ever be auto-approved, ADR-0002).
+    const filed = await requestApproval(scoped, {
       candidateId: input.candidateId,
-      requestId: filed.value.requestId,
-      gmailMessageId: reply.gmailMessageId,
-      threadId: reply.threadId,
-      toAddress: reply.envelope.to,
-      subject: reply.envelope.subject,
-      inReplyTo: reply.envelope.inReplyTo,
-      references: reply.envelope.references,
-      body: reply.body,
-      cites: reply.cites,
-      followUps: reply.followUps,
+      kind: "email_reply",
+      subject: replySubject(reply.gmailMessageId),
       contentSha256: sha,
-    })
-    .onConflictDoNothing({ target: replyDraft.requestId })
-    .returning({ id: replyDraft.id });
-  return { ok: true, value: { ...filed.value, stored: inserted.length > 0 } };
+      facts: null,
+      actor: "system",
+      idempotencyKey: `reply:${reply.gmailMessageId}:${sha}`,
+    });
+    if (!filed.ok) return filed;
+    let stored: boolean;
+    try {
+      const inserted = await scoped
+        .insert(replyDraft)
+        .values({
+          candidateId: input.candidateId,
+          requestId: filed.value.requestId,
+          gmailMessageId: reply.gmailMessageId,
+          threadId: reply.threadId,
+          toAddress: reply.envelope.to,
+          subject: reply.envelope.subject,
+          inReplyTo: reply.envelope.inReplyTo,
+          references: reply.envelope.references,
+          body: reply.body,
+          replyToOtherDomain: reply.replyToOtherDomain,
+          cites: reply.cites,
+          followUps: reply.followUps,
+          contentSha256: sha,
+        })
+        .onConflictDoNothing({ target: replyDraft.requestId })
+        .returning({ id: replyDraft.id });
+      stored = inserted.length > 0;
+    } catch {
+      // A fresh error with no cause: the driver's message lists the insert's parameters, which
+      // are the body and the recipient's address.
+      throw new Error("reply_draft insert failed");
+    }
+    return { ok: true as const, value: { ...filed.value, stored } };
+  });
 }
 
 // The stored draft behind a Gate request, for the approval view and the later Gmail writer.
@@ -80,6 +92,7 @@ export async function readReplyDraft(db: Db, candidateId: CandidateId, requestId
       references: row.references,
     },
     body: row.body,
+    replyToOtherDomain: row.replyToOtherDomain,
     cites: row.cites,
     followUps: row.followUps,
     contentSha256: row.contentSha256,

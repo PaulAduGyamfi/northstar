@@ -13,7 +13,7 @@ import {
 import { sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { approvalRequest } from "./approval-schema.js";
-import { listPendingApprovals } from "./approval-write.js";
+import { listPendingApprovals, requestApproval } from "./approval-write.js";
 import type { Db } from "./db.js";
 import { replyDraft } from "./reply-schema.js";
 import { fileReplyDraft, readReplyDraft } from "./reply-write.js";
@@ -24,6 +24,7 @@ import { createTestDb, sqlState } from "./test/pglite.js";
 
 const RESTRICT_VIOLATION = "23001";
 const CHECK_VIOLATION = "23514";
+const FOREIGN_KEY_VIOLATION = "23503";
 
 const exporter = new InMemorySpanExporter();
 beforeAll(() => {
@@ -61,6 +62,7 @@ const REPLY: ReplyPackage = {
     inReplyTo: "<m2@acme.example>",
     references: ["<m1@acme.example>", "<m2@acme.example>"],
   },
+  replyToOtherDomain: false,
   body: "Hi Jo, thank you for reaching out. I led the billing migration.",
   cites: ["atom-1"],
   followUps: ["Do you want to share your availability?"],
@@ -91,6 +93,7 @@ describe("fileReplyDraft", () => {
         threadId: REPLY.threadId,
         envelope: REPLY.envelope,
         body: REPLY.body,
+        replyToOtherDomain: false,
         cites: REPLY.cites,
         followUps: REPLY.followUps,
         contentSha256: replyContentSha256(REPLY),
@@ -107,6 +110,55 @@ describe("fileReplyDraft", () => {
       again.ok && [again.value.replayed, again.value.stored],
       rows.length,
     ]).toEqual([true, [true, false], 1]);
+  });
+
+  it("stores the draft behind a request an earlier run filed but never stored", async () => {
+    // The request as an earlier run left it: filed with the same key, no draft behind it.
+    const sha = replyContentSha256(REPLY);
+    await requestApproval(db, {
+      candidateId,
+      kind: "email_reply",
+      subject: replySubject(REPLY.gmailMessageId),
+      contentSha256: sha,
+      facts: null,
+      actor: "system",
+      idempotencyKey: `reply:${REPLY.gmailMessageId}:${sha}`,
+    });
+    const filed = await file();
+    expect(filed.ok && [filed.value.replayed, filed.value.stored]).toEqual([true, true]);
+  });
+
+  it("stores a draft only behind an email_reply request that pins its exact content", async () => {
+    const filed = await file();
+    if (!filed.ok) throw new Error(filed.error.kind);
+    const [row] = await db.select().from(replyDraft);
+    const { id: _id, createdAt: _at, ...copy } = row ?? ({} as typeof replyDraft.$inferSelect);
+    const other = await requestApproval(db, {
+      candidateId,
+      kind: "outreach",
+      subject: "outreach:00000000-0000-4000-8000-0000000000c1",
+      contentSha256: copy.contentSha256,
+      facts: null,
+      actor: "system",
+      idempotencyKey: "outreach-1",
+    });
+    const otherId = other.ok ? other.value.requestId : "";
+    const otherReply = await requestApproval(db, {
+      candidateId,
+      kind: "email_reply",
+      subject: replySubject("18c3f0a2b4d6e8ff"),
+      contentSha256: "1".repeat(64),
+      facts: null,
+      actor: "system",
+      idempotencyKey: "reply-other",
+    });
+    const otherReplyId = otherReply.ok ? otherReply.value.requestId : "";
+    expect([
+      // Another kind of request with the same hash.
+      await sqlState(db.insert(replyDraft).values({ ...copy, requestId: otherId })),
+      // An email_reply request that pins other content.
+      await sqlState(db.insert(replyDraft).values({ ...copy, requestId: otherReplyId })),
+    ]).toEqual([FOREIGN_KEY_VIOLATION, FOREIGN_KEY_VIOLATION]);
   });
 
   it("refuses a different draft for a message whose reply still waits for Paul", async () => {
