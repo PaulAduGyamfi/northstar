@@ -238,6 +238,10 @@ Exists now:
 
   The funnel and sources CLIs wire it to the stored switches and breakers. The profile CLI, the
   API and the Apply Gateway don't use them yet.
+  Since NS-175 also the dead-letter store (RES-007, `dead-letter-write.ts` in `packages/db`,
+  append-only): `recordDeadLetter` keeps work that exhausted its retries (kind, subject id, reason
+  code, attempts; one per idempotency key), `listOpenDeadLetters` shows what waits, and
+  `resolveDeadLetter` records Paul's retry, skip or hand-off once. No producer or view yet.
 - Health and feed (NS-125, RES-013, OBS-002): `systemHealth` (`packages/domain`, `health.ts`)
   turns breakers, kill switches and board watches into `healthy / degraded / down` per subsystem
   with a plain reason, and `feedLine` (`feed.ts`) turns an event into one plain sentence from

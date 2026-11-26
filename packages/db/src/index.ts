@@ -106,6 +106,16 @@ export {
   setConsentPolicy,
 } from "./consent-write.js";
 export type { Db } from "./db.js";
+// The dead-letter store (NS-175, RES-007).
+export {
+  type DeadLetterAction,
+  type DeadLetterInput,
+  type DeadLetterView,
+  type InvalidDeadLetter,
+  listOpenDeadLetters,
+  recordDeadLetter,
+  resolveDeadLetter,
+} from "./dead-letter-write.js";
 export type { StoredEvent } from "./events.js";
 export {
   type OfficialPosition,

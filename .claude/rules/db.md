@@ -74,6 +74,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `kill-switch-write.ts`; the newest row per subsystem is its state, no row means on). Breaker
   events are written only on a change of state and carry the dependency, counts and an error name,
   never a message or URL.
+- Dead letters (NS-175, RES-007) are `dead_letter` and `dead_letter_resolution`, append-only
+  (triggers), written only through `dead-letter-write.ts`. They hold a kind, a subject id, a
+  reason code and an attempt count: never a payload, error message, URL or text (CHECKs enforce
+  the shapes). A producer passes its own idempotency key; one resolution per letter.
 - One agent at a time changes this package's schema or migrations (ADR-0016): parallel agents
   renumbering migrations caused replacement PRs. Before adding a migration, merge the latest
   `main` and generate it then.
