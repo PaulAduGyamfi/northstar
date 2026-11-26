@@ -45,7 +45,11 @@ export const Outcome = z.union([
     decisionId: z.string(),
     effectiveAt: z.string(),
   }),
-  z.object({ requestId: z.string(), outcome: z.enum(["not_found", "already_decided"]) }),
+  z.object({
+    requestId: z.string(),
+    // missing_draft: an email reply with nothing stored behind it is never approved (NS-237).
+    outcome: z.enum(["not_found", "already_decided", "missing_draft"]),
+  }),
 ]);
 export type Outcome = z.infer<typeof Outcome>;
 export const DecideBody = z.object({ outcomes: z.array(Outcome) });
@@ -104,10 +108,43 @@ export function summarizeOutcomes(outcomes: Outcome[]): string {
   const rejected = outcomes.filter((o) => o.outcome === "rejected").length;
   const already = outcomes.filter((o) => o.outcome === "already_decided").length;
   const gone = outcomes.filter((o) => o.outcome === "not_found").length;
+  const empty = outcomes.filter((o) => o.outcome === "missing_draft").length;
   const parts: string[] = [];
   if (approved > 0) parts.push(`Approved ${approved}.`);
   if (rejected > 0) parts.push(`Rejected ${rejected}.`);
   if (already > 0) parts.push(`${already} ${already === 1 ? "was" : "were"} already decided.`);
   if (gone > 0) parts.push(`${gone} ${gone === 1 ? "is" : "are"} no longer in the queue.`);
+  if (empty > 0) {
+    parts.push(
+      `${empty} ${empty === 1 ? "reply has" : "replies have"} no draft to show, so ${empty === 1 ? "it wasn't" : "they weren't"} approved.`,
+    );
+  }
   return parts.length > 0 ? parts.join(" ") : "Nothing was decided.";
+}
+
+// The reply draft behind an "Email reply" item (NS-237, the API's GET /approvals/reply).
+export const ReplyBody = z.object({
+  to: z.string(),
+  replyToOtherDomain: z.boolean(),
+  subject: z.string(),
+  body: z.string(),
+  cites: z.array(z.string()),
+  followUps: z.array(z.string()),
+});
+export type ReplyBody = z.infer<typeof ReplyBody>;
+
+// What Paul reads before he approves a reply, line by line, shown as plain text: who it goes to
+// first, with a warning when that is another domain than the sender's own (RPL-002).
+export function replyLines(reply: ReplyBody): string[] {
+  const lines = [`To: ${reply.to}`];
+  if (reply.replyToOtherDomain) {
+    lines.push("Check the address: the sender asked for replies on another domain than theirs.");
+  }
+  lines.push(`Subject: ${reply.subject}`, reply.body);
+  for (const q of reply.followUps) lines.push(`Question for you: ${q}`);
+  const n = reply.cites.length;
+  lines.push(
+    n === 0 ? "It cites none of your stories or atoms." : `It cites ${n} of your stories or atoms.`,
+  );
+  return lines;
 }

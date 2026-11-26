@@ -4,7 +4,8 @@ import {
   replyContentSha256,
   replySubject,
 } from "@northstar/domain";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, notExists } from "drizzle-orm";
+import { approvalRequest } from "./approval-schema.js";
 import { type RequestError, type RequestResult, requestApproval } from "./approval-write.js";
 import type { Db } from "./db.js";
 import { replyDraft } from "./reply-schema.js";
@@ -97,4 +98,32 @@ export async function readReplyDraft(db: Db, candidateId: CandidateId, requestId
     followUps: row.followUps,
     contentSha256: row.contentSha256,
   };
+}
+
+// The ids among requestIds that are the candidate's email_reply requests with no stored draft
+// (NS-237 slice 2): the approval queue never lets Paul approve one, since there is nothing behind
+// it to show or to write.
+export async function missingReplyDrafts(
+  db: Db,
+  candidateId: CandidateId,
+  requestIds: readonly string[],
+): Promise<string[]> {
+  if (requestIds.length === 0) return [];
+  const rows = await db
+    .select({ id: approvalRequest.id })
+    .from(approvalRequest)
+    .where(
+      and(
+        eq(approvalRequest.candidateId, candidateId),
+        eq(approvalRequest.kind, "email_reply"),
+        inArray(approvalRequest.id, [...requestIds]),
+        notExists(
+          db
+            .select({ one: replyDraft.id })
+            .from(replyDraft)
+            .where(eq(replyDraft.requestId, approvalRequest.id)),
+        ),
+      ),
+    );
+  return rows.map((r) => r.id);
 }

@@ -17,7 +17,31 @@ export type ApprovalPorts = {
     reason?: string;
   }) => Promise<Result<BatchOutcome[], ReasonRequired>>;
   undo: (decisionId: string) => Promise<Result<{ requestId: string }, UndoError>>;
+  // A reply draft behind an email_reply request (NS-237 slice 2), and which of a batch's requests
+  // are replies with no draft. dbApprovalPorts always gives both.
+  readReply?: (requestId: string) => Promise<ReplyView | null>;
+  missingReplies?: (requestIds: string[]) => Promise<string[]>;
 };
+
+// What Paul sees of a reply before he approves it: who it goes to (and whether that is another
+// domain than the sender's), the subject and the body, never the thread headers.
+export type ReplyView = {
+  to: string;
+  replyToOtherDomain: boolean;
+  subject: string;
+  body: string;
+  cites: string[];
+  followUps: string[];
+};
+
+const Reply = z.object({
+  to: z.string(),
+  replyToOtherDomain: z.boolean(),
+  subject: z.string(),
+  body: z.string(),
+  cites: z.array(z.string()),
+  followUps: z.array(z.string()),
+});
 
 // One call decides at most this many: "approve all" over a longer queue sends several calls.
 export const MAX_BATCH = 100;
@@ -49,7 +73,11 @@ const Outcome = z.union([
     decisionId: z.string(),
     effectiveAt: z.string(),
   }),
-  z.object({ requestId: z.string(), outcome: z.enum(["not_found", "already_decided"]) }),
+  z.object({
+    requestId: z.string(),
+    // missing_draft: an email reply with no stored draft is never approved (NS-237 slice 2).
+    outcome: z.enum(["not_found", "already_decided", "missing_draft"]),
+  }),
 ]);
 
 // What each refusal of an undo means to the page.
@@ -98,8 +126,19 @@ export function approvalEndpoints(ports: ApprovalPorts): AnyEndpoint[] {
     input: Decide,
     output: z.object({ outcomes: z.array(Outcome) }),
     handler: async ({ requestIds, decision, reason }) => {
+      // Approving a reply Paul can't see is refused before the Gate: it stays in the queue. A
+      // reject still goes through, so an empty one can be cleared.
+      const missing =
+        decision === "approve" && ports.missingReplies
+          ? new Set(await ports.missingReplies(requestIds))
+          : new Set<string>();
+      const toDecide = requestIds.filter((id) => !missing.has(id));
+      const refused = requestIds
+        .filter((id) => missing.has(id))
+        .map((requestId) => ({ requestId, outcome: "missing_draft" as const }));
+      if (toDecide.length === 0) return { ok: true, body: { outcomes: refused } };
       const r = await ports.decide({
-        requestIds,
+        requestIds: toDecide,
         decision,
         ...(reason === undefined ? {} : { reason }),
       });
@@ -107,23 +146,50 @@ export function approvalEndpoints(ports: ApprovalPorts): AnyEndpoint[] {
       return {
         ok: true,
         body: {
-          outcomes: r.value.map((o) =>
-            o.result.ok
-              ? {
-                  requestId: o.requestId,
-                  outcome: o.result.value.decision,
-                  decisionId: o.result.value.decisionId,
-                  effectiveAt: o.result.value.effectiveAt.toISOString(),
-                }
-              : {
-                  requestId: o.requestId,
-                  // A withdrawn request (NS-140) has left the queue: to the page it is gone.
-                  outcome:
-                    o.result.error.kind === "AlreadyDecided"
-                      ? ("already_decided" as const)
-                      : ("not_found" as const),
-                },
-          ),
+          outcomes: [
+            ...refused,
+            ...r.value.map((o) =>
+              o.result.ok
+                ? {
+                    requestId: o.requestId,
+                    outcome: o.result.value.decision,
+                    decisionId: o.result.value.decisionId,
+                    effectiveAt: o.result.value.effectiveAt.toISOString(),
+                  }
+                : {
+                    requestId: o.requestId,
+                    // A withdrawn request (NS-140) has left the queue: to the page it is gone.
+                    outcome:
+                      o.result.error.kind === "AlreadyDecided"
+                        ? ("already_decided" as const)
+                        : ("not_found" as const),
+                  },
+            ),
+          ],
+        },
+      };
+    },
+  });
+
+  const reply = endpoint({
+    method: "GET",
+    path: "/approvals/reply",
+    auth: "session",
+    input: z.object({ requestId: z.uuid() }),
+    output: Reply,
+    handler: async ({ requestId }) => {
+      const found = ports.readReply ? await ports.readReply(requestId) : null;
+      if (found === null) return { ok: false, status: 404, error: "not_found" };
+      // Field by field: nothing else from the stored row reaches the page.
+      return {
+        ok: true,
+        body: {
+          to: found.to,
+          replyToOtherDomain: found.replyToOtherDomain,
+          subject: found.subject,
+          body: found.body,
+          cites: found.cites,
+          followUps: found.followUps,
         },
       };
     },
@@ -145,5 +211,5 @@ export function approvalEndpoints(ports: ApprovalPorts): AnyEndpoint[] {
     },
   });
 
-  return [list, decide, undo];
+  return [list, decide, undo, reply];
 }

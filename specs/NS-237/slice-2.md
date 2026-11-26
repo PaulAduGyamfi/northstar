@@ -1,6 +1,6 @@
 # NS-237 (slice 2): Show a reply draft in the approval queue, and approve only what is shown
 
-Status: in progress
+Status: done
 Requirements: RPL-002, APR-001…003 · ADR-0002
 Rules that apply: ADR-0016, `.claude/rules/web.md`, `.claude/rules/db.md`, `.claude/rules/tests.md`.
 Parent: #117, issue #263. It meets slice 1's precondition for the Gmail writer.
@@ -31,12 +31,12 @@ it.
   text, never as HTML.
 
 ## Acceptance criteria
-- [ ] `missingReplyDrafts` finds only the candidate's `email_reply` requests with no draft (PGlite).
-- [ ] The reply endpoint gives the stored draft, and 404 for none (fakes).
-- [ ] An approve of a reply with no draft is `missing_draft` and never decided; a reject is decided.
-- [ ] The page's lines for a reply include the warning only when flagged; the summary words cover
+- [x] `missingReplyDrafts` finds only the candidate's `email_reply` requests with no draft (PGlite).
+- [x] The reply endpoint gives the stored draft, and 404 for none (fakes).
+- [x] An approve of a reply with no draft is `missing_draft` and never decided; a reject is decided.
+- [x] The page's lines for a reply include the warning only when flagged; the summary words cover
       `missing_draft`.
-- [ ] `pnpm turbo run lint typecheck test build` passes.
+- [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Decisions made without Paul (ADR-0016)
 - A reject of an empty reply request stays allowed, so it can be cleared from the queue.

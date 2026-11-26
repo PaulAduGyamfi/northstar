@@ -45,6 +45,10 @@ are CSS variables in `apps/web/app/globals.css`.
   passkey check through `revealPassword` (`src/reveal.ts`, the API's `/vault/reveal` routes), held
   only in that row's component state, and cleared after `MASK_AFTER_MS` (30 s), on Hide or when he
   leaves the page (`startMaskTimer`). Never put it in storage, a cookie, the URL or a log.
+- An "Email reply" in the Queue (NS-237) shows its stored draft only when Paul asks ("Show the
+  reply", the API's `GET /approvals/reply`), as plain text through `replyLines`: the recipient
+  first, with the other-domain warning under it. An approve of a reply with no draft comes back
+  `missing_draft` and stays in the queue.
 - The run inspector (NS-154) fetches a feed line's run (`GET /feed/run`) only when Paul asks, and
   shows it as plain text through `src/run.ts` (`callLine`, `totalsLine`).
 - Pipeline filters (NS-207) live in the URL (`parseFilters`, `filterQuery` in `src/pipeline.ts`)

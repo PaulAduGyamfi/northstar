@@ -16,7 +16,7 @@ import { approvalRequest } from "./approval-schema.js";
 import { listPendingApprovals, requestApproval } from "./approval-write.js";
 import type { Db } from "./db.js";
 import { replyDraft } from "./reply-schema.js";
-import { fileReplyDraft, readReplyDraft } from "./reply-write.js";
+import { fileReplyDraft, missingReplyDrafts, readReplyDraft } from "./reply-write.js";
 import { candidate, domainEvent } from "./schema.js";
 import { createTestDb, sqlState } from "./test/pglite.js";
 
@@ -215,5 +215,34 @@ describe("fileReplyDraft", () => {
           .values({ ...copy, subject: "Re: x\nBcc: y", requestId: filed.value.requestId }),
       ),
     ]).toEqual([RESTRICT_VIOLATION, RESTRICT_VIOLATION, RESTRICT_VIOLATION, CHECK_VIOLATION]);
+  });
+
+  it("finds only the candidate's email_reply requests that have no draft behind them", async () => {
+    const filed = await file();
+    const empty = await requestApproval(db, {
+      candidateId,
+      kind: "email_reply",
+      subject: replySubject("18c3f0a2b4d6e8ff"),
+      contentSha256: "1".repeat(64),
+      facts: null,
+      actor: "system",
+      idempotencyKey: "reply-empty",
+    });
+    const outreach = await requestApproval(db, {
+      candidateId,
+      kind: "outreach",
+      subject: "outreach:00000000-0000-4000-8000-0000000000c2",
+      contentSha256: "2".repeat(64),
+      facts: null,
+      actor: "system",
+      idempotencyKey: "outreach-2",
+    });
+    const ids = [filed, empty, outreach].map((r) => (r.ok ? r.value.requestId : ""));
+    const other = await newCandidate();
+    expect([
+      await missingReplyDrafts(db, candidateId, ids),
+      await missingReplyDrafts(db, other, ids),
+      await missingReplyDrafts(db, candidateId, []),
+    ]).toEqual([[ids[1]], [], []]);
   });
 });
