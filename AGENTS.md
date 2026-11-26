@@ -303,8 +303,11 @@ Exists now:
   - `interviewFromMail` marks an interview to schedule from a linked `interview_request` or
     `scheduling` message.
 
-  ADR-0026 (Proposed) decides `calendar.readonly` under ADR-0014's token model; writes come later
-  through the Gate. No Calendar client, storage or confirm step yet.
+  Only bare `local@domain` addresses count (`bareAddress`).
+
+  ADR-0026 (Proposed) decides `calendar.events.readonly`, on its own consent, under ADR-0014's
+  token model, with fields limited to what detection reads. Writes come later through the Gate.
+  No Calendar client, storage or confirm step yet.
 - Recruiter grading (NS-167, REC-001/002), slice 1:
   - The `recruiter-extract` route (`packages/inbox`, `src/recruiter/`) reads a recruiter email's
     stated facts: title, seniority, company, place, remote kind, pay range, agency or in-house,

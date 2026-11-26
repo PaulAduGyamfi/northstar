@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { ownDomains } from "../link/match.js";
 import {
+  bareAddress,
   type CalendarEvent,
   detectInterview,
   type InterviewCandidate,
   interviewFormat,
   interviewFromMail,
-  ownDomains,
 } from "./detect.js";
 
 // Synthetic events, people and companies only (the repo is public).
@@ -86,9 +87,38 @@ describe("detectInterview", () => {
     expect(detectInterview(event(), [closed])).toEqual({ kind: "none", reason: "no_match" });
   });
 
+  it("matches nothing through an address it can't read plainly", () => {
+    const crafted = event({
+      organizer: "x@evil.example>.initech.example",
+      attendees: ["Dana <dana@initech.example>", "a@b@initech.example"],
+    });
+    expect(detectInterview(crafted, [INITECH])).toEqual({ kind: "none", reason: "no_match" });
+  });
+
+  it("never treats a bare suffix as a company's own domain", () => {
+    expect(ownDomains({ ...INITECH, companyDomains: ["example", "initech.example"] })).toEqual([
+      "initech.example",
+    ]);
+  });
+
   it("matches a subdomain of the company's domain", () => {
     const sub = event({ organizer: "talent@careers.initech.example", attendees: [] });
     expect(detectInterview(sub, [INITECH])).toMatchObject({ applicationId: "app-initech" });
+  });
+});
+
+describe("bareAddress", () => {
+  it("keeps a plain address, lower-cased, and drops display names and stranger shapes", () => {
+    expect(
+      [
+        "Dana@INITECH.example",
+        "Dana <dana@initech.example>",
+        "x@evil.example>.initech.example",
+        "a@b@initech.example",
+        "dana@",
+        "dana@initech",
+      ].map(bareAddress),
+    ).toEqual(["dana@initech.example", null, null, null, null, null]);
   });
 });
 
@@ -119,15 +149,15 @@ describe("interviewFormat", () => {
 });
 
 describe("interviewFromMail", () => {
-  const linked = { kind: "linked" as const, applicationId: "app-initech" };
+  const linked = { kind: "linked" as const, applicationId: "app-initech", senderVerified: true };
 
   it("puts an interview to schedule on a linked interview request or scheduling mail", () => {
     expect([
       interviewFromMail("interview_request", linked),
       interviewFromMail("scheduling", linked),
     ]).toEqual([
-      { kind: "to_schedule", applicationId: "app-initech" },
-      { kind: "to_schedule", applicationId: "app-initech" },
+      { kind: "to_schedule", applicationId: "app-initech", senderVerified: true },
+      { kind: "to_schedule", applicationId: "app-initech", senderVerified: true },
     ]);
   });
 

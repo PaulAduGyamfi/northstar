@@ -1,4 +1,5 @@
-import { SHARED_DOMAINS } from "../link/match.js";
+import { inWindow, ownDomains } from "../link/match.js";
+import type { MAIL_KINDS } from "../mail-schema.js";
 import { underDomain } from "../prefilter.js";
 
 // Interview detection (CAL-002, NS-169). Plain code, no model: a calendar event is an interview
@@ -52,7 +53,7 @@ export type InterviewDetection =
 // Title words that make an event an interview. Matched on the title only: a description often
 // quotes other meetings, and a lunch invite that mentions "interview" in its notes isn't one.
 const INTERVIEW =
-  /\binterview|\bphone screen|\bscreening call|\bintro call\b|\brecruiter (?:call|chat|screen)|\btechnical\b|\bcoding\b|\bpairing\b|\bsystem design\b|\bbehaviou?ral\b|\bon-?site\b|\bfinal round\b|\bpanel\b|\bhiring manager\b/i;
+  /\binterview|\bphone screen|\bscreening call|\bintro call\b|\btake-?home review\b|\brecruiter (?:call|chat|screen)|\btechnical\b|\bcoding\b|\bpairing\b|\bsystem design\b|\bbehaviou?ral\b|\bon-?site\b|\bfinal round\b|\bpanel\b|\bhiring manager\b/i;
 
 // Format words, most specific first: "Technical system design interview" is system design.
 const FORMATS: readonly [InterviewFormat, RegExp][] = [
@@ -66,26 +67,17 @@ const FORMATS: readonly [InterviewFormat, RegExp][] = [
   ],
 ];
 
-const domainOf = (address: string): string => {
-  const at = address.lastIndexOf("@");
-  return at < 0
-    ? ""
-    : address
-        .slice(at + 1)
-        .trim()
-        .toLowerCase()
-        .replace(/>$/, "");
-};
+// An invite's addresses are whatever its author typed. Only a bare `local@domain` with one "@"
+// and a plain host name counts; display names, angle brackets and anything stranger are dropped
+// before matching, so a crafted string can't end in a company's domain by accident.
+const ADDRESS = /^[a-z0-9._%+'-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+$/;
 
-// An application's own company domains: never a shared ATS or freemail domain, nor one under it.
-export const ownDomains = (c: InterviewCandidate): string[] =>
-  c.companyDomains
-    .map((d) => d.toLowerCase())
-    .filter((d) => !SHARED_DOMAINS.some((shared) => underDomain(d, shared)));
+export function bareAddress(raw: string): string | null {
+  const address = raw.trim().toLowerCase();
+  return ADDRESS.test(address) ? address : null;
+}
 
-const inWindow = (c: InterviewCandidate, at: Date) =>
-  c.activeFrom.getTime() <= at.getTime() &&
-  (c.activeUntil === null || at.getTime() <= c.activeUntil.getTime());
+const domainOf = (address: string): string => address.slice(address.indexOf("@") + 1);
 
 export function interviewFormat(title: string): InterviewFormat {
   return FORMATS.find(([, re]) => re.test(title))?.[0] ?? "other";
@@ -98,8 +90,11 @@ export function detectInterview(
   if (event.status === "cancelled") return { kind: "none", reason: "cancelled" };
   if (!INTERVIEW.test(event.title)) return { kind: "none", reason: "not_interview" };
 
-  const people = [...(event.organizer ? [event.organizer] : []), ...event.attendees];
-  const domains = people.map(domainOf).filter((d) => d !== "");
+  // The organizer and attendees are claims the invite's author made, not evidence: hence
+  // `confirmed: false` below.
+  const attendees = event.attendees.map(bareAddress).filter((a): a is string => a !== null);
+  const organizer = event.organizer === null ? null : bareAddress(event.organizer);
+  const domains = [...(organizer ? [organizer] : []), ...attendees].map(domainOf);
   const matched = candidates.filter((c) => {
     const own = ownDomains(c);
     return inWindow(c, event.start) && domains.some((d) => own.some((o) => underDomain(d, o)));
@@ -108,7 +103,8 @@ export function detectInterview(
   if (matched.length > 1) {
     return { kind: "ambiguous", candidateIds: matched.map((c) => c.applicationId) };
   }
-  const app = matched[0] as InterviewCandidate;
+  const app = matched[0];
+  if (app === undefined) return { kind: "none", reason: "no_match" };
   const own = ownDomains(app);
   return {
     kind: "interview",
@@ -116,21 +112,30 @@ export function detectInterview(
     format: interviewFormat(event.title),
     start: event.start,
     end: event.end,
-    interviewers: event.attendees.filter((a) => own.some((o) => underDomain(domainOf(a), o))),
+    interviewers: attendees.filter((a) => own.some((o) => underDomain(domainOf(a), o))),
     confirmed: false,
   };
 }
 
 // A linked job email that asks to set up an interview (CAL-002 from email, NS-164's kinds):
 // the application has an interview waiting to be scheduled. Only a deterministic link counts.
-export type MailInterview = { kind: "to_schedule"; applicationId: string } | { kind: "none" };
+export type MailInterview =
+  // senderVerified is passed through from matchMail, so a confirm queue can rank by it.
+  { kind: "to_schedule"; applicationId: string; senderVerified: boolean } | { kind: "none" };
 
 export function interviewFromMail(
-  kind: string,
-  link: { kind: "linked"; applicationId: string } | { kind: "queued" } | { kind: "skip" },
+  kind: (typeof MAIL_KINDS)[number],
+  link:
+    | { kind: "linked"; applicationId: string; senderVerified: boolean }
+    | { kind: "queued" }
+    | { kind: "skip" },
 ): MailInterview {
   if (link.kind !== "linked") return { kind: "none" };
   return kind === "interview_request" || kind === "scheduling"
-    ? { kind: "to_schedule", applicationId: link.applicationId }
+    ? {
+        kind: "to_schedule",
+        applicationId: link.applicationId,
+        senderVerified: link.senderVerified,
+      }
     : { kind: "none" };
 }

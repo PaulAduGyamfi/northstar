@@ -40,7 +40,7 @@ export type MatchResult =
 
 // Shared mail domains: a DMARC or DKIM pass for one of these says nothing about which company
 // wrote the mail, so they never count as a company's own domain, whatever a caller passes.
-export const SHARED_DOMAINS: readonly string[] = [
+export const SHARED_DOMAINS: readonly string[] = Object.freeze([
   ...ATS_DOMAINS,
   "gmail.com",
   "googlemail.com",
@@ -48,7 +48,7 @@ export const SHARED_DOMAINS: readonly string[] = [
   "hotmail.com",
   "yahoo.com",
   "icloud.com",
-];
+]);
 
 // The domains that vouch for this message's From (INB-011): a DMARC pass, or a DKIM pass whose
 // signing domain is the From domain or a parent of it (relaxed alignment, one direction only).
@@ -61,13 +61,16 @@ function verifiedDomains(mail: MessageHeaders): string[] {
   return authenticatedDomains(mail.authenticationResults).filter((d) => underDomain(from, d));
 }
 
-// A candidate's own company domains: never a shared ATS or freemail domain, nor one under it.
-const ownDomains = (c: LinkCandidate) =>
+// A candidate's own company domains: never a bare suffix ("com" would match every address under
+// it), nor a shared ATS or freemail domain or one under it. Shared with interview detection.
+export const ownDomains = (c: { companyDomains: readonly string[] }): string[] =>
   c.companyDomains
     .map((d) => d.toLowerCase())
+    .filter((d) => d.includes("."))
     .filter((d) => !SHARED_DOMAINS.some((shared) => underDomain(d, shared)));
 
-const inWindow = (c: LinkCandidate, at: Date) =>
+// Whether a time falls in the application's active window, both ends included.
+export const inWindow = (c: { activeFrom: Date; activeUntil: Date | null }, at: Date) =>
   c.activeFrom.getTime() <= at.getTime() &&
   (c.activeUntil === null || at.getTime() <= c.activeUntil.getTime());
 
