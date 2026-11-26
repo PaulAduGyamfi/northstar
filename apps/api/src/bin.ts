@@ -7,21 +7,25 @@ import {
   isSubsystemOn,
   listApplications,
   listOpenHandoffs,
+  listPasskeys,
   listTenants,
   loadDbConfig,
   readApplicationTimeline,
   readDedupeCandidates,
   readFeed,
   readFeedAfter,
+  readPasskey,
   readPreferences,
   readScorableJobs,
   readScoreKeys,
   readScoringProfile,
   readSystemHealth,
   recordCallOutcome,
+  recordPasskeyUse,
   resolveHandoff,
   saveFitScore,
   saveIngestedJob,
+  savePasskey,
   setKillSwitch,
   soleCandidate,
   transitionApplication,
@@ -48,6 +52,7 @@ import { approvalEndpoints } from "./approvals.js";
 import { captureEndpoint } from "./capture.js";
 import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
 import { handoffEndpoints } from "./handoffs.js";
+import { passkeyEndpoints } from "./passkeys.js";
 import { pipelineEndpoints } from "./pipeline.js";
 import { createApi } from "./server.js";
 import { createSessions } from "./sessions.js";
@@ -179,11 +184,27 @@ try {
     list: async () => listApplications(db, await candidateId()),
     timeline: async (id) => readApplicationTimeline(db, await candidateId(), id),
   });
+  // One set of sessions for the sign-in key and passkeys, so both open the same kind of session
+  // and their failures count toward one throttle (ADR-0022).
+  const sessions = createSessions(Date.now);
+  // Passkey sign-in (NS-178) on packages/db's passkey write path.
+  const passkeys = passkeyEndpoints({
+    config,
+    sessions,
+    now: Date.now,
+    store: {
+      list: async () => listPasskeys(db, await candidateId()),
+      read: async (credentialId) => readPasskey(db, await candidateId(), credentialId),
+      save: async (input) => savePasskey(db, { ...input, candidateId: await candidateId() }),
+      recordUse: async (passkeyId, signCount) =>
+        recordPasskeyUse(db, await candidateId(), passkeyId, signCount),
+    },
+  });
   const handler = createApi({
     config,
-    sessions: createSessions(Date.now),
+    sessions,
     extensionTokenSha256,
-    extra: [capture, ...system, ...handoffs, ...accounts, ...approvals, ...pipeline],
+    extra: [capture, ...system, ...handoffs, ...accounts, ...approvals, ...pipeline, ...passkeys],
   });
   const server = createServer(handler);
   server.listen(config.port, "127.0.0.1", () => {

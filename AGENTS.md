@@ -367,6 +367,14 @@ Exists now:
   SameSite=Strict cookie on the web app's own `northstar.localhost` name, 5 wrong keys a minute
   then 429, and `Host`, `x-forwarded-host`, `Origin` and content-type checks.
   Every endpoint that acts for Paul uses `auth: "session"`.
+  Since NS-178 also passkeys (ADR-0022, Proposed; `passkeys.ts`, the only importer of
+  `@simplewebauthn/server`): `POST /auth/passkey/register/options|verify` (session plus the
+  sign-in key again, so the key bootstraps every passkey and stays as recovery) and `/auth/passkey/sign-in/options|verify`
+  (no session; opens the same session, failures count toward the same throttle). Scoped to the
+  web origin's host name, user verification required, challenges single use for 5 minutes.
+  Credentials are in `packages/db` (`passkey-schema.ts`, `passkey-write.ts`: `savePasskey`,
+  `listPasskeys`, `readPasskey`, `recordPasskeyUse`; append-only, the sign count only moves
+  forward or stays at 0). The web app's buttons come in slice 2.
 - `apps/extension/` (NS-128): "Save to Northstar", a Chrome MV3 extension compiled by `tsc` (no
   bundler or framework). Permissions `activeTab`, `scripting`, `storage` and the local API host
   only; nothing runs until Paul clicks. It reads the visible page and posts it to the API's

@@ -351,6 +351,20 @@
       "when": 1795664520179,
       "tag": "0049_apply_submission_same_candidate",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795665862648,
+      "tag": "0050_passkeys",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1795665863872,
+      "tag": "0051_passkeys_append_only",
+      "breakpoints": true
     }
   ]
 }

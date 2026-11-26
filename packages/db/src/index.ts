@@ -229,6 +229,16 @@ export {
   type TagTarget,
   type TagView,
 } from "./mail-link-write.js";
+export * as passkeySchema from "./passkey-schema.js";
+// Paul's passkeys (NS-178, ADR-0022).
+export {
+  listPasskeys,
+  type PasskeyInput,
+  readPasskey,
+  recordPasskeyUse,
+  type StoredPasskey,
+  savePasskey,
+} from "./passkey-write.js";
 // The pipeline board and application timeline (NS-168), read-only.
 export {
   type ApplicationRow,

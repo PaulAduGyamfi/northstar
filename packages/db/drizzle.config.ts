@@ -22,6 +22,7 @@ export default defineConfig({
     "./src/consent-schema.ts",
     "./src/tailor-schema.ts",
     "./src/liveness-schema.ts",
+    "./src/passkey-schema.ts",
   ],
   out: "./migrations",
 });
