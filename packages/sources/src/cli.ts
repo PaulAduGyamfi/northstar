@@ -228,6 +228,8 @@ async function checkCommand(deps: CliDeps): Promise<number> {
       `${s.withdrawn} application${s.withdrawn === 1 ? "" : "s"} left the pipeline: their job postings closed.`,
     );
   }
+  // Since NS-239 this count also includes Gate requests of withdrawn applications that couldn't be
+  // closed; the next pass retries both.
   if (s.withdrawFailed > 0) {
     deps.print(
       `${s.withdrawFailed} application${s.withdrawFailed === 1 ? "" : "s"} couldn't be moved; the next pass tries again.`,

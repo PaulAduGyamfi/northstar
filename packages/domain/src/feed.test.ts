@@ -433,3 +433,11 @@ describe("feedLine: mail links", () => {
     ]);
   });
 });
+
+describe("feedLine: a request closed for a closed posting (NS-239)", () => {
+  it("says the system closed it because the job's posting closed", () => {
+    expect(
+      feedLine(ev("approval.withdrawn", { withdrawnBy: "system", reason: "posting_closed" })),
+    ).toBe("An approval request was closed because the job's posting closed");
+  });
+});
