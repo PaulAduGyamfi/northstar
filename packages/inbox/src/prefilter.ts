@@ -70,15 +70,19 @@ function withoutComments(value: string): string | null {
 
 const DOMAIN = /^[a-z0-9.-]+$/;
 
+// Gmail's own Authentication-Results header starts with this authserv-id (NS-217). A header any
+// other server wrote, or one the sender put in before Gmail, proves nothing, so it is never read.
+export const GMAIL_AUTHSERV = /^\s*mx\.google\.com\s*;/i;
+
 // The domains Gmail verified for this message, from its Authentication-Results header: the
 // header.from of a DMARC pass, or the signing domain of a DKIM pass. The From header alone can be
 // forged by anyone; these can't. The header is read by its structure, not searched as text: the
 // envelope sender (`smtp.mailfrom`, and the SPF comment that quotes it) is chosen by whoever sent
 // the mail, so "dkim=pass header.d=x" written there must never count. Each ";" part after the
-// first (the authserv-id) is one result; it counts only when its method is the first token, and
+// first (the authserv-id, which must be Gmail's) is one result; it counts only when its method is the first token, and
 // its domain is read only from that result's own header.* property tokens.
 export function authenticatedDomains(authenticationResults: string | null): string[] {
-  if (!authenticationResults) return [];
+  if (!authenticationResults || !GMAIL_AUTHSERV.test(authenticationResults)) return [];
   const value = withoutComments(lower(authenticationResults));
   if (value === null) return [];
   const out: string[] = [];

@@ -278,7 +278,8 @@ Exists now:
   Gmail-added `Delivered-To`), and `matchMail`: tag, then an already-linked thread, then an
   authenticated company domain inside the application's active window; anything else goes to the
   confirm queue, verification mail is skipped, and `senderVerified` says whether a DMARC pass or
-  a DKIM pass aligned with From covers the application's domains (INB-011); shared ATS and
+  a DKIM pass aligned with From covers the application's domains (INB-011), read only from
+  Gmail's own `mx.google.com` Authentication-Results header (NS-217); shared ATS and
   freemail domains never pick an application. Tags and links are stored in `packages/db`
   (`mail-link-schema.ts`, `mail-link-write.ts`: `assignTag`, `readTags`, `readLinkedThreads`,
   `recordMailLink`, `listConfirmQueue`; append-only). Links never change a status (P1). On mail Gmail
