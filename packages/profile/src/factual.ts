@@ -65,7 +65,8 @@ export function parseSettingValue(
     if (!httpsUrl(text)) return { ok: false, error: "not_https_url" };
     return { ok: true, value: text };
   }
-  if (text.length < 1 || text.length > MAX_TEXT || /[\r\n]/.test(text))
+  // No control characters (CR, LF, escapes): the value goes on forms and screens as it is.
+  if (text.length < 1 || text.length > MAX_TEXT || /\p{Cc}/u.test(text))
     return { ok: false, error: "bad_text" };
   return { ok: true, value: text };
 }
@@ -73,7 +74,7 @@ export function parseSettingValue(
 // A qualifier (a skill, a country, a company): one line, short, never empty.
 export function parseQualifier(raw: string): string | null {
   const text = raw.trim();
-  return text.length >= 1 && text.length <= MAX_QUALIFIER && !/[\r\n]/.test(text) ? text : null;
+  return text.length >= 1 && text.length <= MAX_QUALIFIER && !/\p{Cc}/u.test(text) ? text : null;
 }
 
 // YYYY-MM-DD that names a real day (no 2027-02-30).

@@ -1,6 +1,12 @@
 import { PROFILE_SETTING_FIELDS, QUALIFIED_SETTING_FIELDS } from "@northstar/db";
 import { describe, expect, it } from "vitest";
-import { answerFactual, parseSettingValue, QUALIFIED_FIELDS, type Setting } from "./factual.js";
+import {
+  answerFactual,
+  parseQualifier,
+  parseSettingValue,
+  QUALIFIED_FIELDS,
+  type Setting,
+} from "./factual.js";
 import { FACTUAL_FIELDS } from "./question-canon.js";
 
 // Factual answers from profile settings (NS-141, ANS-001). Synthetic settings only.
@@ -54,6 +60,15 @@ describe("parseSettingValue", () => {
       { ok: false, error: "not_arrangement" },
       { ok: false, error: "bad_text" },
     ]);
+  });
+});
+
+describe("parseQualifier and text values", () => {
+  it("refuse control characters", () => {
+    expect([
+      parseSettingValue("notice_period", "2 weeks\u001b[2J"),
+      parseQualifier("Go\u0007"),
+    ]).toEqual([{ ok: false, error: "bad_text" }, null]);
   });
 });
 
