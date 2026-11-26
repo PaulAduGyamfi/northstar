@@ -417,6 +417,15 @@ Exists now:
   served by the API's `GET /applications` and `GET /applications/timeline`). Read-only. `/api/*` is rewritten to the API, and pages that need Paul go
   through `readSession`/`todayView` or `readApi` (`src/session.ts`, `src/system.ts`), which forward
   his session cookie to the API. It holds no secret.
+- `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
+  (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
+  decision as an `approval` signal (or `withdrawn`), then runs the `submitApplication` activity
+  on `apply-browser` (10-minute start-to-close, 5 attempts with backoff; `NotApproved` is never
+  retried). The activity calls the Apply Gateway and returns plain data; `decide` (plain code)
+  finishes, or waits on a durable timer for `InProgress`, `AtsBusy`, `Paced`, `DailyCapReached`
+  and `HeldBack` (at most 20 waits, then `gave_up`). Tests run without a server: `decide`, the
+  activity on a fake gateway, and Temporal's workflow bundler. No worker process, client or
+  restart test yet (the test server download is extra network).
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 
@@ -424,7 +433,6 @@ Planned (`docs/architecture/system-design.md` §7). **Don't create these early:*
 with the ticket that needs it.
 
 ```
-apps/worker
 packages/agents  ats-adapters  ui
 ops/  docs/runbooks/
 ```

@@ -1,0 +1,36 @@
+// Plain data passed between the submission workflow and its activity. No imports: workflow code
+// runs in Temporal's deterministic sandbox, and these values cross it as JSON.
+
+// What one call to the Apply Gateway came to. `refused` carries the refusal's kind and, for a
+// dated refusal, how long to wait (worked out by the activity, so the workflow reads no clock).
+export type SubmitStep =
+  | {
+      kind: "done";
+      outcome: "submitted" | "needs_human";
+      submissionId: string;
+      // The needs_human reason code, or null when submitted.
+      reason: string | null;
+      replayed: boolean;
+    }
+  | { kind: "refused"; refusal: string; waitMs: number | null };
+
+// How a submission workflow ended.
+export type SubmissionResult =
+  | {
+      kind: "submitted" | "needs_human";
+      submissionId: string;
+      reason: string | null;
+      replayed: boolean;
+    }
+  // The gateway refused for good (invalid package, changed file, duplicate requisition...).
+  | { kind: "refused"; refusal: string }
+  // Still held back after MAX_WAITS tries: stop rather than loop forever.
+  | { kind: "gave_up"; refusal: string }
+  // The Gate didn't verify the decision id when the gateway acted.
+  | { kind: "not_approved"; reason: string }
+  // Paul (or a gateway) withdrew the request before it was approved.
+  | { kind: "withdrawn" };
+
+// Error type of the activity failure for a decision the Gate didn't verify. Not retryable: the
+// same decision id would be refused again.
+export const NOT_APPROVED = "NotApproved";
