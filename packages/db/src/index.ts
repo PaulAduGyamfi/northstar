@@ -283,6 +283,7 @@ export {
 } from "./passkey-write.js";
 // The pipeline board and application timeline (NS-168), read-only.
 export {
+  type ApplicationFilter,
   type ApplicationRow,
   listApplications,
   MAX_APPLICATIONS,

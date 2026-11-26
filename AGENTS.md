@@ -445,7 +445,11 @@ Exists now:
   Today, since NS-153 `/health`, since NS-139 the Queue (`/approvals`), and since NS-168 the
   Pipeline (`/pipeline`: a board by status in UX-020's words, and `/pipeline/<id>`, an
   application's timeline from `listApplications` and `readApplicationTimeline` in `packages/db`,
-  served by the API's `GET /applications` and `GET /applications/timeline`). Read-only. `/api/*` is rewritten to the API, and pages that need Paul go
+  served by the API's `GET /applications` and `GET /applications/timeline`). Read-only. Since NS-207 the
+  Pipeline also filters by company, fit band, source (the job's ATS, or `other`) and creation day,
+  applied in `listApplications`' SQL and kept in the URL, has a table view, and Today shows counts
+  of approvals waiting and needs-your-hands items (`src/today.ts`), with interviews, follow-ups
+  and growth blocks marked not set up yet. `/api/*` is rewritten to the API, and pages that need Paul go
   through `readSession`/`todayView` or `readApi` (`src/session.ts`, `src/system.ts`), which forward
   his session cookie to the API. It holds no secret.
 - `packages/pipeline/` (NS-161, ADR-0023): plain-code pipeline steps, no model or network.

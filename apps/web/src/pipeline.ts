@@ -51,6 +51,9 @@ const Application = z.object({
   jobTitle: z.string().nullable(),
   company: z.string().nullable(),
   ats: z.string().nullable(),
+  // The job's latest fit (NS-207); null while it is unscored.
+  fitScore: z.number().nullable(),
+  fitBand: z.enum(["queue", "suggest", "skip"]).nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -86,4 +89,91 @@ export function cardTitle(a: ApplicationView): string {
 export function changedAgo(updatedAt: string, nowMs: number): string {
   const waited = waitedFor(updatedAt, nowMs);
   return waited === "just now" ? "changed just now" : `changed ${waited} ago`;
+}
+
+// The pipeline's filters and view (NS-207, DSH-001), kept in the URL so a view can be bookmarked.
+// The API applies them; the page only reads and writes the query string.
+export const FIT_BANDS = ["queue", "suggest", "skip"] as const;
+export type FitBand = (typeof FIT_BANDS)[number];
+export const BAND_WORDS: Record<FitBand, string> = {
+  queue: "Queue",
+  suggest: "Suggest",
+  skip: "Skip",
+};
+// The ATS names the sources know, plus "other" for a job with none.
+export const SOURCES = [
+  "greenhouse",
+  "lever",
+  "ashby",
+  "workday",
+  "smartrecruiters",
+  "workable",
+  "other",
+] as const;
+
+export type Filters = {
+  company?: string;
+  band?: FitBand;
+  source?: string;
+  from?: string;
+  to?: string;
+};
+export type PipelineQuery = { filters: Filters; view: "board" | "table" };
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const one = (v: string | string[] | undefined): string | undefined =>
+  typeof v === "string" ? v.trim() : undefined;
+
+// Reads the page's search params, keeping only well-formed fields (the API checks them again).
+// An empty field means no filter.
+export function parseFilters(params: Record<string, string | string[] | undefined>): PipelineQuery {
+  const filters: Filters = {};
+  const company = one(params.company);
+  if (company && company.length <= 100) filters.company = company;
+  const band = one(params.band);
+  if (band && (FIT_BANDS as readonly string[]).includes(band)) filters.band = band as FitBand;
+  const source = one(params.source);
+  if (source && (SOURCES as readonly string[]).includes(source)) filters.source = source;
+  const from = one(params.from);
+  if (from && DAY.test(from)) filters.from = from;
+  const to = one(params.to);
+  if (to && DAY.test(to)) filters.to = to;
+  return { filters, view: one(params.view) === "table" ? "table" : "board" };
+}
+
+// The query string for these filters (and a view), "" when there are none. Fields in a fixed
+// order, so the same view always has the same URL.
+export function filterQuery(filters: Filters, view?: "board" | "table"): string {
+  const params = new URLSearchParams();
+  for (const key of ["company", "band", "source", "from", "to"] as const) {
+    const value = filters[key];
+    if (value !== undefined) params.set(key, value);
+  }
+  if (view === "table") params.set("view", "table");
+  const text = params.toString();
+  return text === "" ? "" : `?${text}`;
+}
+
+export type TableRow = {
+  applicationId: string;
+  title: string;
+  company: string;
+  status: string;
+  fit: string;
+  changed: string;
+};
+
+// The table view's rows, in the API's order (newest change first). Status in words (UX-020).
+export function tableRows(apps: ApplicationView[], nowMs: number): TableRow[] {
+  return apps.map((a) => ({
+    applicationId: a.applicationId,
+    title: a.jobTitle ?? "Untitled job",
+    company: a.company ?? "Unknown company",
+    status: STATUS_WORDS[a.status],
+    fit:
+      a.fitScore === null || a.fitBand === null
+        ? "not scored"
+        : `${a.fitScore} · ${BAND_WORDS[a.fitBand]}`,
+    changed: changedAgo(a.updatedAt, nowMs),
+  }));
 }
