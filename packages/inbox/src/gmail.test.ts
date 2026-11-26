@@ -30,7 +30,7 @@ const message: FakeMessage = {
     Subject: "Thank you for applying to Globex",
     Date: "Mon, 2 Mar 2026 15:00:00 +0000",
     "Delivered-To": "candidate@example.com",
-    "Authentication-Results": "mx.example.com; dmarc=pass header.from=ats.example.com",
+    "Authentication-Results": "mx.google.com; dmarc=pass header.from=ats.example.com",
   },
   text: "Hi, we received your application for Backend Engineer.",
 };
@@ -77,7 +77,7 @@ describe("gmail client", () => {
       senderDomain: "example.com",
       subject: "Thank you for applying to Globex",
       deliveredTo: "candidate@example.com",
-      authenticationResults: "mx.example.com; dmarc=pass header.from=ats.example.com",
+      authenticationResults: "mx.google.com; dmarc=pass header.from=ats.example.com",
       receivedAt: new Date("2026-03-02T15:00:00Z"),
     });
     expect(gmail.requests.at(-1)?.url).toContain("format=metadata");
@@ -139,7 +139,7 @@ describe("gmail client", () => {
     expect(h.authenticationResults).toBe("mx.google.com; dmarc=pass header.from=ats.example.com");
   });
 
-  it("doesn't take a look-alike authserv-id for Google's", async () => {
+  it("reads no results when no header is Gmail's own, not even a look-alike (NS-217)", async () => {
     const lookalike = {
       ...message,
       headers: {
@@ -154,7 +154,7 @@ describe("gmail client", () => {
       ],
     };
     const h = await client(fakeGmail([lookalike])).getHeaders("m1");
-    expect(h.authenticationResults).toBe("mx.example.com; dmarc=pass header.from=ats.example.com");
+    expect(h.authenticationResults).toBeNull();
   });
 
   it("fetches the plain-text body of a full message", async () => {

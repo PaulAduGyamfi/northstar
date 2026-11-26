@@ -18,12 +18,15 @@ const h = (senderDomain: string, subject: string, authenticationResults: string 
 
 describe("isJobMail", () => {
   it("keeps mail from a known ATS domain, including subdomains, when Gmail verified the sender", () => {
-    const verified = (d: string) => `mx.example; dmarc=pass header.from=${d}`;
+    const verified = (d: string) => `mx.google.com; dmarc=pass header.from=${d}`;
     expect(
       isJobMail(h("us.greenhouse-mail.io", "Hello", verified("greenhouse-mail.io")), new Set()),
     ).toBe(true);
     expect(
-      isJobMail(h("hire.lever.co", "Update", "mx.example; dkim=pass header.d=lever.co"), new Set()),
+      isJobMail(
+        h("hire.lever.co", "Update", "mx.google.com; dkim=pass header.d=lever.co"),
+        new Set(),
+      ),
     ).toBe(true);
   });
 
@@ -31,13 +34,13 @@ describe("isJobMail", () => {
     expect(isJobMail(h("myworkday.com", "Update", null), new Set())).toBe(false);
     expect(
       isJobMail(
-        h("myworkday.com", "Update", "mx.example; dmarc=fail header.from=myworkday.com"),
+        h("myworkday.com", "Update", "mx.google.com; dmarc=fail header.from=myworkday.com"),
         new Set(),
       ),
     ).toBe(false);
     expect(
       isJobMail(
-        h("myworkday.com", "Update", "mx.example; dmarc=pass header.from=evil.example"),
+        h("myworkday.com", "Update", "mx.google.com; dmarc=pass header.from=evil.example"),
         new Set(),
       ),
     ).toBe(false);
@@ -76,7 +79,7 @@ describe("isJobMail", () => {
   });
 
   it("doesn't let a look-alike domain pass as an ATS", () => {
-    const pass = (d: string) => `mx.example; dmarc=pass header.from=${d}`;
+    const pass = (d: string) => `mx.google.com; dmarc=pass header.from=${d}`;
     expect(
       isJobMail(
         h("greenhouse.io.evil.example", "Hi", pass("greenhouse.io.evil.example")),
@@ -91,7 +94,7 @@ describe("authenticatedDomains", () => {
   it("reads DMARC header.from and DKIM header.d or header.i, passes only", () => {
     expect(
       authenticatedDomains(
-        "mx.example; dkim=pass header.i=@mail.globex.example; spf=pass; dmarc=pass header.from=globex.example; dkim=fail header.d=evil.example",
+        "mx.google.com; dkim=pass header.i=@mail.globex.example; spf=pass; dmarc=pass header.from=globex.example; dkim=fail header.d=evil.example",
       ),
     ).toEqual(["mail.globex.example", "globex.example"]);
     expect(authenticatedDomains(null)).toEqual([]);
@@ -123,6 +126,15 @@ describe("authenticatedDomains", () => {
     ).toEqual([]);
   });
 
+  it("reads nothing from a header that another server wrote, even a look-alike of Gmail's (NS-217)", () => {
+    const pass = "; dmarc=pass header.from=globex.example; dkim=pass header.d=globex.example";
+    expect(
+      ["mx.example.com", "mx.google.com.evil.example", "relay.mx.google.com", ""].map((id) =>
+        authenticatedDomains(`${id}${pass}`),
+      ),
+    ).toEqual([[], [], [], []]);
+  });
+
   it("reads nothing from a header with unbalanced comment parentheses", () => {
     expect(
       authenticatedDomains(
@@ -134,6 +146,15 @@ describe("authenticatedDomains", () => {
 
 describe("isAuthenticatedSender (NS-160)", () => {
   const results = (domain: string) => `mx.google.com; dmarc=pass header.from=${domain}`;
+
+  it("doesn't trust a sender verified only by a header another server wrote (NS-217)", () => {
+    expect(
+      isAuthenticatedSender({
+        senderDomain: "globex.example",
+        authenticationResults: "mx.example.com; dmarc=pass header.from=globex.example",
+      }),
+    ).toBe(false);
+  });
 
   it("trusts a host-name-shaped sender domain the results header verified", () => {
     expect(

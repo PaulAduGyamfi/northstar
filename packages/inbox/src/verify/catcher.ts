@@ -113,10 +113,6 @@ type State = { window: VerificationWindow; ttlMs: number; resent: boolean };
 // A body larger than this is not a verification mail; scanning it would only cost time.
 export const MAX_BODY_CHARS = 256 * 1024;
 
-// Gmail's own Authentication-Results header starts with this authserv-id. One added by any other
-// server (or by the sender, before Gmail) proves nothing.
-const GMAIL_AUTHSERV = /^\s*mx\.google\.com\s*;/i;
-
 // An allowlist entry is a plain host name with at least one dot: no wildcard, no bare "com", no
 // leading or trailing dot, no IP address. A bad entry would allow far more than one tenant.
 const ALLOWLIST_ENTRY = /^(?=.*[a-z])[a-z0-9-]+(\.[a-z0-9-]+)+$/;
@@ -176,8 +172,7 @@ export function windowMatches(w: VerificationWindow, m: VerificationMessage): bo
     m.receivedAt.getTime() <= w.expiresAt.getTime() &&
     w.senderDomains.some((d) => underDomain(domain, d)) &&
     // The From domain alone is forgeable: Gmail must have verified it (DMARC or DKIM pass), in
-    // the header Gmail itself wrote.
-    GMAIL_AUTHSERV.test(m.authenticationResults ?? "") &&
+    // the header Gmail itself wrote (isAuthenticatedSender reads only that one, NS-217).
     isAuthenticatedSender({ senderDomain: domain, authenticationResults: m.authenticationResults })
   );
 }
