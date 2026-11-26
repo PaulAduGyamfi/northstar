@@ -44,14 +44,16 @@ describe("formQuestions", () => {
     });
   });
 
-  it("flags a required cover letter and a required phone", () => {
+  it("flags a required cover letter", () => {
     const form = STANDARD.map((q) =>
-      q.fieldName === "phone" || q.fieldName.startsWith("cover_letter")
-        ? { ...q, required: true }
-        : q,
+      q.fieldName.startsWith("cover_letter") ? { ...q, required: true } : q,
     );
-    const result = formQuestions(form);
-    expect([result.coverLetterRequired, result.phoneRequired]).toEqual([true, true]);
+    expect(formQuestions(form).coverLetterRequired).toBe(true);
+  });
+
+  it("flags a required phone", () => {
+    const form = STANDARD.map((q) => (q.fieldName === "phone" ? { ...q, required: true } : q));
+    expect(formQuestions(form).phoneRequired).toBe(true);
   });
 
   it("turns text and select fields into questions, with the option labels as choices", () => {
@@ -113,18 +115,29 @@ describe("formQuestions", () => {
     ]);
   });
 
-  it("skips hidden fields and optional uploads, and hands a required upload to Paul", () => {
+  it("asks nothing for a hidden field, even a required one", () => {
     const form = [
       ...STANDARD,
       field({ fieldName: "source_token", label: "Source", kind: "hidden", required: true }),
+    ];
+    expect(formQuestions(form)).toEqual(formQuestions(STANDARD));
+  });
+
+  it("skips an optional upload it can't fill", () => {
+    const form = [
+      ...STANDARD,
       field({ fieldName: "question_20", label: "Portfolio (PDF)", kind: "file" }),
+    ];
+    expect(formQuestions(form)).toEqual(formQuestions(STANDARD));
+  });
+
+  it("hands a required upload it can't fill to Paul", () => {
+    const form = [
+      ...STANDARD,
       field({ fieldName: "question_21", label: "Writing sample", kind: "file", required: true }),
     ];
-    expect(formQuestions(form)).toEqual({
-      questions: [],
-      coverLetterRequired: false,
-      phoneRequired: false,
-      unsupported: [{ fieldName: "question_21", reason: "file_upload" }],
-    });
+    expect(formQuestions(form).unsupported).toEqual([
+      { fieldName: "question_21", reason: "file_upload" },
+    ]);
   });
 });

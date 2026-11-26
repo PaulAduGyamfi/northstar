@@ -41,4 +41,9 @@ questions at all: the adapter fills the standard ones from the contact and the f
 
 ## Out of scope (rest of #235)
 - The caller (slice 5): reading the inputs, `formSeenBefore`, choosing `packageId`, filing, the
-  status moves and the NeedsHuman event.
+  status moves and the NeedsHuman event. `assemblePackage` doesn't take `phoneRequired` or
+  `unsupported`, so slice 5 must make each one NeedsHuman before anything is filed, with a test
+  for each (both reviewers of this slice).
+- Greenhouse's `location_questions` and compliance questions: the slice 1 reader doesn't store
+  them, so a required location question reaches no package. It surfaces only when the driver
+  (NS-142) meets it, as a `needs_human` there. Noted on #235.

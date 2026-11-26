@@ -35,7 +35,8 @@ export function formQuestions(form: readonly JobFormQuestion[]): FormQuestions {
     }
     if (q.fieldName === "phone" && q.required) result.phoneRequired = true;
     if (CONTACT_FIELDS.has(q.fieldName) || RESUME_FIELDS.has(q.fieldName)) continue;
-    // The form fills hidden fields itself (tracking tokens and the like).
+    // The form fills hidden fields itself (tracking tokens and the like). An assumption from the
+    // public API's shape: check it against recorded Greenhouse pages (NS-142).
     if (q.kind === "hidden") continue;
     if (q.kind === "file") {
       // Only the resume and cover letter exist as files; another upload is Paul's to give.
@@ -48,7 +49,8 @@ export function formQuestions(form: readonly JobFormQuestion[]): FormQuestions {
       required: q.required,
       // Greenhouse publishes no length limits.
       maxLength: null,
-      // The labels: what an answer is compared with, and what the driver picks (NS-142).
+      // The labels: what an answer is compared with, and what the driver picks (NS-142). Two
+      // options with the same label can't be told apart; assemblePackage takes the first.
       choices: q.choices === null ? null : q.choices.map((c) => c.label),
     });
   }
