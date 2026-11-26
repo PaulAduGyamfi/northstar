@@ -35,10 +35,12 @@ export const MAX_PER_TICK = 10;
 const SKEW_S = 60;
 
 // The one Gmail query: the window's sender domains, since it opened. The domains passed the
-// catcher's allowlist check (plain host names), so they need no escaping.
+// catcher's allowlist check (letters, digits, dots and hyphens only). Each is quoted anyway, so a
+// domain that starts with "-" can't read as Gmail's "not from" and list nearly all mail.
 export function windowQuery(window: VerificationWindow): string {
   const since = Math.floor(window.openedAt.getTime() / 1000) - SKEW_S;
-  return `from:(${window.senderDomains.join(" OR ")}) after:${since}`;
+  const from = window.senderDomains.map((d) => `"${d}"`).join(" OR ");
+  return `from:(${from}) after:${since}`;
 }
 
 export function pollWindow(
@@ -73,8 +75,10 @@ export function pollWindow(
             const ids = await deps.gmail.listIds(windowQuery(window));
             const fresh = ids.filter((m) => !seen.has(m.id)).slice(0, MAX_PER_TICK);
             for (const { id } of fresh) {
-              seen.add(id);
               const full = await deps.gmail.getFull(id);
+              // Seen only once fetched: a fetch that fails is tried again next tick, so a failed
+              // read can't hide the code mail for the rest of the window.
+              seen.add(id);
               offered++;
               // The body is untrusted text: the catcher only extracts from it.
               const msg = {

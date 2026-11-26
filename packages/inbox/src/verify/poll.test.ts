@@ -39,7 +39,7 @@ function message(
 
 // A Gmail whose inbox, on tick n (counting list calls from 1), holds `inbox(n)`; a function
 // that throws makes that tick's list call fail.
-function setup(inbox: (tick: number) => FullMessage[] | Error) {
+function setup(inbox: (tick: number) => FullMessage[] | Error, failFetchOnce: string[] = []) {
   let clock = T0;
   const catcher = createCatcher({ now: () => clock, newId: () => "w-1" });
   const window = catcher.open(SPEC);
@@ -60,6 +60,11 @@ function setup(inbox: (tick: number) => FullMessage[] | Error) {
     getFull: async (id) => {
       fetched.push(id);
       fetchTicks.push(queries.length);
+      const fail = failFetchOnce.indexOf(id);
+      if (fail >= 0) {
+        failFetchOnce.splice(fail, 1);
+        throw new Error("Gmail answered 503");
+      }
       const m = current.find((x) => x.id === id);
       if (!m) throw new Error("not found");
       return m;
@@ -90,7 +95,7 @@ describe("pollWindow", () => {
     const { deps, window, queries } = setup(() => [message("m-1", 1_000)]);
     await pollWindow(deps, window);
     // 2026-11-25T12:00:00Z is 1795608000; a minute's slack for clock skew.
-    expect(queries).toEqual(["from:(myworkday.com OR acme.example.com) after:1795607940"]);
+    expect(queries).toEqual(['from:("myworkday.com" OR "acme.example.com") after:1795607940']);
   });
 
   it("fetches a message once, however many ticks list it", async () => {
@@ -124,6 +129,12 @@ describe("pollWindow", () => {
       tick === 1 ? new Error("socket hang up") : [message("m-1", 6_000)],
     );
     expect((await pollWindow(deps, window)).status).toBe("verified");
+  });
+
+  it("fetches a message again next tick when its first fetch failed", async () => {
+    const { deps, window, fetched } = setup(() => [message("m-1", 1_000)], ["m-1"]);
+    expect((await pollWindow(deps, window)).status).toBe("verified");
+    expect(fetched).toEqual(["m-1", "m-1"]);
   });
 
   it("stops with needs_human when the catcher hands the step off", async () => {
