@@ -227,8 +227,15 @@ export async function withdrawClosedApplications(
   }
   // Then close the Gate requests those applications can never use (NS-239), including any left by
   // an earlier pass or a run that stopped between the two steps.
-  const requests = await closeRequestsOfWithdrawn(db, candidateId, closed);
-  return { withdrawn, failed: failed + requests.failed };
+  // `failed` counts these too: an application that couldn't be moved, or a request that couldn't
+  // be closed. A failed read here counts once and never hides the moves already made.
+  let requestsFailed = 0;
+  try {
+    requestsFailed = (await closeRequestsOfWithdrawn(db, candidateId, closed)).failed;
+  } catch {
+    requestsFailed = 1;
+  }
+  return { withdrawn, failed: failed + requestsFailed };
 }
 
 // The open application_package requests of every withdrawn application on a closed job, closed
@@ -251,21 +258,38 @@ async function closeRequestsOfWithdrawn(
       ),
     );
   if (apps.length === 0) return { closed: 0, failed: 0 };
-  // Each round-opening move's key names its package: application:<id>:package:<uuid>:package_ready.
-  const keys = await db
-    .select({ key: domainEvent.idempotencyKey })
+  // Only applications withdrawn because the posting closed (NS-218's move key), never one Paul
+  // withdrew himself or one that had already gone out.
+  const movedForClosure = await db
+    .select({ aggregate: domainEvent.aggregate })
     .from(domainEvent)
     .where(
       and(
         eq(domainEvent.candidateId, candidateId),
         inArray(
-          domainEvent.aggregate,
-          apps.map((a) => `application:${a.id}`),
+          domainEvent.idempotencyKey,
+          apps.map((a) => `application:${a.id}:posting_closed`),
         ),
+      ),
+    );
+  const closedApps = movedForClosure.map((e) => e.aggregate);
+  if (closedApps.length === 0) return { closed: 0, failed: 0 };
+  // Each round-opening move's key names its package: application:<id>:package:<uuid>:package_ready.
+  const keys = await db
+    .select({ key: domainEvent.idempotencyKey, aggregate: domainEvent.aggregate })
+    .from(domainEvent)
+    .where(
+      and(
+        eq(domainEvent.candidateId, candidateId),
+        inArray(domainEvent.aggregate, closedApps),
         sql`${domainEvent.idempotencyKey} ~ '^application:[0-9a-f-]{36}:package:[0-9a-f-]{36}:package_ready$'`,
       ),
     );
-  const subjects = keys.map((k) => `application_package:${k.key.split(":")[3]}`);
+  // The key's application must be the event's own, so a subject names only that application's
+  // packages.
+  const subjects = keys
+    .filter((k) => `application:${k.key.split(":")[1]}` === k.aggregate)
+    .map((k) => `application_package:${k.key.split(":")[3]}`);
   if (subjects.length === 0) return { closed: 0, failed: 0 };
   const open = await db
     .select({ id: approvalRequest.id })

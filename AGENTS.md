@@ -480,7 +480,8 @@ Exists now:
   claims. Since NS-239 the same pass also closes each withdrawn application's open
   `application_package` Gate request through `withdrawApproval` by `system` (reason
   `posting_closed`; feed "An approval request was closed because the job's posting closed"),
-  found from its own package rounds, so it leaves the Queue and `verifyApproval` refuses it.
+  found from its own package rounds, so it leaves the Queue and `verifyApproval` refuses it; a
+  request it couldn't close counts in the pass's `failed`.
   Since NS-227 (slice 1) also a job's application form: `readGreenhouseForm`
   (`ats/greenhouse-form.ts`) reads a Greenhouse posting's `questions` (`?questions=true`, through
   `safeFetch`) into fields with their label, required flag, kind (`text`, `textarea`, `select`,

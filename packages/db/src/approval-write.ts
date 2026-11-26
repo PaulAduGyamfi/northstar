@@ -884,8 +884,9 @@ const WITHDRAW_SENTENCE = {
 
 export type WithdrawResult = { withdrawalId: string; requestId: string; decisionId: string | null };
 
-// Closes a request (NS-140, APR-004): Paul withdraws a pending or approved request, or a gateway
-// withdraws an approval whose content changed for good. A withdrawn request is neither pending nor
+// Closes a request (NS-140, APR-004): Paul withdraws a pending or approved request, a gateway
+// withdraws an approval whose content changed for good, or (NS-239) the system closes an
+// application package's request because the job's posting closed. A withdrawn request is neither pending nor
 // approved: verifyApproval refuses it, it leaves the queue, and its subject may be requested
 // again (after Paul's withdrawal, that request always waits for him). The trigger (migration
 // 0037) takes the same locks an undo does, so a withdrawal and a gateway's check never overlap.
@@ -909,6 +910,8 @@ export async function withdrawApproval(
         if (code === UNIQUE_VIOLATION) return err({ kind: "AlreadyClosed" });
         // The trigger refused it: rejected (closed) in the meantime, or no longer an approval.
         if (code === CHECK_VIOLATION) {
+          // A system withdrawal the trigger refuses is of the wrong kind (the code checks first).
+          if (input.by === "system") return err({ kind: "NotFound" });
           return err({ kind: input.by === "gateway" ? "NotApproved" : "AlreadyClosed" });
         }
         throw error;

@@ -84,7 +84,7 @@ const PKG = "0b6f3f8e-6a55-4c7e-9a52-5d6b2f8a1c01";
 
 describe("withdrawClosedApplications closes the Gate request too (NS-239)", () => {
   it("closes a withdrawn application's pending request, once, and says why", async () => {
-    const requestId = await fileRound(PKG);
+    await fileRound(PKG);
     await closeJob();
     const first = await withdrawClosedApplications(db, candidateId);
     const second = await withdrawClosedApplications(db, candidateId);
@@ -101,13 +101,11 @@ describe("withdrawClosedApplications closes the Gate request too (NS-239)", () =
         (e.payload as Record<string, unknown>).withdrawnBy,
         (e.payload as Record<string, unknown>).reason,
       ]),
-      requestId.length,
     ]).toEqual([
       { withdrawn: 1, failed: 0 },
       { withdrawn: 0, failed: 0 },
       [],
       [["system", "system", "posting_closed"]],
-      36,
     ]);
   });
 
@@ -130,6 +128,23 @@ describe("withdrawClosedApplications closes the Gate request too (NS-239)", () =
       contentSha256: SHA,
     });
     expect(verified).toEqual({ ok: false, error: { kind: "Withdrawn" } });
+  });
+
+  it("skips a request Paul already rejected, and counts nothing as failed", async () => {
+    const requestId = await fileRound(PKG);
+    await decideApprovals(db, {
+      candidateId,
+      requestIds: [requestId],
+      decision: "reject",
+      reason: "Not this one",
+    });
+    await closeJob();
+    const result = await withdrawClosedApplications(db, candidateId);
+    const withdrawals = await db
+      .select({ id: domainEvent.id })
+      .from(domainEvent)
+      .where(eq(domainEvent.type, "approval.withdrawn"));
+    expect([result, withdrawals.length]).toEqual([{ withdrawn: 1, failed: 0 }, 0]);
   });
 
   it("closes a request an earlier pass left open, and leaves an open job's request alone", async () => {
@@ -157,6 +172,29 @@ describe("withdrawClosedApplications closes the Gate request too (NS-239)", () =
       (await listPendingApprovals(db, candidateId)).map((p) => p.requestId),
       requestId === otherRequest,
     ]).toEqual([{ withdrawn: 0, failed: 0 }, [otherRequest], false]);
+  });
+});
+
+describe("only applications withdrawn because the posting closed (NS-239)", () => {
+  it("leaves the request of an application withdrawn for another reason open", async () => {
+    const requestId = await fileRound(PKG);
+    // Paul withdrew the application himself, then the posting closed.
+    await transitionApplication(db, {
+      candidateId,
+      applicationId: ApplicationId.parse(applicationId),
+      from: "awaiting_approval",
+      to: "withdrawn",
+      actor: "user",
+      reason: "Paul withdrew it",
+      inputsSummary: "",
+      links: [],
+      idempotencyKey: `application:${applicationId}:withdrawn_by_paul`,
+    });
+    await closeJob();
+    expect([
+      await withdrawClosedApplications(db, candidateId),
+      (await listPendingApprovals(db, candidateId)).map((p) => p.requestId),
+    ]).toEqual([{ withdrawn: 0, failed: 0 }, [requestId]]);
   });
 });
 
