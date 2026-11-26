@@ -165,6 +165,14 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   append-only, written only through `mail-link-write.ts`. They hold Gmail ids, tags, steps and
   reasons: never an address, subject, sender or body. A link never changes an application's
   status; `sender_verified` is what a later automatic change must require (INB-011).
+- Verification windows (NS-151) are `verification_window`, `verification_window_restart` (one
+  per window), `verification_window_close` (one per window) and `verification_used_message` (one
+  per candidate and Gmail id), append-only (triggers), written only through
+  `verification-write.ts`. Every race is a unique constraint, and restart and close lock the
+  window row first; a close refuses when the window was restarted after the caller read it
+  (`seenResent`). They hold names, domains, hosts, times and Gmail ids: never a code, link,
+  subject, body or sender address. Their events carry the window id, tenant, ATS, purpose and
+  outcome only.
 - Human handoffs (NS-121) are `apply_handoff` (one per submission a challenge stopped, with its
   https apply URL) and `apply_handoff_done` (one outcome per handoff, `submitted` or `gave_up`),
   append-only (triggers), written only through `handoff-write.ts`: `openHandoff` inside

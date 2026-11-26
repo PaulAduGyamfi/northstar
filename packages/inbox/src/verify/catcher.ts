@@ -136,6 +136,102 @@ const verifiedLine = (w: VerificationWindow) => `Verified email for ${w.tenant} 
 const handoffLine = (w: VerificationWindow) =>
   `Couldn't verify email for ${w.tenant} (${w.ats}): needs your hands`;
 
+export { handoffLine, verifiedLine };
+
+// One span per decision, with ids and outcome only: never the code, link, subject or sender.
+// Shared with the stored catcher (NS-151), so both report the same way.
+export function recordCatch(
+  w: VerificationWindow,
+  kind: "code" | "link" | "none",
+  outcome: string,
+  assisted = false,
+  pickError = false,
+): void {
+  trace
+    .getTracer("@northstar/inbox")
+    .startSpan("verification.catch", {
+      attributes: {
+        "verification.window_id": w.id,
+        "verification.tenant": w.tenant,
+        "verification.ats": w.ats,
+        "verification.purpose": w.purpose,
+        "verification.kind": kind,
+        "verification.outcome": outcome,
+        // Only when a pick (the model fallback) was asked; never what it chose.
+        ...(assisted ? { "verification.assisted": true } : {}),
+        // The pick threw (model down, transport error), as opposed to answering null. A flag
+        // only: the error's message could quote the email.
+        ...(pickError ? { "verification.pick_error": true } : {}),
+      },
+    })
+    .end();
+}
+
+// Whether a message is for this window: an allowlisted sender Gmail authenticated, received
+// inside the window (VER-002).
+export function windowMatches(w: VerificationWindow, m: VerificationMessage): boolean {
+  const domain = m.senderDomain.toLowerCase();
+  return (
+    m.receivedAt.getTime() >= w.openedAt.getTime() &&
+    m.receivedAt.getTime() <= w.expiresAt.getTime() &&
+    w.senderDomains.some((d) => underDomain(domain, d)) &&
+    // The From domain alone is forgeable: Gmail must have verified it (DMARC or DKIM pass), in
+    // the header Gmail itself wrote.
+    GMAIL_AUTHSERV.test(m.authenticationResults ?? "") &&
+    isAuthenticatedSender({ senderDomain: domain, authenticationResults: m.authenticationResults })
+  );
+}
+
+// Checks a spec and builds its window opened at `now`, with its duration (VER-001).
+export function buildWindow(
+  spec: WindowSpec,
+  id: string,
+  now: Date,
+): { window: VerificationWindow; ttlMs: number } {
+  if (spec.senderDomains.length === 0) {
+    throw new Error("a verification window needs at least one sender domain");
+  }
+  const ttlMs = Math.min(spec.ttlMs ?? DEFAULT_WINDOW_MS, MAX_WINDOW_MS);
+  if (!(ttlMs > 0)) throw new Error("a verification window needs a positive duration");
+  const senderDomains = allowlist(spec.senderDomains, "sender domains");
+  const linkHosts = allowlist(spec.linkHosts, "link hosts");
+  const window: VerificationWindow = Object.freeze({
+    id,
+    tenant: spec.tenant,
+    ats: spec.ats,
+    purpose: spec.purpose,
+    senderDomains,
+    linkHosts,
+    openedAt: now,
+    expiresAt: new Date(now.getTime() + ttlMs),
+  });
+  return { window, ttlMs };
+}
+
+// What a message for a window holds: one code or link to use, several to choose among, nothing,
+// or too much text to scan. A code wins over links: verify mails often carry both.
+export type Examined =
+  | { kind: "too_large" }
+  | { kind: "code" | "link"; value: string }
+  | { kind: "ambiguous"; which: "code" | "link"; candidates: string[]; body: string }
+  | { kind: "none" };
+
+export function examineMessage(message: VerificationMessage): Examined {
+  if (message.text.length > MAX_BODY_CHARS || (message.html?.length ?? 0) > MAX_BODY_CHARS) {
+    return { kind: "too_large" };
+  }
+  const { codes, links } = extractVerification(message.text, message.html);
+  if (codes.length > 1 || (codes.length === 0 && links.length > 1)) {
+    const body = message.text.trim() !== "" ? message.text : htmlToText(message.html ?? "");
+    return codes.length > 1
+      ? { kind: "ambiguous", which: "code", candidates: codes, body }
+      : { kind: "ambiguous", which: "link", candidates: links, body };
+  }
+  if (codes.length === 1) return { kind: "code", value: codes[0] as string };
+  if (links.length === 1) return { kind: "link", value: links[0] as string };
+  return { kind: "none" };
+}
+
 export function createCatcher(deps: { now: () => Date; newId?: () => string }): Catcher {
   const newId = deps.newId ?? randomUUID;
   // Open windows only: a window is removed the moment it closes, so the map stays small.
@@ -143,34 +239,7 @@ export function createCatcher(deps: { now: () => Date; newId?: () => string }): 
   // Message ids already given to a window (one email verifies at most one step), with the time
   // each was received, so entries no open window could ever match again can be dropped.
   const usedMessages = new Map<string, number>();
-  const tracer = trace.getTracer("@northstar/inbox");
-
-  // One span per decision, with ids and outcome only: never the code, link, subject or sender.
-  function record(
-    w: VerificationWindow,
-    kind: "code" | "link" | "none",
-    outcome: string,
-    assisted = false,
-    pickError = false,
-  ): void {
-    tracer
-      .startSpan("verification.catch", {
-        attributes: {
-          "verification.window_id": w.id,
-          "verification.tenant": w.tenant,
-          "verification.ats": w.ats,
-          "verification.purpose": w.purpose,
-          "verification.kind": kind,
-          "verification.outcome": outcome,
-          // Only when a pick (the model fallback) was asked; never what it chose.
-          ...(assisted ? { "verification.assisted": true } : {}),
-          // The pick threw (model down, transport error), as opposed to answering null. A flag
-          // only: the error's message could quote the email.
-          ...(pickError ? { "verification.pick_error": true } : {}),
-        },
-      })
-      .end();
-  }
+  const record = recordCatch;
 
   function close(w: VerificationWindow): void {
     windows.delete(w.id);
@@ -185,42 +254,10 @@ export function createCatcher(deps: { now: () => Date; newId?: () => string }): 
     }
   }
 
-  function matches(s: State, m: VerificationMessage): boolean {
-    const w = s.window;
-    const domain = m.senderDomain.toLowerCase();
-    return (
-      m.receivedAt.getTime() >= w.openedAt.getTime() &&
-      m.receivedAt.getTime() <= w.expiresAt.getTime() &&
-      w.senderDomains.some((d) => underDomain(domain, d)) &&
-      // The From domain alone is forgeable: Gmail must have verified it (DMARC or DKIM pass),
-      // in the header Gmail itself wrote.
-      GMAIL_AUTHSERV.test(m.authenticationResults ?? "") &&
-      isAuthenticatedSender({
-        senderDomain: domain,
-        authenticationResults: m.authenticationResults,
-      })
-    );
-  }
+  const matches = (s: State, m: VerificationMessage) => windowMatches(s.window, m);
 
   function open(spec: WindowSpec): VerificationWindow {
-    if (spec.senderDomains.length === 0) {
-      throw new Error("a verification window needs at least one sender domain");
-    }
-    const ttlMs = Math.min(spec.ttlMs ?? DEFAULT_WINDOW_MS, MAX_WINDOW_MS);
-    if (!(ttlMs > 0)) throw new Error("a verification window needs a positive duration");
-    const senderDomains = allowlist(spec.senderDomains, "sender domains");
-    const linkHosts = allowlist(spec.linkHosts, "link hosts");
-    const openedAt = deps.now();
-    const window: VerificationWindow = Object.freeze({
-      id: newId(),
-      tenant: spec.tenant,
-      ats: spec.ats,
-      purpose: spec.purpose,
-      senderDomains,
-      linkHosts,
-      openedAt,
-      expiresAt: new Date(openedAt.getTime() + ttlMs),
-    });
+    const { window, ttlMs } = buildWindow(spec, newId(), deps.now());
     windows.set(window.id, { window, ttlMs, resent: false });
     return window;
   }
@@ -285,19 +322,13 @@ export function createCatcher(deps: { now: () => Date; newId?: () => string }): 
     const w = (candidates[0] as State).window;
     usedMessages.set(message.messageId, message.receivedAt.getTime());
 
-    if (message.text.length > MAX_BODY_CHARS || (message.html?.length ?? 0) > MAX_BODY_CHARS) {
-      return { done: needsHuman(w, "none", "message_too_large") };
+    const found = examineMessage(message);
+    if (found.kind === "too_large") return { done: needsHuman(w, "none", "message_too_large") };
+    if (found.kind === "ambiguous") {
+      const { which: kind, candidates, body } = found;
+      return { ambiguous: { window: w, kind, candidates, body } };
     }
-    const { codes, links } = extractVerification(message.text, message.html);
-    // A code wins over links: verify mails often carry both, and a code needs no navigation.
-    if (codes.length > 1 || (codes.length === 0 && links.length > 1)) {
-      const body = message.text.trim() !== "" ? message.text : htmlToText(message.html ?? "");
-      return codes.length > 1
-        ? { ambiguous: { window: w, kind: "code", candidates: codes, body } }
-        : { ambiguous: { window: w, kind: "link", candidates: links, body } };
-    }
-    if (codes.length === 1) return { done: deliver(w, "code", codes[0] as string) };
-    if (links.length === 1) return { done: deliver(w, "link", links[0] as string) };
+    if (found.kind !== "none") return { done: deliver(w, found.kind, found.value) };
     // From the right sender but nothing to use (a welcome mail): the window keeps waiting.
     record(w, "none", "no_code_or_link");
     return { done: { status: "no_code_or_link", windowId: w.id } };

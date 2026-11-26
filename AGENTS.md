@@ -238,6 +238,12 @@ Exists now:
   decided on #89), offers only new messages to the catcher (10 a tick) and stops on `verified`,
   `needs_human` or the window's end (`timed_out`, then `catcher.timeout`). A failed tick, or an
   open `gmail` breaker, just waits for the next. No caller yet (the gateway session, NS-151).
+  Since NS-151 also `createStoredCatcher` (`src/verify/stored-catcher.ts`): the same rules, async
+  over a `WindowStore`, so the mail reader and the gateway share windows and survive a restart.
+  The store settles every race: a message is claimed before it is read, and a result is handed out
+  only by the call whose close won (a close loses if the window was resent since it was read).
+  `createCatcher` shares the pure rules (`windowMatches`, `buildWindow`, `examineMessage`).
+  `@northstar/db`'s `dbWindowStore` is the store; no caller yet (the gateway session, NS-142).
   Since NS-150 also `isVerificationMail` (headers) and `hasVerificationCode` (body), which the
   funnel backfill uses to drop ATS verification mail before it is classified, sent to the model
   or stored (VER-005).
@@ -397,6 +403,13 @@ Exists now:
   `GET /handoffs` and `POST /handoffs/resolve`, and Today shows a "Needs your hands" card. Paul's
   "I submitted it" moves the application `needs_human` → `submitted` once
   (`application:<id>:handoff:<handoffId>:submitted`). No pre-fill through the extension yet.
+- Verification windows (NS-151, VER-001…006) in `packages/db` (`verification-schema.ts`,
+  `verification-write.ts`, append-only): `verification_window`, one `verification_window_restart`
+  and one `verification_window_close` per window, and `verification_used_message` (one window per
+  Gmail id). `dbWindowStore(db, candidateId)` serves `createStoredCatcher`. Closes and the resend
+  write `verification.verified`, `verification.needs_human` or `verification.resend` (window id,
+  tenant, ATS, purpose and outcome only; feed "Verified email for Acme (Workday)"). Never a code,
+  link, subject, body or address.
 - The tenant registry and consent policy (NS-124, ACC-001/006/008) in `packages/db`
   (`tenant-schema.ts`, `tenant-write.ts`, `consent-schema.ts`, `consent-write.ts`; append-only):
   - `employer_tenant`: one row per employer tenant (the vault's `<ats>:<tenant>` key, https URL,
