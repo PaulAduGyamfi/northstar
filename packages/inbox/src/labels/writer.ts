@@ -1,6 +1,6 @@
 import { admit, type CallGuard, type GuardOutcome } from "@northstar/llm";
 import { type Span, SpanStatusCode, trace } from "@opentelemetry/api";
-import type { GmailAccess } from "../oauth.js";
+import type { GmailLabelAccess } from "./access.js";
 import { LABEL_NAMES } from "./names.js";
 
 // The Gmail label writer (NS-229, ADR-0027, Proposed). It only ever adds Northstar's own labels to
@@ -14,13 +14,35 @@ const LABELS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/labels";
 const THREADS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/threads";
 // Gmail's message, thread and label ids: letters, digits and `_` (label ids look like Label_12).
 const GMAIL_ID = /^[A-Za-z0-9_]{1,64}$/;
+// Our names by their lower-case form, to find a label Gmail already has under another case.
+const BY_LOWER = new Map([...LABEL_NAMES].map((n) => [n.toLowerCase(), n]));
+// The dots in the host are escaped, so only Gmail's own host matches.
+const MODIFY_URL = new RegExp(`^${THREADS_URL.replaceAll(".", "\\.")}/[A-Za-z0-9_]{1,64}/modify$`);
+
+// Whether a request is one the writer may send (ADR-0027): list or create labels, or add labels to
+// one thread with a body whose only key is addLabelIds. Checked on every request, below the text
+// scan in boundary.test.ts.
+export function requestAllowed(method: string, url: string, body: unknown): boolean {
+  if (url === LABELS_URL) return method === "GET" || method === "POST";
+  if (method !== "POST" || !MODIFY_URL.test(url) || typeof body !== "string") return false;
+  try {
+    const parsed: unknown = JSON.parse(body);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return false;
+    const keys = Object.keys(parsed);
+    return keys.length === 1 && keys[0] === "addLabelIds";
+  } catch {
+    return false;
+  }
+}
+
 // The breaker every Gmail call goes through, and this writer's own kill switch (ADR-0007).
 export const LABELS_DEPENDENCY = "gmail";
 export const LABELS_SUBSYSTEM = "gmail_labels";
 const TIMEOUT_MS = 30_000;
 
 export type LabelWriterDeps = {
-  access: GmailAccess;
+  // Its own token type: never the mail reader's GmailAccess (ADR-0027).
+  access: GmailLabelAccess;
   fetch: typeof fetch;
   // Required: labels never go out unguarded.
   guard: CallGuard;
@@ -53,9 +75,13 @@ export function createLabelWriter(deps: LabelWriterDeps): LabelWriter {
   // Label name → id, read once per writer (one run). Filled again after a create conflict.
   let known: Map<string, string> | null = null;
 
-  // One request through the kill switch and the breaker. Only Gmail's own trouble (no answer,
+  // One request through the allowlist, the kill switch and the breaker. Only Gmail's own trouble (no answer,
   // 429, 5xx) counts against the breaker; a 4xx means Gmail answered.
   async function call(url: string, init: RequestInit, span: Span): Promise<Response> {
+    // The runtime allowlist: whatever the code around it becomes, only these requests go out.
+    if (!requestAllowed(init.method ?? "GET", url, init.body)) {
+      throw new LabelInputError("request outside the label writer's allowlist");
+    }
     const admission = await admit(deps.guard, {
       subsystem: LABELS_SUBSYSTEM,
       dependency: LABELS_DEPENDENCY,
@@ -99,18 +125,15 @@ export function createLabelWriter(deps: LabelWriterDeps): LabelWriter {
   async function listLabels(span: Span): Promise<Map<string, string>> {
     const res = await call(LABELS_URL, { method: "GET" }, span);
     if (!res.ok) await fail(res, "list labels");
-    const body = (await res.json()) as { labels?: { id?: unknown; name?: unknown }[] };
+    const body = (await readJson(res, "list labels")) as {
+      labels?: { id?: unknown; name?: unknown }[];
+    };
     const map = new Map<string, string>();
     for (const l of body.labels ?? []) {
       // Only our own names matter, and only ids of Gmail's shape are ever put in a URL or body.
-      if (
-        typeof l.name === "string" &&
-        LABEL_NAMES.has(l.name) &&
-        typeof l.id === "string" &&
-        GMAIL_ID.test(l.id)
-      ) {
-        map.set(l.name, l.id);
-      }
+      // Gmail compares label names without case, so "northstar/offer" is our Northstar/Offer.
+      const ours = typeof l.name === "string" ? BY_LOWER.get(l.name.toLowerCase()) : undefined;
+      if (ours && typeof l.id === "string" && GMAIL_ID.test(l.id)) map.set(ours, l.id);
     }
     return map;
   }
@@ -141,7 +164,7 @@ export function createLabelWriter(deps: LabelWriterDeps): LabelWriter {
       return { id, created: false };
     }
     if (!res.ok) await fail(res, "create label");
-    const body = (await res.json()) as { id?: unknown };
+    const body = (await readJson(res, "create label")) as { id?: unknown };
     if (typeof body.id !== "string" || !GMAIL_ID.test(body.id)) {
       throw new LabelWriteError("create label: Gmail answered without a label id", res.status);
     }
@@ -201,5 +224,15 @@ async function errorReason(res: Response): Promise<string> {
     return typeof reason === "string" && /^[A-Za-z]{1,40}$/.test(reason) ? reason : "";
   } catch {
     return "";
+  }
+}
+
+// A success body, or a LabelWriteError: a parse error's message can quote the body (for a list,
+// Paul's own label names), so it never reaches the caller.
+async function readJson(res: Response, what: string): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch {
+    throw new LabelWriteError(`${what}: Gmail sent an unreadable answer`, res.status);
   }
 }

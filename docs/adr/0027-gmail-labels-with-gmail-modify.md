@@ -1,6 +1,7 @@
 # ADR-0027 — Gmail labels with `gmail.modify`, held only by a label writer that adds labels
 
-**Status:** Proposed · **Date:** 2026-11-26
+**Status:** Proposed · **Date:** 2026-11-26 · Amends ADR-0014 (scope only; its token model is
+unchanged)
 
 ## Context
 INB-008 puts an origin label on every linked thread (`Northstar/Started-by-Northstar` or
@@ -17,7 +18,14 @@ delegation ("Anything needed from my use your recommended choice"), and this ADR
 ## Decision
 1. **Labels use `https://www.googleapis.com/auth/gmail.modify`.** Only a label writer
    (`packages/inbox/src/labels/`) receives a token with that scope.
-   - It runs in its own OAuth flow.
+   - It runs in its own OAuth flow, with **its own Google OAuth client**. Google can remember a
+     grant per client and hand it back on a later consent, so sharing the reader's client could
+     put `gmail.modify` into a read-only run.
+   - Its token has its own type, `GmailLabelAccess`, which TypeScript can't pass where the mail
+     reader's `GmailAccess` is expected, or the other way round. A type test proves both. Only
+     the label consent flow constructs one.
+   - The reader's exact-scope refusal stays (`authorizeGmail` refuses any grant other than
+     `gmail.readonly`). It must never be loosened to get past a remembered grant.
    - The mail reader, triage, the Verification Catcher and the draft writer keep their own scopes.
    - So code that reads untrusted mail never holds a token that can change the mailbox.
 2. **The token model stays ADR-0014's:** desktop OAuth with PKCE, the access token in memory for
@@ -30,10 +38,14 @@ delegation ("Anything needed from my use your recommended choice"), and this ADR
    It never removes a label, never touches a system label (INBOX, UNREAD, SPAM, TRASH,
    IMPORTANT, STARRED), and never sends, trashes, deletes, drafts or makes filters. These hold it
    to that:
-   - its URLs come from constants;
-   - its label names come only from fixed tables in code, never from mail text or model output;
-   - a boundary test fails if any file under `src/labels/` names a forbidden Gmail path or
-     `removeLabelIds`.
+   - **The guarantee is a runtime allowlist.** Every request passes `requestAllowed` first:
+     exactly the labels URL (GET or POST), or a POST to one checked thread id's `modify` with a
+     body whose only key is `addLabelIds`. Anything else is refused before it is sent.
+   - Its label names come only from fixed tables in code, never from mail text or model output,
+     and only Gmail ids of our own names are ever added.
+   - A text scan in a boundary test is a tripwire, not the guarantee. It fails if any file under
+     `src/labels/`, recursively, names a forbidden Gmail path, `removeLabelIds` or a method
+     other than GET and POST.
 4. **Labels don't go through the Approval Gate.** A label is organisation inside Paul's own
    mailbox: nothing goes out under his name, and he can remove it in one click. ADR-0002 covers
    what is sent, submitted or written outside.
@@ -41,7 +53,10 @@ delegation ("Anything needed from my use your recommended choice"), and this ADR
    already exists is looked up, not created twice (RES-006).
 6. **The writer is guarded.** It runs behind the `gmail` breaker and its own `gmail_labels` kill
    switch (ADR-0007). A held-back call sends nothing and is retried by its caller.
-7. **No code requests the scope until Paul accepts this ADR.** He also adds it to the Google OAuth
+7. **The caller records the feed event.** The writer emits a span (counts only). The mail-link
+   loop that calls it writes one domain event per labelled thread, carrying the application id and
+   the label count, never the thread id or the names (OBS-001).
+8. **No code requests the scope until Paul accepts this ADR.** He also adds it to the Google OAuth
    client's consent screen himself. Until then the writer has no caller and labels show only in
    the app (INB-006's badges).
 

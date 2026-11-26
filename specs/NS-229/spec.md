@@ -31,7 +31,8 @@ that decides the scope and the token model, then the label writer.
      `Northstar/Started-by-Northstar`; `outside` and `recruiter_inbound` → `Northstar/Outside`;
      `unknown` gives none.
    - Names come only from these fixed tables, never from mail text.
-3. **`createLabelWriter(deps).labelThread(threadId, names)`**
+3. **`createLabelWriter(deps).labelThread(threadId, names)`**, with its own token type
+   `GmailLabelAccess`, which can't be passed to the mail reader (a type test)
    (`packages/inbox/src/labels/writer.ts`):
    - **Checks:** refuses any name not in the fixed set, and a thread id that isn't Gmail's plain
      id shape.
@@ -43,9 +44,11 @@ that decides the scope and the token model, then the label writer.
      (`admit`). Held back is a retryable `HeldBack`, with nothing sent.
    - **Failures:** an error names Gmail's status and reason only, and a span carries counts and
      statuses only.
-   - **URLs** are built from constants and the checked ids.
-4. **A boundary test** fails if any file in `src/labels/` names a Gmail path for send, trash,
-   delete, `removeLabelIds`, drafts or filters.
+   - **URLs** are built from constants and the checked ids, and every request passes the runtime
+     allowlist `requestAllowed` first.
+4. **A boundary test** (a tripwire under the allowlist) fails if any file under `src/labels/`,
+   recursively, names a Gmail path for send, trash, delete, `removeLabelIds`, drafts or filters,
+   or a method other than GET and POST.
 
 ## Acceptance criteria
 - [ ] `threadLabels` maps every kind and origin as above.
@@ -70,3 +73,7 @@ that decides the scope and the token model, then the label writer.
 - **The writer is built now against a fake Gmail.** It holds no token of its own, and no caller
   yet.
 - **A new kill switch, `gmail_labels`.** It needs no schema: kill switches are named rows.
+- **An unknown origin gets no origin label.** INB-008 says every linked thread gets one, but an
+  application whose origin isn't known yet gets none rather than a guess.
+- **The feed event is the caller's (#224).** It is one per labelled thread, with the application
+  id and the label count only (ADR-0027 item 7).

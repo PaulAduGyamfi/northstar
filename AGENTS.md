@@ -298,8 +298,10 @@ Exists now:
   origin label (`Started-by-Northstar` or `Outside`, INB-008), and `createLabelWriter` lists,
   creates missing `Northstar/` labels and calls `threads.modify` with `addLabelIds` only, behind
   the `gmail` breaker and the `gmail_labels` kill switch, refusing any other name or a non-Gmail
-  id. A boundary test refuses send, trash, delete, `removeLabelIds`, drafts, filters or message
-  writes in `src/labels/`. No scope request or caller until Paul accepts ADR-0027.
+  id. Its token is its own type, `GmailLabelAccess` (never the reader's `GmailAccess`, a type
+  test), and every request passes the runtime allowlist `requestAllowed`; a recursive boundary
+  scan is the tripwire. The caller (#224) writes the feed event. No scope request or caller until
+  Paul accepts ADR-0027 (its own OAuth client).
 - Interview detection (NS-169, CAL-002), slice 1, plain code in `packages/inbox`
   (`src/interview/detect.ts`):
   - `detectInterview` turns one calendar event into an interview for one application. The title

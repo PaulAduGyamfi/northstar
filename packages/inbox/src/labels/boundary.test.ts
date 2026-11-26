@@ -3,8 +3,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 // ADR-0027: the label writer's token has gmail.modify, which can also send, trash and remove. The
-// code under src/labels/ may only list labels, create labels and add labels to a thread, so no
-// file here (tests aside) may name any other Gmail write.
+// code under src/labels/ may only list labels, create labels and add labels to a thread. This text
+// scan is a tripwire, not the guarantee: `requestAllowed` checks every request at run time.
 const FORBIDDEN = [
   /\bsend\b/i,
   /\/trash\b/i,
@@ -16,7 +16,8 @@ const FORBIDDEN = [
   /\/filters\b/i,
   /\/messages\b/,
   /batchModify/,
-  /"DELETE"|"PUT"|"PATCH"/,
+  // Any quote style, a template or a bare word: only GET and POST are ever sent.
+  /\b(DELETE|PUT|PATCH)\b/,
 ];
 
 // Comments are left out: the writer's comments say what it must never do.
@@ -29,7 +30,10 @@ export function forbiddenIn(source: string): string[] {
 }
 
 const dir = fileURLToPath(new URL(".", import.meta.url));
-const sources = readdirSync(dir).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"));
+// Recursive: a file in a sub-folder is scanned too.
+const sources = (readdirSync(dir, { recursive: true }) as string[]).filter(
+  (f) => f.endsWith(".ts") && !f.endsWith(".test.ts"),
+);
 
 describe("the label writer's boundary", () => {
   it.each(sources)("%s names no Gmail write beyond adding labels", (file) => {
@@ -39,6 +43,7 @@ describe("the label writer's boundary", () => {
   it("catches a forbidden call if one is added", () => {
     expect(forbiddenIn('THREADS + "/" + id + "/trash"')).not.toEqual([]);
     expect(forbiddenIn("JSON.stringify({ removeLabelIds: ids })")).not.toEqual([]);
+    expect(forbiddenIn("const method = `PATCH`;")).not.toEqual([]);
     expect(
       forbiddenIn('"https://gmail.googleapis.com/gmail/v1/users/me/messages/send"'),
     ).not.toEqual([]);
@@ -49,7 +54,7 @@ describe("the label writer's boundary", () => {
     expect(forbiddenIn('const url = base + "/send"; // fine?')).not.toEqual([]);
   });
 
-  it("checks both of the writer's files", () => {
-    expect(sources.sort()).toEqual(["names.ts", "writer.ts"]);
+  it("checks each of the writer's files", () => {
+    expect(sources.sort()).toEqual(["access.ts", "names.ts", "writer.ts"]);
   });
 });
