@@ -477,6 +477,34 @@
       "when": 1795696603380,
       "tag": "0067_growth_check_ins_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1795707279430,
+      "tag": "0068_job_form",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1795707280928,
+      "tag": "0069_job_form_append_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1795708525102,
+      "tag": "0070_stored_file",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1795708531684,
+      "tag": "0071_stored_file_append_only",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,7 @@ import type { JobListItem, SetFieldError } from "@northstar/db";
 import type { Result } from "@northstar/domain";
 import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
 import { FIT_USAGE, type FitCliDeps, fitCommand, scoreAfter } from "./fit/cli.js";
+import { type FormCliDeps, formCommand } from "./form-cli.js";
 import type { IngestResult } from "./ingest.js";
 import type { CheckPassSummary } from "./liveness.js";
 import { ageHours, freshness, queueScore } from "./queue.js";
@@ -29,6 +30,8 @@ export type CliDeps = {
   fit: FitCliDeps;
   // One liveness pass over the jobs due a re-check (NS-173, SRC-010).
   check: () => Promise<CheckPassSummary>;
+  // A saved job's application form (NS-227): its own usage line, so USAGE stays as it was.
+  form: FormCliDeps;
 };
 
 const USAGE = `usage: jobs add <url> | jobs add --text <file> --url <url> | jobs list | jobs set <job-id> <field> <value>\n       jobs watch add <board-url> --tier 1|2|3 | jobs watch list | jobs watch remove|retry <id> | jobs poll | jobs run\n       jobs check\n${FIT_USAGE}`;
@@ -58,6 +61,8 @@ export async function main(deps: CliDeps): Promise<number> {
     const [id, field, ...value] = rest;
     if (id && field) return scored(deps, await setCommand(deps, id, field, value.join(" ")));
   }
+  const form = await formCommand({ ...deps.form, print: deps.print }, deps.argv);
+  if (form !== null) return form;
   const fit = await fitCommand(deps, deps.argv);
   if (fit !== null) return fit;
   deps.print(USAGE);
@@ -215,5 +220,18 @@ async function checkCommand(deps: CliDeps): Promise<number> {
   deps.print(
     `Checked ${s.checked} posting${s.checked === 1 ? "" : "s"}: ${s.open} open, ${s.closed} closed, ${s.unavailable} couldn't be reached${s.heldBack > 0 ? `, ${s.heldBack} held back by a switch or breaker` : ""}${s.unchecked > 0 ? `, ${s.unchecked} with no API to ask` : ""}`,
   );
+  // Applications for closed postings (NS-218): said only when something happened.
+  if (s.withdrawn === null) {
+    deps.print("Couldn't withdraw applications for closed postings; the next pass tries again.");
+  } else if (s.withdrawn > 0) {
+    deps.print(
+      `${s.withdrawn} application${s.withdrawn === 1 ? "" : "s"} left the pipeline: their job postings closed.`,
+    );
+  }
+  if (s.withdrawFailed > 0) {
+    deps.print(
+      `${s.withdrawFailed} application${s.withdrawFailed === 1 ? "" : "s"} couldn't be moved; the next pass tries again.`,
+    );
+  }
   return 0;
 }

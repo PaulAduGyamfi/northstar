@@ -11,11 +11,15 @@ paths:
 `terms.ts`). The Apply Gateway is `packages/gateways` (NS-120); its ATS adapters live in
 `src/apply/adapters/`, not a separate `packages/ats-adapters`. Other gateways (mail, calendar,
 GitHub) don't exist yet: if you are about to create one outside its ticket, stop and ask Paul.
+The Gmail label writer (NS-229, `packages/inbox/src/labels/`, ADR-0027 Proposed) only adds
+Northstar's fixed labels: never widen it to send, trash, remove or draft (its boundary test),
+and never hand its `gmail.modify` token to code that reads mail.
 
 - Every submission goes through `submitApplication`: the apply URL's host must be the ATS's own
   and the posting id must match the one in the URL, then the Gate check (throws
   `NotApprovedError`), a re-hash of the files, `claimSubmission`, a `FormDriver` with time limits,
-  then proof. Before the claim it asks the `auto_apply` and `adapter:<ats>` switches and the
+  then proof. After the files it asks `isPostingClosed` (NS-218): a closed posting is the
+  `PostingClosed` refusal, nothing claimed. Before the claim it asks the `auto_apply` and `adapter:<ats>` switches and the
   `ats:<ats>` breaker (NS-206, `guard.ts`); held back is the `HeldBack` refusal with nothing
   claimed, so a later call retries. After the browser step only a timeout counts against the
   breaker, a page the ATS served is it working, and a browser crash isn't reported. A live claim
@@ -61,8 +65,10 @@ For every gateway (the Apply Gateway now, the others when they land):
   `ContentChanged` (and nothing else, never its own transient `FileChanged`) by withdrawing the
   approval: `requestOfDecision`, then `withdrawApproval({ by: "gateway", newContentSha256 })`,
   then it still throws. It writes no ledger row (that would block the resubmission); the
-  `approval.withdrawn` feed line is the visible item, and a refused withdrawal is on the span
-  only, so the caller must surface the thrown `NotApprovedError`.
+  `approval.withdrawn` feed line is the visible item, and a refused withdrawal is on the span,
+  so the caller must surface the thrown `NotApprovedError`. When the refusal is the approval's
+  open undo window (NS-234), the error's `retryAt` is the window's end: the caller comes back
+  then (the worker waits it out), never drops it.
 - A gateway call without a verified `approvalId` or `policyDecisionId` throws. Look the approval
   up server-side; never trust an ID the caller merely asserts. Test the refusal.
 - Every side effect has an idempotency key (`application:{id}:submit`, `email:{draftId}:send`).

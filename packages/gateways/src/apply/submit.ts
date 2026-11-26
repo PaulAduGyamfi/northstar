@@ -44,14 +44,28 @@ export type HostNotAllowed = { kind: "HostNotAllowed" };
 // Gate's refusal kind (NotFound, Rejected, Undone, UndoWindowOpen, SubjectMismatch, ContentChanged,
 // Withdrawn). On ContentChanged the gateway has already asked the Gate to withdraw (NS-211).
 export class NotApprovedError extends Error {
-  constructor(readonly reason: string) {
+  // When to call again (NS-234): set only when a ContentChanged withdrawal was refused because the
+  // approval's undo window is still open, to the window's end. A private field behind a getter, so
+  // the error's own fields (and equality on it) stay `reason` and the message.
+  readonly #retryAt: Date | null;
+  constructor(
+    readonly reason: string,
+    retryAt: Date | null = null,
+  ) {
     super(`not approved: ${reason}`);
     this.name = "NotApprovedError";
+    this.#retryAt = retryAt;
+  }
+  get retryAt(): Date | null {
+    return this.#retryAt;
   }
 }
 export type FileChanged = { kind: "FileChanged"; file: "resume" | "coverLetter" };
 // The package's posting id isn't the one in its apply URL.
 export type PostingMismatch = { kind: "PostingMismatch" };
+// The job's posting has closed (NS-218, SRC-010): nothing is claimed or moved, and a later call
+// refuses the same way. The liveness pass withdraws the application.
+export type PostingClosed = { kind: "PostingClosed" };
 // An earlier run holds the claim and may still be in the browser: try again later.
 export type InProgress = { kind: "InProgress" };
 // A kill switch or the ATS's breaker held the submission back before anything was claimed
@@ -70,6 +84,7 @@ export type SubmitRefusal =
   | FileChanged
   | InProgress
   | HeldBack
+  | PostingClosed
   | { kind: "DuplicateRequisition" }
   | { kind: "AtsBusy" }
   | { kind: "Paced"; retryAt: Date }
@@ -119,20 +134,22 @@ export async function submitApplication(
 // hash to the Gate. Nothing is claimed yet, so no ledger row: a needs_human row here would make
 // the resubmission under the new approval replay as needs_human forever. The visible item is the
 // Gate's approval.withdrawn feed line and the NotApprovedError the caller still gets. A refusal
-// (not found, not approved, undo window open, already closed) is recorded on the span only.
+// (not found, not approved, undo window open, already closed) is recorded on the span. For an
+// open undo window it also returns the window's end (NS-234): the approval is still Paul's to undo
+// until then, so the caller comes back after it and the withdrawal goes through.
 async function withdrawChanged(
   ports: ApplyPorts,
   input: SubmitInput,
   newContentSha256: string,
   span: Span,
-): Promise<void> {
+): Promise<Date | null> {
   const found = await ports.requestOfDecision({
     candidateId: input.candidateId,
     decisionId: input.decisionId,
   });
   if (!found.ok) {
     span.setAttribute("northstar.apply.withdraw", found.error.kind);
-    return;
+    return null;
   }
   const withdrawn = await ports.withdrawApproval({
     candidateId: input.candidateId,
@@ -141,6 +158,9 @@ async function withdrawChanged(
     newContentSha256,
   });
   span.setAttribute("northstar.apply.withdraw", withdrawn.ok ? "withdrawn" : withdrawn.error.kind);
+  return !withdrawn.ok && withdrawn.error.kind === "UndoWindowOpen"
+    ? withdrawn.error.effectiveAt
+    : null;
 }
 
 async function submit(
@@ -175,7 +195,8 @@ async function submit(
     // package hash differs); every other refusal, and the transient FileChanged below, withdraws
     // nothing.
     if (verified.error.kind === "ContentChanged") {
-      await withdrawChanged(ports, input, packageSha256(pkg), span);
+      const retryAt = await withdrawChanged(ports, input, packageSha256(pkg), span);
+      throw new NotApprovedError("ContentChanged", retryAt);
     }
     throw new NotApprovedError(verified.error.kind);
   }
@@ -193,7 +214,13 @@ async function submit(
     }
   }
 
-  // 3. The kill switches and the ATS's breaker, now (RES-002, RES-008): held back, nothing is
+  // 3. The posting, now (NS-218): never submit to a job whose posting closed. Before the switches
+  // and the claim, so a closed posting leaves no claim and no needs_human behind.
+  if (await ports.isPostingClosed(input.candidateId, pkg.applicationId)) {
+    return err({ kind: "PostingClosed" });
+  }
+
+  // 4. The kill switches and the ATS's breaker, now (RES-002, RES-008): held back, nothing is
   // claimed or moved and the browser never opens, so a later call simply tries again.
   const dependency = atsDependency(pkg.ats);
   const admitted = await admit(ports, input.candidateId, pkg.ats, span);
@@ -212,7 +239,7 @@ async function submit(
     }
   };
 
-  // 4. Claim it once.
+  // 5. Claim it once.
   const claim = await ports.claimSubmission({
     candidateId: input.candidateId,
     applicationId: pkg.applicationId,
@@ -284,18 +311,18 @@ async function submit(
     });
   }
 
-  // 5. Only an application awaiting approval may go out.
+  // 6. Only an application awaiting approval may go out.
   const started = await move("awaiting_approval", "submitting");
   if (!started.ok) return handOff("status_conflict", null);
 
-  // 6. The browser: one session, closed whatever happens. Only the ATS's own trouble (a step
+  // 7. The browser: one session, closed whatever happens. Only the ATS's own trouble (a step
   // timeout) counts against its breaker; a page it served is it working; a browser crash isn't
   // its fault and isn't reported.
   const driven = await drive(ports.openDriver(), adapter, pkg, resume, coverLetter);
   if (driven.ats !== "unknown") await report(driven.ats);
   if (driven.kind === "handoff") return handOff(driven.reason, "submitting");
 
-  // 7. Proof, then the status. Only this run holds a live claim (a replay leaves it alone until
+  // 8. Proof, then the status. Only this run holds a live claim (a replay leaves it alone until
   // it is stale), so the ledger refusing here means the invariant broke.
   const recorded = await ports.recordSubmitted(input.candidateId, id, {
     confirmationHtml: driven.page.html,

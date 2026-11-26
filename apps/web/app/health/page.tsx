@@ -4,6 +4,7 @@ import { webConfig } from "../../src/config";
 import { DeadLettersBody } from "../../src/dead-letters";
 import { PillNav } from "../../src/pill-nav";
 import { SESSION_COOKIE } from "../../src/session";
+import { SpendBody, spendView } from "../../src/spend";
 import { dotStatus, HealthBody, readApi, switchList } from "../../src/system";
 import { KillSwitches } from "./kill-switches";
 import { StuckWork } from "./stuck-work";
@@ -14,13 +15,14 @@ export const dynamic = "force-dynamic";
 const WORDS = { healthy: "Working", degraded: "Needs a look", down: "Down" } as const;
 
 // System Health (NS-153, RES-013): every subsystem worst first, with its reason, the kill
-// switches (RES-008) and, since NS-215, stuck work (RES-007). Signed out redirects to sign-in; nothing renders without Paul's session.
+// switches (RES-008), since NS-215 stuck work (RES-007) and since NS-219 model spend (RES-009). Signed out redirects to sign-in; nothing renders without Paul's session.
 export default async function HealthPage() {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   const deps = { apiOrigin: webConfig().apiOrigin, token, fetch };
-  const [result, letters] = await Promise.all([
+  const [result, letters, spend] = await Promise.all([
     readApi(deps, "/system/health", HealthBody),
     readApi(deps, "/dead-letters", DeadLettersBody),
+    readApi(deps, "/system/spend", SpendBody),
   ]);
   if (result.kind === "signed_out") redirect("/sign-in");
   if (result.kind !== "ok") {
@@ -71,6 +73,14 @@ export default async function HealthPage() {
           )}
         </div>
         <div className="card">
+          <h2>Model spend</h2>
+          {spend.kind === "ok" ? (
+            <SpendCard view={spendView(spend.body)} />
+          ) : (
+            <p className="muted">Spend can't be read right now.</p>
+          )}
+        </div>
+        <div className="card">
           <h2>Kill switches</h2>
           <p className="muted">
             Switching something off stops it at its next step. The change shows in the feed.
@@ -89,6 +99,26 @@ export default async function HealthPage() {
           )}
         </div>
       </main>
+    </>
+  );
+}
+
+// The spend card (NS-219): usage, then each paused kind of work in words, never color alone.
+function SpendCard({ view }: { view: ReturnType<typeof spendView> }) {
+  return (
+    <>
+      <p className="muted">{view.summary}</p>
+      <ul className="status-list">
+        {view.usage.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+        {view.paused.map((line) => (
+          <li key={line} data-health="degraded">
+            <span className="status-label">Paused</span>
+            <span>{line.replace(/^Paused: /, "")}</span>
+          </li>
+        ))}
+      </ul>
     </>
   );
 }

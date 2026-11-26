@@ -12,7 +12,8 @@ import type { MasterResume, TailoredResume, TailorJob } from "./types.js";
 import { type TailorValidation, validateTailoredResume } from "./validate.js";
 
 // Tailoring a stored job end to end (NS-146, TLR-001/003/005): plain code, no model. Read the
-// master and the job, fit one page, apply Paul's toggles, validate, score on the PDF, diff, store.
+// master and the job, fit one page, apply Paul's toggles, validate, score on the PDF, diff, store
+// (with the PDF, NS-227).
 
 export type TailorRunDeps = {
   readInput: (
@@ -80,6 +81,8 @@ export async function tailorForJob(
     score,
     droppedSkills: [...drop],
     summary: summarize(resume, validation, score, drop.length),
+    // The PDF just scored: the one an application will send (NS-227).
+    pdf: pdf.bytes,
   });
   return {
     kind: "tailored",

@@ -28,6 +28,8 @@ export default defineConfig({
     "./src/independent-work-schema.ts",
     "./src/growth-schema.ts",
     "./src/verification-schema.ts",
+    "./src/job-form-schema.ts",
+    "./src/file-schema.ts",
   ],
   out: "./migrations",
 });

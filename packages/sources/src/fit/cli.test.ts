@@ -48,6 +48,11 @@ function deps(argv: string[]) {
       poll: async () => ({ boards: 1, added: 2, failed: 0, quarantined: 0 }),
       wait: async () => false,
     },
+    form: {
+      sources: async () => [],
+      readGreenhouse: async () => null,
+      save: async () => ({ status: "unchanged", questions: 0 }),
+    },
     check: async () => ({
       checked: 0,
       open: 0,
@@ -55,6 +60,8 @@ function deps(argv: string[]) {
       unavailable: 0,
       heldBack: 0,
       unchecked: 0,
+      withdrawn: 0,
+      withdrawFailed: 0,
     }),
     fit: {
       ...noFit(),

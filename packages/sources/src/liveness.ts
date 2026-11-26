@@ -126,6 +126,8 @@ export type CheckPassDeps = FetchDeps & {
       job: JobToCheck,
       outcome: PostingOutcome,
     ) => Promise<{ closedNow: boolean; reopenedNow: boolean }>;
+    // Moves closed jobs' applications that haven't gone out to withdrawn (NS-218).
+    withdrawClosed: () => Promise<{ withdrawn: number; failed: number }>;
   };
 };
 
@@ -137,6 +139,10 @@ export type CheckPassSummary = {
   heldBack: number;
   // Due jobs whose link has no API we can ask (EU Lever, say): no request was made.
   unchecked: number;
+  // Applications that left the pipeline because their job closed (NS-218), or null when that
+  // step couldn't run; and those it couldn't move. Either way the next pass tries again.
+  withdrawn: number | null;
+  withdrawFailed: number;
 };
 
 const errorName = (e: unknown) => (e instanceof Error ? e.name : "Error");
@@ -151,6 +157,8 @@ export async function checkPass(deps: CheckPassDeps, now: Date): Promise<CheckPa
     unavailable: 0,
     heldBack: 0,
     unchecked: 0,
+    withdrawn: 0,
+    withdrawFailed: 0,
   };
   const boards: BoardCache = new Map();
   for (const job of await deps.store.due(now)) {
@@ -187,6 +195,16 @@ export async function checkPass(deps: CheckPassDeps, now: Date): Promise<CheckPa
     const outcome = await checkOne(deps, job, dependency, probeToken, boards);
     summary.checked++;
     summary[outcome]++;
+  }
+  // After every pass, not only one that just closed a job: a pass that crashed in between, or an
+  // application created for a job already closed, is caught by the next one (ADR-0007).
+  try {
+    const { withdrawn, failed } = await deps.store.withdrawClosed();
+    summary.withdrawn = withdrawn;
+    summary.withdrawFailed = failed;
+  } catch {
+    // Our database: the pass's checks are already stored; the next pass tries again.
+    summary.withdrawn = null;
   }
   return summary;
 }

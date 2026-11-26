@@ -156,7 +156,11 @@ Exists now:
   `--drop` toggles (added skills only), validates, scores on the PDF and diffs, then stores a
   version per job in append-only `tailored_resume` (`tailor-write.ts`: `saveTailoredResume`,
   `readTailoredResumes`; the same content stores nothing). Its `resume.tailored` event carries
-  ids, counts and flags only. No files stored yet (NS-161).
+  ids, counts and flags only. Since NS-227 (slice 2) each new version also stores the PDF it
+  scored in append-only `stored_file` (`packages/db`, `file-write.ts`: one row per candidate and
+  SHA-256, the database checks the hash is the bytes' own, PDF only, at most 5 MiB) and names it
+  in `tailored_resume.pdf_sha256`; an unchanged save keeps the first PDF. `readStoredFile` is the
+  Apply Gateway's `readFile` port, for the worker to bind (#230).
   Since NS-159 also the resume audit (`audit/`, AUD-001/002), plain code with no model or
   database yet:
   - `auditResume(master, targets)` scores impact, verbs, ATS re-parse, length, keyword coverage
@@ -246,7 +250,8 @@ Exists now:
   `voice_review` (every phrase decided; the newest reviewed version counts) and `voice_edit` (only
   the phrases he deleted from a draft, once per approval `subject`). `loadVoice` (`voice/store.ts`)
   gives `draftAnswer` its guide and avoid list, `recordEdit` stores an edit's deleted phrases, and
-  `avoidedFromDeleted` learns from them. No CLI (#220) or caller yet.
+  `avoidedFromDeleted` learns from them. Since NS-222 also `profile voice` and `profile voice
+  review` (`voice-cli.ts`; `readNewestVoice` in `packages/db`). No caller records edits yet.
 - `packages/inbox/` (NS-113): read-only Gmail (ADR-0014: `gmail.readonly`, desktop OAuth with
   PKCE, token in memory for one run, never stored), the job-mail pre-filter (headers only; ATS
   senders, job phrases, same-thread follow-ups), confirmation rules, and the `mail-classify` route
@@ -290,7 +295,42 @@ Exists now:
   its classification by the backfill's rules (verified senders only) or the `mail-classify`
   route, with the provenance check. Verification mail from any sender (a verification subject
   or a code) is skipped before either; a refusal, invalid output, missing employer or failed
-  provenance check goes to review, and a held-back call is thrown for a retry. No storage, Gmail labels (no `gmail.modify`) or caller yet (#224).
+  provenance check goes to review, and a held-back call is thrown for a retry. No storage or caller yet (#224).
+  Since NS-229 (slice 1) also Gmail labels (`src/labels/`, ADR-0027, Proposed: `gmail.modify` held
+  only by this writer, ADR-0014's per-run token, labels add-only and outside the Gate):
+  `threadLabels(kind, origin)` gives a thread's fixed `Northstar/…` type label (INB-005) and
+  origin label (`Started-by-Northstar` or `Outside`, INB-008), and `createLabelWriter` lists,
+  creates missing `Northstar/` labels and calls `threads.modify` with `addLabelIds` only, behind
+  the `gmail` breaker and the `gmail_labels` kill switch, refusing any other name or a non-Gmail
+  id. Its token is its own type, `GmailLabelAccess` (never the reader's `GmailAccess`, a type
+  test), and every request passes the runtime allowlist `requestAllowed`; a recursive boundary
+  scan is the tripwire. The caller (#224) writes the feed event. No scope request or caller until
+  Paul accepts ADR-0027 (its own OAuth client).
+- Interview detection (NS-169, CAL-002), slice 1, plain code in `packages/inbox`
+  (`src/interview/detect.ts`):
+  - `detectInterview` turns one calendar event into an interview for one application. The title
+    must name one, and an organizer or attendee domain must be under exactly one open
+    application's own company domains inside its active window. Shared ATS and freemail domains
+    never pick (`SHARED_DOMAINS`, shared with `matchMail`).
+  - The format comes from fixed words. The interviewers are the company's attendees.
+  - Every detection is `confirmed: false`: invites aren't authenticated, so it is Paul's to
+    confirm and never moves a status.
+  - `interviewFromMail` marks an interview to schedule from a linked `interview_request` or
+    `scheduling` message.
+
+  Only bare `local@domain` addresses count (`bareAddress`).
+
+  ADR-0026 (Proposed) decides `calendar.events.readonly`, on its own consent, under ADR-0014's
+  token model, with fields limited to what detection reads. Writes come later through the Gate.
+  No Calendar client, storage or confirm step yet.
+- Interview prep (NS-170, CAL-003/004), slice 1, plain code in `packages/domain`
+  (`interview-prep.ts`): `planPrepBlocks` proposes CAL-003's default prep for one interview, two
+  45-minute blocks in the 3 days before (one per day where it can, nearest days first, earliest
+  free quarter hour inside working hours in Paul's time zone, ending at least an hour before) and a
+  15-minute warm-up an hour before. It only uses free time after now, never shortens a block, and
+  reports what it couldn't place (`missingPrep`, `warmUpMissing`). `reminderTimes` gives the
+  day-before and hour-before reminders, dropping any already past. It proposes only: no caller,
+  storage, calendar write (that goes through the Gate) or briefs yet.
 - Recruiter grading (NS-167, REC-001/002), slice 1:
   - The `recruiter-extract` route (`packages/inbox`, `src/recruiter/`) reads a recruiter email's
     stated facts: title, seniority, company, place, remote kind, pay range, agency or in-house,
@@ -347,8 +387,20 @@ Exists now:
   `source:<ats>` switch and breaker (only a 5xx, 429 or failed fetch counts against it), into
   append-only `posting_check` (`packages/db`, `liveness-write.ts`). A job closes only after two
   closed answers in a row (`job.closed`; `job.reopened` when it answers open again) and then
-  leaves scoring; `jobs list` still shows it. EU Lever links aren't checked. Applications and the
-  Apply Gateway don't act on it yet (#209).
+  leaves scoring; `jobs list` still shows it. EU Lever links aren't checked. Since NS-218 every
+  `jobs check` pass then runs `withdrawClosedApplications` (`packages/db`): a closed job's
+  application that hasn't gone out (`discovered` … `awaiting_approval`) moves to `withdrawn` with
+  `reasonCode: "posting_closed"` (feed "Application withdrawn: the job's posting closed"), and
+  the Apply Gateway refuses a closed posting (`PostingClosed`, via `isPostingClosed`) before it
+  claims.
+  Since NS-227 (slice 1) also a job's application form: `readGreenhouseForm`
+  (`ats/greenhouse-form.ts`) reads a Greenhouse posting's `questions` (`?questions=true`, through
+  `safeFetch`) into fields with their label, required flag, kind (`text`, `textarea`, `select`,
+  `multi_select`, `file`, `hidden`), choices and question group; an unknown field type reads
+  nothing. Stored in `packages/db` (`job-form-schema.ts`, `job-form-write.ts`: append-only
+  `job_form`, a new row whenever the form differs from the job's newest, which is current; `saveJobForm`, `readJobForm`,
+  `readJobAtsSources`) by `jobs form <job-id>`. Lever's and Ashby's public APIs publish no
+  questions. No caller assembles a package from it yet.
   Since NS-163 also fresh-job alerts (`alerts.ts`, SRC-015, plain code): after every scoring
   pass, a job whose latest score is in the queue band and that is under an hour old gets one
   `job.fresh_alert` event, its feed line "Posted 12 min ago · Fit 88 · ready to approve". Inside
@@ -405,7 +457,14 @@ Exists now:
   breaker) once today's or this month's spend reaches 80 % of a cap for low, 100 % for normal or
   125 % for fresh. Each reply's cost goes to append-only `llm_spend` (`packages/db`,
   `spend-write.ts`: `recordLlmSpend`, `readLlmSpend`, `dbSpendMeter`); the CLIs and the API wire
-  it. Per-pool concurrency waits for the worker (NS-157).
+  it. Since NS-219 `/health` shows it too: the API's `GET /system/spend` (session only,
+  `apps/api/src/spend.ts`) gives today's and this month's spend, the caps and the priorities
+  held back now (`pausedPriorities`, the gateway's own rule), and the "Model spend" card says it in
+  words (`src/spend.ts`). Each worker pool also has a limit (`apps/worker/src/pools.ts`:
+  `loadPoolLimits` reads `WORKER_PIPELINE_CONCURRENCY`, default 4, at most 16, and
+  `WORKER_APPLY_BROWSER_CONCURRENCY`, default 1, at most 4; `workerOptions` gives a pool's
+  Temporal options: the limit on activities, at least 2 workflow tasks), for the worker process
+  (#230) to use.
   Since NS-175 also the dead-letter store (RES-007, `dead-letter-write.ts` in `packages/db`,
   append-only): `recordDeadLetter` keeps work that exhausted its retries (kind, subject id, reason
   code, attempts; one per idempotency key), `listOpenDeadLetters` shows what waits, and
@@ -456,7 +515,10 @@ Exists now:
   approval (`requestOfDecision`, then `withdrawApproval` by `gateway` with the new package hash),
   then still throws `NotApprovedError("ContentChanged")`, so the subject can be requested again.
   The gateway's own `FileChanged` withdraws nothing, and no ledger row is written: the visible
-  item is the `approval.withdrawn` feed line; a refused withdrawal is on the span only.
+  item is the `approval.withdrawn` feed line; a refused withdrawal is on the span. Since NS-234 a
+  withdrawal refused because the approval's undo window is still open also sets
+  `NotApprovedError.retryAt` to the window's end, and the worker's activity turns it into a dated
+  `UndoWindowOpen` wait, so the next call after the window withdraws it.
   Since NS-121 a challenge (`captcha`, `login`, `mfa`, `account`) also opens a human handoff:
   `recordNeedsHuman` stores `apply_handoff` (the apply URL, https only) in the same transaction,
   `listOpenHandoffs` and `resolveHandoff` (`handoff-write.ts`, append-only) serve the API's
@@ -569,6 +631,12 @@ Exists now:
   source. A required question it can't answer (no setting, no banked answer, too long, not one of
   the choices), or a required cover letter, makes it `NeedsHuman`; an optional one stays blank.
   It also gives the Gate's policy facts (factual settings count as `new`, never reuse).
+  Since NS-233 it also takes an optional `confirmed` map (field name → `ConfirmedMatch` from
+  `confirmQuestion`, run by the caller beforehand). Only a model's pick is used, and only where
+  code's own match of the label left it new and the pick is one of `confirmCandidates(label)`;
+  every other entry is ignored and code matches the label itself. Each bank source carries
+  `confirmedBy`, and a model's pick always counts as `new` for the Gate, never `bank_exact` or
+  `bank_high_confidence`. The negation check runs on the normalized label (curly quotes, NFKC).
   `filePackage` files the package with the Gate (`requestApproval`, actor `system`, key
   `package:<packageId>`); it never submits. No caller, form questions from the ATS or stored
   resume files yet.
@@ -586,6 +654,16 @@ Exists now:
   3 attempts), continuing as new after 100 passes. A pass that fails all its attempts becomes a
   dead letter (`recordSweepFailure`: kind `apply.stale_sweep`, reason `sweep_failed`, keyed by
   run and pass) and the next pass tries again. Nothing starts it until the worker process (#230).
+  Since NS-226 (slice 1) `submissionWorkflow` takes an `applicationId` and ends visibly: a
+  `refused`, `gave_up` or `not_approved` result, or the activity failing all 5 attempts, records
+  one dead letter through the `recordSubmissionEnding` activity on `pipeline` (kind
+  `apply.submission`, reason `refused_<kind>` / `gave_up_<kind>` / `not_approved_<reason>` /
+  `activity_failed` from plain `endingLetter`, the Gate's reasons allowlisted; keyed per run,
+  `application:<id>:submit:<runId>`), whose
+  `dead_letter.recorded` event is its feed line; the failure is still rethrown. An
+  `applicationId` that isn't the package's own is refused at the start. Submitted,
+  needs-human and withdrawn endings are already visible and record nothing. The package still
+  travels in the workflow's input (#231's item 2).
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 
@@ -628,6 +706,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/profile profile thesis set "<text>" --atoms <id,id>` / `profile thesis show` | check a thesis against the cited atoms, roles and skills and save it as a new version (a failure saves nothing) / print the current one. Paul only: needs `DATABASE_URL`; agents never run them |
 | repo root | `pnpm --filter @northstar/profile profile work set data/<file>` / `profile work show` | store Paul's independent work since his last role as a new version (`Title \| YYYY-MM \| YYYY-MM or present [\| https link]`, then 1–6 `- ` lines per entry; a file with any bad line stores nothing; unchanged stores nothing) / print the "Projects / Independent work" section and the 20-second answer with its sources. Paul only: his real data, needs `DATABASE_URL`; agents never run them |
 | repo root | `pnpm --filter @northstar/profile profile growth tracks set data/<file>` / `growth tracks` / `growth touch <key>` / `growth settings [set <field> <value>]` / `growth plan` | store Paul's growth tracks from a file, one per line (`key \| name \| type \| status \| priority [\| target YYYY-MM-DD] [\| untouched <days>] [\| next <minutes> <title>]`; any bad line stores nothing) / list them with their last touch / note he worked on one / show or change the planner's settings / plan this week once (Monday, UTC) and print focus, maintenance, at risk and needs-a-next-action. Paul only: his data, needs `DATABASE_URL`; agents never run them |
+| repo root | `pnpm --filter @northstar/profile profile voice [--save] data/<file> …` / `profile voice review [--keep "<phrase,phrase>"] [--drop "<phrase,phrase>"]` | measure 5–10 of Paul's writing samples into a voice profile and print its guide and phrases (stored as a new version only with `--save`) / list the newest version's phrases, or decide every one of them (drafting uses only a reviewed version, with the phrases he kept). Paul only: his real writing, needs `DATABASE_URL`; agents never run them |
 | repo root | `pnpm --filter @northstar/profile profile tailor <job-id> [--drop <skill,skill>]` | tailor the resume to a ready job (plain code, no model): prints the diff, what it doesn't claim, the pre-send score and the validator result, and stores a new version (unchanged content stores nothing); `--drop` turns off skills the tailor added. Paul only: it prints his real profile, needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile audit` / `profile audit accept <key> "<new line>"` / `profile audit reject <key>` | audit the current resume against the search preferences' titles and ready jobs' requirements and store the run (leaving out suggestions rejected on this import) / accept one line suggestion with Paul's own line (checked like `applySuggestion`; the tailor uses it from then on) / reject one. Paul only: it prints his real resume, needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile settings set <field> <value> [--for <qualifier>]` / `profile settings show` | store an answer to a factual question (`work_authorization --for <country>`, `years_of_experience --for <skill>`, `previously_employed --for <company>`; yes/no, whole years, `YYYY-MM-DD`, `remote\|hybrid\|onsite`, https links, short text) / list the current ones. Paul only: his real data, needs `DATABASE_URL`; agents never run them |
@@ -644,6 +723,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/sources jobs prefs` / `jobs prefs set <field> <value>` | show the search preferences / change one (`titles`, `seniority`, `locations`, `remote`, `dealbreakers` as comma lists; `compFloor`, `compTarget` per year; `currency`; `queueAt`, `suggestAt` thresholds; `-` clears). A change stores a new version and re-scores every ready job at once. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs score` / `jobs why <job-id>` | score every job not scored for the current preferences and resume (also runs after `jobs add`, `jobs set`, each poll pass and each browser capture) / a job's score with each matched requirement, its atom, and the unmatched ones. Paul only: prints his real profile |
 | repo root | `pnpm --filter @northstar/sources jobs poll` / `jobs run` | one pass over the due boards / poll once a minute until Ctrl-C (boards are only polled while it runs). Paul only: real network and database |
+| repo root | `pnpm --filter @northstar/sources jobs form <job-id>` | read a saved Greenhouse job's application questions from its public API and store them with the job (a changed form is a new version; the same form stores nothing); prints counts and the required questions' labels. Paul only: real network and database |
 | repo root | `pnpm --filter @northstar/sources jobs check` | re-check the postings of saved jobs not tried in a day (closed ones weekly; at most 50 a pass); a job closes after two closed answers in a row and leaves scoring; prints counts only. Paul only: real network and database |
 | repo root | `cp .env.example .env` | once per clone (Paul): then replace every `change-me` in `.env` |
 | repo root | `docker compose -f docker-compose.yml up -d --wait` | local stack: Postgres+pgvector :5432, Temporal :7233 (UI :8233), SeaweedFS S3 :8333, Grafana :3000 + OTLP :4317/:4318, all on 127.0.0.1. Agents must use this exact form (runs outside the sandbox) |

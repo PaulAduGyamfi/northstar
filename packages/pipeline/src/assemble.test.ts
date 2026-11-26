@@ -1,4 +1,5 @@
 import { packageSha256, parsePackage } from "@northstar/domain";
+import { type ConfirmedMatch, matchQuestion } from "@northstar/profile";
 import { describe, expect, it } from "vitest";
 import {
   type AssemblyInput,
@@ -211,5 +212,93 @@ describe("assemblePackage", () => {
   it("refuses a package that fails the schema, naming the fields", () => {
     const result = assemblePackage(base({ applyUrl: "http://boards.greenhouse.io/x" }));
     expect(result).toEqual({ ok: false, error: { kind: "InvalidPackage", fields: ["applyUrl"] } });
+  });
+});
+
+describe("assemblePackage with matches confirmed beforehand (NS-233)", () => {
+  // The bank's why-this-company question, as code matches it.
+  const whyCompany = matchQuestion("Why do you want to join Example Co?");
+  if (whyCompany.status !== "matched") throw new Error("fixture must match");
+  // Code leaves this label new; why-this-company is one of the confirm step's candidates for it.
+  const CLOSE = "What drew you to us?";
+  const modelPick = (confidence: number): ConfirmedMatch => ({
+    match: { ...whyCompany, confidence, confirmedBy: "model" },
+    by: "model",
+  });
+  const assembleWith = (label: string, confirmed: ConfirmedMatch) =>
+    assemblePackage(
+      base({
+        questions: [q("question_2", label)],
+        confirmed: new Map([["question_2", confirmed]]),
+      }),
+    );
+  const assembled = (label: string, confirmed: ConfirmedMatch) => {
+    const result = assembleWith(label, confirmed);
+    if (!result.ok) throw new Error(JSON.stringify(result.error));
+    return result.value;
+  };
+
+  it("fills a field code left new from the bank, and marks the model as the one that chose", () => {
+    const value = assembled(CLOSE, modelPick(0.55));
+    expect(value.package.fields).toEqual({ question_2: "I like what Example Co builds." });
+    expect(value.sources).toEqual([
+      expect.objectContaining({ fieldName: "question_2", from: "bank", confirmedBy: "model" }),
+    ]);
+  });
+
+  it("never counts a model's pick as reuse, even at full confidence", () => {
+    expect(assembled(CLOSE, modelPick(1)).facts.answers[0]?.source).toBe("new");
+  });
+
+  it("treats a match flagged by the model as the model's, whatever the wrapper says", () => {
+    const value = assembled(CLOSE, { match: modelPick(1).match, by: "rules" });
+    expect(value.facts.answers[0]?.source).toBe("new");
+    expect(value.sources[0]).toMatchObject({ confirmedBy: "model" });
+  });
+
+  it("ignores a rules entry and matches the label itself, whatever the entry claims", () => {
+    // A stale or mixed-up entry claiming why-this-company at 0.95 for a label code leaves new.
+    const claimed: ConfirmedMatch = { match: { ...whyCompany, confidence: 0.95 }, by: "rules" };
+    expect(assembleWith(CLOSE, claimed)).toMatchObject({
+      ok: false,
+      error: { unanswered: [{ fieldName: "question_2", reason: "not_matched" }] },
+    });
+  });
+
+  it("ignores a model's pick for a label code already matches, so code's own result stands", () => {
+    const value = assembled("Why do you want to join Example Co?", modelPick(1));
+    expect(value.facts.answers[0]?.source).toBe("bank_exact");
+    expect(value.sources[0]).toMatchObject({ confirmedBy: "rules" });
+  });
+
+  it("ignores a model's pick that isn't among the label's candidates", () => {
+    // contribution is the only candidate for this label; why-this-company was never offered.
+    expect(assembleWith("What draws you to a team like ours?", modelPick(0.9))).toMatchObject({
+      ok: false,
+      error: { unanswered: [{ fieldName: "question_2", reason: "not_matched" }] },
+    });
+  });
+
+  it.each([
+    "Why would you NOT want to work at Example Co?",
+    "Why wouldn\u2019t you want to work at Example Co?",
+    "Why would you \uff2e\uff2f\uff34 want to work at Example Co?",
+  ])("still never answers a negated question from the bank (%s)", (label) => {
+    expect(assembleWith(label, modelPick(0.9))).toMatchObject({
+      ok: false,
+      error: { unanswered: [{ fieldName: "question_2", reason: "not_matched" }] },
+    });
+  });
+
+  it("matches by code alone for a field the map doesn't name", () => {
+    const result = assemblePackage(
+      base({
+        questions: [q("question_2", "Why do you want to join Example Co?")],
+        confirmed: new Map([["question_9", modelPick(1)]]),
+      }),
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.error));
+    expect(result.value.facts.answers[0]?.source).toBe("bank_exact");
+    expect(result.value.sources[0]).toMatchObject({ confirmedBy: "rules" });
   });
 });

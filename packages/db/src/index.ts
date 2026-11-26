@@ -153,6 +153,8 @@ export {
   readFeedAfter,
   readFeedNames,
 } from "./feed-read.js";
+// Files an application sends, by SHA-256 (NS-227): read only; tailor-write.ts stores them.
+export { readStoredFile } from "./file-write.js";
 export * as fitSchema from "./fit-schema.js";
 export {
   FIT_METHODS,
@@ -249,6 +251,15 @@ export {
   type SetIndependentWorkResult,
   setIndependentWork,
 } from "./independent-work-write.js";
+// A job's application form (NS-227).
+export type { JobFormQuestion } from "./job-form-schema.js";
+export * as jobFormSchema from "./job-form-schema.js";
+export {
+  readJobAtsSources,
+  readJobForm,
+  type SaveJobFormResult,
+  saveJobForm,
+} from "./job-form-write.js";
 export {
   type Ats,
   type DedupeCandidate,
@@ -275,11 +286,13 @@ export * as livenessSchema from "./liveness-schema.js";
 export {
   CHECKABLE_ATS,
   type CheckableAts,
+  isPostingClosed,
   type JobToCheck,
   type PostingOutcome,
   readClosedJobIds,
   readJobsToCheck,
   recordPostingCheck,
+  withdrawClosedApplications,
 } from "./liveness-write.js";
 export * as mailLinkSchema from "./mail-link-schema.js";
 export {
@@ -422,6 +435,7 @@ export {
   type StaleStatus,
   type TransitionError,
   type TransitionInput,
+  type TransitionReasonCode,
   type TransitionResult,
   transitionApplication,
 } from "./transition-application.js";
@@ -461,6 +475,7 @@ export {
 export * as voiceSchema from "./voice-schema.js";
 // Paul's voice profile, its review and his draft edits (NS-185).
 export {
+  readNewestVoice,
   readReviewedVoice,
   readVoiceEdits,
   recordVoiceEdit,

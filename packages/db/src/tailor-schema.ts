@@ -10,6 +10,7 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+import { storedFile } from "./file-schema.js";
 import { profileSource } from "./profile-schema.js";
 import { candidate, job } from "./schema.js";
 
@@ -37,6 +38,8 @@ export const tailoredResume = pgTable(
     droppedSkills: text("dropped_skills").array().notNull(),
     // SHA-256 of import, resume, toggles and score: saving what the newest version holds stores nothing.
     contentSha256: text("content_sha256").notNull(),
+    // The rendered PDF of this version (NS-227), in stored_file; null on versions made before it.
+    pdfSha256: text("pdf_sha256"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -52,6 +55,11 @@ export const tailoredResume = pgTable(
       name: "tailored_resume_source_same_candidate_fk",
       columns: [t.profileSourceId, t.candidateId],
       foreignColumns: [profileSource.id, profileSource.candidateId],
+    }),
+    foreignKey({
+      name: "tailored_resume_pdf_same_candidate_fk",
+      columns: [t.candidateId, t.pdfSha256],
+      foreignColumns: [storedFile.candidateId, storedFile.sha256],
     }),
   ],
 );

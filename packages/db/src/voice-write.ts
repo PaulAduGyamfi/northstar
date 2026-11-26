@@ -126,6 +126,27 @@ export async function reviewVoiceProfile(
   );
 }
 
+// The newest version, reviewed or not, with its phrases and whether Paul has reviewed it, or null
+// before the first one (NS-222: `profile voice review` lists what to decide). Read-only.
+export async function readNewestVoice(
+  db: Db,
+  candidateId: CandidateId,
+): Promise<{ version: number; phrases: string[]; reviewed: boolean } | null> {
+  const [row] = await db
+    .select({ id: voiceProfile.id, version: voiceProfile.version, phrases: voiceProfile.phrases })
+    .from(voiceProfile)
+    .where(eq(voiceProfile.candidateId, candidateId))
+    .orderBy(desc(voiceProfile.version))
+    .limit(1);
+  if (!row) return null;
+  const [review] = await db
+    .select({ id: voiceReview.id })
+    .from(voiceReview)
+    .where(and(eq(voiceReview.candidateId, candidateId), eq(voiceReview.profileId, row.id)))
+    .limit(1);
+  return { version: row.version, phrases: row.phrases, reviewed: review !== undefined };
+}
+
 // The newest version Paul has reviewed, with only the phrases he kept, or null when none is.
 export async function readReviewedVoice(
   db: Db,

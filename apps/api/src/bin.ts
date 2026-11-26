@@ -80,6 +80,7 @@ import { pipelineEndpoints } from "./pipeline.js";
 import { runEndpoints } from "./run.js";
 import { createApi } from "./server.js";
 import { createSessions } from "./sessions.js";
+import { spendEndpoints } from "./spend.js";
 import { systemEndpoints } from "./system.js";
 import { vaultRevealEndpoints } from "./vault-reveal.js";
 
@@ -234,6 +235,11 @@ try {
       recordCheckIn(db, { candidateId: await candidateId(), ...input }),
     saveReview: async (input) => saveWeekReview(db, { candidateId: await candidateId(), ...input }),
   });
+  // Model spend on Health (NS-219): the same caps and stored spend the gateway holds calls by.
+  const spend = spendEndpoints({
+    caps: llmBudget,
+    spent: dbSpendMeter(db, candidateId).spent,
+  });
   // One set of sessions for the sign-in key and passkeys, so both open the same kind of session
   // and their failures count toward one throttle (ADR-0022).
   const sessions = createSessions(Date.now);
@@ -274,6 +280,7 @@ try {
       ...inbox,
       ...growth,
       ...deadLetters,
+      ...spend,
       ...passkeys,
       ...vaultReveal,
     ],

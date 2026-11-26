@@ -49,6 +49,11 @@ function deps(argv: string[], over: Partial<BoardCliDeps> = {}, jobs: JobListIte
     list: async () => jobs,
     set: async () => ({ ok: true, value: { status: "ready", missingFields: [] } }),
     boards,
+    form: {
+      sources: async () => [],
+      readGreenhouse: async () => null,
+      save: async () => ({ status: "unchanged", questions: 0 }),
+    },
     check: async () => ({
       checked: 0,
       open: 0,
@@ -56,6 +61,8 @@ function deps(argv: string[], over: Partial<BoardCliDeps> = {}, jobs: JobListIte
       unavailable: 0,
       heldBack: 0,
       unchecked: 0,
+      withdrawn: 0,
+      withdrawFailed: 0,
     }),
     fit: noFit(),
   };
