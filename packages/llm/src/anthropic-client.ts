@@ -16,8 +16,8 @@ export function anthropicClientOptions(config: LlmConfig): ClientOptions {
     // Explicit, not the SDK default: a route's timeout applies to each attempt, so the worst
     // case is (maxRetries + 1) × timeoutMs plus backoff (RES-005).
     maxRetries: 2,
-    // A backstop for a call made without a route timeout (every route passes its own): the
-    // slowest route's limit, so nothing waits on the API forever (RES-005, NS-176).
+    // A backstop for a call made without a route timeout (every route passes its own): lowers the
+    // SDK's 10-minute default to the slowest route's limit (RES-005, NS-176).
     timeout: DEFAULT_TIMEOUT_MS,
   };
 }

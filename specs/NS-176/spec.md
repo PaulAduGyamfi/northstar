@@ -29,13 +29,14 @@ Gaps closed:
 1. **DNS** (`packages/sources/src/fetch.ts`): the lookup on every hop runs before the fetch's
    signal and had no limit. It now gives up after 5 s (`FetchRefused`: the host can't be found).
 2. **The Anthropic client** (`packages/llm`): a default `timeout` of 180 s, the slowest route's,
-   so a call made without a route timeout can't wait forever.
+   down from the SDK's 10-minute default.
 3. **Postgres** (`packages/db` `connectDb`, the CLIs and the API): a 10 s connect timeout and a
    60 s statement timeout (migrations use their own pool and are unaffected).
 4. **The extension's capture request** (`apps/extension`): 5 min, the server's worst case
    (fetch, extraction with retries, scoring).
 5. **The web app's browser calls to its own API** (`apps/web`): through one helper with a 15 s
-   timeout, and a plain message when it gives up.
+   timeout. A POST that timed out may still have been applied, so it says "may have gone
+   through", never "nothing was decided".
 
 ### Acceptance criteria (slice 1)
 - [ ] A DNS lookup that never answers is refused after 5 s (fake timers).

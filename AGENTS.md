@@ -279,9 +279,9 @@ Exists now:
   (held back: the `HeldBack` refusal, nothing claimed). Only a step timeout counts against the
   ATS's breaker.
   Since NS-176 every external call has a time limit (RES-005): `safeFetch`'s host lookup (5 s,
-  `DNS_TIMEOUT_MS`), the Anthropic client's default (180 s, the slowest route; each route still
-  passes its own), Postgres in `connectDb` (10 s connect, 60 s per statement; migrations use their
-  own pool), the extension's capture request (5 min) and the web app's browser calls through
+  `DNS_TIMEOUT_MS`), the Anthropic client's default (180 s, down from the SDK's 10 min; each route
+  still passes its own), Postgres in `connectDb` (10 s connect, 60 s per statement; migrations use
+  their own pool), the extension's capture request (5 min) and the web app's browser calls through
   `apiFetch` (15 s). The spend cap and per-pool concurrency (RES-009) are later slices.
   Since NS-175 also the dead-letter store (RES-007, `dead-letter-write.ts` in `packages/db`,
   append-only): `recordDeadLetter` keeps work that exhausted its retries (kind, subject id, reason
