@@ -1,3 +1,5 @@
+// isSafeCompany: only a plain short company name fills a slot (shared with the Gate, NS-213).
+import { isSafeCompany } from "@northstar/domain";
 import { CANONICAL_QUESTIONS, type QuestionKind } from "./question-canon.js";
 
 // Reusing a banked answer (ANS-003, GH-59), as plain code: fill its company slot, fit it to the
@@ -8,20 +10,6 @@ import { CANONICAL_QUESTIONS, type QuestionKind } from "./question-canon.js";
 // text. `{company}` is the only one the code fills, in one pass: a name that looks like a slot is
 // not expanded again.
 const SLOT = /\{([^{}]*)\}/g;
-
-// The company name comes from job data (an ATS, a page's JSON-LD, a model's reading of a page),
-// and the filled text may go out under Paul's name having been approved only as a template. So
-// only a plain short name is filled in: letters, digits, spaces and & ' - , ( ) and a dot only
-// inside a word (Inc., Booking.com), no sentence, URL, address or line break.
-const MAX_COMPANY_LENGTH = 80;
-const SAFE_COMPANY = /^[\p{L}\p{N}][\p{L}\p{N} &'’,()-]*(?:\.[\p{L}\p{N} &'’,()-]+)*\.?$/u;
-const LOOKS_LIKE_LINK = /\b(?:https?|www)\b|\.(?:com|net|org|io|co)\b.*\s/i;
-
-function isSafeCompany(name: string): boolean {
-  return (
-    name.length <= MAX_COMPANY_LENGTH && SAFE_COMPANY.test(name) && !LOOKS_LIKE_LINK.test(name)
-  );
-}
 
 export type StoredAnswer = { shortText: string; longText: string | null };
 
