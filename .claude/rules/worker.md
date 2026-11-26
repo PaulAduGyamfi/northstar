@@ -15,6 +15,8 @@ process, client or heartbeats yet (NS-225); other domains' workflows arrive with
 
 Rules:
 
+- A pool's concurrency comes only from `loadPoolLimits` (`src/pools.ts`, NS-219) through
+  `workerOptions`; a new queue gets its own setting and ceiling there.
 - Workflow code is deterministic: no `Date.now()`, `Math.random()`, network, file or database
   access in workflows. Use Temporal APIs (`sleep`, `condition`, signals) and do I/O in activities.
 - One task queue and worker deployment per domain (`sourcing`, `pipeline`, `apply-browser`,

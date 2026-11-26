@@ -10,6 +10,8 @@ export {
   createSweepActivities,
   type SweepActivities,
 } from "./activities/sweep.js";
+// Bounded concurrency per pool (NS-219), for the worker process (#230).
+export { loadPoolLimits, type PoolLimits, type PoolQueue, workerOptions } from "./pools.js";
 export { APPLY_BROWSER_QUEUE, PIPELINE_QUEUE } from "./queues.js";
 export { type Decision, decide, MAX_WAITS, WAIT_REFUSALS } from "./workflows/decide.js";
 export type { SubmissionInput } from "./workflows/submission.js";

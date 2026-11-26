@@ -1,6 +1,6 @@
 # NS-219 (slice 2): Bounded concurrency per worker pool
 
-Status: building
+Status: built
 Requirements: RES-009 (bounded concurrency), RES-001 (a queue per domain), ADR-0003 (human pacing),
 ADR-0007. Rules: ADR-0016, `.claude/rules/worker.md`, `.claude/rules/tests.md`. Parent: #127.
 Closes #212 with slice 1 (#270).
@@ -26,10 +26,10 @@ it does.
 - `.env.example` lists both settings, commented out with their defaults.
 
 ## Acceptance criteria
-- [ ] Defaults, valid values, the ceilings and refusals (0, negative, fraction, text, over the
+- [x] Defaults, valid values, the ceilings and refusals (0, negative, fraction, text, over the
       ceiling) are tested, and a refusal names only the setting.
-- [ ] `workerOptions` gives each queue its own limit (test).
-- [ ] `pnpm turbo run lint typecheck test build` passes.
+- [x] `workerOptions` gives each queue its own limit (test).
+- [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Out of scope
 - The worker process that starts the pools (#230).
