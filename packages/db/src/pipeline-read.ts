@@ -1,6 +1,7 @@
 import { type ApplicationStatus, type CandidateId, feedLine } from "@northstar/domain";
 import { and, asc, desc, eq, gte, isNull, lt, or, type SQL, sql } from "drizzle-orm";
 import type { Db } from "./db.js";
+import { fitScore } from "./fit-schema.js";
 import type { FitBand } from "./fit-write.js";
 import { inSpan } from "./resilience-event.js";
 import { application, company, domainEvent, job } from "./schema.js";
@@ -43,11 +44,9 @@ export const MAX_APPLICATIONS = 500;
 const MAX_TIMELINE = 500;
 
 // The job's newest score row, by when it was scored (any preference or resume version: the
-// newest is what Paul last saw).
+// newest is what Paul last saw). Built from column references, so Drizzle names the tables.
 const latestFit = (column: "score" | "band") =>
-  sql.raw(
-    `(select f.${column} from fit_score f where f.job_id = "job"."id" and f.candidate_id = "application"."candidate_id" order by f.scored_at desc, f.id limit 1)`,
-  );
+  sql`(select ${fitScore[column]} from ${fitScore} where ${fitScore.jobId} = ${job.id} and ${fitScore.candidateId} = ${application.candidateId} order by ${fitScore.scoredAt} desc, ${fitScore.id} limit 1)`;
 
 const columns = {
   applicationId: application.id,

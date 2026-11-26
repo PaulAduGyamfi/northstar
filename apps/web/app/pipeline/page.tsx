@@ -57,56 +57,62 @@ export default async function PipelinePage({
                 : "No applications match these filters."}
             </p>
           ) : null}
-          {/* A GET form, so the filters live in the URL and a view can be bookmarked. */}
-          <form method="get" action="/pipeline">
-            <label>
-              Company <input name="company" defaultValue={filters.company ?? ""} maxLength={100} />
-            </label>
-            <label>
-              Fit{" "}
-              <select name="band" defaultValue={filters.band ?? ""}>
-                <option value="">any</option>
-                {FIT_BANDS.map((b) => (
-                  <option key={b} value={b}>
-                    {BAND_WORDS[b]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Source{" "}
-              <select name="source" defaultValue={filters.source ?? ""}>
-                <option value="">any</option>
-                {SOURCES.map((src) => (
-                  <option key={src} value={src}>
-                    {src}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              From <input type="date" name="from" defaultValue={filters.from ?? ""} />
-            </label>
-            <label>
-              To <input type="date" name="to" defaultValue={filters.to ?? ""} />
-            </label>
-            {view === "table" ? <input type="hidden" name="view" value="table" /> : null}
-            <button type="submit">Filter</button> <Link href="/pipeline">Clear</Link>
-          </form>
-          <p>
-            View:{" "}
-            {view === "board" ? (
-              <strong>Board</strong>
-            ) : (
-              <Link href={`/pipeline${filterQuery(filters)}`}>Board</Link>
-            )}{" "}
-            ·{" "}
-            {view === "table" ? (
-              <strong>Table</strong>
-            ) : (
-              <Link href={`/pipeline${filterQuery(filters, "table")}`}>Table</Link>
-            )}
-          </p>
+          {/* A GET form, so the filters live in the URL and a view can be bookmarked. Shown only
+              when the pipeline could be read: an unreachable API shows nothing else (web.md). */}
+          {apps.kind === "ok" ? (
+            <>
+              <form method="get" action="/pipeline">
+                <label>
+                  Company{" "}
+                  <input name="company" defaultValue={filters.company ?? ""} maxLength={100} />
+                </label>
+                <label>
+                  Fit{" "}
+                  <select name="band" defaultValue={filters.band ?? ""}>
+                    <option value="">any</option>
+                    {FIT_BANDS.map((b) => (
+                      <option key={b} value={b}>
+                        {BAND_WORDS[b]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Source{" "}
+                  <select name="source" defaultValue={filters.source ?? ""}>
+                    <option value="">any</option>
+                    {SOURCES.map((src) => (
+                      <option key={src} value={src}>
+                        {src}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  From <input type="date" name="from" defaultValue={filters.from ?? ""} />
+                </label>
+                <label>
+                  To <input type="date" name="to" defaultValue={filters.to ?? ""} />
+                </label>
+                {view === "table" ? <input type="hidden" name="view" value="table" /> : null}
+                <button type="submit">Filter</button> <Link href="/pipeline">Clear</Link>
+              </form>
+              <p>
+                View:{" "}
+                {view === "board" ? (
+                  <strong>Board</strong>
+                ) : (
+                  <Link href={`/pipeline${filterQuery(filters)}`}>Board</Link>
+                )}{" "}
+                ·{" "}
+                {view === "table" ? (
+                  <strong>Table</strong>
+                ) : (
+                  <Link href={`/pipeline${filterQuery(filters, "table")}`}>Table</Link>
+                )}
+              </p>
+            </>
+          ) : null}
         </div>
         {apps.kind === "ok" && view === "table" && apps.body.items.length > 0 ? (
           <div className="card">

@@ -14,6 +14,10 @@ describe("todayCounts", () => {
     ]);
   });
 
+  it("links to the handoff card only while there is one", () => {
+    expect(todayCounts(list(0), list(0))[1]?.href).toBeNull();
+  });
+
   it("says a count can't be read rather than showing 0", () => {
     const rows = todayCounts({ kind: "error", status: 503 }, { kind: "unreachable" });
     expect(rows.slice(0, 2).map((r) => r.value)).toEqual([

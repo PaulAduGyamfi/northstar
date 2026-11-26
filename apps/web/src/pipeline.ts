@@ -100,7 +100,8 @@ export const BAND_WORDS: Record<FitBand, string> = {
   suggest: "Suggest",
   skip: "Skip",
 };
-// The ATS names the sources know, plus "other" for a job with none.
+// The ATS names the sources know (a copy of ATS_KINDS in packages/db/src/schema.ts: add a new
+// ATS here in the same PR), plus "other" for a job with none.
 export const SOURCES = [
   "greenhouse",
   "lever",
@@ -121,6 +122,12 @@ export type Filters = {
 export type PipelineQuery = { filters: Filters; view: "board" | "table" };
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+// A real calendar day: 2026-13-01 and 2026-02-30 aren't (the API refuses them too).
+function realDay(d: string): boolean {
+  if (!DAY.test(d)) return false;
+  const ms = Date.parse(`${d}T00:00:00Z`);
+  return !Number.isNaN(ms) && new Date(ms).toISOString().startsWith(d);
+}
 const one = (v: string | string[] | undefined): string | undefined =>
   typeof v === "string" ? v.trim() : undefined;
 
@@ -129,15 +136,20 @@ const one = (v: string | string[] | undefined): string | undefined =>
 export function parseFilters(params: Record<string, string | string[] | undefined>): PipelineQuery {
   const filters: Filters = {};
   const company = one(params.company);
-  if (company && company.length <= 100) filters.company = company;
+  if (company && company.length <= 100 && !/\p{Cc}/u.test(company)) filters.company = company;
   const band = one(params.band);
   if (band && (FIT_BANDS as readonly string[]).includes(band)) filters.band = band as FitBand;
   const source = one(params.source);
   if (source && (SOURCES as readonly string[]).includes(source)) filters.source = source;
   const from = one(params.from);
-  if (from && DAY.test(from)) filters.from = from;
+  if (from && realDay(from)) filters.from = from;
   const to = one(params.to);
-  if (to && DAY.test(to)) filters.to = to;
+  if (to && realDay(to)) filters.to = to;
+  // A reversed range would be refused by the API: drop both ends rather than show an error.
+  if (filters.from && filters.to && filters.from > filters.to) {
+    delete filters.from;
+    delete filters.to;
+  }
   return { filters, view: one(params.view) === "table" ? "table" : "board" };
 }
 

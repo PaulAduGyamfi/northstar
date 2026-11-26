@@ -23,7 +23,12 @@ export function todayCounts(
 ): TodayCount[] {
   return [
     { label: "Approvals waiting", href: "/approvals", value: countOf(approvals) },
-    { label: "Needs your hands", href: "#needs-your-hands", value: countOf(handoffs) },
+    {
+      label: "Needs your hands",
+      // The card is on Today only while there is something in it.
+      href: handoffs.kind === "ok" && handoffs.body.items.length > 0 ? "#needs-your-hands" : null,
+      value: countOf(handoffs),
+    },
     // Interviews (NS-169, NS-170), follow-ups (NS-166) and growth blocks (NS-210) aren't built.
     { label: "Interviews coming up", href: null, value: NOT_SET_UP },
     { label: "Follow-ups due", href: null, value: NOT_SET_UP },

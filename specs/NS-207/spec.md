@@ -50,3 +50,7 @@ up yet. Saved views.
 - **"Source" is the job's ATS** (or `other`): the one source field every job has. Board versus
   link versus browser capture can come with the source analytics (NS-208).
 - **"Score" is the band**, not a number range: the bands are what Paul acts on (MAT-003).
+- **Diff size:** about 375 lines of code past the ~300 guide (about 750 with tests), across db,
+  API and web, which DSH-001 and DSH-003 span.
+- **"Fit" is the job's newest score**, whichever preference version made it: it is what Paul last
+  saw, and a preference change re-scores every ready job at once (NS-116).

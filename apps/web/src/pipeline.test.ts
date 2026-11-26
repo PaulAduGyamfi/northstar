@@ -130,6 +130,14 @@ describe("parseFilters and filterQuery (NS-207)", () => {
     ]);
   });
 
+  it("drops impossible dates and a reversed range, which the API would refuse", () => {
+    expect([
+      parseFilters({ from: "2026-13-01", to: "2026-02-30" }).filters,
+      parseFilters({ from: "2026-11-02", to: "2026-11-01" }).filters,
+      parseFilters({ from: "2026-11-01", to: "2026-11-01" }).filters,
+    ]).toEqual([{}, {}, { from: "2026-11-01", to: "2026-11-01" }]);
+  });
+
   it("writes nothing for no filters on the board", () => {
     expect(filterQuery({})).toBe("");
   });
