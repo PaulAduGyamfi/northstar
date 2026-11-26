@@ -663,7 +663,16 @@ Exists now:
   (`form.ts`): a stored Greenhouse form as `FormQuestion`s. The standard contact, resume and cover
   letter fields (and their paste-in alternatives) and hidden fields are not questions; it flags a
   required cover letter or phone, and lists a required upload it can't fill as `unsupported`.
-  Choices are the option labels. No caller yet (slice 5).
+  Choices are the option labels. No caller yet (slice 6).
+  Since NS-227 (slice 5) `packages/db` reads a package's inputs in one place:
+  `readPackageInputs` (`package-read.ts`) gives the application and its company, the job's
+  sources, contact, settings, the newest banked answer per canonical question, the newest tailored
+  resume and its PDF hash, the current form, the fit score and `formSeenBefore`. That last one is
+  true only when the Apply Gateway sent another job's application (its `apply_submission` row
+  finished `submitted`) while that job's form had the same ATS and SHA-256. Paul's own submissions
+  never count. `recordPackageNeedsHuman` (`package-write.ts`) writes `package.needs_human` on the
+  application (not `application.*`, which the feed reads as a status move): reason codes and counts
+  only, once per basis, with the feed line "The application package needs you: N items".
 - `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
   (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
   decision as an `approval` signal (or `withdrawn`), then runs the `submitApplication` activity
