@@ -22,6 +22,16 @@ export {
   interviewFromMail,
   type MailInterview,
 } from "./interview/detect.js";
+// Gmail labels (NS-229, ADR-0027 Proposed): fixed names and the add-only label writer. No caller
+// yet, and nothing requests the gmail.modify scope until Paul accepts the ADR.
+export { LABEL_NAMES, type LabelOrigin, threadLabels } from "./labels/names.js";
+export {
+  createLabelWriter,
+  LABELS_SUBSYSTEM,
+  LabelInputError,
+  LabelWriteError,
+  type LabelWriter,
+} from "./labels/writer.js";
 // Linking job mail to applications (NS-158): tags and the deterministic matcher.
 export {
   type LinkCandidate,
