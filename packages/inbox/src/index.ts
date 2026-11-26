@@ -12,6 +12,16 @@ export {
   type MessageHeaders,
   senderDomain,
 } from "./gmail.js";
+export {
+  type CalendarEvent,
+  detectInterview,
+  type InterviewCandidate,
+  type InterviewDetection,
+  type InterviewFormat,
+  interviewFormat,
+  interviewFromMail,
+  type MailInterview,
+} from "./interview/detect.js";
 // Linking job mail to applications (NS-158): tags and the deterministic matcher.
 export {
   type LinkCandidate,

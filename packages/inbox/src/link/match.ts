@@ -40,7 +40,7 @@ export type MatchResult =
 
 // Shared mail domains: a DMARC or DKIM pass for one of these says nothing about which company
 // wrote the mail, so they never count as a company's own domain, whatever a caller passes.
-const SHARED_DOMAINS: readonly string[] = [
+export const SHARED_DOMAINS: readonly string[] = [
   ...ATS_DOMAINS,
   "gmail.com",
   "googlemail.com",
