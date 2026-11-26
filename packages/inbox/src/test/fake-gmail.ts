@@ -6,6 +6,8 @@ export type FakeMessage = {
   threadId: string;
   internalDate: string;
   headers: Record<string, string>;
+  // Headers sent after `headers`, for a name that appears more than once (NS-160).
+  extraHeaders?: { name: string; value: string }[];
   text?: string | undefined;
   html?: string | undefined;
 };
@@ -55,7 +57,10 @@ export function fakeGmail(
     const m = messages.find((x) => `/${x.id}` === path);
     if (!m) return new Response("{}", { status: 404 });
     const format = url.searchParams.get("format");
-    const headers = Object.entries(m.headers).map(([name, value]) => ({ name, value }));
+    const headers = [
+      ...Object.entries(m.headers).map(([name, value]) => ({ name, value })),
+      ...(m.extraHeaders ?? []),
+    ];
     const parts = [
       ...(m.text !== undefined ? [{ mimeType: "text/plain", body: { data: b64(m.text) } }] : []),
       ...(m.html !== undefined ? [{ mimeType: "text/html", body: { data: b64(m.html) } }] : []),

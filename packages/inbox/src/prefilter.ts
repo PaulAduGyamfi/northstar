@@ -98,14 +98,22 @@ export function authenticatedDomains(authenticationResults: string | null): stri
   return out;
 }
 
+const LABEL = "[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?";
+const HOST_NAME = new RegExp(`^${LABEL}(\\.${LABEL})+$`);
+export const isHostName = (domain: string): boolean =>
+  domain.length <= 253 && HOST_NAME.test(domain);
+
 // Whether the sender's domain is one Gmail verified (the verified domain, or one under it).
+// A host name: dot-separated labels of letters, digits and hyphens (never at a label's ends), at
+// least two labels, at most 253 characters. Anything else (a space, "/", "@", an empty label)
+// is never an authenticated sender, whatever the results header says (NS-160).
 export function isAuthenticatedSender(headers: {
   senderDomain: string;
   authenticationResults: string | null;
 }): boolean {
   const domain = lower(headers.senderDomain);
   return (
-    domain !== "" &&
+    isHostName(domain) &&
     authenticatedDomains(headers.authenticationResults).some((d) => underDomain(domain, d))
   );
 }

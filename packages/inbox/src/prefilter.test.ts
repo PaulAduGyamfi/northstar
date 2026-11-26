@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { classifyByRules } from "./classify-rules.js";
-import { authenticatedDomains, backfillQuery, isJobMail } from "./prefilter.js";
+import {
+  authenticatedDomains,
+  backfillQuery,
+  isAuthenticatedSender,
+  isHostName,
+  isJobMail,
+} from "./prefilter.js";
 
 // Synthetic headers only (the repo is public). The domains are the real ATS vendors' sending
 // domains, which are public facts, not anyone's personal data.
@@ -123,6 +129,45 @@ describe("authenticatedDomains", () => {
         "mx.google.com; spf=pass (unclosed; dmarc=pass header.from=myworkday.com",
       ),
     ).toEqual([]);
+  });
+});
+
+describe("isAuthenticatedSender (NS-160)", () => {
+  const results = (domain: string) => `mx.google.com; dmarc=pass header.from=${domain}`;
+
+  it("trusts a host-name-shaped sender domain the results header verified", () => {
+    expect(
+      isAuthenticatedSender({
+        senderDomain: "ats.example.com",
+        authenticationResults: results("ats.example.com"),
+      }),
+    ).toBe(true);
+  });
+
+  it("refuses a sender domain that isn't shaped like a host name", () => {
+    const bad = ["ats..example.com", "localhost", "-ats.example.com"];
+    expect(
+      bad.map((d) => isAuthenticatedSender({ senderDomain: d, authenticationResults: results(d) })),
+    ).toEqual(bad.map(() => false));
+  });
+
+  it("refuses a space, slash or underscore under a verified parent domain", () => {
+    const bad = ["x y.example.com", "x/y.example.com", "x_y.example.com"];
+    expect(
+      bad.map((d) =>
+        isAuthenticatedSender({ senderDomain: d, authenticationResults: results("example.com") }),
+      ),
+    ).toEqual([false, false, false]);
+  });
+});
+
+describe("isHostName", () => {
+  it("accepts dotted labels of letters, digits and inner hyphens only", () => {
+    expect(
+      ["example.com", "a-b.example.co.uk", "x".repeat(254), "example-.com", "example"].map(
+        isHostName,
+      ),
+    ).toEqual([true, true, false, false, false]);
   });
 });
 
