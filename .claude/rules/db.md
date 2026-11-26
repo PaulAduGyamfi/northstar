@@ -133,7 +133,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   no ledger row and never count. `recordPackageNeedsHuman` (`package-write.ts`) writes
   `package.needs_human` (never an `application.*` type: the feed reads those as status moves) with
   the application id, snake_case reason codes and counts only, keyed by the caller's SHA-256 basis
-  so the same inputs record it once.
+  so the same inputs record it once. `readPackageRounds` (slice 6) counts the application's
+  package rounds from its own `application:<id>:package:<packageId>:package_ready` move keys
+  (read-only) and gives the newest round's package id.
 - Stored files (NS-227, slice 2) are `stored_file`, append-only (a trigger), one row per candidate
   and SHA-256, written only through `file-write.ts` (`storeFileIn`, inside the caller's
   transaction; today only `saveTailoredResume`). CHECKs make the hash the bytes' own
