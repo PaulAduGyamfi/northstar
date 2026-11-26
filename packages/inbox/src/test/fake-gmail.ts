@@ -10,6 +10,8 @@ export type FakeMessage = {
   extraHeaders?: { name: string; value: string }[];
   text?: string | undefined;
   html?: string | undefined;
+  // Gmail's labels on the message; left out of the answer when absent.
+  labelIds?: string[];
 };
 
 // `body`: the JSON error Google sends with the status (default "{}").
@@ -17,7 +19,7 @@ type Failure = { status: number; retryAfter?: string; body?: string };
 
 export function fakeGmail(
   messages: FakeMessage[],
-  opts: { pageSize?: number; failures?: Failure[] } = {},
+  opts: { pageSize?: number; failures?: Failure[]; emailAddress?: string } = {},
 ) {
   const requests: { url: string; authorization: string | null }[] = [];
   const failures = [...(opts.failures ?? [])];
@@ -34,6 +36,11 @@ export function fakeGmail(
     if (failure) {
       const headers = failure.retryAfter ? { "retry-after": failure.retryAfter } : undefined;
       return new Response(failure.body ?? "{}", { status: failure.status, headers });
+    }
+    if (url.pathname === "/gmail/v1/users/me/profile") {
+      return Response.json(
+        opts.emailAddress === undefined ? {} : { emailAddress: opts.emailAddress },
+      );
     }
     if (url.pathname.startsWith("/gmail/v1/users/me/threads/")) {
       const thread = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
@@ -69,6 +76,7 @@ export function fakeGmail(
       id: m.id,
       threadId: m.threadId,
       internalDate: String(Date.parse(m.internalDate)),
+      ...(m.labelIds !== undefined ? { labelIds: m.labelIds } : {}),
       payload:
         format === "full"
           ? { mimeType: "multipart/alternative", headers, parts }

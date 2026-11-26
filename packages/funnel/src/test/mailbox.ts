@@ -476,6 +476,8 @@ export function fakeGmailClient(messages: FakeMessage[]): GmailClient & { fullFe
         .filter((x) => x.threadId === threadId)
         .map((x) => ({ id: x.id, threadId: x.threadId })),
     getHeaders: async (id) => headersOf(byId(id)),
+    // The backfill never asks; a synthetic address in case a test does.
+    profileAddress: async () => "candidate@example.com",
     getFull: async (id) => {
       fullFetches.push(id);
       const msg = byId(id);

@@ -6,11 +6,12 @@ import { mailLink, mailTag } from "./mail-link-schema.js";
 import {
   assignTag,
   listConfirmQueue,
+  readLinkCandidates,
   readLinkedThreads,
   readTags,
   recordMailLink,
 } from "./mail-link-write.js";
-import { application, domainEvent } from "./schema.js";
+import { application, domainEvent, job, jobSource } from "./schema.js";
 import { createTestDb, seedApplication, sqlState } from "./test/pglite.js";
 
 // The mail-link write path on PGlite (NS-158). Synthetic ids only.
@@ -211,5 +212,85 @@ describe("mail tag and link tables", () => {
       await sqlState(db.delete(mailLink)),
       await sqlState(db.execute(sql`truncate mail_link`)),
     ]).toEqual([RESTRICT_VIOLATION, RESTRICT_VIOLATION, RESTRICT_VIOLATION]);
+  });
+});
+
+describe("readLinkCandidates", () => {
+  // Another application of the same candidate, on its own job, in the given status.
+  const addApplication = async (status: "submitted" | "ghosted" | "rejected" | "withdrawn") => {
+    const [seeded] = await db
+      .select({ companyId: job.companyId })
+      .from(job)
+      .where(eq(job.candidateId, candidateId));
+    const [j] = await db
+      .insert(job)
+      .values({
+        candidateId,
+        companyId: seeded?.companyId ?? null,
+        title: "Data Engineer",
+        url: `https://jobs.example.com/${status}`,
+      })
+      .returning();
+    if (!j) throw new Error("no job row");
+    const [a] = await db
+      .insert(application)
+      .values({ candidateId, jobId: j.id, status })
+      .returning();
+    if (!a) throw new Error("no application row");
+    return { jobId: j.id, applicationId: a.id };
+  };
+
+  it("gives each open application with its creation time and no ATS when none is known", async () => {
+    const [row] = await db
+      .select({ createdAt: application.createdAt })
+      .from(application)
+      .where(eq(application.id, applicationId));
+    expect(await readLinkCandidates(db, candidateId)).toEqual([
+      { applicationId, createdAt: row?.createdAt, ats: [] },
+    ]);
+  });
+
+  it("leaves out rejected and withdrawn applications, and keeps a ghosted one", async () => {
+    const ghosted = await addApplication("ghosted");
+    await addApplication("rejected");
+    await addApplication("withdrawn");
+    const ids = (await readLinkCandidates(db, candidateId)).map((c) => c.applicationId);
+    expect(ids.sort()).toEqual([applicationId, ghosted.applicationId].sort());
+  });
+
+  it("names the job's ATS and every source's ATS once each", async () => {
+    const [seeded] = await db
+      .select({ jobId: application.jobId })
+      .from(application)
+      .where(eq(application.id, applicationId));
+    const jobId = seeded?.jobId ?? "";
+    await db.update(job).set({ ats: "workday" }).where(eq(job.id, jobId));
+    await db.insert(jobSource).values([
+      {
+        candidateId,
+        jobId,
+        url: "https://boards.greenhouse.io/example/jobs/1",
+        method: "ats_api",
+        ats: "greenhouse",
+      },
+      { candidateId, jobId, url: "https://jobs.example.com/a", method: "jsonld", ats: null },
+      {
+        candidateId,
+        jobId,
+        url: "https://boards.greenhouse.io/example/jobs/2",
+        method: "ats_api",
+        ats: "greenhouse",
+      },
+    ]);
+    const [c] = await readLinkCandidates(db, candidateId);
+    expect(c?.ats).toEqual(["greenhouse", "workday"]);
+  });
+
+  it("never gives another candidate's applications", async () => {
+    const other = await seedApplication(db, "submitted");
+    const ids = (await readLinkCandidates(db, CandidateId.parse(other.candidateId))).map(
+      (c) => c.applicationId,
+    );
+    expect(ids).toEqual([other.applicationId]);
   });
 });

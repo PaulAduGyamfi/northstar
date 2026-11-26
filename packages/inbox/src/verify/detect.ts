@@ -30,6 +30,13 @@ export const VERIFICATION_PHRASES = [
 // True when an ATS-domain sender sends a verification subject. Gmail's verification of the sender
 // is not required: skipping a forged message only keeps it out of the funnel, while letting it
 // through could send a real code to the model.
+// A verification subject from any sender, not only an ATS: an employer's own portal or an
+// assessment vendor sends these too (the mail-link step, #224; triage has the same subject rule).
+export function hasVerificationSubject(subject: string): boolean {
+  const normal = subject.toLowerCase().replace(/\s+/g, " ");
+  return VERIFICATION_PHRASES.some((phrase) => normal.includes(phrase));
+}
+
 export function isVerificationMail(headers: { senderDomain: string; subject: string }): boolean {
   if (!fromAts(headers.senderDomain)) return false;
   // Any run of whitespace (a double or non-breaking space too) reads as one space.

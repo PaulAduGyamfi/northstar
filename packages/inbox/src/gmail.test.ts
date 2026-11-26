@@ -201,6 +201,31 @@ describe("gmail client", () => {
     expect(gmail.requests.at(-1)?.url).toContain("/threads/t1?format=minimal");
   });
 
+  it("reads Gmail's labels on a message", async () => {
+    const gmail = fakeGmail([{ ...message, labelIds: ["INBOX", "CATEGORY_UPDATES"] }]);
+    expect((await client(gmail).getHeaders("m1")).labelIds).toEqual(["INBOX", "CATEGORY_UPDATES"]);
+  });
+
+  it("leaves labels out when Gmail sends none", async () => {
+    const gmail = fakeGmail([message]);
+    expect("labelIds" in (await client(gmail).getHeaders("m1"))).toBe(false);
+  });
+
+  it("reads the mailbox's own address from Gmail's profile", async () => {
+    const gmail = fakeGmail([], { emailAddress: "candidate@example.com" });
+    expect(await client(gmail).profileAddress()).toBe("candidate@example.com");
+    expect(gmail.requests.at(-1)?.url).toBe(
+      "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+    );
+  });
+
+  it("refuses a profile without an email address", async () => {
+    const gmail = fakeGmail([]);
+    await expect(client(gmail).profileAddress()).rejects.toThrow(
+      "Gmail's profile had no email address",
+    );
+  });
+
   it("doesn't retry a 404", async () => {
     const gmail = fakeGmail([message], { failures: [{ status: 404 }] });
     await expect(client(gmail).getHeaders("m1")).rejects.toThrow("Gmail answered 404");
