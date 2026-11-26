@@ -256,8 +256,13 @@ Exists now:
     message and thread ids, recipient, subject, thread headers and body. The table's foreign key
     pins the request's kind and hash.
 
-  No caller, approval view of the draft (it must show the recipient and the flag before any writer)
-  or Gmail draft writer yet. ADR-0025 (Proposed) decides the
+  Since slice 2 the Queue shows it: the API's `GET /approvals/reply` (session only) gives a
+  reply request's stored draft, and the web app's "Show the reply" lists `To:` first, a warning
+  when the reply goes to another domain than the sender's, then the subject, body, questions and
+  how many items it cites (`replyLines`). `POST /approvals/decide` never approves an `email_reply`
+  with no stored draft (`missing_draft`, via `missingReplyDrafts`), nor one to another domain in
+  a batch (`approve_alone`, via `otherDomainReplies`); a reject still clears one.
+  No caller or Gmail draft writer yet. ADR-0025 (Proposed) decides the
   `gmail.compose` scope for drafts, which are never sent.
 - Factual answers (NS-141, ANS-001) from Paul's profile settings, plain code, no model:
   `profile_setting` in `packages/db` (`settings-write.ts`: `setProfileSetting`,

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { type Db, requestApproval } from "@northstar/db";
+import { type Db, fileReplyDraft, requestApproval } from "@northstar/db";
 import { createTestDb, seedApplication, setGateClock } from "@northstar/db/testing";
 import { CandidateId } from "@northstar/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -60,5 +60,46 @@ describe("dbApprovalPorts", () => {
     if (!view?.ok) throw new Error("not decided");
     expect(await ports.undo(view.value.decisionId)).toEqual({ ok: true, value: { requestId: a } });
     expect((await ports.list(undefined)).map((p) => p.requestId)).toEqual([a]);
+  });
+
+  it("reads a reply's stored draft, and finds the replies with none (NS-237)", async () => {
+    const ports = dbApprovalPorts(db, async () => candidateId);
+    const filed = await fileReplyDraft(db, {
+      candidateId,
+      reply: {
+        gmailMessageId: "18c3f0a2b4d6e8f0",
+        threadId: "18c3f0a2b4d6e8aa",
+        envelope: {
+          to: "jo@acme.example",
+          subject: "Re: Your application",
+          inReplyTo: "<m2@acme.example>",
+          references: ["<m2@acme.example>"],
+        },
+        replyToOtherDomain: false,
+        body: "Hi Jo, thank you.",
+        cites: [],
+        followUps: [],
+      },
+    });
+    const replyId = filed.ok ? filed.value.requestId : "";
+    const other = await pending("answer");
+    expect([
+      await ports.readReply(replyId),
+      await ports.readReply(other),
+      await ports.missingReplies([replyId, other]),
+      await ports.otherDomainReplies([replyId, other]),
+    ]).toEqual([
+      {
+        to: "jo@acme.example",
+        replyToOtherDomain: false,
+        subject: "Re: Your application",
+        body: "Hi Jo, thank you.",
+        cites: [],
+        followUps: [],
+      },
+      null,
+      [],
+      [],
+    ]);
   });
 });
