@@ -291,7 +291,17 @@ Exists now:
   its classification by the backfill's rules (verified senders only) or the `mail-classify`
   route, with the provenance check. Verification mail from any sender (a verification subject
   or a code) is skipped before either; a refusal, invalid output, missing employer or failed
-  provenance check goes to review, and a held-back call is thrown for a retry. No storage, Gmail labels (no `gmail.modify`) or caller yet (#224).
+  provenance check goes to review, and a held-back call is thrown for a retry. No storage or caller yet (#224).
+  Since NS-229 (slice 1) also Gmail labels (`src/labels/`, ADR-0027, Proposed: `gmail.modify` held
+  only by this writer, ADR-0014's per-run token, labels add-only and outside the Gate):
+  `threadLabels(kind, origin)` gives a thread's fixed `Northstar/…` type label (INB-005) and
+  origin label (`Started-by-Northstar` or `Outside`, INB-008), and `createLabelWriter` lists,
+  creates missing `Northstar/` labels and calls `threads.modify` with `addLabelIds` only, behind
+  the `gmail` breaker and the `gmail_labels` kill switch, refusing any other name or a non-Gmail
+  id. Its token is its own type, `GmailLabelAccess` (never the reader's `GmailAccess`, a type
+  test), and every request passes the runtime allowlist `requestAllowed`; a recursive boundary
+  scan is the tripwire. The caller (#224) writes the feed event. No scope request or caller until
+  Paul accepts ADR-0027 (its own OAuth client).
 - Interview detection (NS-169, CAL-002), slice 1, plain code in `packages/inbox`
   (`src/interview/detect.ts`):
   - `detectInterview` turns one calendar event into an interview for one application. The title
