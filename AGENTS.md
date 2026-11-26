@@ -622,6 +622,10 @@ Exists now:
   source. A required question it can't answer (no setting, no banked answer, too long, not one of
   the choices), or a required cover letter, makes it `NeedsHuman`; an optional one stays blank.
   It also gives the Gate's policy facts (factual settings count as `new`, never reuse).
+  Since NS-233 it also takes an optional `confirmed` map (field name → `ConfirmedMatch` from
+  `confirmQuestion`, run by the caller beforehand): such a match fills the field like code's own,
+  each bank source carries `confirmedBy`, and a model's pick (`confirmedBy: "model"`) always counts
+  as `new` for the Gate, never `bank_exact` or `bank_high_confidence`.
   `filePackage` files the package with the Gate (`requestApproval`, actor `system`, key
   `package:<packageId>`); it never submits. No caller, form questions from the ATS or stored
   resume files yet.

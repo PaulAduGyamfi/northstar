@@ -13,6 +13,7 @@ import {
 import {
   adaptAnswer,
   answerFactual,
+  type ConfirmedMatch,
   matchQuestion,
   narrativeKindOf,
   type Setting,
@@ -57,6 +58,9 @@ export type AssemblyInput = {
   // The job's fit score (NS-116), or null when it has none.
   fit: number | null;
   formSeenBefore: boolean;
+  // Matches the caller confirmed with confirmQuestion before assembly (NS-233), by field name.
+  // Optional: without it every question is matched by code alone.
+  confirmed?: ReadonlyMap<string, ConfirmedMatch>;
 };
 
 // Where an answer came from, so Paul (and the Gate's policy) can trace every value.
@@ -71,6 +75,9 @@ export type AnswerSource =
       confidence: number;
       // The label is the canonical question's own wording (see bankSource).
       exactWording: boolean;
+      // Who chose the canonical question (NS-233): code's lexical match, or the model's pick in
+      // confirmQuestion. A model's pick is never reuse for the Gate's policy.
+      confirmedBy: "rules" | "model";
     };
 
 // Why one question can't be answered without Paul.
@@ -134,7 +141,15 @@ function answer(q: FormQuestion, input: AssemblyInput): Answer {
   }
   // A factual question whose setting is missing or doesn't fit: never drafted around.
   if (factual.reason !== "not_factual") return { ok: false, reason: factual.reason };
-  const match = matchQuestion(q.label);
+  // A match the caller confirmed beforehand (confirmQuestion, which may call the model), or
+  // code's own lexical match. Either way the narrative-only and negation rules below still apply.
+  const confirmed = input.confirmed?.get(q.fieldName);
+  const match = confirmed?.match ?? matchQuestion(q.label);
+  const confirmedBy =
+    confirmed?.by === "model" ||
+    (confirmed?.match.status === "matched" && confirmed.match.confirmedBy === "model")
+      ? "model"
+      : "rules";
   if (
     match.status !== "matched" ||
     narrativeKindOf(match.canonical.id) === null ||
@@ -161,6 +176,7 @@ function answer(q: FormQuestion, input: AssemblyInput): Answer {
       variant: adapted.variant,
       confidence: match.confidence,
       exactWording,
+      confirmedBy,
     },
     freeText: true,
   };
@@ -176,6 +192,9 @@ function pickChoice(choices: readonly string[], value: string): string | null {
 function bankSource(source: AnswerSource): PackageFacts["answers"][number]["source"] {
   // Factual settings are marked for Paul's review (NS-141), so they never count as reuse.
   if (source.from === "setting") return "new";
+  // The model chose the canonical question (NS-233): a mistaken or injected pick must never skip
+  // Paul's review, whatever its confidence or wording.
+  if (source.confirmedBy === "model") return "new";
   if (source.exactWording) return "bank_exact";
   return source.confidence >= HIGH_CONFIDENCE ? "bank_high_confidence" : "new";
 }
