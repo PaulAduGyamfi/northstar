@@ -1,6 +1,6 @@
 # NS-227 (slice 6): The caller that assembles and files a package
 
-Status: in progress
+Status: done
 Requirements: APPLY-001 (assemble and file), APPLY-003 (seen-before forms only from stored
 shapes), APPLY-006 (what code can't finish goes to Paul, visibly), RES-006 (safe to repeat)
 Rules that apply: ADR-0016, ADR-0017, ADR-0023, `.claude/rules/db.md`, `.claude/rules/tests.md`.

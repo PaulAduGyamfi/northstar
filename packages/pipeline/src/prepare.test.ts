@@ -1,0 +1,288 @@
+import {
+  type Db,
+  type JobFormQuestion,
+  listPendingApprovals,
+  profileSchema,
+  readEventsAfter,
+  readPackageInputs,
+  saveJobForm,
+  saveTailoredResume,
+  schema,
+  setContact,
+  setProfileSetting,
+  transitionApplication,
+  writeProfileImport,
+} from "@northstar/db";
+import { createTestDb, seedApplication } from "@northstar/db/testing";
+import { ApplicationId, CandidateId, type ContactDetails } from "@northstar/domain";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { packageIdFor, preparePackage, resumeFileName } from "./prepare.js";
+
+// The package caller (NS-227 slice 6) on the real write paths (PGlite). Synthetic data only.
+
+let db: Db;
+let close: () => Promise<void>;
+let candidateId: CandidateId;
+let applicationId: string;
+let jobId: string;
+
+beforeEach(async () => {
+  ({ db, close } = await createTestDb());
+  const seeded = await seedApplication(db, "queued");
+  candidateId = CandidateId.parse(seeded.candidateId);
+  applicationId = seeded.applicationId;
+  jobId = seeded.jobId;
+});
+afterEach(() => close());
+
+const CONTACT: ContactDetails = {
+  firstName: "Test",
+  lastName: "Person",
+  email: "test@example.com",
+  phone: null,
+};
+
+// One required factual question the settings answer, after Greenhouse's standard fields.
+const SPONSORSHIP: JobFormQuestion = {
+  fieldName: "question_1",
+  label: "Will you now or in the future require visa sponsorship?",
+  required: true,
+  kind: "select",
+  choices: [
+    { label: "Yes", value: "1" },
+    { label: "No", value: "0" },
+  ],
+  group: 2,
+};
+const STANDARD: JobFormQuestion[] = [
+  {
+    fieldName: "first_name",
+    label: "First Name",
+    required: true,
+    kind: "text",
+    choices: null,
+    group: 0,
+  },
+  {
+    fieldName: "resume",
+    label: "Resume/CV",
+    required: true,
+    kind: "file",
+    choices: null,
+    group: 1,
+  },
+];
+
+// Everything a complete package needs: a Greenhouse source, the form, contact, a setting and a
+// tailored resume with its PDF.
+async function complete(form: JobFormQuestion[] = [...STANDARD, SPONSORSHIP]): Promise<void> {
+  await db.insert(schema.jobSource).values({
+    candidateId,
+    jobId,
+    url: "https://boards.greenhouse.io/globex/jobs/4012345",
+    method: "ats_api",
+    ats: "greenhouse",
+    atsPostingId: "4012345",
+  });
+  await saveJobForm(db, { candidateId, jobId, ats: "greenhouse", questions: form });
+  await setContact(db, { candidateId, contact: CONTACT });
+  await setProfileSetting(db, { candidateId, field: "needs_sponsorship", value: "no" });
+  await tailor();
+}
+
+async function tailor(): Promise<void> {
+  await writeProfileImport(db, {
+    candidateId,
+    fileName: "resume.txt",
+    textSha256: "e".repeat(64),
+    promptVersion: 1,
+    model: "claude-opus-5-5",
+    traceId: null,
+    call: {},
+    extract: { roles: [], education: [], atoms: [], skills: [], certifications: [], links: [] },
+  });
+  const [source] = await db
+    .select({ id: profileSchema.profileSource.id })
+    .from(profileSchema.profileSource);
+  await saveTailoredResume(db, {
+    candidateId,
+    jobId,
+    profileSourceId: source?.id ?? "",
+    resume: {},
+    validation: {},
+    score: {},
+    droppedSkills: [],
+    summary: {
+      lines: 0,
+      atoms: 0,
+      addedSkills: 0,
+      droppedSkills: 0,
+      notClaimed: 0,
+      keywordsCovered: 0,
+      keywordsTotal: 0,
+      titleMatch: "none",
+      atsPass: true,
+      valid: true,
+      failures: 0,
+    },
+    pdf: new TextEncoder().encode("%PDF-1.7 synthetic"),
+  });
+}
+
+const prepare = () => preparePackage(db, { candidateId, applicationId });
+const status = async () =>
+  (await readPackageInputs(db, candidateId, applicationId))?.application.status;
+const needsYou = async () =>
+  (await readEventsAfter(db, candidateId, 0n, 500)).filter(
+    (e) => e.event.type === "package.needs_human",
+  );
+
+describe("packageIdFor and resumeFileName", () => {
+  it("gives the same version 8 id for the same application and content, and another for other content", () => {
+    const a = packageIdFor(applicationId, "a".repeat(64));
+    expect([
+      a === packageIdFor(applicationId, "a".repeat(64)),
+      a === packageIdFor(applicationId, "b".repeat(64)),
+      /^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(a),
+    ]).toEqual([true, false, true]);
+  });
+
+  it("names the resume after Paul in plain characters, or plainly when the name has none", () => {
+    expect([
+      resumeFileName({ firstName: "Test", lastName: "Person" }),
+      resumeFileName({ firstName: "José Luis", lastName: "O'Brien" }),
+      resumeFileName({ firstName: "李", lastName: "明" }),
+    ]).toEqual(["Test-Person-resume.pdf", "Jose-Luis-O-Brien-resume.pdf", "resume.pdf"]);
+  });
+});
+
+describe("preparePackage", () => {
+  it("files a complete package with the Gate and moves the application to awaiting_approval", async () => {
+    await complete();
+    const result = await prepare();
+    const pending = await listPendingApprovals(db, candidateId);
+    expect([
+      result.kind,
+      await status(),
+      pending.map((p) => [p.kind, p.subject.startsWith("application_package:")]),
+    ]).toEqual(["filed", "awaiting_approval", [["application_package", true]]]);
+  });
+
+  it("files nothing new on a rerun: the application is no longer queued", async () => {
+    await complete();
+    await prepare();
+    expect([await prepare(), (await listPendingApprovals(db, candidateId)).length]).toEqual([
+      { kind: "refused", reason: "not_queued" },
+      1,
+    ]);
+  });
+
+  it("finishes an application a crashed run left at package_ready", async () => {
+    await complete();
+    // A run that moved to package_ready and then stopped before awaiting_approval.
+    const moved = await transitionApplication(db, {
+      candidateId,
+      applicationId: ApplicationId.parse(applicationId),
+      from: "queued",
+      to: "package_ready",
+      actor: "system",
+      reason: "",
+      inputsSummary: "",
+      links: [],
+      idempotencyKey: `application:${applicationId}:test:package_ready`,
+    });
+    const result = await prepare();
+    expect([
+      moved.ok,
+      result.kind,
+      await status(),
+      (await listPendingApprovals(db, candidateId)).length,
+    ]).toEqual([true, "filed", "awaiting_approval", 1]);
+  });
+
+  it("refuses an unknown application and one that isn't queued", async () => {
+    const sent = await seedApplication(db, "submitted");
+    expect([
+      await preparePackage(db, {
+        candidateId,
+        applicationId: "00000000-0000-4000-8000-000000000001",
+      }),
+      await preparePackage(db, {
+        candidateId: CandidateId.parse(sent.candidateId),
+        applicationId: sent.applicationId,
+      }),
+    ]).toEqual([
+      { kind: "refused", reason: "not_found" },
+      { kind: "refused", reason: "not_queued" },
+    ]);
+  });
+
+  it("lists every missing input as a reason, files nothing and stays queued", async () => {
+    expect([
+      await prepare(),
+      await status(),
+      (await listPendingApprovals(db, candidateId)).length,
+    ]).toEqual([
+      {
+        kind: "needs_human",
+        reasons: { no_ats_source: 1, no_contact: 1, no_form: 1, no_resume_file: 1 },
+        recorded: true,
+      },
+      "queued",
+      0,
+    ]);
+  });
+
+  it("stops before filing when the form requires a phone and Paul has none", async () => {
+    await complete([
+      ...STANDARD,
+      { fieldName: "phone", label: "Phone", required: true, kind: "text", choices: null, group: 3 },
+      SPONSORSHIP,
+    ]);
+    expect([await prepare(), (await listPendingApprovals(db, candidateId)).length]).toEqual([
+      { kind: "needs_human", reasons: { no_phone: 1 }, recorded: true },
+      0,
+    ]);
+  });
+
+  it("stops before filing when the form requires an upload Northstar can't fill", async () => {
+    await complete([
+      ...STANDARD,
+      SPONSORSHIP,
+      {
+        fieldName: "question_9",
+        label: "Writing sample",
+        required: true,
+        kind: "file",
+        choices: null,
+        group: 4,
+      },
+    ]);
+    expect([await prepare(), (await listPendingApprovals(db, candidateId)).length]).toEqual([
+      { kind: "needs_human", reasons: { file_upload: 1 }, recorded: true },
+      0,
+    ]);
+  });
+
+  it("names an unanswered question's reason, and records the line once for the same inputs", async () => {
+    await complete([
+      ...STANDARD,
+      SPONSORSHIP,
+      {
+        fieldName: "question_2",
+        label: "Why do you want to work here?",
+        required: true,
+        kind: "textarea",
+        choices: null,
+        group: 5,
+      },
+    ]);
+    const first = await prepare();
+    const second = await prepare();
+    expect([first, second, (await needsYou()).length]).toEqual([
+      { kind: "needs_human", reasons: { no_bank_answer: 1 }, recorded: true },
+      { kind: "needs_human", reasons: { no_bank_answer: 1 }, recorded: false },
+      1,
+    ]);
+  });
+});
