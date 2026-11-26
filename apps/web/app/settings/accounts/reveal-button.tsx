@@ -42,7 +42,8 @@ export function RevealButton({ tenantKey }: { tenantKey: string }) {
     setBusy(true);
     setError(null);
     try {
-      if (!("credentials" in navigator)) {
+      // The same check as the sign-in page: no WebAuthn, no passkey prompt.
+      if (typeof PublicKeyCredential === "undefined" || !("credentials" in navigator)) {
         setError("This browser can't use passkeys.");
         return;
       }
@@ -69,7 +70,11 @@ export function RevealButton({ tenantKey }: { tenantKey: string }) {
     return (
       <span>
         Password: <code style={{ userSelect: "all" }}>{password}</code>{" "}
-        <span className="muted" role="status">
+        {/* Announced once; the ticking count below is not a live region. */}
+        <span className="visually-hidden" role="status">
+          Password shown for {Math.round(MASK_AFTER_MS / 1000)} seconds.
+        </span>
+        <span className="muted" aria-live="off">
           hidden again in {secondsLeft} s
         </span>{" "}
         <button type="button" onClick={hide}>

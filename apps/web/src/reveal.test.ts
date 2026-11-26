@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Credentials, RequestJson } from "./passkey";
-import { MASK_AFTER_MS, revealPassword, startMaskTimer } from "./reveal";
+import { MASK_AFTER_MS, revealPassword, startMaskTimer, TIMED_OUT_REVEAL } from "./reveal";
 
 // Revealing a vault password on Settings → Accounts (NS-246 slice 1). A fake credentials container
 // and a fake fetch that answers like the API; no browser, device or network. Synthetic values only.
@@ -89,7 +89,7 @@ describe("revealPassword", () => {
   });
 
   it.each([
-    [401, "That passkey wasn't accepted. Try again."],
+    [401, "That passkey wasn't accepted, or you've been signed out. Try again."],
     [
       403,
       "Open Northstar at http://northstar.localhost:3100 (or your NORTHSTAR_WEB_ORIGIN) and try again.",
@@ -108,6 +108,69 @@ describe("revealPassword", () => {
       expect(outcome).toEqual({ ok: false, message });
     },
   );
+
+  it.each([
+    [
+      403,
+      "Open Northstar at http://northstar.localhost:3100 (or your NORTHSTAR_WEB_ORIGIN) and try again.",
+    ],
+    [429, "Too many tries. Wait a minute, then try again."],
+    [500, "Couldn't start the reveal."],
+  ])(
+    "says plainly what a %i from the options step means, and never prompts",
+    async (status, message) => {
+      const passkey = fakeCredentials();
+      const outcome = await revealPassword(
+        TENANT,
+        passkey.credentials,
+        fakeApi({ options: status }).fetchFn,
+      );
+      expect([outcome, passkey.gets.length]).toEqual([{ ok: false, message }, 0]);
+    },
+  );
+
+  it("falls back to a plain message for a reveal status it doesn't know", async () => {
+    const outcome = await revealPassword(
+      TENANT,
+      fakeCredentials().credentials,
+      fakeApi({ reveal: 400 }).fetchFn,
+    );
+    expect(outcome).toEqual({ ok: false, message: "Couldn't reveal it." });
+  });
+
+  it("refuses an options answer without a usable challenge, and never prompts", async () => {
+    const passkey = fakeCredentials();
+    const badOptions = (async () =>
+      new Response(JSON.stringify({ options: { challenge: "not base64url!" } }), {
+        status: 200,
+      })) as unknown as typeof fetch;
+    const outcome = await revealPassword(TENANT, passkey.credentials, badOptions);
+    expect([outcome, passkey.gets.length]).toEqual([
+      { ok: false, message: "Couldn't start the reveal." },
+      0,
+    ]);
+  });
+
+  it("says no passkey was used when the browser hands back nothing, and posts no reveal", async () => {
+    const api = fakeApi();
+    const empty: Credentials = { create: async () => null, get: async () => null };
+    const outcome = await revealPassword(TENANT, empty, api.fetchFn);
+    expect([outcome, api.calls.length]).toEqual([
+      { ok: false, message: "No passkey was used." },
+      1,
+    ]);
+  });
+
+  it("says a timed-out reveal may still have been revealed and logged", async () => {
+    const timingOut = (async () => {
+      throw new DOMException("timed out", "TimeoutError");
+    }) as unknown as typeof fetch;
+    const outcome = await revealPassword(TENANT, fakeCredentials().credentials, timingOut);
+    expect(outcome).toEqual({ ok: false, message: TIMED_OUT_REVEAL });
+    expect(TIMED_OUT_REVEAL).toBe(
+      "No answer in time. It may have been revealed and logged anyway; try again.",
+    );
+  });
 
   it("says Paul was signed out when the options step answers 401, and never prompts", async () => {
     const passkey = fakeCredentials();
@@ -189,7 +252,8 @@ describe("keeping the password out of storage", () => {
     vi.unstubAllGlobals();
   });
 
-  it("writes nothing to localStorage or sessionStorage", async () => {
+  // A tripwire on revealPassword itself; the button keeps the password in React state only.
+  it("revealPassword itself writes nothing to localStorage or sessionStorage", async () => {
     await revealPassword(TENANT, fakeCredentials().credentials, fakeApi().fetchFn);
     expect(stored).toEqual([]);
   });

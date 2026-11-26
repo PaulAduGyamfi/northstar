@@ -1,6 +1,6 @@
 # NS-246: The "Reveal" button on Settings → Accounts (slice 1, the page)
 
-Status: draft (autonomous lane, ADR-0016)
+Status: built (autonomous lane, ADR-0016)
 Requirements: CRD-002, ACC-001 · ADR-0024 (Proposed), ADR-0022, ADR-0018
 Rules that apply: `.claude/rules/web.md`, `.claude/rules/gateways.md` (vault boundary),
 `.claude/rules/tests.md`. Issue #290 (Parent: #286).
@@ -32,13 +32,21 @@ should get the password in two clicks, see it once, and have it gone again.
   only the API paths, never `revealTenantPassword` or the other functions the test watches.
 
 ## Acceptance criteria
-- [ ] A reveal asks for options for that tenant, runs one passkey prompt and posts one reveal, and
+- [x] A reveal asks for options for that tenant, runs one passkey prompt and posts one reveal, and
       returns the password. These are tested with a fake credentials container and a fake fetch.
-- [ ] Each failure status gives its message and no password.
-- [ ] The password is cleared after 30 seconds (fake timers), and Hide clears it at once.
-- [ ] Nothing is written to `localStorage` or `sessionStorage` (a test with spies).
-- [ ] The security reviewer passes.
-- [ ] AGENTS.md says the page exists.
+- [x] Each failure status gives its message and no password.
+- [x] The password is cleared after 30 seconds (fake timers), and Hide clears it at once.
+- [x] Nothing is written to `localStorage` or `sessionStorage` (a test with spies).
+- [x] The security reviewer passes.
+- [x] AGENTS.md says the page exists.
+
+## Decisions
+- **Timeout wording.** A timed-out reveal says it "may have been revealed and logged anyway",
+  because the API may already have used its one-time approval and written the access.
+- **The storage test is a tripwire.** It proves `revealPassword` writes no storage. The button
+  keeps the password in React state only, which no unit test here renders.
+- **Keyboard focus.** After a reveal, focus moving to Hide is left for a later pass. Both views
+  are plain buttons Paul can tab to.
 
 ## Out of scope
 - The three `packages/db` guards from #290: a reveal decision only behind `reveal_to_user`, a feed

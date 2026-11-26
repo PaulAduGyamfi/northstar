@@ -25,13 +25,18 @@ const OPTIONS_MESSAGES: Record<number, string> = {
 };
 // The reveal step checks the passkey, the vault switch and that a password is saved.
 const REVEAL_MESSAGES: Record<number, string> = {
-  401: "That passkey wasn't accepted. Try again.",
+  // The session check answers 401 first, so a session that expired between the two calls looks
+  // the same as a refused passkey.
+  401: "That passkey wasn't accepted, or you've been signed out. Try again.",
   403: WRONG_ADDRESS,
   404: "No password is saved for this account.",
   429: TOO_MANY,
   503: "The vault is locked. Turn it on in Health, then try again.",
 };
 const UNREADABLE = "The answer couldn't be read. Try again.";
+// Like TIMED_OUT_MESSAGE (web.md): it may have gone through, and been logged.
+export const TIMED_OUT_REVEAL =
+  "No answer in time. It may have been revealed and logged anyway; try again.";
 
 // The options body, checked before the browser sees it (the challenge as base64url).
 const OptionsBody = z.object({
@@ -51,10 +56,9 @@ const post = (path: string, body: unknown, fetchFn: typeof fetch) =>
   );
 
 // The browser's own errors in plain words. A timed-out reveal may still have been recorded (the
-// API logs each vault access and uses its one-time approval), but it changes nothing Paul needs to
-// check, so trying again is the whole advice.
+// API logs each vault access and uses its one-time approval), so its message says so.
 function errorMessage(error: unknown): string {
-  if (isTimeout(error)) return "No answer in time. Try again.";
+  if (isTimeout(error)) return TIMED_OUT_REVEAL;
   if (error instanceof DOMException) {
     if (error.name === "NotAllowedError") {
       return "No passkey was used: the request was cancelled or timed out.";
