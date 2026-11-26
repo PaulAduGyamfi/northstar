@@ -86,10 +86,19 @@ describe("profile work linkedin", () => {
   });
 
   it("says when a description is over LinkedIn's limit, and still prints it whole", async () => {
-    const long = {
+    // Longer lines than the parser stores today: the guard for a later raise of its limits.
+    const long: IndependentWorkView = {
       ...VIEW,
-      entries: [{ ...VIEW.entries[0], lines: Array.from({ length: 6 }, () => "x".repeat(400)) }],
-    } as IndependentWorkView;
+      entries: [
+        {
+          title: "Cloud certification",
+          start: "2026-01",
+          end: "2026-04",
+          link: null,
+          lines: Array.from({ length: 6 }, () => "x".repeat(400)),
+        },
+      ],
+    };
     const { d, printed } = deps({ readIndependentWork: async () => long });
     await workCommand(d, ["linkedin"]);
     expect(printed).toContain(

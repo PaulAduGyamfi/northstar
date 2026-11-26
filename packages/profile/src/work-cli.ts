@@ -15,9 +15,10 @@ import {
   type WorkEntry,
 } from "./independent-work.js";
 
-// `profile work set <file>` and `profile work show` (NS-196, DX-010): Paul's independent work
-// since his last role, the "Projects / Independent work" section and the 20-second answer. `set`
-// prints counts only; `show` prints Paul's own entries back to Paul in his terminal.
+// `profile work set <file>`, `profile work show` (NS-196, DX-010) and `profile work linkedin`
+// (NS-231 slice 2): Paul's independent work since his last role, the "Projects / Independent
+// work" section, the 20-second answer and LinkedIn "Projects" fields to paste. `set` prints counts
+// only; `show` and `linkedin` print Paul's own entries back to Paul in his terminal.
 
 export type WorkCliDeps = {
   print: (line: string) => void;

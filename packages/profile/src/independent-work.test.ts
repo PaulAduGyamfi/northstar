@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   independentWorkSection,
+  LINKEDIN_DESCRIPTION_MAX,
   linkedinProjects,
   MAX_ANSWER_WORDS,
+  MAX_LINE,
+  MAX_LINES,
   parseIndependentWork,
   sinceFromFacts,
   twentySecondAnswer,
@@ -267,12 +270,32 @@ describe("linkedinProjects", () => {
   });
 
   it("flags a description over LinkedIn's 2,000 characters with its length, and never cuts it", () => {
-    const long = { ...entries[0], lines: Array.from({ length: 6 }, () => "x".repeat(400)) };
-    const [project] = linkedinProjects([long as (typeof entries)[number]]);
+    // Longer lines than the parser stores today: this exercises the guard for a later raise.
+    const long: WorkEntry = {
+      title: "Cloud certification",
+      start: "2026-01",
+      end: "2026-04",
+      link: null,
+      lines: Array.from({ length: 6 }, () => "x".repeat(400)),
+    };
+    const [project] = linkedinProjects([long]);
     expect([project?.tooLong, project?.length, project?.description.length]).toEqual([
       true,
       2417,
       2417,
     ]);
+  });
+
+  it("keeps the largest description stored work can hold under LinkedIn's limit", () => {
+    const largest: WorkEntry = {
+      title: "t",
+      start: "2026-01",
+      end: null,
+      link: null,
+      lines: Array.from({ length: MAX_LINES }, () => "x".repeat(MAX_LINE)),
+    };
+    const [project] = linkedinProjects([largest]);
+    expect([project?.length, project?.tooLong]).toEqual([1217, false]);
+    expect(LINKEDIN_DESCRIPTION_MAX).toBe(2000);
   });
 });

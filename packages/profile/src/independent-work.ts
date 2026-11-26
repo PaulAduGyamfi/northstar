@@ -165,7 +165,9 @@ export function independentWorkSection(entries: readonly WorkEntry[]): string[] 
   return out;
 }
 
-// LinkedIn's limit on a project's description, in characters.
+// LinkedIn's limit on a project's description, in characters. Stored work can't reach it today
+// (MAX_LINES lines of MAX_LINE characters is about 1,200; a test pins that), so `tooLong` is a
+// guard for a later raise of those limits, not a case Paul can hit now.
 export const LINKEDIN_DESCRIPTION_MAX = 2000;
 
 // One LinkedIn "Projects" entry, field by field, for Paul to paste by hand: Northstar never
