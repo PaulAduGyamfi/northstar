@@ -13,6 +13,8 @@ export const WAIT_REFUSALS: ReadonlySet<string> = new Set([
   "Paced",
   "DailyCapReached",
   "HeldBack",
+  // Paul approved, but the 2-minute undo window is still open (ADR-0017).
+  "UndoWindowOpen",
 ]);
 
 // First wait when the gateway gave no time: an earlier run may still be in the browser
@@ -21,6 +23,8 @@ const FIRST_WAIT_MS: Readonly<Record<string, number>> = {
   InProgress: 5 * 60_000,
   AtsBusy: 2 * 60_000,
   HeldBack: 60_000,
+  // The undo window's length: the first retry lands just after it closes.
+  UndoWindowOpen: 2 * 60_000,
 };
 const FALLBACK_FIRST_WAIT_MS = 60_000;
 // Undated waits stop doubling here, like the breaker's pause (ADR-0007).

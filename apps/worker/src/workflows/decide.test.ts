@@ -57,6 +57,7 @@ describe("decide", () => {
     expect(decide(refused("AtsBusy"), 0)).toEqual({ kind: "wait", ms: 120_000 });
     expect(decide(refused("InProgress"), 0)).toEqual({ kind: "wait", ms: 300_000 });
     expect(decide(refused("InProgress"), 5)).toEqual({ kind: "wait", ms: 900_000 });
+    expect(decide(refused("UndoWindowOpen"), 0)).toEqual({ kind: "wait", ms: 120_000 });
   });
 
   it("gives up instead of waiting forever after the last allowed wait", () => {

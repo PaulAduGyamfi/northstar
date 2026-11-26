@@ -6,7 +6,7 @@ import {
   type SubmitRefusal,
 } from "@northstar/gateways";
 import { ApplicationFailure } from "@temporalio/common";
-import { NOT_APPROVED, type SubmitStep } from "../workflows/types.js";
+import { NOT_APPROVED, type SubmitStep, UNDO_WINDOW_OPEN } from "../workflows/types.js";
 
 // The apply-browser pool's activity (NS-157): one call to the Apply Gateway, which checks the
 // approval itself, claims the submission once and drives the form (ADR-0002). This wrapper only
@@ -32,6 +32,11 @@ export function createApplyActivities(submit: Submit, now: () => Date = () => ne
       try {
         result = await submit(input);
       } catch (error) {
+        // Approved, but inside the 2-minute undo window (ADR-0017): not a refusal for good. The
+        // workflow waits it out and asks again (.claude/rules/gateways.md: never a silent drop).
+        if (error instanceof NotApprovedError && error.reason === UNDO_WINDOW_OPEN) {
+          return { kind: "refused", refusal: UNDO_WINDOW_OPEN, waitMs: null };
+        }
         if (error instanceof NotApprovedError) {
           // The message is the Gate's refusal kind (Rejected, Undone...), which the workflow
           // returns as its not_approved reason.

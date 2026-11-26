@@ -34,3 +34,6 @@ export type SubmissionResult =
 // Error type of the activity failure for a decision the Gate didn't verify. Not retryable: the
 // same decision id would be refused again.
 export const NOT_APPROVED = "NotApproved";
+
+// The Gate's refusal kind for an approval still inside its undo window: wait, then try again.
+export const UNDO_WINDOW_OPEN = "UndoWindowOpen";

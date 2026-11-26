@@ -69,6 +69,17 @@ describe("the submitApplication activity", () => {
     expect(failure).toMatchObject({ type: NOT_APPROVED, nonRetryable: true, message: "Rejected" });
   });
 
+  it("reports an approval still inside its undo window as a refusal to wait out", async () => {
+    const activities = createApplyActivities(async () => {
+      throw new NotApprovedError("UndoWindowOpen");
+    }, now);
+    await expect(activities.submitApplication(args)).resolves.toEqual({
+      kind: "refused",
+      refusal: "UndoWindowOpen",
+      waitMs: null,
+    });
+  });
+
   it("lets any other gateway error through for the retry policy", async () => {
     const boom = new Error("database down");
     const activities = createApplyActivities(async () => {
