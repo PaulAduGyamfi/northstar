@@ -163,6 +163,8 @@ try {
         applicationId: ApplicationId.parse(applicationId),
         from: "needs_human",
         to: "submitted",
+        // Paul finished it by hand after a challenge (INB-007).
+        submittedVia: "handoff",
         actor: "user",
         reason: "",
         inputsSummary: "",

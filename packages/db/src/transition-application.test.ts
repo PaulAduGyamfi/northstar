@@ -50,6 +50,7 @@ const input = (overrides: Partial<TransitionInput> = {}): TransitionInput => ({
   inputsSummary: "Package for Example Corp, Backend Engineer",
   links: [{ rel: "job", href: "https://jobs.example.com/backend-engineer" }],
   idempotencyKey: `application:${seeded.applicationId}:submit`,
+  submittedVia: "approved",
   now: NOW,
   ...overrides,
 });
@@ -200,5 +201,36 @@ describe("transitionApplication", () => {
 
     const [span] = exporter.getFinishedSpans();
     expect(span?.status).toEqual({ code: SpanStatusCode.ERROR, message: "IllegalTransition" });
+  });
+});
+
+describe("how an application went out (INB-007, NS-188)", () => {
+  it("refuses a move to submitted that doesn't say how it went out, and moves nothing", async () => {
+    const result = await transitionApplication(db, input({ submittedVia: undefined }));
+    expect([
+      result.ok ? "moved" : result.error.kind,
+      await statusOf(seeded.applicationId),
+      await eventCount(),
+    ]).toEqual(["MissingSubmittedVia", "submitting", 0]);
+  });
+
+  it("stores how it went out in the move's own event", async () => {
+    const result = await transitionApplication(db, input({ submittedVia: "auto" }));
+    expect(result.ok && result.value.event.payload).toEqual({
+      from: "submitting",
+      to: "submitted",
+      submittedVia: "auto",
+    });
+  });
+
+  it("adds nothing to a move that isn't to submitted", async () => {
+    const result = await transitionApplication(
+      db,
+      input({ to: "needs_human", submittedVia: "auto", idempotencyKey: "x:needs_human" }),
+    );
+    expect(result.ok && result.value.event.payload).toEqual({
+      from: "submitting",
+      to: "needs_human",
+    });
   });
 });
