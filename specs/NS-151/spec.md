@@ -37,8 +37,8 @@ same rules: single use, ambiguity refused, one resend, then `needs_human`.
      (Workday): needs your hands".
 4. **`createStoredCatcher`** (`packages/inbox`, `verify/stored-catcher.ts`): the catcher's
    `open`, `offer`, `offerAssisted` and `timeout`, but async over that store. Matching, extraction
-   and the link check are the same code as `createCatcher`, moved into shared pure helpers
-   (`verify/window-rules.ts`).
+   and the link check are the same code as `createCatcher`, lifted to module level in
+   `verify/catcher.ts` (`windowMatches`, `buildWindow`, `examineMessage`) and shared by both.
    - **Matching:** a message matches only from an allowlisted, Gmail-authenticated sender, inside
      the window. Two matching windows means neither gets it.
    - **Claiming:** the message is claimed before anything is extracted. A lost claim is
@@ -77,6 +77,12 @@ same rules: single use, ambiguity refused, one resend, then `needs_human`.
 ## Observability
 - The same `verification.catch` spans as `createCatcher`: ids and outcome only.
 - The three events above.
+
+## Known gaps
+- **A mail two windows both matched is not claimed.** If one window closes, the same mail offered
+  again later matches only the other window and serves it. Two Workday tenants at once can hit
+  this, because both send from `myworkday.com`. Paul's own code would land in his other tenant's
+  form, and nothing reaches a third party. `createCatcher` does the same.
 
 ## Out of scope
 - **The caller.** The gateway session that opens windows and polls (NS-142's browser driver)
