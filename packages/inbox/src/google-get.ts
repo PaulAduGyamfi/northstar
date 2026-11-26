@@ -64,13 +64,13 @@ const fault = (e: Error) => {
 // code word is returned: the error's message text can echo request details and is never read.
 const REASON_WORD = /^[A-Za-z_]{1,64}$/;
 async function errorReason(res: Response): Promise<string | null> {
-  let body: unknown;
+  let parsed: unknown;
   try {
-    body = await res.json();
+    parsed = await res.json();
   } catch {
     return null;
   }
-  const error = (body as { error?: Record<string, unknown> } | null)?.error;
+  const error = (parsed as { error?: Record<string, unknown> } | null)?.error;
   if (!error || typeof error !== "object") return null;
   const details = Array.isArray(error.details) ? error.details : [];
   const info = details.find(
@@ -172,9 +172,9 @@ export function createGoogleGet(
       }
     };
     try {
-      const body = await send(url, span);
+      const answer = await send(url, span);
       await report({ ok: true });
-      return body;
+      return answer;
     } catch (e) {
       const isFault = e instanceof Error && FAULTS.has(e);
       await report(isFault ? { ok: false, error: config.errorName } : { ok: true });

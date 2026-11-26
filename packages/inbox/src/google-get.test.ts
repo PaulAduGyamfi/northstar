@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import type { CallGuard, GuardOutcome } from "@northstar/llm";
 import { trace } from "@opentelemetry/api";
 import { describe, expect, it } from "vitest";
@@ -141,5 +143,36 @@ describe("the shared Google GET", () => {
     expect(calls.map((c) => [c.method, c.headers])).toEqual([
       [undefined, { authorization: "Bearer ya29.test-access-token" }],
     ]);
+    // Exactly these request options: never a body or another method.
+    expect(calls.map((c) => Object.keys(c).sort())).toEqual([["headers", "signal"]]);
+  });
+});
+
+// Security review of NS-250: the request code now lives outside src/calendar/, so the Calendar
+// boundary scan no longer reads it, and any client could import it with any token. These two
+// scans are its own tripwires.
+const src = fileURLToPath(new URL(".", import.meta.url));
+// Comments are left out: they say what the helper must never do.
+const code = (source: string) =>
+  source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+
+describe("the shared Google GET's boundary", () => {
+  it("only ever reads: no write method and no request body", () => {
+    const text = code(readFileSync(`${src}/google-get.ts`, "utf8"));
+    expect([/\b(POST|PUT|PATCH|DELETE)\b/.test(text), /\bbody\s*:/.test(text)]).toEqual([
+      false,
+      false,
+    ]);
+  });
+
+  it("is imported only by the Gmail reader and the Calendar client, never the label writer", () => {
+    const sources = (readdirSync(src, { recursive: true }) as string[]).filter(
+      (f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "google-get.ts",
+    );
+    const importers = sources
+      .filter((f) => /["'][^"']*google-get(\.js)?["']/.test(readFileSync(`${src}/${f}`, "utf8")))
+      .map((f) => f.split("\\").join("/"))
+      .sort();
+    expect(importers).toEqual(["calendar/client.ts", "gmail.ts"]);
   });
 });
