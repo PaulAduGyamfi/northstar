@@ -14,12 +14,21 @@ export type ContactRefusal = {
 };
 
 const MAX_EMAIL = 254;
-const CONTROL = /\p{Cc}/u;
+// Control characters, line and paragraph separators, and invisible format characters (bidi
+// overrides, zero-width spaces): none belongs on a form, and some may fail the database's
+// [[:cntrl:]] CHECK under a UTF-8 locale, which would give Paul a bare error instead of the field.
+const CONTROL = /[\p{Cc}\p{Zl}\p{Zp}\p{Cf}]/u;
 
 // The package's own contact schema, plus what the database CHECKs (an email length and no control
 // characters), so a bad input is a typed refusal, never a database error carrying the values.
 function check(input: ContactDetails): ContactDetails | ContactRefusal {
-  const parsed = ContactDetails.safeParse(input);
+  // Only the four fields: an extra key from a caller is ignored, never an empty refusal.
+  const parsed = ContactDetails.safeParse({
+    firstName: input.firstName,
+    lastName: input.lastName,
+    email: input.email,
+    phone: input.phone,
+  });
   const fields = new Set<ContactRefusal["fields"][number]>();
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {

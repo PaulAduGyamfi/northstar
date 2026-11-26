@@ -90,6 +90,26 @@ describe("setContact and readContact", () => {
     ]);
   });
 
+  it("refuses line separators and invisible format characters by field name", async () => {
+    const results = [
+      await set({ ...CONTACT, firstName: "Te\u2028st" }),
+      await set({ ...CONTACT, lastName: "Per\u202eson" }),
+      await set({ ...CONTACT, phone: "555\u200b0100" }),
+    ];
+    expect([
+      results.map((r) => (r.ok ? null : r.error.fields)),
+      await readContact(db, candidateId),
+    ]).toEqual([[["firstName"], ["lastName"], ["phone"]], null]);
+  });
+
+  it("ignores a key that isn't a contact field instead of refusing with no field", async () => {
+    const extra = { ...CONTACT, middleName: "X" } as ContactDetails;
+    expect([await set(extra), await readContact(db, candidateId)]).toEqual([
+      { ok: true, value: { saved: true } },
+      CONTACT,
+    ]);
+  });
+
   it("writes an event with fixed words and a phone flag, never the details", async () => {
     await set(CONTACT);
     const [event] = await db

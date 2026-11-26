@@ -45,6 +45,9 @@ needs them first.
 ## Decisions made without Paul (ADR-0016)
 - Schema change: a new table, rather than four new profile-setting fields (those are answers to
   canonical questions, and the two lists must match).
+- Diff size: about 590 added lines without the generated snapshots and journal, over the ~300
+  guide; about 290 without the tests and docs. The table is no use without its writer and the
+  command that fills it, so they stay one slice.
 
 ## Out of scope (rest of #235)
 - The caller that assembles and files a package (slice 4): it reads the contact with
