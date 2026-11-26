@@ -238,6 +238,14 @@ function authenticationResults(m: GmailMessage): string | null {
   return all.find((v) => GOOGLE_AUTHSERV.test(v)) ?? all[0] ?? null;
 }
 
+// Gmail's own Delivered-To (INB-011, NS-188): Gmail adds one at the top of each message it
+// delivers, above anything the sender or an earlier hop wrote, so the first is Gmail's and any
+// below it (a forwarded copy's, or one the sender put in) is never read for a tag.
+function deliveredTo(m: GmailMessage): string | null {
+  const first = (m.payload?.headers ?? []).find((h) => h.name.toLowerCase() === "delivered-to");
+  return first?.value ?? null;
+}
+
 function headersOf(m: GmailMessage): MessageHeaders {
   const header = (name: string) =>
     m.payload?.headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? null;
@@ -248,7 +256,7 @@ function headersOf(m: GmailMessage): MessageHeaders {
     from,
     senderDomain: senderDomain(from),
     subject: header("Subject") ?? "",
-    deliveredTo: header("Delivered-To"),
+    deliveredTo: deliveredTo(m),
     authenticationResults: authenticationResults(m),
     receivedAt: new Date(Number(m.internalDate)),
   };

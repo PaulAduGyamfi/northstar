@@ -12,9 +12,12 @@ address on forms, the mail-link loop, `Delivered-To`) builds on NS-158's matcher
 
 ## Slices
 1. **Origin and the credit report (this PR).**
-2. **`Delivered-To` and the mail-link loop.**
-3. **The tagged address on forms:** waits for package assembly (NS-161, #112), which decides
-   what the form gets.
+2. **Gmail's own `Delivered-To` (this second PR):** the Gmail client reads only the top
+   `Delivered-To`, the one Gmail adds, and never a tagged one below it. The code already took the
+   first; slice 2 makes that rule explicit and pins it with a test.
+3. **Moved to #224 (NS-223):** the mail-link loop (needs the Gmail push, NS-148 #89, and a
+   reader for match candidates) and the tagged address on forms (needs package assembly, NS-161
+   #112).
 
 ## Slice 1
 INB-007 says each origin value is a domain event and the latest one wins, so origin is stored as

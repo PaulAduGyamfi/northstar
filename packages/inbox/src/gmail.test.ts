@@ -83,6 +83,16 @@ describe("gmail client", () => {
     expect(gmail.requests.at(-1)?.url).toContain("format=metadata");
   });
 
+  it("reads Gmail's own Delivered-To, the top one, never a tagged one below it (NS-188)", async () => {
+    const forwarded = {
+      ...message,
+      headers: { ...message.headers, "Delivered-To": "candidate@example.com" },
+      extraHeaders: [{ name: "Delivered-To", value: "candidate+ns-abcdef@example.com" }],
+    };
+    const h = await client(fakeGmail([forwarded])).getHeaders("m1");
+    expect(h.deliveredTo).toBe("candidate@example.com");
+  });
+
   it("reads Gmail's own Authentication-Results header even when another comes first", async () => {
     const forged = {
       ...message,
