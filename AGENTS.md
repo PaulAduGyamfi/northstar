@@ -569,7 +569,11 @@ Exists now:
   passkey assertion for the `reveal` ceremony made within a minute and used once (`passkeys.ts`),
   then the `vault` switch on; only then the key is read from `VAULT_MASTER_KEY_FILE` for that one
   reveal. At most 5 reveals a minute; a failed assertion counts toward the sign-in throttle; the
-  password goes in the response only. No page yet.
+  password goes in the response only. Since NS-245 the reveal challenge is bound to the tenant
+  named in `POST /vault/reveal/options` (`{ tenantKey }`): an assertion made for one tenant can't
+  reveal another. The boundary test scans the whole repository (`.cjs` and `.jsx` too) and fails
+  any `apps/api` file other than `vault-reveal.ts`, its test and `bin.ts` that imports
+  `@northstar/gateways`. No page yet.
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write
