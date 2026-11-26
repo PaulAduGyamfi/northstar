@@ -11,15 +11,18 @@ import {
   readEmploymentFacts,
   readInterviewAnswers,
   readProfile,
+  readProfileSettings,
   readSourceRoles,
   readStories,
   readThesisProfile,
   recordAnswer,
   recordDraftOutcome,
   recordFactsCheck,
+  recordFactualAnswer,
   saveApprovedStory,
   saveApprovedThesis,
   setEmploymentFacts,
+  setProfileSetting,
   soleCandidate,
   startInterview,
   writeProfileImport,
@@ -136,6 +139,15 @@ try {
     },
     storeImport: (input) => writeProfileImport(db, { ...input, candidateId }),
     readLinkedinRoles: () => readSourceRoles(db, candidateId, "linkedin"),
+    setSetting: (field, value, qualifier) =>
+      setProfileSetting(db, {
+        candidateId,
+        field,
+        value,
+        ...(qualifier === undefined ? {} : { qualifier }),
+      }),
+    readSettings: () => readProfileSettings(db, candidateId),
+    recordFactualUse: (use) => recordFactualAnswer(db, { candidateId, kind: "factual", ...use }),
   });
   process.exitCode = exitCode;
 } catch (error) {

@@ -148,6 +148,16 @@ Exists now:
     When on, a failing draft becomes `needs_human`.
 
   It has no caller, CLI or storage yet.
+- Factual answers (NS-141, ANS-001) from Paul's profile settings, plain code, no model:
+  `profile_setting` in `packages/db` (`settings-write.ts`: `setProfileSetting`,
+  `readProfileSettings`, `recordFactualAnswer`; append-only, newest wins, setting the same value
+  stores nothing). `work_authorization`, `years_of_experience` and `previously_employed` are
+  keyed by a qualifier (country, skill, company), never defaulted. `factual.ts` in
+  `packages/profile` types each value (`parseSettingValue`) and `answerFactual` answers a
+  matched factual question in its own form (Yes/No, a number, the value), finding a keyed
+  field's qualifier as a whole word in the question, or says why not (`not_factual`,
+  `no_setting`, `no_qualifier`, `form_mismatch`). Every answer shows the canonical question and
+  the setting used and is marked for review. No form filling yet (NS-161).
 - The voice profile (NS-136, ANS-007/008) in `packages/profile/src/voice/`, plain code, no model:
   - `measureVoice` turns 5–10 writing samples into a style guide (sentence length, contractions,
     "I"/"we", exclamation marks, phrases used in 3+ samples), rendered by `renderVoiceGuide` for
@@ -379,6 +389,8 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/profile profile facts check` | compare the imported resume's roles with the official record and list every mismatch (exits 1 on any). Paul only: it prints his real employment facts; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile thesis draft` | up to three positioning theses that pass the deterministic check, with the atoms each cites; says so while drafting is off. Paul only: it reads his real profile; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile thesis set "<text>" --atoms <id,id>` / `profile thesis show` | check a thesis against the cited atoms, roles and skills and save it as a new version (a failure saves nothing) / print the current one. Paul only: needs `DATABASE_URL`; agents never run them |
+| repo root | `pnpm --filter @northstar/profile profile settings set <field> <value> [--for <qualifier>]` / `profile settings show` | store an answer to a factual question (`work_authorization --for <country>`, `years_of_experience --for <skill>`, `previously_employed --for <company>`; yes/no, whole years, `YYYY-MM-DD`, `remote\|hybrid\|onsite`, https links, short text) / list the current ones. Paul only: his real data, needs `DATABASE_URL`; agents never run them |
+| repo root | `pnpm --filter @northstar/profile profile answer "<question>"` | answer a form question from the settings: prints the answer, the canonical question and the setting used, or why it can't. Paul only: needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel backfill [--since YYYY-MM-DD] [--max-messages N]` | sign in to Gmail read-only (browser consent every run), rebuild the funnel from job mail since `--since` (default 2026-02-01); prints the model-call count and estimated cost first and stops at `--max-messages` (default 500). Safe to rerun. Paul only: his real mail, needs `DATABASE_URL`, `GOOGLE_OAUTH_CLIENT_*` and `ANTHROPIC_API_KEY`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel import data/<file>.csv` | import a tracker export (`company, role, applied_on, stage_reached, outcome` plus optional `outcome_on, channel, notes`); a file with any bad row stores nothing. Paul only |
 | repo root | `pnpm --filter @northstar/funnel funnel review` | place or discard the messages the backfill couldn't decide, with a link to each in Gmail. Paul only |

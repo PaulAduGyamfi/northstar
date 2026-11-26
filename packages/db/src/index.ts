@@ -226,6 +226,7 @@ export {
   type TimelineItem,
 } from "./pipeline-read.js";
 export * as profileSchema from "./profile-schema.js";
+export { PROFILE_SETTING_FIELDS, QUALIFIED_SETTING_FIELDS } from "./profile-schema.js";
 export {
   currentResumeHash,
   type EditLockedFactError,
@@ -247,6 +248,18 @@ export {
 export { readEventsAfter } from "./read-events.js";
 export * as resilienceSchema from "./resilience-schema.js";
 export * as schema from "./schema.js";
+// Profile settings for factual questions (NS-141, ANS-001).
+export {
+  type FactualUse,
+  isQualifiedField,
+  isSettingField,
+  type ProfileSettingView,
+  readProfileSettings,
+  recordFactualAnswer,
+  type SettingField,
+  type SettingRefusal,
+  setProfileSetting,
+} from "./settings-write.js";
 export * as storySchema from "./story-schema.js";
 export { COMPETENCIES, type Competency } from "./story-schema.js";
 export {

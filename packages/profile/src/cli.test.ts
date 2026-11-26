@@ -59,6 +59,9 @@ function deps(
     readLinkedinExport: async () => null,
     storeImport: async () => ({ status: "unchanged", sourceId: "s1" }),
     readLinkedinRoles: async () => null,
+    setSetting: async () => ({ ok: true, value: { saved: true } }),
+    readSettings: async () => [],
+    recordFactualUse: async () => {},
   };
   return { d, printed, interviewedAtoms };
 }
@@ -218,6 +221,14 @@ describe("profile cli", () => {
     expect(await main(d)).toBe(1);
     expect(printed).toEqual([
       'usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check | profile thesis draft | profile thesis set "<text>" --atoms <id,id> | profile thesis show | profile import-linkedin <folder>',
+    ]);
+  });
+
+  it("prints the settings usage for a malformed settings command", async () => {
+    const { d, printed } = deps(["settings", "set"], { kind: "unchanged" });
+    expect(await main(d)).toBe(1);
+    expect(printed).toEqual([
+      'usage: profile settings set <field> <value> [--for <qualifier>] | profile settings show | profile answer "<question>"',
     ]);
   });
 

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  bigint,
   boolean,
   check,
   foreignKey,
@@ -238,5 +239,60 @@ export const profileLink = pgTable(
     sourceFk("profile_link_source_same_candidate_fk", t),
     // Links are shown as anchors later; never javascript: or data:.
     check("profile_link_url_http", sql`${t.url} ~ '^https?://'`),
+  ],
+);
+
+// Paul's answers to factual application questions (NS-141, ANS-001). The field names match
+// FACTUAL_FIELDS in packages/profile (a test there checks they agree).
+export const PROFILE_SETTING_FIELDS = [
+  "work_authorization",
+  "needs_sponsorship",
+  "years_of_experience",
+  "current_location",
+  "willing_to_relocate",
+  "work_arrangement",
+  "earliest_start_date",
+  "notice_period",
+  "salary_expectation",
+  "referral_source",
+  "previously_employed",
+  "linkedin_url",
+  "portfolio_url",
+] as const;
+// Fields keyed by the question's slot (a skill, a country, a company): one value for all would be
+// invented for most of them.
+export const QUALIFIED_SETTING_FIELDS = [
+  "years_of_experience",
+  "work_authorization",
+  "previously_employed",
+] as const;
+
+const fieldList = sql.raw(PROFILE_SETTING_FIELDS.map((f) => `'${f}'`).join(", "));
+const qualifiedList = sql.raw(QUALIFIED_SETTING_FIELDS.map((f) => `'${f}'`).join(", "));
+
+// One row per change, append-only (migration 0041); the newest row per field and qualifier
+// (case-insensitive) is the current value. packages/profile types and checks each value.
+export const profileSetting = pgTable(
+  "profile_setting",
+  {
+    id: id(),
+    // Orders changes even when two land in the same instant.
+    position: bigint("position", { mode: "bigint" }).notNull().generatedAlwaysAsIdentity(),
+    candidateId: candidateId(),
+    field: text("field").notNull(),
+    // '' for a field with no qualifier; never null, so the newest-per-key read is plain.
+    qualifier: text("qualifier").notNull().default(""),
+    value: text("value").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("profile_setting_position_unique").on(t.position),
+    check("profile_setting_field_valid", sql`${t.field} in (${fieldList})`),
+    check(
+      "profile_setting_qualifier_matches_field",
+      sql`(${t.field} in (${qualifiedList})) = (length(${t.qualifier}) > 0)`,
+    ),
+    check("profile_setting_qualifier_length", sql`length(${t.qualifier}) <= 100`),
+    check("profile_setting_value_length", sql`length(${t.value}) between 1 and 300`),
   ],
 );

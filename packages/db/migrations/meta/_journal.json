@@ -281,6 +281,20 @@
       "when": 1795652086905,
       "tag": "0039_dead_letter_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1795652672388,
+      "tag": "0040_profile_setting",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1795652673520,
+      "tag": "0041_profile_setting_append_only",
+      "breakpoints": true
     }
   ]
 }
