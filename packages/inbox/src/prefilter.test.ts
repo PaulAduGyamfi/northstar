@@ -151,8 +151,8 @@ describe("isAuthenticatedSender (NS-160)", () => {
     ).toEqual(bad.map(() => false));
   });
 
-  it("refuses a space, slash or @ under a verified parent domain", () => {
-    const bad = ["x y.example.com", "x/y.example.com", "x@y.example.com"];
+  it("refuses a space, slash or underscore under a verified parent domain", () => {
+    const bad = ["x y.example.com", "x/y.example.com", "x_y.example.com"];
     expect(
       bad.map((d) =>
         isAuthenticatedSender({ senderDomain: d, authenticationResults: results("example.com") }),
