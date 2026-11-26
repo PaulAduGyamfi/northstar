@@ -1,5 +1,6 @@
-// What the Apply Gateway needs from a browser (NS-120). The real driver (Playwright, its own
-// worker pool, ADR-0007) is a follow-up; tests use a fake. A driver only reports what it sees:
+// What the Apply Gateway needs from a browser (NS-120). The real driver is Playwright's
+// (`browser/driver.ts`, NS-142, ADR-0028), run in its own worker pool (ADR-0007); tests use a
+// fake. A driver only reports what it sees:
 // it never solves a CAPTCHA, signs in or creates an account (ADR-0003).
 
 // One form field as the page shows it. `name` is the form's own field name.
