@@ -191,7 +191,7 @@ try {
   const approvals = approvalEndpoints(dbApprovalPorts(db, candidateId));
   // The pipeline board and application timeline (NS-168), read-only.
   const pipeline = pipelineEndpoints({
-    list: async () => listApplications(db, await candidateId()),
+    list: async (filter) => listApplications(db, await candidateId(), filter),
     timeline: async (id) => readApplicationTimeline(db, await candidateId(), id),
   });
   // One set of sessions for the sign-in key and passkeys, so both open the same kind of session

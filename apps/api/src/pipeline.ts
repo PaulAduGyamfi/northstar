@@ -1,4 +1,4 @@
-import type { ApplicationRow, TimelineItem } from "@northstar/db";
+import type { ApplicationFilter, ApplicationRow, TimelineItem } from "@northstar/db";
 import { APPLICATION_STATUSES } from "@northstar/domain";
 import { z } from "zod";
 import { type AnyEndpoint, endpoint } from "./endpoint.js";
@@ -8,7 +8,7 @@ import { type AnyEndpoint, endpoint } from "./endpoint.js";
 // never raw payloads. bin.ts wires packages/db's reads, tests fake them.
 
 export type PipelinePorts = {
-  list: () => Promise<ApplicationRow[]>;
+  list: (filter: ApplicationFilter) => Promise<ApplicationRow[]>;
   timeline: (
     applicationId: string,
   ) => Promise<{ application: ApplicationRow; items: TimelineItem[] } | null>;
@@ -20,9 +20,45 @@ const Application = z.object({
   jobTitle: z.string().nullable(),
   company: z.string().nullable(),
   ats: z.string().nullable(),
+  fitScore: z.number().nullable(),
+  fitBand: z.enum(["queue", "suggest", "skip"]).nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
+
+// A calendar day as YYYY-MM-DD that is a real date.
+const Day = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((d) => {
+    // An impossible date parses to NaN (2026-13-01) or rolls over (2026-02-30 → March).
+    const ms = Date.parse(`${d}T00:00:00Z`);
+    return !Number.isNaN(ms) && new Date(ms).toISOString().startsWith(d);
+  });
+
+// The pipeline's filters (NS-207, DSH-001): every field optional and checked here, then applied
+// in packages/db's SQL as parameters.
+const Filter = z
+  .object({
+    company: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .refine((c) => !/\p{Cc}/u.test(c))
+      .optional(),
+    band: z.enum(["queue", "suggest", "skip"]).optional(),
+    // An ATS name, or "other" for a job with none.
+    source: z
+      .string()
+      .regex(/^[a-z]{2,30}$/)
+      .optional(),
+    from: Day.optional(),
+    to: Day.optional(),
+  })
+  .refine((f) => f.from === undefined || f.to === undefined || f.from <= f.to, {
+    message: "from must not be after to",
+  });
 
 const Item = z.object({
   occurredAt: z.string(),
@@ -38,6 +74,8 @@ const toApplication = (a: ApplicationRow) => ({
   jobTitle: a.jobTitle,
   company: a.company,
   ats: a.ats,
+  fitScore: a.fitScore,
+  fitBand: a.fitBand,
   createdAt: a.createdAt.toISOString(),
   updatedAt: a.updatedAt.toISOString(),
 });
@@ -47,12 +85,19 @@ export function pipelineEndpoints(ports: PipelinePorts): AnyEndpoint[] {
     method: "GET",
     path: "/applications",
     auth: "session",
-    input: z.object({}),
+    input: Filter,
     output: z.object({ items: z.array(Application) }),
-    handler: async () => {
+    handler: async (filter) => {
       let rows: ApplicationRow[];
       try {
-        rows = await ports.list();
+        // Fields picked by name: nothing else in the query reaches the read.
+        rows = await ports.list({
+          ...(filter.company === undefined ? {} : { company: filter.company }),
+          ...(filter.band === undefined ? {} : { band: filter.band }),
+          ...(filter.source === undefined ? {} : { source: filter.source }),
+          ...(filter.from === undefined ? {} : { from: filter.from }),
+          ...(filter.to === undefined ? {} : { to: filter.to }),
+        });
       } catch {
         // The pipeline can't be read (Postgres down): the page says so.
         return { ok: false, status: 503, error: "unavailable" };

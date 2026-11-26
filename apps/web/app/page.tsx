@@ -1,11 +1,13 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { QueueBody } from "../src/approvals";
 import { webConfig } from "../src/config";
 import { HandoffsBody, handoffCards } from "../src/handoffs";
 import { PillNav } from "../src/pill-nav";
 import { readSession, SESSION_COOKIE, todayView } from "../src/session";
 import { dotStatus, FeedBody, HealthBody, readApi } from "../src/system";
+import { todayCounts } from "../src/today";
 import { AddPasskey } from "./add-passkey";
 import { LiveFeed } from "./live-feed";
 import { NeedsYourHands } from "./needs-your-hands";
@@ -20,12 +22,15 @@ export const dynamic = "force-dynamic";
 export default async function TodayPage() {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   const deps = { apiOrigin: webConfig().apiOrigin, token, fetch };
-  const [session, health, feed, handoffs] = await Promise.all([
+  const [session, health, feed, handoffs, approvals] = await Promise.all([
     readSession(deps),
     readApi(deps, "/system/health", HealthBody),
     readApi(deps, "/feed?limit=20", FeedBody),
     readApi(deps, "/handoffs", HandoffsBody),
+    readApi(deps, "/approvals", QueueBody),
   ]);
+  // What needs Paul (NS-207, DSH-003), counted from the same lists their pages show.
+  const counts = todayCounts(approvals, handoffs);
   const cards = handoffs.kind === "ok" ? handoffCards(handoffs.body.items) : [];
   const view = todayView(session);
   if ("redirect" in view) redirect(view.redirect);
@@ -53,9 +58,20 @@ export default async function TodayPage() {
             <Link href="/settings/accounts">Settings → Accounts</Link>
           </p>
         </div>
+        <div className="card">
+          <h2>What needs you</h2>
+          <ul className="switch-list">
+            {counts.map((c) => (
+              <li key={c.label}>
+                {c.href ? <Link href={c.href}>{c.label}</Link> : <span>{c.label}</span>}
+                <span className={/^\d+$/.test(c.value) ? "status-label" : "muted"}>{c.value}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
         {/* Shown only when a challenge stopped an application (NS-121). */}
         {cards.length > 0 ? (
-          <div className="card">
+          <div className="card" id="needs-your-hands">
             <h2>Needs your hands</h2>
             <p className="muted">
               A check only you can pass stopped these. Open the page, finish it yourself, then say

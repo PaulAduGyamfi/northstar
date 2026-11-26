@@ -44,3 +44,6 @@ are CSS variables in `apps/web/app/globals.css`.
   when Paul asks for it.
 - The run inspector (NS-154) fetches a feed line's run (`GET /feed/run`) only when Paul asks, and
   shows it as plain text through `src/run.ts` (`callLine`, `totalsLine`).
+- Pipeline filters (NS-207) live in the URL (`parseFilters`, `filterQuery` in `src/pipeline.ts`)
+  and are applied by the API, never only in the browser. Today's counts (`src/today.ts`) come from
+  the same lists their pages show; one that can't be read says so, never 0.

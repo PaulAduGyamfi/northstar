@@ -185,3 +185,6 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `readApplicationTimeline`. A timeline is the application's own events plus events whose payload
   names it (`applicationId`); its lines come only from `feedLine`. So an event about an
   application should carry `applicationId` in its payload.
+  Since NS-207 `listApplications` takes an optional filter (company part, fit band, the job's
+  ATS or `other`, creation days), applied as SQL parameters, and gives each row its job's newest
+  fit score and band.
