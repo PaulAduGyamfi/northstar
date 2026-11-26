@@ -1,6 +1,14 @@
+import { ordered } from "../independent-work.js";
 import { normalize } from "../validate.js";
 import { atomTerms, mentions } from "./terms.js";
-import type { Line, MasterAtom, MasterResume, TailoredResume, TailorJob } from "./types.js";
+import type {
+  Line,
+  MasterAtom,
+  MasterResume,
+  TailoredResume,
+  TailorJob,
+  WorkSection,
+} from "./types.js";
 
 // The deterministic tailor (NS-117, TLR-001): selects and orders the master's atoms for one job
 // and never rewords them. Plain code, no model: the same master and job give the same resume.
@@ -86,6 +94,27 @@ export function tailorResume(
           ![...terms.values()].some((ts) => ts.some((t) => mentions(r.text, t))),
       )
       .map((r) => `not claimed: ${r.text} (no evidence)`),
+    ...workSection(master),
+  };
+}
+
+// Paul's independent work, every entry and line verbatim and in the section's own order (ongoing
+// first, then the latest), each citing its stored position. Nothing is chosen or dropped by the
+// job: it is his proof of the gap since his last role (DX-010). None when there is no work.
+function workSection(master: MasterResume): { independentWork?: WorkSection } {
+  const work = master.independentWork;
+  if (!work || work.entries.length === 0) return {};
+  return {
+    independentWork: {
+      version: work.version,
+      entries: ordered(work.entries).map(({ entry, index }) => ({
+        entry: index,
+        title: entry.title,
+        start: entry.start,
+        end: entry.end,
+        lines: entry.lines.map((text, line) => ({ line, text })),
+      })),
+    },
   };
 }
 

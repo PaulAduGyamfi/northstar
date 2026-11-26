@@ -47,8 +47,17 @@ export function renderResumeText(resume: TailoredResume, master: MasterResume): 
   }
   if (experience.length > 0) blocks.push(["EXPERIENCE", ...experience]);
 
-  const projects = resume.sections.filter((s) => s.roleId === null).flatMap((s) => s.lines);
-  if (projects.length > 0) blocks.push(["PROJECTS", ...bullets(projects)]);
+  // Project atoms, then Paul's independent work (NS-231) under the same header: one projects
+  // section, as an ATS expects, each entry headed like a role (title · dates).
+  const projects = [
+    ...bullets(resume.sections.filter((s) => s.roleId === null).flatMap((s) => s.lines)),
+  ];
+  for (const entry of resume.independentWork?.entries ?? []) {
+    const until = entry.end === null ? "Present" : showMonth(entry.end);
+    projects.push(withDates(normalize(entry.title), `${showMonth(entry.start)} – ${until}`));
+    projects.push(...bullets(entry.lines));
+  }
+  if (projects.length > 0) blocks.push(["PROJECTS", ...projects]);
 
   if (master.education.length > 0) {
     blocks.push([
