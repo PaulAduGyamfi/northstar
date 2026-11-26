@@ -24,7 +24,7 @@ provenance rules. Nothing stores that work yet, so nothing can cite it.
      employer and month. Its `sources` say which entry and line each part came from. It drops
      later titles, then the example line, to fit; with no entries it says there's nothing yet.
      `sinceFromFacts(positions)` picks the latest ended position when none is ongoing.
-2. **packages/db** (one migration, append-only by triggers):
+2. **packages/db** (migration 0058, generated, for the tables; 0059 for the append-only triggers):
    `independent_work_set` (a version per stored file, with its SHA-256), `independent_work_entry`
    and `independent_work_line`. `setIndependentWork` stores a new version in one transaction;
    the same content stores nothing. `readIndependentWork` returns the newest version.
@@ -60,4 +60,7 @@ fails with its usual message and stores nothing.
 - **A file per version, like `profile facts set`:** one command to add, edit or remove entries;
   history stays.
 - **The 20-second answer is a plain-code template** (55 words), not a model draft.
-- **Schema change:** one migration with three append-only tables.
+- **Schema change:** three append-only tables, in migrations 0058 (tables) and 0059 (triggers),
+  the repo's usual split.
+- **Diff size:** about 1,200 hand-written lines (snapshots excluded), over the ~300 guide. About
+  half are tests; the rest spans the parser, the tables and the CLI DX-010 needs.

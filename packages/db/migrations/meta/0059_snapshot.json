@@ -1,6 +1,6 @@
 {
-  "id": "d09db830-1244-401a-a0d5-6e83a4a77c8f",
-  "prevId": "e509624b-e879-4744-bd3f-627eb94498a2",
+  "id": "2479f262-54b6-4f98-985a-192c5e2aa3bc",
+  "prevId": "6dd3bca7-bf70-4c71-a58d-f9abfeacf966",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -7377,7 +7377,7 @@
         },
         "independent_work_entry_link_https": {
           "name": "independent_work_entry_link_https",
-          "value": "\"independent_work_entry\".\"link\" is null or (\"independent_work_entry\".\"link\" ~ '^https://' and length(\"independent_work_entry\".\"link\") <= 300)"
+          "value": "\"independent_work_entry\".\"link\" is null or (\"independent_work_entry\".\"link\" ~ '^https://' and length(\"independent_work_entry\".\"link\") <= 300 and \"independent_work_entry\".\"link\" !~ '[[:cntrl:]]')"
         }
       },
       "isRLSEnabled": false

@@ -30,8 +30,10 @@ const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 // Control characters (tabs and line breaks included): every field is one plain line.
 const CONTROL = /\p{Cc}/u;
 
+// The database stores only links starting with exactly `https://` (case matters) and no control
+// characters, so the parser holds the same line: a file that parses always stores.
 function httpsLink(raw: string): string | null {
-  if (raw.length > 300) return null;
+  if (raw.length > 300 || !raw.startsWith("https://") || CONTROL.test(raw)) return null;
   try {
     const url = new URL(raw);
     if (url.protocol !== "https:" || url.username !== "" || url.password !== "") return null;

@@ -81,6 +81,36 @@ describe("parseIndependentWork", () => {
     ]);
   });
 
+  it("refuses a link the database wouldn't store, with its line number", () => {
+    const links = [
+      "HTTPS://example.com",
+      "https:example.com",
+      "https:/example.com",
+      "https://example.com/a\tb",
+    ];
+    expect(
+      links.map((link) => {
+        const r = parseIndependentWork(`X | 2026-01 | present | ${link}\n- a`);
+        return r.ok ? "accepted" : r.error[0]?.line;
+      }),
+    ).toEqual([1, 1, 1, 1]);
+  });
+
+  it("refuses a month that isn't one, and a tab inside a title or line", () => {
+    const files = [
+      "X | 2026-13 | present\n- a",
+      "X | 2026-01 | 2026-00\n- a",
+      "Tab\there | 2026-01 | present\n- a",
+      "X | 2026-01 | present\n- a\tb",
+    ];
+    expect(
+      files.map((f) => {
+        const r = parseIndependentWork(f);
+        return r.ok ? "accepted" : r.error.map((p) => p.line);
+      }),
+    ).toEqual([[1], [1], [1], [1, 2]]);
+  });
+
   it("refuses a link with a user name in it", () => {
     const result = parseIndependentWork("X | 2026-01 | present | https://me:pw@example.com\n- a");
     expect(result.ok).toBe(false);
@@ -171,6 +201,20 @@ describe("twentySecondAnswer", () => {
     );
     const used = answer.ok ? answer.text.split(/[\s,.:]+/).filter(Boolean) : ["missing"];
     expect(used.filter((w) => !allowed.has(w))).toEqual([]);
+  });
+
+  it("says it doesn't fit when even one title and the opener are too long", () => {
+    const wordy: WorkEntry = {
+      title: Array.from({ length: 50 }, () => "w").join(" "),
+      start: "2026-01",
+      end: null,
+      link: null,
+      lines: ["a"],
+    };
+    expect(twentySecondAnswer([wordy], { employer: "Globex", month: "2025-09" })).toEqual({
+      ok: false,
+      reason: "too_long",
+    });
   });
 
   it("says there is nothing yet when there are no entries", () => {

@@ -13,7 +13,7 @@ CREATE TABLE "independent_work_entry" (
 	CONSTRAINT "independent_work_entry_title_shape" CHECK (length(trim("independent_work_entry"."title")) between 1 and 80 and "independent_work_entry"."title" !~ '[[:cntrl:]]'),
 	CONSTRAINT "independent_work_entry_start_format" CHECK ("independent_work_entry"."started_on" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
 	CONSTRAINT "independent_work_entry_end_format" CHECK ("independent_work_entry"."ended_on" is null or ("independent_work_entry"."ended_on" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' and "independent_work_entry"."ended_on" >= "independent_work_entry"."started_on")),
-	CONSTRAINT "independent_work_entry_link_https" CHECK ("independent_work_entry"."link" is null or ("independent_work_entry"."link" ~ '^https://' and length("independent_work_entry"."link") <= 300))
+	CONSTRAINT "independent_work_entry_link_https" CHECK ("independent_work_entry"."link" is null or ("independent_work_entry"."link" ~ '^https://' and length("independent_work_entry"."link") <= 300 and "independent_work_entry"."link" !~ '[[:cntrl:]]'))
 );
 --> statement-breakpoint
 CREATE TABLE "independent_work_line" (

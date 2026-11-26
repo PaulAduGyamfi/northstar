@@ -75,7 +75,7 @@ export const independentWorkEntry = pgTable(
     ),
     check(
       "independent_work_entry_link_https",
-      sql`${t.link} is null or (${t.link} ~ '^https://' and length(${t.link}) <= 300)`,
+      sql`${t.link} is null or (${t.link} ~ '^https://' and length(${t.link}) <= 300 and ${t.link} !~ '[[:cntrl:]]')`,
     ),
   ],
 );

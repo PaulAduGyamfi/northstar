@@ -107,6 +107,19 @@ describe("profile work show", () => {
     ]);
   });
 
+  it("says when the answer can't fit in 20 seconds", async () => {
+    const long = Array.from({ length: 50 }, () => "w").join(" ");
+    const wordy: IndependentWorkView = {
+      ...stored,
+      entries: [{ ...stored.entries[0], title: long } as IndependentWorkView["entries"][0]],
+    };
+    const { d, printed } = deps({ readIndependentWork: async () => wordy });
+    await workCommand(d, ["show"]);
+    expect(printed.at(-1)).toBe(
+      "  It doesn't fit in 20 seconds: shorten the newest entry's title.",
+    );
+  });
+
   it("says how to start when nothing is stored", async () => {
     const { d, printed } = deps();
     await workCommand(d, ["show"]);
