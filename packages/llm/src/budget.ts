@@ -37,6 +37,19 @@ export function budgetHold(
   return null;
 }
 
+// Every priority held back now, with the cap that holds it, lowest first (NS-219: what System
+// Health shows). The same rule as the gateway's, so the page can't disagree with what runs.
+export function pausedPriorities(
+  spent: Spent,
+  caps: LlmBudget,
+): { priority: RoutePriority; cap: "daily" | "monthly" }[] {
+  const order: RoutePriority[] = ["low", "normal", "fresh"];
+  return order.flatMap((priority) => {
+    const cap = budgetHold(spent, caps, priority);
+    return cap === null ? [] : [{ priority, cap }];
+  });
+}
+
 // An optional positive amount of dollars, from text.
 const Cap = z
   .string()

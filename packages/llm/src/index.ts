@@ -6,6 +6,7 @@ export {
   HOLD_AT,
   type LlmBudget,
   loadLlmBudget,
+  pausedPriorities,
   type RoutePriority,
   type SpendMeter,
   type Spent,

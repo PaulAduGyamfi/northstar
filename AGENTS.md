@@ -426,7 +426,10 @@ Exists now:
   breaker) once today's or this month's spend reaches 80 % of a cap for low, 100 % for normal or
   125 % for fresh. Each reply's cost goes to append-only `llm_spend` (`packages/db`,
   `spend-write.ts`: `recordLlmSpend`, `readLlmSpend`, `dbSpendMeter`); the CLIs and the API wire
-  it. Per-pool concurrency waits for the worker (NS-157).
+  it. Since NS-219 `/health` shows it too: the API's `GET /system/spend` (session only,
+  `apps/api/src/spend.ts`) gives today's and this month's spend, the caps and the priorities
+  held back now (`pausedPriorities`, the gateway's own rule), and the "Model spend" card says it in
+  words (`src/spend.ts`). Per-pool concurrency waits for the worker process (#230).
   Since NS-175 also the dead-letter store (RES-007, `dead-letter-write.ts` in `packages/db`,
   append-only): `recordDeadLetter` keeps work that exhausted its retries (kind, subject id, reason
   code, attempts; one per idempotency key), `listOpenDeadLetters` shows what waits, and
