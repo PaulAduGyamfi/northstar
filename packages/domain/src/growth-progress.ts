@@ -170,3 +170,12 @@ export function weeklyReview(
   ];
   return { moved, notReached, log };
 }
+
+// The Monday (UTC) of the week `now` is in, as YYYY-MM-DD: the key of a week's plan and review.
+export function weekStartOf(now: Date): string {
+  const day = (now.getUTCDay() + 6) % 7;
+  const monday = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - day),
+  );
+  return monday.toISOString().slice(0, 10);
+}

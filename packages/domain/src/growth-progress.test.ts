@@ -6,6 +6,7 @@ import {
   parseCheckIn,
   trackDashboard,
   weeklyReview,
+  weekStartOf,
 } from "./growth-progress.js";
 
 // Growth check-ins, dashboard figures and the weekly review (NS-172, GRW-005…007). Synthetic
@@ -223,5 +224,15 @@ describe("weeklyReview (GRW-007)", () => {
   it("never uses guilt words in its log (UX-032)", () => {
     const review = weeklyReview(tracks, week, [], WEEK_START);
     expect(review.log.join(" ")).not.toMatch(/miss|fail|broke|behind|lazy|slip/i);
+  });
+});
+
+describe("weekStartOf", () => {
+  it("gives the Monday, UTC, of the week a time falls in", () => {
+    expect([
+      weekStartOf(new Date("2026-11-26T12:00:00Z")),
+      weekStartOf(new Date("2026-11-23T00:00:00Z")),
+      weekStartOf(new Date("2026-11-29T23:59:00Z")),
+    ]).toEqual(["2026-11-23", "2026-11-23", "2026-11-23"]);
   });
 });

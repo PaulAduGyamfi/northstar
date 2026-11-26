@@ -2,15 +2,16 @@ import Link from "next/link";
 import type { DotStatus } from "./system";
 
 // The five tabs from tokens.md (PillNav). Today, Queue (the approval queue, NS-139), Pipeline
-// (NS-168) and Inbox (NS-165) exist; each other tab becomes a link when its page lands with its ticket, and until then
+// (NS-168), Grow (NS-214) and Inbox (NS-165) exist; each other tab becomes a link when its page lands with its ticket, and until then
 // says so instead of leading nowhere.
-const TABS = [
+// Typed wide so a tab without a page yet (href null) still fits, though all five exist now.
+const TABS: readonly { label: string; href: string | null }[] = [
   { label: "Today", href: "/" },
   { label: "Queue", href: "/approvals" },
   { label: "Pipeline", href: "/pipeline" },
-  { label: "Grow", href: null },
+  { label: "Grow", href: "/grow" },
   { label: "Inbox", href: "/inbox" },
-] as const;
+];
 
 // The HealthDot (tokens.md, RES-013): the overall status as a dot, with words for screen readers.
 const DOT_LABEL: Record<DotStatus, string> = {

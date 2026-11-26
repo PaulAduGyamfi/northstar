@@ -463,6 +463,20 @@
       "when": 1795694864547,
       "tag": "0065_app_role",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1795696601860,
+      "tag": "0066_growth_check_ins",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1795696603380,
+      "tag": "0067_growth_check_ins_append_only",
+      "breakpoints": true
     }
   ]
 }
