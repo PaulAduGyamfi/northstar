@@ -27,6 +27,8 @@ export function validateStoryDraft(draft: StoryDraft, evidence: StoryEvidence): 
   for (const part of STAR_PARTS) {
     const { text, quotes } = draft[part];
     if (quotes.length === 0) failures.push({ item: part, problem: "no quote" });
+    // The quotes that pass: only these may back the part's numbers (NS-201).
+    const passing: string[] = [];
     quotes.forEach((quote, i) => {
       const q = normalize(quote);
       // Whole words and whole numbers only (NS-184): a quote cut from inside a word or number
@@ -39,11 +41,14 @@ export function validateStoryDraft(draft: StoryDraft, evidence: StoryEvidence): 
           item: part,
           problem: `quote ${i} is shorter than ${MIN_QUOTE_WORDS} words`,
         });
+      } else {
+        passing.push(q);
       }
     });
     // A part's numbers must come from its own quotes or the resume line, so a figure Paul gave
-    // about one thing can't be moved onto another part of the story.
-    const allowed = new Set([...atomNumbers, ...quotes.flatMap((q) => [...numbers(normalize(q))])]);
+    // about one thing can't be moved onto another part of the story. Only quotes that passed
+    // count (NS-201): a rejected quote ("2%" cut out of "12%") must not back its own number.
+    const allowed = new Set([...atomNumbers, ...passing.flatMap((q) => [...numbers(q)])]);
     for (const n of numbers(normalize(text))) {
       if (!allowed.has(n)) {
         failures.push({ item: part, problem: `number ${n} is not in its quotes or the atom` });

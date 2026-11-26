@@ -20,6 +20,7 @@ import {
   readFeedNames,
   readPasskey,
   readPreferences,
+  readRun,
   readScorableJobs,
   readScoreKeys,
   readScoringProfile,
@@ -59,6 +60,7 @@ import { markHandoffSubmitted } from "./handoff-ports.js";
 import { handoffEndpoints } from "./handoffs.js";
 import { passkeyEndpoints } from "./passkeys.js";
 import { pipelineEndpoints } from "./pipeline.js";
+import { runEndpoints } from "./run.js";
 import { createApi } from "./server.js";
 import { createSessions } from "./sessions.js";
 import { systemEndpoints } from "./system.js";
@@ -158,6 +160,10 @@ try {
     // system.ts sets the actor to Paul; the candidate is always the server's own.
     setSwitch: async (input) => setKillSwitch(db, { ...input, candidateId: await candidateId() }),
   });
+  // The run behind a feed line (NS-154), read-only from the event log.
+  const run = runEndpoints({
+    readRun: async (position) => readRun(db, await candidateId(), position),
+  });
   // "Needs your hands" (NS-121) on packages/db's handoff paths. Paul's "I submitted it" moves
   // the application through transitionApplication, the one write path for status changes.
   const handoffs = handoffEndpoints({
@@ -211,6 +217,7 @@ try {
     extra: [
       capture,
       ...system,
+      ...run,
       ...handoffs,
       ...accounts,
       ...consent,

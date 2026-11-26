@@ -74,9 +74,14 @@ describe("validateStoryDraft", () => {
         quotes: ["2% to 3% in the first month."],
       },
     });
+    // The rejected quote backs none of its numbers either (NS-201).
     expect(validateStoryDraft(d, { atom, answers })).toEqual({
       ok: false,
-      failures: [{ item: "result", problem: "quote 0 is not in the answers" }],
+      failures: [
+        { item: "result", problem: "quote 0 is not in the answers" },
+        { item: "result", problem: "number 2 is not in its quotes or the atom" },
+        { item: "result", problem: "number 3 is not in its quotes or the atom" },
+      ],
     });
   });
 
@@ -91,6 +96,9 @@ describe("validateStoryDraft", () => {
     const result = validateStoryDraft(d, { atom, answers: [...answers, ...decimal] });
     expect(result.ok ? [] : result.failures.filter((f) => f.item === "result")).toEqual([
       { item: "result", problem: "quote 0 is not in the answers" },
+      // The rejected quote backs none of its numbers either (NS-201).
+      { item: "result", problem: "number 5 is not in its quotes or the atom" },
+      { item: "result", problem: "number 3 is not in its quotes or the atom" },
     ]);
   });
 
@@ -201,8 +209,9 @@ describe("validateStoryDraft", () => {
     expect(result).toEqual({
       ok: false,
       failures: [
-        // The 9 sits in the invented quote, which already fails the draft.
+        // The 9 sits in the invented quote, which fails, so it backs nothing (NS-201).
         { item: "task", problem: "quote 0 is not in the answers" },
+        { item: "task", problem: "number 9 is not in its quotes or the atom" },
         { item: "atomIds", problem: "atom 0 is not the interview's atom" },
         { item: "atomIds", problem: "the interview's atom is not cited" },
       ],

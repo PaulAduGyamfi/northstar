@@ -42,3 +42,5 @@ are CSS variables in `apps/web/app/globals.css`.
 - Settings → Accounts (NS-198) never shows an account email or password: rows are built field by
   field (`accountRows`, `noticeRows` in `src/accounts.ts`), and a notice's text is fetched only
   when Paul asks for it.
+- The run inspector (NS-154) fetches a feed line's run (`GET /feed/run`) only when Paul asks, and
+  shows it as plain text through `src/run.ts` (`callLine`, `totalsLine`).
