@@ -364,8 +364,11 @@ Exists now:
     chats.
   - It handles at most 200 messages a run (`MAX_PER_POLL`), oldest first. Only mail that passes
     `isJobMail`, or goes to one of Paul's known tags, reaches the step.
-  - It reports counts, `truncated` and `nextSince` for the caller's next tick. A failed read stops
-    the run at that message.
+  - It reports counts, `truncated`, `nextSince` and `nextOverlap` for the caller's next tick.
+    There is no hour of overlap after a truncated run, so a burst of 200+ messages in an hour can't
+    hold the cursor in place, and `nextSince` never passes the run's start.
+  - A failed read or step stops the run at that message (`stoppedAt`, in the report only). The
+    caller dead-letters a message that stops it tick after tick and passes its id back in `skip`.
   - The cursor is in memory for now (a stored one needs a migration). No caller runs it on a
     schedule yet (#230), and no gateway uses it.
   Since NS-164 also `classifyLinkedMail` (`src/triage.ts`, INB-003/012): one linked message to

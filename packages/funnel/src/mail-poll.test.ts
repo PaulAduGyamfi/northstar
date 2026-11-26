@@ -89,6 +89,7 @@ describe("the mail poller on the database", () => {
     const store = dbWindowStore(test.db, candidateId);
     const deps: MailPollDeps = {
       gmail,
+      now: () => new Date("2026-11-26T00:00:00Z"),
       knownDomains: new Set(),
       mailbox: await gmail.profileAddress(),
       openWindows: () => store.openWindows(),

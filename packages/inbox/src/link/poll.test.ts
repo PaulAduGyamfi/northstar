@@ -41,12 +41,17 @@ function fakeDeps(messages: MessageHeaders[], over: Partial<MailPollDeps> = {}) 
   const recorded: string[] = [];
   const deps: MailPollDeps = {
     mailbox: MAILBOX,
+    // The run starts well after every synthetic message.
+    now: () => minutes(10_000),
     knownDomains: new Set(),
     gmail: {
       // Gmail lists newest first.
       listIds: async (q) => {
         queries.push(q);
+        // Like Gmail: only mail received after the query's `after:` second.
+        const after = Number(q.match(/after:(\d+)/)?.[1] ?? 0) * 1000;
         return [...messages]
+          .filter((m) => m.receivedAt.getTime() > after)
           .sort((a, b) => b.receivedAt.getTime() - a.receivedAt.getTime())
           .map((m) => ({ id: m.id, threadId: m.threadId }));
       },
@@ -102,9 +107,12 @@ describe("pollNewMail", () => {
       queued: 1,
       skipped: 0,
       notJobMail: 2,
+      passedOver: 0,
       truncated: false,
       nextSince: minutes(4),
+      nextOverlap: true,
       stoppedBy: null,
+      stoppedAt: null,
     });
   });
 
@@ -128,6 +136,27 @@ describe("pollNewMail", () => {
     ]).toEqual([MAX_PER_POLL, true, minutes(MAX_PER_POLL), "m1", `m${MAX_PER_POLL}`]);
   });
 
+  it("moves on after a truncated run even when more than a batch arrived within the overlap hour", async () => {
+    // 250 messages, ten seconds apart: all inside one hour.
+    const burst = Array.from({ length: 250 }, (_, i) => ({
+      ...message(1),
+      id: `m${i + 1}`,
+      threadId: `t${i + 1}`,
+      receivedAt: new Date(SINCE.getTime() + (i + 1) * 10_000),
+    }));
+    const { deps, recorded } = fakeDeps(burst);
+    const first = await pollNewMail(deps, { since: SINCE });
+    const second = await pollNewMail(deps, { since: first.nextSince, overlap: first.nextOverlap });
+    expect([first.truncated, first.nextOverlap, second.truncated, second.nextOverlap]).toEqual([
+      true,
+      false,
+      false,
+      true,
+    ]);
+    // Every message reached the step once, m201…m250 in the second run.
+    expect([recorded.length, recorded.at(200), recorded.at(-1)]).toEqual([250, "m201", "m250"]);
+  });
+
   it("stops at a message it can't read, so the next tick starts from the last one handled", async () => {
     const { deps, recorded } = fakeDeps([message(1), message(3)]);
     // m2 is listed but its headers can't be read.
@@ -141,12 +170,39 @@ describe("pollNewMail", () => {
       ];
     };
     const report = await pollNewMail(deps, { since: SINCE });
-    expect([report.stoppedBy, report.handled, report.nextSince, recorded]).toEqual([
-      "Error",
+    expect([
+      report.stoppedBy,
+      report.stoppedAt,
+      report.handled,
+      report.nextSince,
+      recorded,
+    ]).toEqual(["Error", "m2", 1, minutes(1), ["m1"]]);
+  });
+
+  it("passes over a message the caller has given up on, so the mail after it still gets through", async () => {
+    const { deps, recorded, headerReads } = fakeDeps([message(1), message(3)]);
+    const listIds = deps.gmail.listIds;
+    deps.gmail.listIds = async (q) => {
+      const ids = await listIds(q);
+      return [
+        ids[0] as { id: string; threadId: string },
+        { id: "m2", threadId: "t2" },
+        ...ids.slice(1),
+      ];
+    };
+    const report = await pollNewMail(deps, { since: SINCE, skip: new Set(["m2"]) });
+    expect([report.passedOver, report.stoppedBy, recorded, headerReads]).toEqual([
       1,
-      minutes(1),
-      ["m1"],
+      null,
+      ["m1", "m3"],
+      ["m1", "m3"],
     ]);
+  });
+
+  it("never moves nextSince past the run's start, even for a message dated in the future", async () => {
+    const { deps } = fakeDeps([message(1), message(50_000)], { now: () => minutes(5) });
+    const report = await pollNewMail(deps, { since: SINCE });
+    expect(report.nextSince).toEqual(minutes(5));
   });
 
   it("keeps since when nothing new was listed", async () => {

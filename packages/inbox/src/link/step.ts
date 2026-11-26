@@ -63,6 +63,8 @@ export type StepResult =
 const UNSTAMPED_LABELS = new Set(["SENT", "DRAFT"]);
 // Gmail delivered these, but its own filter or Paul put them in spam or trash: never linked or
 // queued (#293 item 2), so a spam message can't land in Paul's confirm queue as `no_match`.
+// A second layer: the poller's search already leaves out spam and trash. Mail with no labels at
+// all isn't treated as spam here.
 const SPAM_LABELS = new Set(["SPAM", "TRASH"]);
 // Domains whose addresses reach one mailbox however the dots in the local part are written, all
 // read as `canonical`. For Gmail: googlemail.com is gmail.com, and dots don't count.
