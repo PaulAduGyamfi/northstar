@@ -1,7 +1,7 @@
-# NS-192: Pre-fill a handed-off form: the package store and the extension endpoint (slice 1)
+# NS-192: Pre-fill a handed-off form: the package store (slice 1)
 
 Status: draft (autonomous lane, ADR-0016)
-Requirements: APPLY-006, ACC-007 · ADR-0002, ADR-0003, ADR-0012, ADR-0019
+Requirements: APPLY-006, ACC-007 · ADR-0002, ADR-0003, ADR-0012, ADR-0019, ADR-0029 (Proposed)
 Rules that apply: `.claude/rules/tests.md`, `.claude/rules/gateways.md`, `.claude/rules/db.md`.
 Issue #161 (Parent: #20).
 
@@ -31,12 +31,12 @@ will use. The extension's fill is slice 2.
 
   Otherwise it returns the apply URL, ATS, contact and form fields: never the files, which come in
   slice 2.
-- **The endpoint.** `POST /handoffs/package` (`apps/api`, `auth: "extension"`), with input
-  `{ handoffId }`:
-  - It answers with the read's fields, or 404 for `NotFound`, 409 for `Closed`, `NoPackage`,
-    `NotApproved` or `Changed`, with the reason code only.
-  - A session cookie never opens it: only the extension's own token does.
-  - It never logs or puts a field value on a span.
+- **No endpoint yet.** Serving the package to the extension on its own token would change
+  ADR-0019 (Accepted), whose consequence is "a leaked extension token can only capture jobs: no
+  approvals, no kill switches, no reads". An agent mustn't widen an accepted credential alone, so
+  ADR-0029 (Proposed) puts three options to Paul: a read on the token, a one-time grant from his
+  session, or no extension read. #317 (NS-253, `needs:paul`) tracks it. The endpoint comes after his
+  choice.
 
 ## Acceptance criteria
 - [ ] Filing a package stores it in the same transaction, and a replay stores nothing new
@@ -45,18 +45,21 @@ will use. The extension's fill is slice 2.
   update and delete.
 - [ ] `readHandoffPackage` returns the package for an open handoff, and `NotFound` (another
   candidate), `Closed`, `NoPackage`, `NotApproved` and `Changed` otherwise (PGlite).
-- [ ] The endpoint answers only with the extension token: 401 with a session cookie alone. It
-  maps each refusal to its status (fake ports).
-- [ ] AGENTS.md, `.claude/rules/gateways.md` and the db rules describe the store and the endpoint.
+- [ ] ADR-0029 (Proposed) records the extension-read choice, and a `needs:paul` issue asks for
+  it.
+- [ ] AGENTS.md and the db, gateways and extension rules describe the store, and say the endpoint
+  waits on ADR-0029.
 
 ## Failure modes
 - A package filed before this migration has no stored row: `NoPackage` (409). Paul fills the form
   by hand as today.
-- The database is down: the endpoint answers 500, and nothing is filled.
+- The database is down: filing the package fails as a whole (the request rolls back too), and the
+  pipeline's caller retries it.
 
 ## Observability
-No new events: a read changes nothing. Slice 2's fill writes `handoff.prefilled`. The request's
-`api.request` span carries the status and the reason code only.
+No new events: storing the package rides on the Gate's own `approval.requested`, and a read
+changes nothing. The read's `db.apply.handoff_package` span carries the outcome kind only. The
+later fill writes `handoff.prefilled`.
 
 ## Out of scope
 - The extension's fill, files, and the `handoff.prefilled` event (slice 2).

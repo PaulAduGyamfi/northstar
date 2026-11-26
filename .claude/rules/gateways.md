@@ -32,11 +32,13 @@ and never hand its `gmail.modify` token to code that reads mail.
   are an `ApplyLimits` from `loadApplyLimits`, given to `dbPorts`; never per call.
 
 - The handoff pre-fill (NS-192) reads the approved package only through `readHandoffPackage`
-  (`packages/db`), served by `POST /handoffs/package` on the extension token. It re-checks the
-  handoff (open, the candidate's), the approval (`verifyApproval` for the stored package's subject
-  and hash) and the package's own hash on every read. Never hand a package to the browser from
-  anywhere else, never trust a package the caller sends, and never put a field value in a span,
-  log, event or error. The extension fills; it never submits or touches the challenge (ADR-0003).
+  (`packages/db`). It re-checks the handoff (open, the candidate's), the approval
+  (`verifyApproval` for the stored package's subject and hash) and the package's own hash on every
+  read. No endpoint serves it until Paul accepts ADR-0029: it would change ADR-0019's "no reads"
+  for the extension token, which an agent must not do alone. Never hand a package to the browser
+  from anywhere else, never trust a package the caller sends, and never put a field value in a
+  span, log, event or error. The extension fills; it never submits or touches the challenge
+  (ADR-0003).
 
 - The browser driver (NS-142, ADR-0028) lives in `src/apply/browser/`. Only `launch.ts`
   imports `playwright-core`, and it never downloads a browser: the worker passes the installed

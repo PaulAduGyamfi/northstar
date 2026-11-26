@@ -656,11 +656,10 @@ Exists now:
     approval behind its submission still verifies (`verifyApproval`), and that the stored package
     hashes to the pinned content.
   - Otherwise it says why: `NotFound`, `Closed`, `NoPackage`, `NotApproved` or `Changed`.
-  - The API serves it as `POST /handoffs/package` (`apps/api/src/handoff-package.ts`) on the
-    extension's own token only (a session cookie gets 401, or 403 from a web page), with fixed
-    refusal codes.
 
-  The extension's fill and the `handoff.prefilled` event are slice 2, so no pre-fill happens yet.
+  Nothing calls it yet. Letting the extension read it would change ADR-0019's "no reads" for the
+  extension token, so the endpoint waits on Paul's choice in ADR-0029 (Proposed). The extension's
+  fill and the `handoff.prefilled` event come after that.
 - Verification windows (NS-151, VER-001…006) in `packages/db` (`verification-schema.ts`,
   `verification-write.ts`, append-only): `verification_window`, one `verification_window_restart`
   and one `verification_window_close` per window, and `verification_used_message` (one window per

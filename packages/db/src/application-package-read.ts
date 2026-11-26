@@ -61,6 +61,8 @@ async function read(
   handoffId: string,
 ): Promise<Result<HandoffPackage, HandoffPackageError>> {
   if (!UUID.test(handoffId)) return err({ kind: "NotFound" });
+  // Separate statements, not one transaction: every row read here is append-only, so the worst
+  // race is a handoff Paul closes just after this read, which the next read reports as Closed.
   const [h] = await db
     .select({
       handoffId: applyHandoff.id,

@@ -526,9 +526,14 @@ describe("the stored package", () => {
       idempotencyKey: randomUUID(),
     });
     const results = [
-      // Another hash than the request pins.
+      // A request that doesn't exist.
       await insertWith({ requestId: randomUUID() }),
+      // Another hash than the request pins.
       await insertWith({ contentSha256: "a".repeat(64) }),
+      // Another candidate than the request's.
+      await insertWith({
+        candidateId: (await seedApplication(db, "awaiting_approval")).candidateId,
+      }),
       // A request of another kind.
       await insertWith({
         requestId: answer.ok ? answer.value.requestId : "",
@@ -547,7 +552,7 @@ describe("the stored package", () => {
         () => "refused",
       ),
     ];
-    expect(results).toEqual(["refused", "refused", "refused", "refused", "refused"]);
+    expect(results).toEqual(["refused", "refused", "refused", "refused", "refused", "refused"]);
   });
 });
 
@@ -673,6 +678,50 @@ describe("readHandoffPackage", () => {
     expect(await readHandoffPackage(db, candidateId, handoffId)).toEqual({
       ok: false,
       error: { kind: "NotApproved", reason: "UndoWindowOpen" },
+    });
+  });
+
+  it("refuses a package that isn't for the application this handoff's submission was for", async () => {
+    const filed = await request(pkg({}));
+    if (!filed.ok) throw new Error(filed.error.kind);
+    const decisionId = await approve(filed.value.requestId);
+    // A submission under the same decision, but for another of the candidate's applications.
+    const [otherJob] = await db
+      .insert(job)
+      .values({
+        candidateId,
+        companyId,
+        title: "Other role",
+        url: "https://jobs.example.com/o",
+        status: "ready",
+      })
+      .returning({ id: job.id });
+    const [other] = await db
+      .insert(application)
+      .values({ candidateId, jobId: otherJob?.id ?? "", status: "needs_human" })
+      .returning({ id: application.id });
+    const [sub] = await db
+      .insert(applySubmission)
+      .values({
+        candidateId,
+        applicationId: other?.id ?? "",
+        decisionId,
+        ats: "greenhouse",
+        requisitionKey: `greenhouse:${randomUUID()}`,
+        idempotencyKey: `application:${other?.id}:submit:${randomUUID()}`,
+        status: "needs_human",
+        reason: "captcha",
+        startedAt: clock,
+        finishedAt: clock,
+      })
+      .returning({ id: applySubmission.id });
+    const [h] = await db
+      .insert(applyHandoff)
+      .values({ candidateId, submissionId: sub?.id ?? "", applyUrl: APPLY_URL, createdAt: clock })
+      .returning({ id: applyHandoff.id });
+    expect(await readHandoffPackage(db, candidateId, h?.id ?? "")).toEqual({
+      ok: false,
+      error: { kind: "Changed" },
     });
   });
 
