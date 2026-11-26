@@ -623,9 +623,11 @@ Exists now:
   the choices), or a required cover letter, makes it `NeedsHuman`; an optional one stays blank.
   It also gives the Gate's policy facts (factual settings count as `new`, never reuse).
   Since NS-233 it also takes an optional `confirmed` map (field name → `ConfirmedMatch` from
-  `confirmQuestion`, run by the caller beforehand): such a match fills the field like code's own,
-  each bank source carries `confirmedBy`, and a model's pick (`confirmedBy: "model"`) always counts
-  as `new` for the Gate, never `bank_exact` or `bank_high_confidence`.
+  `confirmQuestion`, run by the caller beforehand). Only a model's pick is used, and only where
+  code's own match of the label left it new and the pick is one of `confirmCandidates(label)`;
+  every other entry is ignored and code matches the label itself. Each bank source carries
+  `confirmedBy`, and a model's pick always counts as `new` for the Gate, never `bank_exact` or
+  `bank_high_confidence`. The negation check runs on the normalized label (curly quotes, NFKC).
   `filePackage` files the package with the Gate (`requestApproval`, actor `system`, key
   `package:<packageId>`); it never submits. No caller, form questions from the ATS or stored
   resume files yet.

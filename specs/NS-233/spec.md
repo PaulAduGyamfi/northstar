@@ -15,9 +15,14 @@ mistaken or injected pick could then be auto-approved without Paul seeing it.
 ## Behavior
 1. **`assemblePackage` takes an optional `confirmed` map** (`packages/pipeline`, `assemble.ts`):
    field name → `ConfirmedMatch`, which the caller computed with `confirmQuestion` beforehand.
-   The assembly stays plain code with no model call (ADR-0023). For a field in the map it uses
-   that match instead of its own `matchQuestion`; every other field matches as before.
-   - The same narrative-only and negation rules still apply to a confirmed match.
+   The assembly stays plain code with no model call (ADR-0023).
+   - **Only a model's pick is used,** and only where it could be one: code's own match of the
+     label left it new, and the pick is one of `confirmCandidates(label)`. Every other entry,
+     including any `by: "rules"` entry, is ignored, and code matches the label itself. So a stale
+     map or a mixed-up field name can never carry a match the label doesn't earn.
+   - The same narrative-only and negation rules still apply. The negation check now runs on the
+     normalized label (NFKC, curly quotes), as the confirm step's does, so "wouldn’t" and
+     full-width letters are caught.
 2. **`AnswerSource` (bank) gains `confirmedBy: "rules" | "model"`,** so Paul and the Gate can
    trace who chose the canonical question.
 3. **The policy never counts a model-confirmed match as reuse.** `bankSource` returns `new` for
@@ -27,12 +32,14 @@ mistaken or injected pick could then be auto-approved without Paul seeing it.
    Paul records real fixtures.
 
 ## Acceptance criteria
-- [ ] A model-confirmed match fills the field from the bank, with `confirmedBy: "model"` in its
+- [x] A model-confirmed match fills the field from the bank, with `confirmedBy: "model"` in its
       source, and its policy source is `new`, even at a confidence ≥ 0.8 or with exact wording.
-- [ ] A rules-confirmed entry in the map behaves exactly like the assembly's own match.
-- [ ] A negated label is still never answered from the bank, even when the map holds a match.
-- [ ] Without the map, every existing test passes unchanged.
-- [ ] `pnpm turbo run lint typecheck test build --force` exits 0, and `checks` is green.
+- [x] A rules entry, a pick for a label code already matches, and a pick outside the label's
+      candidates are all ignored, and code's own match stands.
+- [x] A negated label, including one with a curly apostrophe or full-width letters, is never
+      answered from the bank, even when the map holds a match.
+- [x] Without the map, every existing test passes unchanged.
+- [x] `pnpm turbo run lint typecheck test build --force` exits 0, and `checks` is green.
 
 ## Out of scope
 - The caller that runs `confirmQuestion` before assembly (NS-227's package caller).
