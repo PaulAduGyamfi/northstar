@@ -119,6 +119,71 @@ describe("parseIndependentWork", () => {
     const result = parseIndependentWork("X | 2026-01 | present | https://me:pw@example.com\n- a");
     expect(result.ok).toBe(false);
   });
+
+  // NS-231 slice 3: a right-to-left override, a zero-width space or a word joiner would make a
+  // stored line read differently from what Paul sees, so the file is refused.
+  it("refuses an invisible formatting character in a title, a line or a link, with its line", () => {
+    const problemsOf = (file: string) => {
+      const r = parseIndependentWork(file);
+      return r.ok ? "accepted" : r.error;
+    };
+    const message = (what: string) => `${what} can't hold an invisible formatting character`;
+    expect([
+      problemsOf("Ledger\u202eline | 2026-01 | present\n- a"),
+      problemsOf("X | 2026-01 | present\n- Built\u200b it"),
+      problemsOf("X | 2026-01 | present | https://example.com/a\u2060b\n- a"),
+    ]).toEqual([
+      [{ line: 1, problem: message("the title") }],
+      [
+        { line: 1, problem: "an entry needs a line" },
+        { line: 2, problem: message("a line") },
+      ],
+      [{ line: 1, problem: message("the link") }],
+    ]);
+  });
+
+  // Security review of slice 3: line and paragraph separators would show one stored line as two,
+  // and these blank-looking letters, the braille blank, the grapheme joiner and the variation
+  // selectors hide text without being formatting characters.
+  it("refuses a line separator and the usual invisible blank characters inside a line", () => {
+    const hidden = [
+      "\u2028",
+      "\u2029",
+      "\u115f",
+      "\u1160",
+      "\u3164",
+      "\uffa0",
+      "\u2800",
+      "\u034f",
+      "\ufe0f",
+      "\u{e0100}",
+    ];
+    expect(
+      hidden.map((c) => {
+        const r = parseIndependentWork(`X | 2026-01 | present\n- Built${c} it`);
+        return r.ok ? "accepted" : r.error.map((p) => p.problem);
+      }),
+    ).toEqual(
+      hidden.map(() => [
+        "an entry needs a line",
+        "a line can't hold an invisible formatting character",
+      ]),
+    );
+  });
+
+  it("still reads accented and non-Latin text", () => {
+    const result = parseIndependentWork("Café Zürich | 2026-01 | present\n- 東京で Built it");
+    expect(result.ok ? result.value[0]?.title : "refused").toBe("Café Zürich");
+  });
+
+  it("reads a file that starts with a byte-order mark exactly as one without it", () => {
+    expect(parseIndependentWork(`\ufeff${FILE}`)).toEqual(parseIndependentWork(FILE));
+  });
+
+  it("refuses a byte-order mark anywhere but the start of the file", () => {
+    const result = parseIndependentWork("X | 2026-01 | present\n- Built\ufeff it");
+    expect(result.ok ? "accepted" : result.error.map((p) => p.line)).toEqual([1, 2]);
+  });
 });
 
 describe("independentWorkSection", () => {
