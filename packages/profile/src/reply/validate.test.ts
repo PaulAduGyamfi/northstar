@@ -134,19 +134,46 @@ describe("validateReplyDraft", () => {
   });
 
   it("fails a claim that hides a commitment behind lookalike letters", () => {
-    // Cyrillic "а" and "о" in "accept the offer".
-    expect(check(draft(claimPlus("and I аccept the оffer.")))).toEqual({
+    // Cyrillic "а" in "accept", Latin alpha "ɑ" in "accept", dotless "ı" in "sign".
+    const words = ["\u0430ccept", "\u0251ccept", "s\u0131gn"];
+    expect(words.map((w) => check(draft(claimPlus(`and I ${w}.`))))).toEqual(
+      words.map(() => ({
+        ok: false,
+        failures: [
+          { sentence: 0, problem: "word 13 has unusual letters that aren't in its quotes" },
+        ],
+      })),
+    );
+  });
+
+  it("fails a claim that adds a commitment word behind a prefix", () => {
+    const words = ["countersign", "rejoin", "prepay"];
+    expect(words.map((w) => check(draft(claimPlus(`and ${w}.`))))).toEqual(
+      words.map(() => ({
+        ok: false,
+        failures: [{ sentence: 0, problem: "commitment word at word 12 is not in its quotes" }],
+      })),
+    );
+  });
+
+  it("fails a claim that adds a short day name", () => {
+    expect(check(draft(claimPlus("and can talk fri.")))).toEqual({
       ok: false,
-      failures: [
-        {
-          sentence: 0,
-          problem: "word 13 has letters outside the Latin script that aren't in its quotes",
-        },
-        {
-          sentence: 0,
-          problem: "word 15 has letters outside the Latin script that aren't in its quotes",
-        },
-      ],
+      failures: [{ sentence: 0, problem: "time at word 14 is not in its quotes" }],
+    });
+  });
+
+  it("fails a claim that adds a bare domain", () => {
+    expect(check(draft(claimPlus("see calendly.com/someone")))).toEqual({
+      ok: false,
+      failures: [{ sentence: 0, problem: "word 12 is a link or address that isn't in its quotes" }],
+    });
+  });
+
+  it("fails a sentence whose word is split by a hair space", () => {
+    expect(check(draft(claimPlus("and I ac\u200acept.")))).toEqual({
+      ok: false,
+      failures: [{ sentence: 0, problem: "the sentence has a hidden or unusual space" }],
     });
   });
 
@@ -155,7 +182,7 @@ describe("validateReplyDraft", () => {
       ok: false,
       failures: [
         { sentence: 0, problem: "commitment word at word 13 is not in its quotes" },
-        { sentence: 0, problem: "the sentence has an invisible character" },
+        { sentence: 0, problem: "the sentence has a hidden or unusual space" },
       ],
     });
   });
@@ -192,13 +219,15 @@ describe("greetingName", () => {
     expect(["Dana Reyes", "Dana <dana@example.com>"].map(greetingName)).toEqual(["Dana", "Dana"]);
   });
 
-  it("drops a name that answers or commits, since the sender chooses it", () => {
-    expect(["Yes Recruiting", "Accepted Talent", "Sure", "Ok"].map(greetingName)).toEqual([
-      null,
-      null,
-      null,
-      null,
-    ]);
+  it("drops a name that answers, commits or sets a time, since the sender chooses it", () => {
+    expect(
+      ["Yes Recruiting", "Accepted Talent", "Sure", "Ok", "Monday", "Tomorrow"].map(greetingName),
+    ).toEqual([null, null, null, null, null, null]);
+  });
+
+  it("drops a name with a lookalike letter", () => {
+    // Cyrillic "е" in "Yes".
+    expect(greetingName("Y\u0435s Team")).toBeNull();
   });
 
   it("drops anything but one word of letters", () => {

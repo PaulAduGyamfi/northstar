@@ -46,11 +46,12 @@ nothing to Gmail.
        agree, sign, relocate, salary, pay, paid, sponsor, visa, clearance, offer, contract,
        notice, withdraw, available, start, consent, join, resign, begin, immediate, onsite,
        remote, and yes, no, ok, okay, sure, deal, confirm);
-     - a time word;
-     - a link or address;
+     - with a prefix too (countersign, rejoin, prepay);
+     - a time word, including short day names (fri, mon);
+     - a link or address, including a bare domain (`calendly.com/x`);
      - a symbol;
-     - a letter outside the Latin script.
-   - No sentence may hold an invisible character.
+     - a lookalike letter: anything but plain ASCII and common accented letters.
+   - No sentence may hold an invisible character or any space other than the plain one.
    - **Framing is a fixed set of whole sentences** (`framingSentences`):
      - a greeting (`Hi {name},`, `Hi,` …);
      - a thank-you;

@@ -208,7 +208,7 @@ Exists now:
   - The `reply-draft` route drafts from the email (untrusted) and `selectEvidence`'s items.
   - `validateReplyDraft` checks each claim like an answer sentence. A claim may not add, outside
     its quotes, a commitment word (accept, salary, start, … by stem), a time, a link, a symbol
-    or a lookalike letter. No sentence may hold an invisible character.
+    or a lookalike letter. No sentence may hold an invisible character or an unusual space.
   - A sentence that cites nothing is framing. There are at most 3, and each must be one of the
     fixed sentences in `framingSentences`: a greeting, a thank-you or a next step. The only name
     is the sender's first name, from `greetingName`, which is parsed by code and never a word

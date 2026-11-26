@@ -84,19 +84,16 @@ const COMMITMENT_STEMS = [
 // Short answers that commit by themselves.
 const ANSWER_WORDS = new Set(["yes", "no", "ok", "okay", "sure", "deal", "confirm", "confirmed"]);
 
+// Prefixes that keep a commitment ("countersign", "rejoin", "reaccept", "prepay", "unpaid").
+const PREFIX = /^(?:counter|re|co|pre|un)/;
+
 export function isCommitmentWord(word: string): boolean {
   const w = word.toLowerCase();
-  return ANSWER_WORDS.has(w) || COMMITMENT_STEMS.some((stem) => w.startsWith(stem));
-}
-
-// The sender's first name as a greeting may use it: one plain capitalised word of letters only
-// from the From header (code parses it, never the model), and never a word that answers or
-// commits ("Yes", "Accept"), since whoever sends the email chooses the display name. Anything else
-// gives no name, and the greeting goes without one.
-export function greetingName(senderName: string | null): string | null {
-  const first = normalize(senderName ?? "").split(" ")[0] ?? "";
-  if (!/^\p{Lu}\p{Ll}{1,39}$/u.test(first)) return null;
-  return isCommitmentWord(first) ? null : first;
+  const bareStem = w.replace(PREFIX, "");
+  return (
+    ANSWER_WORDS.has(w) ||
+    COMMITMENT_STEMS.some((stem) => w.startsWith(stem) || bareStem.startsWith(stem))
+  );
 }
 
 // Words that set a time. No reply proposes one until Calendar exists (RPL-003, NS-169), so a
@@ -106,16 +103,31 @@ const TIME_WORDS = new Set(
   (
     "today tomorrow tonight morning mornings afternoon afternoons evening evenings noon " +
     "midnight weekend weekends monday tuesday wednesday thursday friday saturday sunday " +
-    "january february april june july august september october november december"
+    "january february april june july august september october november december " +
+    "mon tue tues wed thu thur thurs fri sat sun eod asap"
   ).split(" "),
 );
 
-// Characters that don't show (zero-width spaces, joiners, bidi marks): they can hide a word from
-// the checks, so no reply sentence may hold one.
-const INVISIBLE = /\p{Cf}/u;
-// A letter outside the Latin script ("а" in Cyrillic looks like "a"). Claims may use one only in a
-// word their quotes hold.
-const NON_LATIN_LETTER = /(?=\p{L})\P{Script=Latin}/u;
+// The sender's first name as a greeting may use it: one plain capitalised word of letters only
+// from the From header (code parses it, never the model), and never a word that answers or
+// commits ("Yes", "Accept"), since whoever sends the email chooses the display name. Anything else
+// gives no name, and the greeting goes without one.
+export function greetingName(senderName: string | null): string | null {
+  const first = normalize(senderName ?? "").split(" ")[0] ?? "";
+  // Plain ASCII letters only, so a lookalike ("Yеs" with a Cyrillic "е") can't pass as a name.
+  if (!/^[A-Z][a-z]{1,39}$/.test(first)) return null;
+  return isCommitmentWord(first) || TIME_WORDS.has(first.toLowerCase()) ? null : first;
+}
+
+// Characters that don't show (zero-width spaces, joiners, bidi marks) and spaces other than the
+// plain one (a hair space splits "ac cept" into two words the checks don't know): no reply
+// sentence may hold one.
+const HIDDEN = /\p{Cf}|[^\S ]/u;
+// A letter that isn't plain ASCII or a common accented letter ("ɑ", "ı", "ʏ", or Cyrillic "а"
+// look like "a", "i", "Y"). Claims may use one only in a word their quotes hold.
+const LOOKALIKE_LETTER = /(?=\p{L})[^A-Za-zÀ-ÖØ-öø-ÿ]/u;
+// A link or address: a scheme, "www.", "@", a domain ("calendly.com") or a path ("calendly/x").
+const LINK = /:\/\/|www\.|@|\p{L}\.\p{L}{2,}|\p{L}\/\p{L}/u;
 
 // Claim words its quotes don't back: a link or address, a symbol (an emoji "✅" can say yes), a
 // lookalike letter, a time or a commitment word, checked on each part of a joined word
@@ -134,12 +146,12 @@ function claimWordFailures(
         (p) => !hasWhole(quotes, p.toLowerCase()) && !hasWhole(quotes, word.toLowerCase()),
       );
       const lower = word.toLowerCase();
-      if (/:\/\/|www\.|@/u.test(lower) && !quotes.includes(lower)) {
+      if (LINK.test(lower) && !quotes.includes(lower)) {
         fail(`word ${position} is a link or address that isn't in its quotes`);
       } else if (/\p{S}/u.test(word) && !quotes.includes(lower.replace(/[^\p{S}]/gu, ""))) {
         fail(`word ${position} has a symbol that isn't in its quotes`);
-      } else if (unquoted.some((p) => NON_LATIN_LETTER.test(p))) {
-        fail(`word ${position} has letters outside the Latin script that aren't in its quotes`);
+      } else if (unquoted.some((p) => LOOKALIKE_LETTER.test(p))) {
+        fail(`word ${position} has unusual letters that aren't in its quotes`);
       } else if (unquoted.some((p) => TIME_WORDS.has(p.toLowerCase()))) {
         fail(`time at word ${position} is not in its quotes`);
       } else if (unquoted.some(isCommitmentWord)) {
@@ -179,8 +191,8 @@ export function validateReplyDraft(
     );
   }
   draft.sentences.forEach((sentence, index) => {
-    if (INVISIBLE.test(sentence.text)) {
-      failures.push({ sentence: index, problem: "the sentence has an invisible character" });
+    if (HIDDEN.test(sentence.text)) {
+      failures.push({ sentence: index, problem: "the sentence has a hidden or unusual space" });
     }
   });
 
