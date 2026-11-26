@@ -41,7 +41,8 @@ export type SubmitOutcome =
 
 export type HostNotAllowed = { kind: "HostNotAllowed" };
 // Thrown when the Gate doesn't verify the decision id for exactly this package. `reason` is the
-// Gate's refusal kind (NotFound, Rejected, Undone, UndoWindowOpen, SubjectMismatch, ContentChanged).
+// Gate's refusal kind (NotFound, Rejected, Undone, UndoWindowOpen, SubjectMismatch, ContentChanged,
+// Withdrawn). On ContentChanged the gateway has already asked the Gate to withdraw (NS-211).
 export class NotApprovedError extends Error {
   constructor(readonly reason: string) {
     super(`not approved: ${reason}`);
@@ -114,6 +115,34 @@ export async function submitApplication(
   });
 }
 
+// Withdraws the approval behind a decision whose package changed, by proving the new content's
+// hash to the Gate. Nothing is claimed yet, so no ledger row: a needs_human row here would make
+// the resubmission under the new approval replay as needs_human forever. The visible item is the
+// Gate's approval.withdrawn feed line and the NotApprovedError the caller still gets. A refusal
+// (not found, not approved, undo window open, already closed) is recorded on the span only.
+async function withdrawChanged(
+  ports: ApplyPorts,
+  input: SubmitInput,
+  newContentSha256: string,
+  span: Span,
+): Promise<void> {
+  const found = await ports.requestOfDecision({
+    candidateId: input.candidateId,
+    decisionId: input.decisionId,
+  });
+  if (!found.ok) {
+    span.setAttribute("northstar.apply.withdraw", found.error.kind);
+    return;
+  }
+  const withdrawn = await ports.withdrawApproval({
+    candidateId: input.candidateId,
+    requestId: found.value.requestId,
+    by: "gateway",
+    newContentSha256,
+  });
+  span.setAttribute("northstar.apply.withdraw", withdrawn.ok ? "withdrawn" : withdrawn.error.kind);
+}
+
 async function submit(
   ports: ApplyPorts,
   input: SubmitInput,
@@ -140,7 +169,16 @@ async function submit(
     contentSha256: packageSha256(pkg),
   });
   // No verified approval: throw, never a value a caller could ignore (.claude/rules/gateways.md).
-  if (!verified.ok) throw new NotApprovedError(verified.error.kind);
+  if (!verified.ok) {
+    // The package changed for good after approval (NS-211): close the approval so the subject
+    // can be requested again with the new package. Only the Gate's ContentChanged (the whole
+    // package hash differs); every other refusal, and the transient FileChanged below, withdraws
+    // nothing.
+    if (verified.error.kind === "ContentChanged") {
+      await withdrawChanged(ports, input, packageSha256(pkg), span);
+    }
+    throw new NotApprovedError(verified.error.kind);
+  }
 
   // 2. The files Paul approved, by hash.
   const resume = await ports.readFile(pkg.resume.sha256);

@@ -7,6 +7,7 @@ import {
   decideApprovals,
   listPendingApprovals,
   requestApproval,
+  requestOfDecision,
   setApprovalPolicies,
   undoDecision,
   verifyApproval,
@@ -259,6 +260,37 @@ describe("withdrawApproval by a gateway", () => {
     });
     const again = await request(subject, { kind: "application_package" });
     expect([withdrawn.ok, again.decision?.decidedBy]).toEqual([true, "policy"]);
+  });
+});
+
+describe("requestOfDecision", () => {
+  it("gives the request a decision belongs to, so a gateway can withdraw it", async () => {
+    const { requestId } = await request(`email:${randomUUID()}`);
+    const decisionId = await approve(requestId);
+    expect(await requestOfDecision(db, { candidateId, decisionId })).toEqual({
+      ok: true,
+      value: { requestId },
+    });
+  });
+
+  it("finds nothing for an unknown or malformed decision id", async () => {
+    expect([
+      await requestOfDecision(db, { candidateId, decisionId: randomUUID() }),
+      await requestOfDecision(db, { candidateId, decisionId: "not-a-uuid" }),
+    ]).toEqual([
+      { ok: false, error: { kind: "NotFound" } },
+      { ok: false, error: { kind: "NotFound" } },
+    ]);
+  });
+
+  it("finds nothing for another candidate's decision", async () => {
+    const { requestId } = await request(`email:${randomUUID()}`);
+    const decisionId = await approve(requestId);
+    const [other] = await db.insert(candidate).values({ displayName: "Other" }).returning();
+    if (!other) throw new Error("no candidate");
+    expect(
+      await requestOfDecision(db, { candidateId: CandidateId.parse(other.id), decisionId }),
+    ).toEqual({ ok: false, error: { kind: "NotFound" } });
   });
 });
 

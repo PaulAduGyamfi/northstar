@@ -71,6 +71,7 @@ export {
   type RequestResult,
   readApprovalPolicies,
   requestApproval,
+  requestOfDecision,
   type SubjectAlreadyRequested,
   type SubjectMismatch,
   type SubjectReopened,
