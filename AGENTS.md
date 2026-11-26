@@ -44,6 +44,12 @@ Exists now:
   tracks first, then priority, target date and id; the first `wipLimit` (default 3) are in focus
   with at least two blocks each, the rest get one maintenance block, and the week never exceeds
   `weeklyMinutes` (default 480, Q-09). No storage, settings page or calendar blocks yet.
+  Since NS-172 also growth check-ins and the weekly review (`growth-progress.ts`, GRW-005…007):
+  `parseCheckIn` (track, time, minutes, optional percent; no free text), `applyCheckIns` (moves
+  each track's last touch forward, which feeds the next `planWeek`), `trackDashboard` (minutes
+  against plan, days since touched, at risk, a week streak that never resets mid-week, percent per
+  week still needed) and `weeklyReview` (moved, not reached, a neutral log; UX-032). No storage,
+  auto-detected progress or page yet.
 - `packages/db/` (NS-105): Drizzle schema, committed migrations (`migrations/`), the one write
   path for status changes (`transitionApplication`: status + event in one transaction) and
   `readEventsAfter`. `domain_event` is append-only (ADR-0012). Tests run on in-process PGlite.
