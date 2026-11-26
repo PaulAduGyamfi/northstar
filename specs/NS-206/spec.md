@@ -35,7 +35,7 @@ that keeps timing out keeps being driven.
    `HeldBack` with `describeHeldBack`, for example "agent:profile-extract is switched off".
 3. **API** (`apps/api`): the capture endpoint's lazily built model gateway gets the same guard
    (the candidate id is looked up lazily, as for saving). A `HeldBack` from the capture becomes
-   503 with `held back: <describeHeldBack>`, never a 500.
+   503 with `held back (<describeHeldBack>)`, never a 500.
 
 ## Acceptance criteria
 - [ ] With `auto_apply` off, `adapter:<ats>` off, or the `ats:<ats>` breaker open, a submission
@@ -52,9 +52,22 @@ that keeps timing out keeps being driven.
 ## Failure modes
 - Postgres down: the gateway's checks throw, so the submission is held back (`guard_error`). The
   CLI prints "the switch and breaker check failed …", and the API answers 503.
-- A breaker probe whose claim is then refused (paced, ATS busy) is never reported. The breaker
-  stays half-open until its 2-minute probe window ends, then another caller probes. That is
-  harmless, because the ATS lane is paced at 90 s anyway.
+- A breaker probe is taken before the claim, and only the browser step reports it. Any path that
+  returns before the browser leaves it unreported:
+  - a claim refusal (duplicate requisition, ATS busy, paced, daily cap);
+  - a replay or stale-claim close;
+  - a `status_conflict` handoff;
+  - a thrown invariant.
+
+  The breaker then stays half-open until its 2-minute probe window ends, holding other
+  submissions to that ATS back, and then another caller probes. That is bounded and fails safe.
+  Asking the breaker after the claim would be worse: a held-back call would leave a claim
+  behind. A probe that runs longer than 2 minutes has its report ignored as stale, so a slow
+  success doesn't close the breaker.
+- Because the checks come before the claim, a repeat call for an application already submitted
+  or handed off gets `HeldBack` while a switch is off or the breaker is open, instead of its
+  replayed outcome. A stale claim is then closed by `sweepStaleClaims` rather than by that call.
+  The caller retries either way.
 
 ## Observability
 `apply.submit` span: `northstar.apply.outcome` `HeldBack`, `northstar.apply.held_by`,

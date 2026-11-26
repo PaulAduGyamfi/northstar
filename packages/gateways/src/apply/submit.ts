@@ -54,7 +54,7 @@ export type PostingMismatch = { kind: "PostingMismatch" };
 // An earlier run holds the claim and may still be in the browser: try again later.
 export type InProgress = { kind: "InProgress" };
 // A kill switch or the ATS's breaker held the submission back before anything was claimed
-// (NS-206): call again later (at `retryAt` when the breaker gave one). `what` names the switch
+// (NS-206; a refusal value, not @northstar/llm's HeldBack error for model calls): call again later (at `retryAt` when the breaker gave one). `what` names the switch
 // (auto_apply, adapter:<ats>) or the breaker (ats:<ats>).
 export type HeldBack = {
   kind: "HeldBack";
@@ -160,6 +160,9 @@ async function submit(
   const dependency = atsDependency(pkg.ats);
   const admitted = await admit(ports, input.candidateId, pkg.ats, span);
   if (!admitted.ok) return admitted;
+  // Only the browser step below reports it: a path that returns before then (a refused claim, a
+  // replay, a status conflict) leaves a probe unreported until its 2-minute window ends. That is
+  // bounded and fails safe; asking after the claim would leave a claim behind when held back.
   const probeToken = admitted.value;
   // Tells the breaker how the ATS answered. A report that fails is noted, never thrown: the
   // submission's outcome is already decided.
