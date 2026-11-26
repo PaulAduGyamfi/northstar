@@ -14,7 +14,7 @@ sources and fit bands get replies.
 1. **packages/domain** (plain code, no I/O):
    - `wilson(k, n)` moves here from `packages/funnel` (which re-exports it), so both reports use
      one method.
-   - `pipelineMetrics(histories, now)`, from each application's status moves:
+   - `pipelineMetrics(histories)`, from each application's status moves:
      - the funnel: discovered (every application) → applied (reached `submitted`) → responded
        (reached `in_process`, `offer` or `rejected` after applying) → interviewing (reached
        `in_process`) → offer. Each step's rate is `k of n` with its Wilson interval;

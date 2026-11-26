@@ -1,4 +1,10 @@
-import { type ApplicationStatus, type CandidateId, feedLine } from "@northstar/domain";
+import {
+  APPLICATION_STATUSES,
+  type ApplicationHistory,
+  type ApplicationStatus,
+  type CandidateId,
+  feedLine,
+} from "@northstar/domain";
 import { and, asc, desc, eq, gte, isNull, lt, or, type SQL, sql } from "drizzle-orm";
 import type { Db } from "./db.js";
 import { fitScore } from "./fit-schema.js";
@@ -158,5 +164,68 @@ export async function readApplicationTimeline(
         line: feedLine({ type: e.type, actor: e.actor, reason: e.reason, payload: e.payload }),
       })),
     };
+  });
+}
+
+// The metrics read at most this many applications: years of applying.
+const MAX_HISTORIES = 5000;
+const STATUS_SET: ReadonlySet<string> = new Set(APPLICATION_STATUSES);
+
+// Each application's history for the pipeline metrics (NS-208, DSH-002/004): when it was created,
+// its job's ATS, newest fit band and posting time (or first seen), and its status moves from the
+// `application.*` events, oldest first. Ids, times, statuses and bands only: never a title,
+// company or text.
+export async function readApplicationHistories(
+  db: Db,
+  candidateId: CandidateId,
+): Promise<ApplicationHistory[]> {
+  return inSpan("db.pipeline.histories", {}, async (span) => {
+    const apps = await db
+      .select({
+        id: application.id,
+        createdAt: application.createdAt,
+        source: job.ats,
+        fitBand: sql<string | null>`${latestFit("band")}`,
+        postedAt: sql<Date>`coalesce(${job.postedAt}, ${job.firstSeenAt})`.mapWith(
+          (v: string | Date) => new Date(v),
+        ),
+      })
+      .from(application)
+      .innerJoin(job, eq(job.id, application.jobId))
+      .where(eq(application.candidateId, candidateId))
+      .orderBy(asc(application.createdAt), asc(application.id))
+      .limit(MAX_HISTORIES);
+    const moves = await db
+      .select({
+        aggregate: domainEvent.aggregate,
+        to: sql<string | null>`${domainEvent.payload}->>'to'`,
+        at: domainEvent.occurredAt,
+      })
+      .from(domainEvent)
+      .where(
+        and(
+          eq(domainEvent.candidateId, candidateId),
+          sql`${domainEvent.aggregate} like 'application:%'`,
+          sql`${domainEvent.type} like 'application.%'`,
+        ),
+      )
+      .orderBy(asc(domainEvent.position));
+    const byApp = new Map<string, { to: ApplicationStatus; at: Date }[]>();
+    for (const m of moves) {
+      // Only status moves carry a `to`; anything else (application.created) is skipped.
+      if (m.to === null || !STATUS_SET.has(m.to)) continue;
+      const id = m.aggregate.slice("application:".length);
+      const list = byApp.get(id) ?? [];
+      list.push({ to: m.to as ApplicationStatus, at: m.at });
+      byApp.set(id, list);
+    }
+    span.setAttribute("northstar.pipeline.applications", apps.length);
+    return apps.map((a) => ({
+      createdAt: a.createdAt,
+      source: a.source,
+      fitBand: a.fitBand as ApplicationHistory["fitBand"],
+      postedAt: a.postedAt,
+      moves: byApp.get(a.id) ?? [],
+    }));
   });
 }

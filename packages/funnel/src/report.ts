@@ -1,4 +1,5 @@
 import type { Channel, FunnelStage } from "@northstar/db";
+import { wilson } from "@northstar/domain";
 import { z } from "zod";
 import { type FunnelRecord, STAGE_ORDER } from "./records.js";
 
@@ -38,16 +39,8 @@ export const Baselines = z
   .strict();
 export type Baselines = z.infer<typeof Baselines>;
 
-// The 95% Wilson score interval for k successes in n trials: honest at small n and near 0 or 1,
-// where the plain p ± 1.96·se interval goes below zero.
-export function wilson(k: number, n: number): [number, number] {
-  const z2 = 1.96 ** 2;
-  const p = k / n;
-  const denom = 1 + z2 / n;
-  const center = (p + z2 / (2 * n)) / denom;
-  const margin = (1.96 * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / denom;
-  return [Math.max(0, center - margin), Math.min(1, center + margin)];
-}
+// The Wilson interval lives in packages/domain since NS-208, shared with the pipeline metrics.
+export { wilson };
 
 export type LatencyBucket = "lt24h" | "d1to7" | "gt7d";
 

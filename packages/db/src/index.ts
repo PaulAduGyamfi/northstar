@@ -287,6 +287,7 @@ export {
   type ApplicationRow,
   listApplications,
   MAX_APPLICATIONS,
+  readApplicationHistories,
   readApplicationTimeline,
   type TimelineItem,
 } from "./pipeline-read.js";

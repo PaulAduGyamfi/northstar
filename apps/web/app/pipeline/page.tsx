@@ -98,6 +98,9 @@ export default async function PipelinePage({
                 <button type="submit">Filter</button> <Link href="/pipeline">Clear</Link>
               </form>
               <p>
+                <Link href="/pipeline/metrics">Funnel and reply rates</Link>
+              </p>
+              <p>
                 View:{" "}
                 {view === "board" ? (
                   <strong>Board</strong>

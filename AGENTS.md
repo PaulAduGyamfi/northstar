@@ -449,7 +449,12 @@ Exists now:
   Pipeline also filters by company, fit band, source (the job's ATS, or `other`) and creation day,
   applied in `listApplications`' SQL and kept in the URL, has a table view, and Today shows counts
   of approvals waiting and needs-your-hands items (`src/today.ts`), with interviews, follow-ups
-  and growth blocks marked not set up yet. `/api/*` is rewritten to the API, and pages that need Paul go
+  and growth blocks marked not set up yet. Since NS-208 also `/pipeline/metrics`: the funnel (found →
+  applied → heard back → interviewing → offer), median days to apply and to the first reply, and
+  reply rates by source, fit band and time from posting to applying, each with its count and a
+  Wilson interval, or "not enough data yet" under 20 (`pipelineMetrics` in `packages/domain`,
+  over `readApplicationHistories`; the API's `GET /pipeline/metrics`). `wilson` lives in
+  `packages/domain` (`stats.ts`); `packages/funnel` re-exports it. `/api/*` is rewritten to the API, and pages that need Paul go
   through `readSession`/`todayView` or `readApi` (`src/session.ts`, `src/system.ts`), which forward
   his session cookie to the API. It holds no secret.
 - `packages/pipeline/` (NS-161, ADR-0023): plain-code pipeline steps, no model or network.

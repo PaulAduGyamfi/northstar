@@ -1,5 +1,6 @@
 import { createServer, type Server } from "node:http";
 import type { ApplicationRow } from "@northstar/db";
+import { pipelineMetrics } from "@northstar/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ApiConfig } from "./config.js";
 import { type PipelinePorts, pipelineEndpoints } from "./pipeline.js";
@@ -41,6 +42,10 @@ beforeEach(async () => {
       calls.push(["list", filter]);
       return [ROW];
     },
+    metrics: async () => {
+      calls.push("metrics");
+      return pipelineMetrics([]);
+    },
     timeline: async (id) => {
       calls.push(["timeline", id]);
       if (id !== A1) return null;
@@ -71,6 +76,7 @@ beforeEach(async () => {
       extra: pipelineEndpoints({
         list: (filter) => ports.list(filter),
         timeline: (id) => ports.timeline(id),
+        metrics: () => ports.metrics(),
       }),
     }),
   );
@@ -198,5 +204,33 @@ describe("GET /applications/timeline", () => {
       throw new Error("database down");
     };
     expect((await get(`/applications/timeline?id=${A1}`)).status).toBe(503);
+  });
+});
+
+describe("GET /pipeline/metrics (NS-208)", () => {
+  it("refuses without a session and computes nothing", async () => {
+    expect([(await get("/pipeline/metrics", false)).status, calls]).toEqual([401, []]);
+  });
+
+  it("returns the funnel and breakdowns", async () => {
+    const res = await get("/pipeline/metrics");
+    const body = JSON.parse(res.body);
+    expect([
+      res.status,
+      body.funnel.map((f: { stage: string }) => f.stage),
+      body.responseBy,
+    ]).toEqual([
+      200,
+      ["discovered", "applied", "responded", "interviewing", "offer"],
+      { source: [], band: [], timeToApply: [] },
+    ]);
+  });
+
+  it("answers 503 when the histories can't be read", async () => {
+    ports.metrics = async () => {
+      throw new Error("database down");
+    };
+    const res = await get("/pipeline/metrics");
+    expect([res.status, JSON.parse(res.body)]).toEqual([503, { error: "unavailable" }]);
   });
 });

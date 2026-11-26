@@ -188,3 +188,5 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   Since NS-207 `listApplications` takes an optional filter (company part, fit band, the job's
   ATS or `other`, creation days), applied as SQL parameters, and gives each row its job's newest
   fit score and band.
+  `readApplicationHistories` (NS-208) gives each application's creation time, source, newest fit
+  band, posting time and status moves (`application.*` events with a `to`), never names or text.
