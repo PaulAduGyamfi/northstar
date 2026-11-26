@@ -3,6 +3,7 @@ import type { JobListItem, SetFieldError } from "@northstar/db";
 import type { Result } from "@northstar/domain";
 import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
 import { FIT_USAGE, type FitCliDeps, fitCommand, scoreAfter } from "./fit/cli.js";
+import { type FormCliDeps, formCommand } from "./form-cli.js";
 import type { IngestResult } from "./ingest.js";
 import type { CheckPassSummary } from "./liveness.js";
 import { ageHours, freshness, queueScore } from "./queue.js";
@@ -29,6 +30,8 @@ export type CliDeps = {
   fit: FitCliDeps;
   // One liveness pass over the jobs due a re-check (NS-173, SRC-010).
   check: () => Promise<CheckPassSummary>;
+  // A saved job's application form (NS-227): its own usage line, so USAGE stays as it was.
+  form: FormCliDeps;
 };
 
 const USAGE = `usage: jobs add <url> | jobs add --text <file> --url <url> | jobs list | jobs set <job-id> <field> <value>\n       jobs watch add <board-url> --tier 1|2|3 | jobs watch list | jobs watch remove|retry <id> | jobs poll | jobs run\n       jobs check\n${FIT_USAGE}`;
@@ -58,6 +61,8 @@ export async function main(deps: CliDeps): Promise<number> {
     const [id, field, ...value] = rest;
     if (id && field) return scored(deps, await setCommand(deps, id, field, value.join(" ")));
   }
+  const form = await formCommand({ ...deps.form, print: deps.print }, deps.argv);
+  if (form !== null) return form;
   const fit = await fitCommand(deps, deps.argv);
   if (fit !== null) return fit;
   deps.print(USAGE);

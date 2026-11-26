@@ -249,6 +249,15 @@ export {
   type SetIndependentWorkResult,
   setIndependentWork,
 } from "./independent-work-write.js";
+// A job's application form (NS-227).
+export type { JobFormQuestion } from "./job-form-schema.js";
+export * as jobFormSchema from "./job-form-schema.js";
+export {
+  readJobAtsSources,
+  readJobForm,
+  type SaveJobFormResult,
+  saveJobForm,
+} from "./job-form-write.js";
 export {
   type Ats,
   type DedupeCandidate,

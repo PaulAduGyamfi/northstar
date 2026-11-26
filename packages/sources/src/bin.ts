@@ -14,6 +14,7 @@ import {
   readAtomTexts,
   readDedupeCandidates,
   readFitScore,
+  readJobAtsSources,
   readJobsToCheck,
   readPreferences,
   readScorableJobs,
@@ -27,6 +28,7 @@ import {
   retryWatch,
   saveFitScore,
   saveIngestedJob,
+  saveJobForm,
   savePollResult,
   savePreferences,
   setJobField,
@@ -42,6 +44,7 @@ import {
 } from "@northstar/llm";
 import { sql } from "drizzle-orm";
 import { AlertSettingError, alertPass, loadAlertConfig, scoreThenAlert } from "./alerts.js";
+import { readGreenhouseForm } from "./ats/greenhouse-form.js";
 import { main } from "./cli.js";
 import { scorePending } from "./fit/run.js";
 import { type IngestDeps, ingestText, ingestUrl } from "./ingest.js";
@@ -141,6 +144,13 @@ try {
     readText: (path) => readFile(resolve(process.env.INIT_CWD ?? process.cwd(), path), "utf8"),
     list: () => listJobs(db, candidateId),
     set: (jobId, field, value) => setJobField(db, { candidateId, jobId, field, value }),
+    // A saved Greenhouse job's form (NS-227), read through the same safe fetcher as `jobs add`.
+    form: {
+      sources: (jobId) => readJobAtsSources(db, candidateId, jobId),
+      readGreenhouse: (t) => readGreenhouseForm(deps, t),
+      save: (jobId, questions) =>
+        saveJobForm(db, { candidateId, jobId, ats: "greenhouse", questions, actor: "user" }),
+    },
     // Liveness (NS-173, SRC-010): jobs not tried in a day, at most 50 a pass.
     check: () =>
       checkPass(
