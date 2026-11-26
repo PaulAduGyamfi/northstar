@@ -259,6 +259,14 @@ Exists now:
   how many items it cites (`replyLines`). `POST /approvals/decide` never approves an `email_reply`
   with no stored draft (`missing_draft`, via `missingReplyDrafts`), nor one to another domain in
   a batch (`approve_alone`, via `otherDomainReplies`); a reject still clears one.
+  Since slice 3 also follow-up nudges (RPL-004), plain code:
+  - `nudgesDue` (`packages/domain`, `follow-up.ts`) picks the applications in `applied`
+    (`submitted`, `confirmed`) or `interview` (`in_process`) that have a linked message, no reply
+    draft filed on it, and no status move or linked mail for the stage's days (`DEFAULT_NUDGE_DAYS`
+    7 and 5, `parseNudgeDays` 1–60).
+  - `readNudgeCandidates` (`packages/db`, `nudge-read.ts`) reads ids and times for it.
+  - `nudgePackage` (`reply/nudge.ts`) builds a reply package with a fixed body per stage
+    (`NUDGE_SENTENCES`, no claims), which `fileReplyDraft` files like any reply.
   No caller or Gmail draft writer yet. ADR-0025 (Proposed) decides the
   `gmail.compose` scope for drafts, which are never sent.
 - Factual answers (NS-141, ANS-001) from Paul's profile settings, plain code, no model:

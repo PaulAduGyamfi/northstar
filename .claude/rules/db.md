@@ -220,6 +220,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   kind and content hash (`approval_request_id_kind_content_unique`). It holds the recipient address, subject, thread headers
   and body Paul approves (CHECKs refuse control characters in headers), plus cites and follow-ups.
   The body and recipient never go into an event or span: `approval.requested` is the feed line.
+  `readNudgeCandidates` (`nudge-read.ts`, NS-237 slice 3) is the follow-up nudge check's
+  read-only reader: applications in a nudge stage, their last move, newest linked message and
+  whether a `reply_draft` is filed for it; ids and times only.
 - Mail tags and links (NS-158) are `mail_tag` (one tag per application or tenant, never reused)
   and `mail_link` (one decision per Gmail message: linked by a step, or queued with a reason),
   append-only, written only through `mail-link-write.ts`. They hold Gmail ids, tags, steps and

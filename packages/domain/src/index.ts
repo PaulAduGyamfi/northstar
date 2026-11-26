@@ -10,6 +10,7 @@ export * from "./company-name.js";
 export * from "./consent.js";
 export * from "./domain-event.js";
 export * from "./feed.js";
+export * from "./follow-up.js";
 export * from "./growth.js";
 export * from "./growth-progress.js";
 export * from "./health.js";

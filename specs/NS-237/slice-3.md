@@ -1,6 +1,6 @@
 # NS-237 (slice 3): Decide which applications are due a follow-up nudge, and package the nudge
 
-Status: in progress
+Status: done
 Requirements: RPL-004, RPL-002 · ADR-0002, ADR-0004
 Rules that apply: ADR-0016, `.claude/rules/db.md`, `.claude/rules/tests.md`.
 Parent: #117, issue #263 (item 3).
@@ -42,14 +42,14 @@ fact, so there's nothing for a model to invent.
     reply.
 
 ## Acceptance criteria
-- [ ] `nudgesDue` covers each condition: due, not yet due, already filed, no thread, not in a stage,
+- [x] `nudgesDue` covers each condition: due, not yet due, already filed, no thread, not in a stage,
       newer mail resets the clock, per-stage days, oldest first.
-- [ ] `parseNudgeDays` refuses days outside 1–60, or that aren't whole numbers, naming the field.
-- [ ] `readNudgeCandidates` reads the newest linked message, the last move, the filed flag and only
+- [x] `parseNudgeDays` refuses days outside 1–60, or that aren't whole numbers, naming the field.
+- [x] `readNudgeCandidates` reads the newest linked message, the last move, the filed flag and only
       the candidate's own applications in a stage (PGlite).
-- [ ] `nudgePackage` builds a package with a fixed body that files with `fileReplyDraft` (PGlite),
+- [x] `nudgePackage` builds a package with a fixed body that files with `fileReplyDraft` (PGlite),
       and refuses a bad sender header.
-- [ ] `pnpm turbo run lint typecheck test build` passes.
+- [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Decisions made without Paul (ADR-0016)
 - The nudge body is fixed text, not a model draft. It states no fact, figure, time or commitment,
