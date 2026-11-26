@@ -101,6 +101,42 @@ describe("gmail client", () => {
     expect(h.authenticationResults).toBe("mx.google.com; dmarc=pass header.from=ats.example.com");
   });
 
+  it("reads the first of two Google headers: Gmail's stamp is the top one", async () => {
+    const twice = {
+      ...message,
+      headers: {
+        ...message.headers,
+        "Authentication-Results": "mx.google.com; dmarc=pass header.from=ats.example.com",
+      },
+      extraHeaders: [
+        {
+          name: "Authentication-Results",
+          value: "mx.google.com; dmarc=pass header.from=forged.example.com",
+        },
+      ],
+    };
+    const h = await client(fakeGmail([twice])).getHeaders("m1");
+    expect(h.authenticationResults).toBe("mx.google.com; dmarc=pass header.from=ats.example.com");
+  });
+
+  it("doesn't take a look-alike authserv-id for Google's", async () => {
+    const lookalike = {
+      ...message,
+      headers: {
+        ...message.headers,
+        "Authentication-Results": "mx.example.com; dmarc=pass header.from=ats.example.com",
+      },
+      extraHeaders: [
+        {
+          name: "Authentication-Results",
+          value: "mx.google.com.evil.example; dmarc=pass header.from=forged.example.com",
+        },
+      ],
+    };
+    const h = await client(fakeGmail([lookalike])).getHeaders("m1");
+    expect(h.authenticationResults).toBe("mx.example.com; dmarc=pass header.from=ats.example.com");
+  });
+
   it("fetches the plain-text body of a full message", async () => {
     const full = await client(fakeGmail([message])).getFull("m1");
     expect(full.body).toBe("Hi, we received your application for Backend Engineer.");
