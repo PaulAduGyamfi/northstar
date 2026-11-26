@@ -1,3 +1,5 @@
+-- NS-214. The app role's grants come in 0067, after the append-only triggers: granting here
+-- would give northstar_app full writes on these tables until 0067 ran.
 CREATE TABLE "growth_check_in" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"candidate_id" uuid NOT NULL,

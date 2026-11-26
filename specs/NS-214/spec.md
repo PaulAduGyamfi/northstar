@@ -1,6 +1,6 @@
 # NS-214: Growth page in the app: check-ins, dashboard and the weekly review
 
-Status: draft
+Status: built
 Requirements: GRW-005 (10-second check-in), GRW-006 (dashboard), GRW-007 (weekly review), UX-032
 (no shame copy), DSH (session-only pages)
 Rules that apply: ADR-0016, ADR-0018 (sign-in), `.claude/rules/db.md`, `.claude/rules/web.md`,
@@ -43,7 +43,7 @@ log a session in ten seconds, see each track at a glance, and read last week's r
 ### Web (`apps/web`, the nav's Grow tab, `/grow`)
 - Each track: name, type and status in words; a progress bar for the percent with the number
   beside it; "45 of 120 min this week"; "Last worked on 3 days ago" or "Not worked on yet"; "At
-  risk: goes first in next week's plan" when at risk; "2-week streak" when there is one (never a
+  risk: it goes first in next week's plan" when at risk; "2 weeks in a row" when there is a streak (never a
   broken-streak line, UX-032); the weekly pace still needed, when known.
 - A check-in form: track, minutes, optional percent; one idempotency key per form load, so a
   double submit stores one.
@@ -51,14 +51,14 @@ log a session in ten seconds, see each track at a glance, and read last week's r
 - Signed out redirects to sign-in; an unreachable API says so in words.
 
 ## Acceptance criteria
-- [ ] A check-in shows on the dashboard at once; saving it twice with the same idempotency key
+- [x] A check-in shows on the dashboard at once; saving it twice with the same idempotency key
       stores one (db test and API test).
-- [ ] An unknown track key stores nothing; events carry no track key or name.
-- [ ] A week's review is stored once; the second call returns the first; no plan → `no_plan`.
-- [ ] A check-in moves the track's last touch for the planner.
-- [ ] The page shows only the listed fields, every status in words (web helper tests).
-- [ ] Every table's grants match the app-role rule (`app-role.test.ts`).
-- [ ] `pnpm turbo run lint typecheck test build` passes; `drizzle-kit generate` has no changes.
+- [x] An unknown track key stores nothing; events carry no track key or name.
+- [x] A week's review is stored once; the second call returns the first; no plan → `no_plan`.
+- [x] A check-in moves the track's last touch for the planner.
+- [x] The page shows only the listed fields, every status in words (web helper tests).
+- [x] Every table's grants match the app-role rule (`app-role.test.ts`).
+- [x] `pnpm turbo run lint typecheck test build` passes; `drizzle-kit generate` has no changes.
 
 ## Failure modes
 - API down: the page says the API isn't answering; the form shows "Couldn't reach Northstar".

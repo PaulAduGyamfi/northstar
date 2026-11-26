@@ -110,6 +110,36 @@ export function plannerTracks(tracks: GrowthTrackView[]): GrowthTrack[] {
   }));
 }
 
+// A track Paul removed from his file after last week still had its plan and its logged time:
+// without a stand-in, weeklyReview would drop that time and call the track "not reached". The
+// stand-in carries only the key; the review shows it as no longer a track.
+export function withStandIns(
+  tracks: GrowthTrack[],
+  plan: WeekPlan,
+  checkIns: CheckIn[],
+): GrowthTrack[] {
+  const known = new Set(tracks.map((t) => t.id));
+  const keys = [
+    ...[...plan.focus, ...plan.maintenance].map((p) => p.trackId),
+    ...checkIns.map((c) => c.trackId),
+  ];
+  const missing = [...new Set(keys)].filter((k) => !known.has(k));
+  return [
+    ...tracks,
+    ...missing.map((key) => ({
+      id: key,
+      name: key,
+      type: "project" as const,
+      status: "done" as const,
+      priority: 1,
+      targetDate: null,
+      lastTouchedAt: null,
+      untouchedDays: 365,
+      nextAction: null,
+    })),
+  ];
+}
+
 const asCheckIns = (stored: StoredCheckIn[]): CheckIn[] =>
   stored.map((c) => ({ trackId: c.key, at: c.at, minutes: c.minutes, percent: c.percent }));
 
@@ -144,7 +174,8 @@ export async function growthView(ports: GrowthPorts): Promise<z.infer<typeof Vie
   const plan =
     stored === null
       ? planWeek(tracks, (await ports.settings()) ?? DEFAULT_PLAN_SETTINGS, now)
-      : (stored.plan as unknown as WeekPlan);
+      : // Written only by saveWeekPlan from planWeek's own output, so its shape is planWeek's.
+        (stored.plan as unknown as WeekPlan);
   const checkIns = asCheckIns(
     await ports.checkIns(new Date(weekDate(weekStart).getTime() - STREAK_WEEKS * WEEK_MS)),
   );
@@ -219,17 +250,12 @@ export function growthEndpoints(ports: GrowthPorts): AnyEndpoint[] {
         const lastWeekStart = weekStartOf(new Date(weekDate(weekStartOf(now)).getTime() - WEEK_MS));
         const stored = await ports.plan(lastWeekStart);
         const current = await ports.tracks();
-        if (stored === null || current === null) {
-          return { ok: false, status: 409, error: "no_plan" };
-        }
-        const tracks = plannerTracks(current.tracks);
+        if (stored === null) return { ok: false, status: 409, error: "no_plan" };
+        // Written only by saveWeekPlan from planWeek's own output, so its shape is planWeek's.
+        const plan = stored.plan as unknown as WeekPlan;
         const checkIns = asCheckIns(await ports.checkIns(weekDate(lastWeekStart)));
-        const r = weeklyReview(
-          tracks,
-          stored.plan as unknown as WeekPlan,
-          checkIns,
-          weekDate(lastWeekStart),
-        );
+        const tracks = withStandIns(plannerTracks(current?.tracks ?? []), plan, checkIns);
+        const r = weeklyReview(tracks, plan, checkIns, weekDate(lastWeekStart));
         const saved = await ports.saveReview({
           weekStart: lastWeekStart,
           moved: r.moved.map((m) => ({
@@ -241,7 +267,7 @@ export function growthEndpoints(ports: GrowthPorts): AnyEndpoint[] {
         });
         return {
           ok: true,
-          body: showReview(saved, new Map(current.tracks.map((t) => [t.key, t.name]))),
+          body: showReview(saved, new Map((current?.tracks ?? []).map((t) => [t.key, t.name]))),
         };
       } catch {
         return { ok: false, status: 503, error: "unavailable" };

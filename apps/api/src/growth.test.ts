@@ -141,6 +141,35 @@ describe("who may call them", () => {
   });
 });
 
+describe("who may call them, beyond a session", () => {
+  it("refuses a valid extension token on every endpoint", async () => {
+    const bearer = { authorization: "Bearer test-extension-token" };
+    const call = (method: string, path: string) =>
+      send(server, {
+        method,
+        path,
+        headers: { ...bearer, "content-type": "application/json", origin: WEB },
+        ...(method === "POST" ? { body: JSON.stringify(CHECK_IN) } : {}),
+      });
+    expect([
+      (await call("GET", "/growth")).status,
+      (await call("POST", "/growth/check-ins")).status,
+      (await call("POST", "/growth/review")).status,
+    ]).toEqual([401, 401, 401]);
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses a check-in from another origin, storing nothing", async () => {
+    const res = await send(server, {
+      method: "POST",
+      path: "/growth/check-ins",
+      headers: { "content-type": "application/json", origin: "https://evil.example.com", cookie },
+      body: JSON.stringify(CHECK_IN),
+    });
+    expect([res.status, checkIns.length]).toEqual([403, 0]);
+  });
+});
+
 describe("GET /growth", () => {
   it("gives each track's figures for this week from the stored plan", async () => {
     const res = await get("/growth");
@@ -230,6 +259,22 @@ describe("POST /growth/review", () => {
   it("answers no_plan when last week has no stored plan", async () => {
     const res = await post("/growth/review", {});
     expect([res.status, JSON.parse(res.body)]).toEqual([409, { error: "no_plan" }]);
+  });
+
+  it("keeps time logged on a track removed since, never calling it not reached", async () => {
+    plans.set("2026-11-16", PLAN);
+    checkIns.push({
+      key: "side-app",
+      at: new Date("2026-11-18T09:00:00Z"),
+      minutes: 20,
+      percent: null,
+    });
+    tracks = [TRACKS[0] as GrowthTrackView];
+    const body = JSON.parse((await post("/growth/review", {})).body);
+    expect([body.moved, body.notReached]).toEqual([
+      [{ key: "side-app", name: null, minutes: 20, plannedMinutes: 30 }],
+      [{ key: "cloud-cert", name: "Cloud certification" }],
+    ]);
   });
 
   it("reviews last week from its plan and check-ins, storing keys only", async () => {

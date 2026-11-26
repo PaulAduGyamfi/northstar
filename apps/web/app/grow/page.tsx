@@ -41,7 +41,7 @@ export default async function GrowPage() {
             </p>
           ) : (
             <p className="muted">
-              Week of {grow.body.weekStart}
+              Week of {grow.body.weekStart} (weeks start Monday, UTC)
               {grow.body.planStored
                 ? ""
                 : ". No plan stored for this week yet, so planned minutes are a preview: run profile growth plan to keep one."}

@@ -501,7 +501,8 @@ Exists now:
   Pipeline also filters by company, fit band, source (the job's ATS, or `other`) and creation day,
   applied in `listApplications`' SQL and kept in the URL, has a table view, and Today shows counts
   of approvals waiting and needs-your-hands items (`src/today.ts`), with interviews, follow-ups
-  and growth blocks marked not set up yet. Since NS-208 also `/pipeline/metrics`: the funnel (found →
+  and growth blocks marked not set up yet. Since NS-214 also the Grow tab (`/grow`, `src/grow.ts`:
+  each track's week in words, a check-in form, last week's review). Since NS-208 also `/pipeline/metrics`: the funnel (found →
   applied → heard back → interviewing → offer), median days to apply and to the first reply, and
   reply rates by source, fit band and time from posting to applying, each with its count and a
   Wilson interval, or "not enough data yet" under 20 (`pipelineMetrics` in `packages/domain`,

@@ -369,10 +369,12 @@ export async function readWeekPlan(
   candidateId: CandidateId,
   weekStart: string,
 ): Promise<{ trackSetVersion: number; plan: Record<string, unknown> } | null> {
-  const [row] = await db
-    .select({ trackSetVersion: growthPlan.trackSetVersion, plan: growthPlan.plan })
-    .from(growthPlan)
-    .where(and(eq(growthPlan.candidateId, candidateId), eq(growthPlan.weekStart, weekStart)));
+  const [row] = await guarded("growth.read", () =>
+    db
+      .select({ trackSetVersion: growthPlan.trackSetVersion, plan: growthPlan.plan })
+      .from(growthPlan)
+      .where(and(eq(growthPlan.candidateId, candidateId), eq(growthPlan.weekStart, weekStart))),
+  );
   return row ?? null;
 }
 
