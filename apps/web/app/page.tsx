@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { webConfig } from "../src/config";
 import { HandoffsBody, handoffCards } from "../src/handoffs";
@@ -47,6 +48,10 @@ export default async function TodayPage() {
           <p className="muted">Signed in. Your queue, replies and quests will show up here.</p>
           <SignOutButton />
           <AddPasskey />
+          {/* Settings → Accounts (NS-198): employer accounts and the consent policy. */}
+          <p>
+            <Link href="/settings/accounts">Settings → Accounts</Link>
+          </p>
         </div>
         {/* Shown only when a challenge stopped an application (NS-121). */}
         {cards.length > 0 ? (

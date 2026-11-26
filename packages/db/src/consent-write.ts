@@ -171,3 +171,49 @@ export async function recordConsent(
     ),
   );
 }
+
+// One accepted notice, for Settings → Accounts (NS-198): which tenant, which kind, its https link
+// and when. Never the text: that is read one notice at a time, on Paul's request.
+export type ConsentRecordView = {
+  recordId: string;
+  tenantKey: string;
+  kind: NoticeKind;
+  noticeUrl: string;
+  acceptedAt: Date;
+};
+
+// Every notice accepted for Paul, newest first.
+export async function listConsentRecords(
+  db: Db,
+  candidateId: CandidateId,
+): Promise<ConsentRecordView[]> {
+  const rows = await db
+    .select({
+      recordId: consentRecord.id,
+      tenantKey: employerTenant.tenantKey,
+      kind: consentRecord.kind,
+      noticeUrl: consentRecord.noticeUrl,
+      acceptedAt: consentRecord.acceptedAt,
+    })
+    .from(consentRecord)
+    .innerJoin(employerTenant, eq(employerTenant.id, consentRecord.tenantId))
+    .where(eq(consentRecord.candidateId, candidateId))
+    .orderBy(desc(consentRecord.acceptedAt), desc(consentRecord.id));
+  return rows.map((r) => ({ ...r, kind: r.kind as NoticeKind }));
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+// One accepted notice's exact text, or null when Paul has no such record.
+export async function readConsentText(
+  db: Db,
+  candidateId: CandidateId,
+  recordId: string,
+): Promise<string | null> {
+  if (!UUID.test(recordId)) return null;
+  const [row] = await db
+    .select({ text: consentRecord.text })
+    .from(consentRecord)
+    .where(and(eq(consentRecord.id, recordId), eq(consentRecord.candidateId, candidateId)));
+  return row?.text ?? null;
+}
