@@ -1,6 +1,6 @@
 # NS-240 slice 2: store detected interviews, and Paul's confirm or dismiss
 
-Status: building (autonomous lane, ADR-0016)
+Status: built (autonomous lane, ADR-0016)
 Requirements: CAL-002 · ADR-0026 (Proposed), ADR-0012
 Issue #271 (Parent: #121). Slice 1 (#305) added the read-only Calendar client.
 
@@ -30,10 +30,10 @@ it, and NS-241's prep blocks wait for a confirmed interview.
   `detectInterview`, and the API and page for confirming: later slices.
 
 ## Acceptance criteria
-- [ ] A detection is stored once with its feed event; a rescheduled one is a new current row.
-- [ ] Another candidate's application is refused.
-- [ ] Confirm and dismiss are recorded once; a different second decision is refused; the
+- [x] A detection is stored once with its feed event; a rescheduled one is a new current row.
+- [x] Another candidate's application is refused.
+- [x] Confirm and dismiss are recorded once; a different second decision is refused; the
       application's status is unchanged.
-- [ ] Both tables refuse UPDATE, DELETE and TRUNCATE.
-- [ ] `pnpm turbo run lint typecheck test build --filter=@northstar/db --filter=@northstar/domain`
+- [x] Both tables refuse UPDATE, DELETE and TRUNCATE.
+- [x] `pnpm turbo run lint typecheck test build --filter=@northstar/db --filter=@northstar/domain`
       passes.

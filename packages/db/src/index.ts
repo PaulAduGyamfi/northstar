@@ -260,6 +260,17 @@ export {
   type SetIndependentWorkResult,
   setIndependentWork,
 } from "./independent-work-write.js";
+export * as interviewSchema from "./interview-schema.js";
+export {
+  type DecisionError,
+  type DetectionError,
+  DetectionInput,
+  decideInterview,
+  type InterviewDecisionKind,
+  listInterviews,
+  recordInterviewDetection,
+  type StoredInterview,
+} from "./interview-write.js";
 // A job's application form (NS-227).
 export type { JobFormQuestion } from "./job-form-schema.js";
 export * as jobFormSchema from "./job-form-schema.js";
