@@ -4,11 +4,14 @@ import {
   claimSubmission,
   type Db,
   decideApprovals,
+  recordNeedsHuman,
   requestApproval,
   schema,
+  transitionApplication,
 } from "@northstar/db";
 import { createTestDb, seedApplication, setGateClock } from "@northstar/db/testing";
 import {
+  ApplicationId,
   type ApplicationStatus,
   CandidateId,
   packageSha256,
@@ -17,7 +20,7 @@ import {
 } from "@northstar/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { dbSweepPorts } from "./ports.js";
-import { sweepStaleClaims } from "./stale.js";
+import { applyMoveKey, sweepStaleClaims } from "./stale.js";
 import { makePackage } from "./test/fixtures.js";
 
 // The stale-claim sweep (NS-143) on the real write paths: the ledger, transitionApplication and
@@ -182,5 +185,73 @@ describe("sweepStaleClaims", () => {
       "application.submitting",
       "application.needs_human",
     ]);
+  });
+});
+
+// A run closed its claim as outcome_unknown, then crashed before moving the application (NS-177).
+// With `submitting`, it had moved the application to submitting first, as submitApplication does.
+async function halfClosed(from: "awaiting_approval" | "submitting"): Promise<string> {
+  const id = await deadRunClaim();
+  if (from === "submitting") {
+    const moved = await transitionApplication(db, {
+      candidateId,
+      applicationId: ApplicationId.parse(applicationId),
+      from: "awaiting_approval",
+      to: "submitting",
+      actor: "agent:apply",
+      reason: "",
+      inputsSummary: "",
+      links: [],
+      idempotencyKey: applyMoveKey(applicationId, id, "submitting"),
+    });
+    if (!moved.ok) throw new Error(moved.error.kind);
+  }
+  const recorded = await recordNeedsHuman(db, candidateId, id, "outcome_unknown");
+  if (!recorded.ok) throw new Error(recorded.error.kind);
+  return id;
+}
+
+describe("sweepStaleClaims repairing a half-closed claim (NS-177)", () => {
+  it("moves an application left at awaiting_approval to needs_human", async () => {
+    const id = await halfClosed("awaiting_approval");
+    const closed = await sweepStaleClaims(dbSweepPorts(db), candidateId);
+    expect([closed, await applicationStatus()]).toEqual([[id], "needs_human"]);
+  });
+
+  it("moves an application left at submitting to needs_human", async () => {
+    const id = await halfClosed("submitting");
+    const closed = await sweepStaleClaims(dbSweepPorts(db), candidateId);
+    expect([closed, await applicationStatus()]).toEqual([[id], "needs_human"]);
+  });
+
+  it("repairing twice writes each move's event once", async () => {
+    await halfClosed("submitting");
+    await sweepStaleClaims(dbSweepPorts(db), candidateId);
+    const once = await eventTypes();
+    const second = await sweepStaleClaims(dbSweepPorts(db), candidateId);
+    expect([
+      second,
+      once.filter((t) => t === "application.needs_human").length,
+      await eventTypes(),
+    ]).toEqual([[], 1, once]);
+  });
+
+  it("reuses the gateway's move keys, so a move a repeat call already made isn't written again", async () => {
+    const id = await halfClosed("awaiting_approval");
+    await sweepStaleClaims(dbSweepPorts(db), candidateId);
+    const keys = await db
+      .select({ key: schema.domainEvent.idempotencyKey, type: schema.domainEvent.type })
+      .from(schema.domainEvent);
+    expect(
+      keys
+        .filter((k) => k.type.startsWith("application."))
+        .map((k) => k.key)
+        .sort(),
+    ).toEqual(
+      [
+        applyMoveKey(applicationId, id, "needs_human"),
+        applyMoveKey(applicationId, id, "submitting"),
+      ].sort(),
+    );
   });
 });

@@ -313,7 +313,10 @@ Exists now:
   and only a claim older than 15 minutes becomes `needs_human` (`outcome_unknown`). The
   requisition is the posting id read from the apply URL. Since NS-143, `sweepStaleClaims`
   (`stale.ts`) closes such dead claims without waiting for a repeat call, through the same helper,
-  so the ATS lane frees up; nothing schedules it until the worker exists. The pacing limits come
+  so the ATS lane frees up; nothing schedules it until the worker exists. Since NS-177 the sweep
+  also finishes the application move of a claim closed as `outcome_unknown` whose run crashed
+  before moving it (`listHalfClosedClaims`), and a ledger row's application must belong to its
+  candidate (a composite foreign key). The pacing limits come
   only from `loadApplyLimits` (`packages/db`, `apply-config.ts`: `APPLY_DAILY_CAP`,
   `APPLY_MIN_GAP_SECONDS`, which may lower APPLY-007's 25 a day and 90 s but never raise them),
   passed to `dbPorts`. Greenhouse, Lever, Ashby and (NS-173)

@@ -26,6 +26,7 @@ describe("sweepStaleClaims", () => {
     const recorded: string[] = [];
     const ports: SweepPorts = {
       listStaleClaims: async () => [claim("sub-a", APP_A), claim("sub-b", APP_B)],
+      listHalfClosedClaims: async () => [],
       recordNeedsHuman: async (_c, id) => {
         recorded.push(id);
         return ok(claim(id, id === "sub-a" ? APP_A : APP_B));

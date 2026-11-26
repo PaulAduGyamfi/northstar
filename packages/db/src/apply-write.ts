@@ -9,12 +9,12 @@ import {
   type Result,
 } from "@northstar/domain";
 import { isSpanContextValid, type Span, SpanStatusCode, trace } from "@opentelemetry/api";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { type ApplyLimits, checkApplyLimits, DEFAULT_APPLY_LIMITS } from "./apply-config.js";
 import { applySubmission, type SubmissionStatus, submissionProof } from "./apply-schema.js";
 import type { Db } from "./db.js";
 import { openHandoff } from "./handoff-write.js";
-import { candidate, domainEvent } from "./schema.js";
+import { application, candidate, domainEvent } from "./schema.js";
 
 // The Apply Gateway's ledger (NS-120): claims, outcomes and proof of submission. The only writer
 // of apply_submission and submission_proof. Every time comes from the database clock
@@ -423,4 +423,34 @@ export async function listStaleClaims(db: Db, candidateId: CandidateId): Promise
       .orderBy(applySubmission.startedAt);
     return rows.map(toView);
   });
+}
+
+// Claims closed as outcome_unknown whose application never followed (NS-177): closing a stale
+// claim writes the ledger, then moves the application in its own transactions, so a crash in
+// between leaves the application at awaiting_approval or submitting. The sweep finishes those
+// moves. Oldest first.
+export async function listHalfClosedClaims(
+  db: Db,
+  candidateId: CandidateId,
+): Promise<SubmissionView[]> {
+  const rows = await db
+    .select({ submission: applySubmission })
+    .from(applySubmission)
+    .innerJoin(
+      application,
+      and(
+        eq(application.id, applySubmission.applicationId),
+        eq(application.candidateId, applySubmission.candidateId),
+      ),
+    )
+    .where(
+      and(
+        eq(applySubmission.candidateId, candidateId),
+        eq(applySubmission.status, "needs_human"),
+        eq(applySubmission.reason, "outcome_unknown"),
+        inArray(application.status, ["awaiting_approval", "submitting"]),
+      ),
+    )
+    .orderBy(applySubmission.startedAt);
+  return rows.map((r) => toView(r.submission));
 }

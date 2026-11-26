@@ -34,10 +34,27 @@ export async function closeStaleClaim(
   candidateId: CandidateId,
   submission: Pick<SubmissionView, "submissionId" | "applicationId">,
 ): Promise<boolean> {
+  const recorded = await ports.recordNeedsHuman(
+    candidateId,
+    submission.submissionId,
+    "outcome_unknown",
+  );
+  if (!recorded.ok) return false;
+  await moveToNeedsHuman(ports, candidateId, submission);
+  return true;
+}
+
+// Moves the application of a claim the ledger already closed as outcome_unknown to needs_human.
+// Used right after the ledger write, and by the sweep for a close whose run crashed between the
+// two (NS-177). The keys are the gateway's own (applyMoveKey), so a move already made, by this
+// path, a racing sweep or a repeated submitApplication, replays instead of writing again.
+async function moveToNeedsHuman(
+  ports: StalePorts,
+  candidateId: CandidateId,
+  submission: Pick<SubmissionView, "submissionId" | "applicationId">,
+): Promise<void> {
   const id = submission.submissionId;
   const applicationId = ApplicationId.parse(submission.applicationId);
-  const recorded = await ports.recordNeedsHuman(candidateId, id, "outcome_unknown");
-  if (!recorded.ok) return false;
   const move = (from: ApplicationStatus, to: ApplicationStatus) =>
     ports.transitionApplication({
       candidateId,
@@ -64,16 +81,17 @@ export async function closeStaleClaim(
     await mustMove("awaiting_approval", "submitting");
     await mustMove("submitting", "needs_human");
   }
-  return true;
 }
 
 export type SweepPorts = StalePorts & {
   listStaleClaims: (candidateId: CandidateId) => Promise<SubmissionView[]>;
+  listHalfClosedClaims: (candidateId: CandidateId) => Promise<SubmissionView[]>;
 };
 
 // Closes every claim of this candidate that died in progress (NS-143), so its ATS lane frees up
 // and Paul sees it as needs_human without waiting for the same application to come round again.
-// Safe to repeat: a second sweep finds nothing. Returns the submission ids it closed. One claim
+// Then finishes the application move of every claim closed without one (NS-177). Safe to repeat:
+// a second sweep finds nothing. Returns the submission ids it closed or repaired. One claim
 // that fails doesn't keep the others' lanes stuck (ADR-0007, fail small): the pass goes on and
 // throws the first failure at the end, so the caller still sees it.
 export async function sweepStaleClaims(
@@ -91,7 +109,18 @@ export async function sweepStaleClaims(
           failures.push(error);
         }
       }
-      span.setAttribute("northstar.apply.stale_count", closed.length);
+      const staleCount = closed.length;
+      // Read after the closes above, so a close that just failed its move is retried here once.
+      for (const claim of await ports.listHalfClosedClaims(candidateId)) {
+        try {
+          await moveToNeedsHuman(ports, candidateId, claim);
+          if (!closed.includes(claim.submissionId)) closed.push(claim.submissionId);
+        } catch (error) {
+          failures.push(error);
+        }
+      }
+      span.setAttribute("northstar.apply.stale_count", staleCount);
+      span.setAttribute("northstar.apply.repaired_count", closed.length - staleCount);
       span.setAttribute("northstar.apply.failed_count", failures.length);
       if (failures.length > 0) throw failures[0];
       return closed;
