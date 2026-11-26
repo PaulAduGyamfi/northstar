@@ -149,6 +149,43 @@ describe("the gateway with a budget", () => {
     expect((await gateway.call(testRoute, INPUT)).kind).toBe("Ok");
   });
 
+  it("holds the next call back until a cost that failed to record is written", async () => {
+    let failing = true;
+    const recorded: [string, number][] = [];
+    const m: SpendMeter = {
+      spent: async () => spent(0),
+      record: async (route, usd) => {
+        if (failing) throw new Error("database down");
+        recorded.push([route, usd]);
+      },
+    };
+    const client = fakeClient([okMessage(), okMessage()]);
+    const gateway = createLlmGateway({ client, now: () => 0, budget: { caps: CAPS, meter: m } });
+    await gateway.call(testRoute, INPUT);
+    const held = await gateway.call(testRoute, INPUT).catch((e: unknown) => e);
+    failing = false;
+    const third = await gateway.call(testRoute, INPUT);
+    expect([
+      held instanceof HeldBack && held.what,
+      third.kind,
+      recorded.length,
+      client.requests.length,
+    ]).toEqual(["unrecorded", "Ok", 2, 2]);
+  });
+
+  it("meters an unpriced reply at the dearest known model's prices, never as free", async () => {
+    const { m, recorded } = meter(spent(0));
+    const gateway = createLlmGateway({
+      client: fakeClient([okMessage({ model: "claude-unknown-9" })]),
+      now: () => 0,
+      budget: { caps: CAPS, meter: m },
+    });
+    await gateway.call(testRoute, INPUT);
+    // The canned reply: 1,200 input, 300 output and 4,000 cache-read tokens at Opus 5.5 prices
+    // (400, 2,000 and 20 cents per million) = 1,160,000 millionths of a cent = $0.0116.
+    expect(recorded).toEqual([["test-classify", 0.0116]]);
+  });
+
   it("holds a low route back at 80 % and a fresh one at 125 %, through the gateway", async () => {
     const run = async (usd: number, priority: "low" | "fresh") => {
       const { m } = meter(spent(usd));
