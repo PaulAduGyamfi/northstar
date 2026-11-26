@@ -1,17 +1,19 @@
 import {
   ActivityFailure,
+  ApplicationFailure,
   condition,
   defineSignal,
   isCancellation,
   proxyActivities,
   setHandler,
   sleep,
+  workflowInfo,
 } from "@temporalio/workflow";
 import type { ApplyActivities } from "../activities/apply.js";
 import type { EndingActivities } from "../activities/ending.js";
 import { APPLY_BROWSER_QUEUE, PIPELINE_QUEUE } from "../queues.js";
 import { decide, notApprovedReason } from "./decide.js";
-import { endingReason, type SubmissionEnding } from "./ending.js";
+import { endingLetter, failedAttempts, inputProblem, type SubmissionEnding } from "./ending.js";
 import { NOT_APPROVED, SUBMIT_ATTEMPTS, type SubmissionResult } from "./types.js";
 
 // One application submission as a durable workflow (NS-157, ADR-0001). It waits for the Gate's
@@ -62,20 +64,22 @@ async function recordEnding(
   ending: SubmissionEnding,
   attempts: number,
 ): Promise<void> {
-  const reasonCode = endingReason(ending);
-  if (reasonCode === null) return;
+  const letter = endingLetter(ending, attempts);
+  if (letter === null) return;
   await recordSubmissionEnding({
     candidateId: input.candidateId,
     applicationId: input.applicationId,
-    reasonCode,
-    attempts,
+    runId: workflowInfo().runId,
+    ...letter,
   });
 }
 
 export async function submissionWorkflow(input: SubmissionInput): Promise<SubmissionResult> {
+  const problem = inputProblem(input);
+  if (problem !== null) throw ApplicationFailure.nonRetryable(problem, "InvalidInput");
   const { result, calls } = await runSubmission(input);
-  // Every gateway call counts as an attempt; at least one, as the dead letter requires.
-  await recordEnding(input, result, Math.max(calls, 1));
+  // Every gateway call counts as an attempt.
+  await recordEnding(input, result, calls);
   return result;
 }
 
@@ -109,11 +113,12 @@ async function runSubmission(
     } catch (error) {
       const reason = error instanceof ActivityFailure ? notApprovedReason(error.cause) : null;
       if (reason !== null) return { result: { kind: "not_approved", reason }, calls: waits + 1 };
-      // Stopping the workflow is not a failed submission.
+      // Stopping the workflow is not a failed submission: an explicit stop records nothing.
       if (isCancellation(error)) throw error;
-      // Retries exhausted on an unexpected error: a dead letter makes it visible, then the
-      // workflow fails so it shows in Temporal too.
-      await recordEnding(input, { kind: "activity_failed" }, SUBMIT_ATTEMPTS);
+      // The activity failed for good: a dead letter makes it visible, then the workflow fails so
+      // it shows in Temporal too. The input was checked at the start, so this can't fail on it.
+      const retryState = error instanceof ActivityFailure ? error.retryState : undefined;
+      await recordEnding(input, { kind: "activity_failed" }, failedAttempts(waits, retryState));
       throw error;
     }
     const next = decide(step, waits);

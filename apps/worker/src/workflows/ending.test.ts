@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { endingKey, endingReason, snakeCase } from "./ending.js";
+import {
+  endingKey,
+  endingLetter,
+  endingReason,
+  failedAttempts,
+  inputProblem,
+  snakeCase,
+} from "./ending.js";
 
 const REASON_CODE = /^[a-z][a-z0-9_]{0,63}$/;
 
@@ -35,9 +42,9 @@ describe("endingReason", () => {
     expect(endingReason({ kind: "not_approved", reason: "ContentChanged" })).toBe(
       "not_approved_content_changed",
     );
-    // A reason is never copied as text: anything outside [a-z0-9_] goes.
-    expect(endingReason({ kind: "not_approved", reason: "see https://x.example/?a=1" })).toBe(
-      "not_approved_seehttpsxexamplea1",
+    // Only the Gate's own kinds: any other text, even an address, never reaches the letter.
+    expect(endingReason({ kind: "not_approved", reason: "paul@example.com" })).toBe(
+      "not_approved_unknown",
     );
     expect(endingReason({ kind: "not_approved", reason: "!!" })).toBe("not_approved_unknown");
   });
@@ -47,9 +54,11 @@ describe("endingReason", () => {
   });
 
   it("always gives a valid dead-letter reason code, however long the name", () => {
-    const long = endingReason({ kind: "not_approved", reason: "A".repeat(200) });
+    const long = endingReason({ kind: "refused", refusal: "A".repeat(200) as "PostingClosed" });
     expect(long).toMatch(REASON_CODE);
-    expect(endingReason({ kind: "not_approved", reason: "Ab_".repeat(40) })).toMatch(REASON_CODE);
+    expect(endingReason({ kind: "gave_up", refusal: "Ab_".repeat(40) as "HeldBack" })).toMatch(
+      REASON_CODE,
+    );
   });
 });
 
@@ -60,10 +69,65 @@ describe("snakeCase", () => {
   });
 });
 
+const APP = "00000000-0000-4000-8000-0000000000a1";
+const RUN = "00000000-0000-4000-8000-0000000000f1";
+
 describe("endingKey", () => {
-  it("keys the letter by application, one per application ever", () => {
-    expect(endingKey("00000000-0000-4000-8000-0000000000a1")).toBe(
-      "application:00000000-0000-4000-8000-0000000000a1:submit",
+  it("keys the letter by application and workflow run", () => {
+    expect(endingKey(APP, RUN)).toBe(`application:${APP}:submit:${RUN}`);
+    expect(endingKey(APP, RUN)).toMatch(/^[a-z0-9][a-z0-9_.:-]{0,199}$/);
+  });
+});
+
+describe("inputProblem", () => {
+  it("accepts an application id that is the package's own", () => {
+    expect(inputProblem({ applicationId: APP, package: { applicationId: APP } })).toBeNull();
+  });
+
+  it("refuses an application id that isn't a uuid", () => {
+    expect(inputProblem({ applicationId: "nope", package: { applicationId: "nope" } })).toBe(
+      "applicationId is not a uuid",
     );
+  });
+
+  it.each([{ applicationId: RUN }, {}, null, "text"])(
+    "refuses an id that isn't the package's own (%o)",
+    (pkg) => {
+      expect(inputProblem({ applicationId: APP, package: pkg })).toBe(
+        "applicationId is not the package's",
+      );
+    },
+  );
+});
+
+describe("endingLetter", () => {
+  it("records a final refusal with the gateway calls made", () => {
+    expect(endingLetter({ kind: "gave_up", refusal: "HeldBack" }, 21)).toEqual({
+      reasonCode: "gave_up_held_back",
+      attempts: 21,
+    });
+  });
+
+  it("counts at least one attempt", () => {
+    expect(endingLetter({ kind: "not_approved", reason: "Rejected" }, 0)).toEqual({
+      reasonCode: "not_approved_rejected",
+      attempts: 1,
+    });
+  });
+
+  it("records nothing for an ending already visible", () => {
+    expect(endingLetter({ kind: "withdrawn" }, 0)).toBeNull();
+  });
+});
+
+describe("failedAttempts", () => {
+  it("counts every attempt when Temporal stopped on the retry limit, plus earlier calls", () => {
+    expect(failedAttempts(0, "MAXIMUM_ATTEMPTS_REACHED")).toBe(5);
+    expect(failedAttempts(3, "MAXIMUM_ATTEMPTS_REACHED")).toBe(8);
+  });
+
+  it("counts one attempt for an error that was never retried", () => {
+    expect(failedAttempts(0, "NON_RETRYABLE_FAILURE")).toBe(1);
+    expect(failedAttempts(2, undefined)).toBe(3);
   });
 });

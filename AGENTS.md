@@ -621,8 +621,10 @@ Exists now:
   `refused`, `gave_up` or `not_approved` result, or the activity failing all 5 attempts, records
   one dead letter through the `recordSubmissionEnding` activity on `pipeline` (kind
   `apply.submission`, reason `refused_<kind>` / `gave_up_<kind>` / `not_approved_<reason>` /
-  `activity_failed` from plain `endingReason`, keyed `application:<id>:submit`), whose
-  `dead_letter.recorded` event is its feed line; the failure is still rethrown. Submitted,
+  `activity_failed` from plain `endingLetter`, the Gate's reasons allowlisted; keyed per run,
+  `application:<id>:submit:<runId>`), whose
+  `dead_letter.recorded` event is its feed line; the failure is still rethrown. An
+  `applicationId` that isn't the package's own is refused at the start. Submitted,
   needs-human and withdrawn endings are already visible and record nothing. The package still
   travels in the workflow's input (#231's item 2).
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports

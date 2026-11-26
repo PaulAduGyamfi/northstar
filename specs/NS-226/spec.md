@@ -19,19 +19,24 @@ to land before a worker does.
 ## Behavior
 1. **`SubmissionInput` gains `applicationId`.** The dead letter needs its subject and key. The
    package still travels in the input; item 2 of #231 moves it out (see Out of scope).
-2. **A plain-code `endingLetter(result | failure)`** (`src/workflows/ending.ts`) maps each ending
-   to a dead letter's reason code, or `null` when the ending is already visible:
+2. **A plain-code `endingLetter(ending, attempts)`** (`src/workflows/ending.ts`, through
+   `endingReason`) maps each ending to a dead letter's reason code and attempt count, or `null`
+   when the ending is already visible:
    - `submitted`, `needs_human` and `withdrawn` → `null`. The gateway's proof, its handoff and the
      Gate's `approval.withdrawn` already show these.
    - `refused` → `refused_<refusal in snake case>`, e.g. `refused_duplicate_requisition`.
    - `gave_up` → `gave_up_<refusal>`.
-   - `not_approved` → `not_approved_<reason>`. The Gate's reason is reduced to `[a-z0-9_]`, and an
-     empty or unexpected one becomes `not_approved_unknown`.
+   - `not_approved` → `not_approved_<reason>`, only for the Gate's own refusal kinds (an
+     allowlist). Any other reason becomes `not_approved_unknown`, so free text never reaches a
+     letter.
    - An activity failure after its retries → `activity_failed`.
 3. **A new `recordSubmissionEnding` activity** on the `pipeline` queue calls `recordDeadLetter`:
    - kind `apply.submission`, subject `application:<id>`;
-   - key `application:<id>:submit`, so one per application ever;
-   - attempts: 5 for `activity_failed`, otherwise the number of gateway calls made.
+   - key `application:<id>:submit:<runId>`, one per workflow run. An activity retry stores one
+     letter, and a later run for the same application (after Paul's Retry, or a re-approval)
+     gets its own, so its failure can't hide behind a resolved letter;
+   - attempts: the gateway calls made. For `activity_failed` that is the earlier calls plus 5
+     when Temporal hit the retry limit, or plus 1 for a non-retryable failure (`failedAttempts`).
 
    `recordDeadLetter` writes the `dead_letter.recorded` feed event in the same transaction, so each
    ending gives exactly one dead letter and one event. A retried call stores nothing more.
@@ -40,14 +45,20 @@ to land before a worker does.
    - The record activity retries until the database is back, at most 5 minutes apart, like the
      sweep's.
    - Bad input (`InvalidInput`) is not retried.
-5. **Checked again at the boundary:** both ids are uuids, and the reason code matches the
-   dead-letter pattern. A malformed letter is a non-retryable `InvalidInput`.
+5. **Checked first and at the boundary.**
+   - At the start, before waiting for the Gate, the workflow refuses (`InvalidInput`) an
+     `applicationId` that isn't a uuid or isn't the package's own (`inputProblem`). So a letter
+     is never filed against another application, and recording can't fail on input later.
+   - The activity checks the candidate, application and run ids again, and the reason code
+     against the dead-letter pattern. A malformed letter is a non-retryable `InvalidInput`.
 
 ## Acceptance criteria
 - [ ] `endingLetter` maps every result kind as above, and refusals and reasons become valid reason
       codes.
 - [ ] The activity on PGlite stores one dead letter and one `dead_letter.recorded` event. A second
-      call stores nothing more.
+      call stores nothing more, and a later run's ending after Paul resolved the first is
+      recorded.
+- [ ] A mismatched or malformed `applicationId` is refused before anything else.
 - [ ] The activity refuses a bad application id or reason code as `InvalidInput`.
 - [ ] The workflow bundle still builds.
 - [ ] `pnpm turbo run lint typecheck test build --force` exits 0, and `checks` is green.
@@ -62,3 +73,6 @@ to land before a worker does.
 - **The workflow's input gains a field without `patched`.** No worker runs it yet (#230), so no
   history in flight can break.
 - **No new event type.** `recordDeadLetter`'s own event is the one feed line.
+- **Workflow wiring is untested without a server.** The choices (`endingLetter`,
+  `failedAttempts`, `inputProblem`) are plain code with tests, and the bundle test builds the
+  workflow. The calls between them wait for a Temporal test environment (#229).

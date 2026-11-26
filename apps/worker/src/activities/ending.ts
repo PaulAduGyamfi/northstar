@@ -13,6 +13,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export type EndingArgs = {
   candidateId: string;
   applicationId: string;
+  // The workflow run: the letter's key, one per run.
+  runId: string;
   reasonCode: string;
   // Gateway calls made (or the activity's attempts for activity_failed).
   attempts: number;
@@ -28,13 +30,14 @@ export function createEndingActivities(db: Db) {
       const candidateId = CandidateId.safeParse(args.candidateId);
       if (!candidateId.success) throw invalid("candidateId is not a uuid");
       if (!UUID.test(args.applicationId)) throw invalid("applicationId is not a uuid");
+      if (!UUID.test(args.runId)) throw invalid("runId is not a uuid");
       const result = await recordDeadLetter(db, {
         candidateId: candidateId.data,
         kind: "apply.submission",
         subject: `application:${args.applicationId}`,
         reasonCode: args.reasonCode,
         attempts: args.attempts,
-        idempotencyKey: endingKey(args.applicationId),
+        idempotencyKey: endingKey(args.applicationId, args.runId),
       });
       // A malformed letter is a bug in this code, not a passing fault.
       if (!result.ok) throw invalid(`invalid dead letter: ${result.error.field}`);
