@@ -83,6 +83,24 @@ describe("gmail client", () => {
     expect(gmail.requests.at(-1)?.url).toContain("format=metadata");
   });
 
+  it("reads Gmail's own Authentication-Results header even when another comes first", async () => {
+    const forged = {
+      ...message,
+      headers: {
+        ...message.headers,
+        "Authentication-Results": "mx.example.com; dmarc=pass header.from=forged.example.com",
+      },
+      extraHeaders: [
+        {
+          name: "Authentication-Results",
+          value: "mx.google.com; dmarc=pass header.from=ats.example.com",
+        },
+      ],
+    };
+    const h = await client(fakeGmail([forged])).getHeaders("m1");
+    expect(h.authenticationResults).toBe("mx.google.com; dmarc=pass header.from=ats.example.com");
+  });
+
   it("fetches the plain-text body of a full message", async () => {
     const full = await client(fakeGmail([message])).getFull("m1");
     expect(full.body).toBe("Hi, we received your application for Backend Engineer.");

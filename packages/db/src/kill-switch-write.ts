@@ -60,7 +60,8 @@ export async function setKillSwitch(
           type: "kill_switch.set",
           actor: input.actor,
           reason: input.enabled ? `Turned ${input.subsystem} on` : `Turned ${input.subsystem} off`,
-          // Paul's reason is shown in the feed. It is his note on why, never a code or a secret.
+          // Paul's reason is shown on the health view (systemHealth), never in the feed. It is
+          // his note on why, never a code or a secret.
           payload: { subsystem: input.subsystem, enabled: input.enabled, reason },
           idempotencyKey: `kill-switch:${row.id}`,
           at: row.setAt,

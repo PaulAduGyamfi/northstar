@@ -226,6 +226,17 @@ export function createGmailClient(deps: GmailDeps): GmailClient {
   };
 }
 
+// Gmail's own Authentication-Results header (authserv-id mx.google.com), wherever it sits: a
+// sender can put a forged one above or below it. Gmail stamps one on every message it receives;
+// a message without it reads the first header, as before.
+const GOOGLE_AUTHSERV = /^\s*mx\.google\.com\s*;/i;
+function authenticationResults(m: GmailMessage): string | null {
+  const all = (m.payload?.headers ?? [])
+    .filter((h) => h.name.toLowerCase() === "authentication-results")
+    .map((h) => h.value);
+  return all.find((v) => GOOGLE_AUTHSERV.test(v)) ?? all[0] ?? null;
+}
+
 function headersOf(m: GmailMessage): MessageHeaders {
   const header = (name: string) =>
     m.payload?.headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? null;
@@ -237,7 +248,7 @@ function headersOf(m: GmailMessage): MessageHeaders {
     senderDomain: senderDomain(from),
     subject: header("Subject") ?? "",
     deliveredTo: header("Delivered-To"),
-    authenticationResults: header("Authentication-Results"),
+    authenticationResults: authenticationResults(m),
     receivedAt: new Date(Number(m.internalDate)),
   };
 }
