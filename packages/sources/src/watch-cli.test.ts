@@ -49,6 +49,7 @@ function deps(argv: string[], over: Partial<BoardCliDeps> = {}, jobs: JobListIte
     list: async () => jobs,
     set: async () => ({ ok: true, value: { status: "ready", missingFields: [] } }),
     boards,
+    check: async () => ({ checked: 0, open: 0, closed: 0, unavailable: 0, heldBack: 0 }),
     fit: noFit(),
   };
   return { d, printed, calls };

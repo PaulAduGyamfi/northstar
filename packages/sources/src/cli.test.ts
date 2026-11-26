@@ -37,9 +37,23 @@ function deps(argv: string[], result?: IngestResult | Error) {
       wait: async () => false,
     },
     fit: noFit(),
+    check: async () => ({ checked: 0, open: 0, closed: 0, unavailable: 0, heldBack: 0 }),
   };
   return { d, printed, calls };
 }
+
+describe("jobs check (NS-173)", () => {
+  it("prints the pass's counts", async () => {
+    const { d, printed } = deps(["check"]);
+    d.check = async () => ({ checked: 3, open: 1, closed: 1, unavailable: 1, heldBack: 2 });
+    expect([await main(d), printed]).toEqual([
+      0,
+      [
+        "Checked 3 postings: 1 open, 1 closed, 1 couldn't be reached, 2 held back by a switch or breaker",
+      ],
+    ]);
+  });
+});
 
 describe("jobs add", () => {
   it("reports a new job and how it was read", async () => {

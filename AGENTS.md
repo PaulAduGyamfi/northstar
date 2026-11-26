@@ -225,6 +225,13 @@ Exists now:
   quote, `checkJobMatches` keeps only those whose atom and quote check out, and `scorePending`
   takes them through an optional `assist` step (a score that used one is stored as
   `method: "rules_model"`; a failed assist keeps the rules score). No caller turns it on yet.
+  Since NS-173 also posting liveness (SRC-010, `liveness.ts`): `checkPosting` re-checks a saved
+  job's posting through its ATS's public API (Greenhouse, Lever, SmartRecruiters: 404 is closed;
+  Ashby: absent from a board that answered), and anything else is "unavailable" and stores
+  nothing. `checkPass` runs it on ready jobs not checked in a day (at most 50 a pass), behind each
+  `source:<ats>` switch and breaker, into append-only `posting_check` (`packages/db`,
+  `liveness-write.ts`). A job that turns closed gets one `job.closed` event and leaves the
+  scoring queue. Applications and the Apply Gateway don't act on it yet.
   Since NS-163 also fresh-job alerts (`alerts.ts`, SRC-015, plain code): after every scoring
   pass, a job whose latest score is in the queue band and that is under an hour old gets one
   `job.fresh_alert` event, its feed line "Posted 12 min ago · Fit 88 · ready to approve". Inside
@@ -414,6 +421,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/sources jobs prefs` / `jobs prefs set <field> <value>` | show the search preferences / change one (`titles`, `seniority`, `locations`, `remote`, `dealbreakers` as comma lists; `compFloor`, `compTarget` per year; `currency`; `queueAt`, `suggestAt` thresholds; `-` clears). A change stores a new version and re-scores every ready job at once. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs score` / `jobs why <job-id>` | score every job not scored for the current preferences and resume (also runs after `jobs add`, `jobs set`, each poll pass and each browser capture) / a job's score with each matched requirement, its atom, and the unmatched ones. Paul only: prints his real profile |
 | repo root | `pnpm --filter @northstar/sources jobs poll` / `jobs run` | one pass over the due boards / poll once a minute until Ctrl-C (boards are only polled while it runs). Paul only: real network and database |
+| repo root | `pnpm --filter @northstar/sources jobs check` | re-check the postings of saved jobs not checked in a day (at most 50 a pass) and mark closed ones; prints counts only. Paul only: real network and database |
 | repo root | `cp .env.example .env` | once per clone (Paul): then replace every `change-me` in `.env` |
 | repo root | `docker compose -f docker-compose.yml up -d --wait` | local stack: Postgres+pgvector :5432, Temporal :7233 (UI :8233), SeaweedFS S3 :8333, Grafana :3000 + OTLP :4317/:4318, all on 127.0.0.1. Agents must use this exact form (runs outside the sandbox) |
 | repo root | `docker compose -f docker-compose.yml ps` | each service's health and ports |

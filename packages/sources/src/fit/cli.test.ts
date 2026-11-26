@@ -48,6 +48,7 @@ function deps(argv: string[]) {
       poll: async () => ({ boards: 1, added: 2, failed: 0, quarantined: 0 }),
       wait: async () => false,
     },
+    check: async () => ({ checked: 0, open: 0, closed: 0, unavailable: 0, heldBack: 0 }),
     fit: {
       ...noFit(),
       preferences: async () => V1,
