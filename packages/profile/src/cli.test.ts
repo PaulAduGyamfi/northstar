@@ -59,6 +59,9 @@ function deps(
     readLinkedinExport: async () => null,
     storeImport: async () => ({ status: "unchanged", sourceId: "s1" }),
     readLinkedinRoles: async () => null,
+    setSetting: async () => ({ ok: true, value: { saved: true } }),
+    readSettings: async () => [],
+    recordFactualUse: async () => {},
   };
   return { d, printed, interviewedAtoms };
 }

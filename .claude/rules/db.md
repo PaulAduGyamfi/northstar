@@ -78,6 +78,12 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   (triggers), written only through `dead-letter-write.ts`. They hold a kind, a subject id, a
   reason code and an attempt count: never a payload, error message, URL or text (CHECKs enforce
   the shapes). A producer passes its own idempotency key; one resolution per letter.
+- Profile settings (NS-141, ANS-001) are `profile_setting`, append-only (a trigger), written only
+  through `settings-write.ts`; the newest row per field and qualifier (case-insensitive) is the
+  value. Its field list and keyed fields duplicate `FACTUAL_FIELDS` in `packages/profile` (a test
+  there checks they agree). Values and qualifiers are Paul's data: `profile.setting_set` carries
+  the field and a qualified flag, `answer.factual_used` the canonical id, kind, field and
+  confidence, never a value, qualifier or question text.
 - One agent at a time changes this package's schema or migrations (ADR-0016): parallel agents
   renumbering migrations caused replacement PRs. Before adding a migration, merge the latest
   `main` and generate it then.

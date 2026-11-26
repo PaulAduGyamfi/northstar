@@ -17,6 +17,12 @@ import { type Claim, checkEmploymentFacts, type Mismatch, parseOfficialRecord } 
 import type { ImportResult } from "./import.js";
 import type { InterviewOutcome } from "./interview.js";
 import { describeLinkedinProblem, type LinkedinFiles, parseLinkedinExport } from "./linkedin.js";
+import {
+  answerCommand,
+  type SettingsDeps,
+  settingsSetCommand,
+  settingsShowCommand,
+} from "./settings-cli.js";
 import { type ThesisDraftResult, thesisProblems } from "./thesis-draft.js";
 
 // Everything main() touches, injected so tests run with no database, model or file.
@@ -49,10 +55,13 @@ export type CliDeps = {
   readLinkedinExport: (folder: string) => Promise<LinkedinFiles | null>;
   storeImport: (input: Omit<ProfileImportInput, "candidateId">) => Promise<ImportReport>;
   readLinkedinRoles: () => Promise<SourceRole[] | null>;
-};
+} & SettingsDeps;
 
 const USAGE =
   'usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check | profile thesis draft | profile thesis set "<text>" --atoms <id,id> | profile thesis show | profile import-linkedin <folder>';
+// Their own line for the NS-141 commands: the line above stays as it was.
+const SETTINGS_USAGE =
+  'usage: profile settings set <field> <value> [--for <qualifier>] | profile settings show | profile answer "<question>"';
 
 // `profile import-resume <path>`, `profile show`, `profile interview` and `profile stories`.
 // Import output is counts only, never resume text; `show`, `interview` and `stories` show Paul's
@@ -90,7 +99,19 @@ export async function main(deps: CliDeps): Promise<number> {
       return thesisSetCommand(deps, text.trim(), atomIds);
     }
   }
-  deps.print(USAGE);
+  // Profile settings and factual answers (NS-141).
+  if (command === "settings" && path === "show" && flags.length === 0)
+    return settingsShowCommand(deps);
+  if (command === "settings" && path === "set") {
+    const [field, value, forFlag, qualifier] = flags;
+    if (field && value !== undefined && flags.length === 2)
+      return settingsSetCommand(deps, field, value);
+    if (field && value !== undefined && flags.length === 4 && forFlag === "--for" && qualifier)
+      return settingsSetCommand(deps, field, value, qualifier);
+  }
+  if (command === "answer" && path && path.trim().length > 0 && flags.length === 0)
+    return answerCommand(deps, path);
+  deps.print(command === "settings" || command === "answer" ? SETTINGS_USAGE : USAGE);
   return 1;
 }
 
