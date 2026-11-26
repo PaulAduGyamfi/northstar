@@ -55,7 +55,9 @@ the old content forever, and its subject can never be requested again.
 - Two runs meet the same edit at once: the second withdrawal gets `AlreadyClosed`, recorded on its
   span; both throw `NotApprovedError("ContentChanged")`.
 - Edited inside the undo window: the Gate refuses with `UndoWindowOpen` (the approval is still
-  Paul's to undo); recorded, thrown, nothing withdrawn. The next call after the window withdraws.
+  Paul's to undo); recorded on the span, thrown, nothing withdrawn. A call after the window
+  would withdraw it, but nothing makes that call yet: the worker treats `ContentChanged` as final.
+  Follow-up #255 retries or shows it.
 
 ## Observability
 - `approval.withdrawn` domain event (written by the Gate; feed line "Withdrawn because the
