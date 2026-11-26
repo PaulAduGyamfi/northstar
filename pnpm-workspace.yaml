@@ -16,3 +16,10 @@ minimumReleaseAge: 20160
 onlyBuiltDependencies:
   - esbuild
 strictDepBuilds: true
+
+# Install scripts that are skipped on purpose (they never run). Added under ADR-0016 for NS-157:
+# @swc/core (Temporal's workflow bundler) only checks that its native binary, an ordinary
+# optional dependency, is present; protobufjs (Temporal's gRPC types) only prints a version check.
+ignoredBuiltDependencies:
+  - "@swc/core"
+  - protobufjs

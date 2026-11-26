@@ -206,6 +206,11 @@ Exists now:
   codes, or several links) to a pick before it becomes `needs_human`; `modelPick` backs it with the
   `verification-extract` route, which only returns the index of a candidate plain code found
   (never a code or link), and a chosen link still passes `checkLink`. Off by default.
+  Since NS-148 also `pollWindow` (`src/verify/poll.ts`): while a window is open it lists the
+  window's sender domains since it opened every 5 s (read-only, in-memory token; no Gmail push,
+  decided on #89), offers only new messages to the catcher (10 a tick) and stops on `verified`,
+  `needs_human` or the window's end (`timed_out`, then `catcher.timeout`). A failed tick, or an
+  open `gmail` breaker, just waits for the next. No caller yet (the gateway session, NS-151).
   Since NS-150 also `isVerificationMail` (headers) and `hasVerificationCode` (body), which the
   funnel backfill uses to drop ATS verification mail before it is classified, sent to the model
   or stored (VER-005).
@@ -419,6 +424,15 @@ Exists now:
   served by the API's `GET /applications` and `GET /applications/timeline`). Read-only. `/api/*` is rewritten to the API, and pages that need Paul go
   through `readSession`/`todayView` or `readApi` (`src/session.ts`, `src/system.ts`), which forward
   his session cookie to the API. It holds no secret.
+- `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
+  (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
+  decision as an `approval` signal (or `withdrawn`), then runs the `submitApplication` activity
+  on `apply-browser` (10-minute start-to-close, 5 attempts with backoff; `NotApproved` is never
+  retried). The activity calls the Apply Gateway and returns plain data; `decide` (plain code)
+  finishes, or waits on a durable timer for `InProgress`, `AtsBusy`, `Paced`, `DailyCapReached`
+  and `HeldBack` (at most 20 waits, then `gave_up`). Tests run without a server: `decide`, the
+  activity on a fake gateway, and Temporal's workflow bundler. No worker process, client or
+  restart test yet (the test server download is extra network).
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 
@@ -426,7 +440,6 @@ Planned (`docs/architecture/system-design.md` §7). **Don't create these early:*
 with the ticket that needs it.
 
 ```
-apps/worker
 packages/agents  ats-adapters  ui
 ops/  docs/runbooks/
 ```
