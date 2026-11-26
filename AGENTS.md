@@ -386,6 +386,10 @@ Exists now:
   test), and every request passes the runtime allowlist `requestAllowed`; a recursive boundary
   scan is the tripwire. The caller (#224) writes the feed event. No scope request or caller until
   Paul accepts ADR-0027 (its own OAuth client).
+  Since NS-250 the Gmail reader and the Calendar client share one GET (`src/google-get.ts`:
+  `createGoogleGet`): retries of a dropped connection, 429, 5xx and rate-limit 403s (`Retry-After`
+  up to 60 s), Google's reason code and the dependency's breaker. Each client keeps its own error
+  class, span prefix and request checks (Calendar's `requestAllowed` runs first).
 - Interview detection (NS-169, CAL-002), slice 1, plain code in `packages/inbox`
   (`src/interview/detect.ts`):
   - `detectInterview` turns one calendar event into an interview for one application. The title
