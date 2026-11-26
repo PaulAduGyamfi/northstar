@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { apiFetch, isTimeout, TIMED_OUT_MESSAGE } from "../src/client-fetch";
 import type { HandoffCard } from "../src/handoffs";
 
 type Outcome = "submitted" | "gave_up";
@@ -18,7 +19,7 @@ export function NeedsYourHands({ cards }: { cards: HandoffCard[] }) {
     setBusy(handoffId);
     setError(null);
     try {
-      const res = await fetch("/api/handoffs/resolve", {
+      const res = await apiFetch("/api/handoffs/resolve", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ handoffId, outcome }),
@@ -38,8 +39,10 @@ export function NeedsYourHands({ cards }: { cards: HandoffCard[] }) {
         return;
       }
       router.refresh();
-    } catch {
-      setError("Couldn't reach Northstar. Is the API running?");
+    } catch (error) {
+      setError(
+        isTimeout(error) ? TIMED_OUT_MESSAGE : "Couldn't reach Northstar. Is the API running?",
+      );
     } finally {
       setBusy(null);
     }

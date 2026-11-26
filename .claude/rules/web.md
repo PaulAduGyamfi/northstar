@@ -32,3 +32,6 @@ are CSS variables in `apps/web/app/globals.css`.
   undo countdown reads the API's `effectiveAt` (the database clock); the browser only counts down.
 - Application statuses are shown only through `STATUS_WORDS` (`src/pipeline.ts`, UX-020): every
   ending but an offer reads "closed" (UX-020, tokens.md).
+- Browser calls to the app's own API (`/api/*`) go through `apiFetch` (`src/client-fetch.ts`,
+  NS-176): a 15 s limit. A POST that timed out may still have been applied, so its message is
+  `TIMED_OUT_MESSAGE` ("may have gone through"), never "nothing was done".

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiFetch } from "../src/client-fetch";
 import { FeedBody, type FeedLine, mergeFeed } from "../src/system";
 
 // The activity feed (OBS-002): the lines the page was rendered with, then what's new every 3 s
@@ -19,7 +20,7 @@ export function LiveFeed({ initial }: { initial: FeedLine[] }) {
       // Nothing to show while the tab is hidden; the next visible tick catches up.
       if (stopped || document.hidden) return;
       try {
-        const res = await fetch(`/api/feed?after=${newest}`, { cache: "no-store" });
+        const res = await apiFetch(`/api/feed?after=${newest}`, { cache: "no-store" });
         // Signed out or expired: stop asking until the page is loaded again.
         if (res.status === 401) {
           stopped = true;

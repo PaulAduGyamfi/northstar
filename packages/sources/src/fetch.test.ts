@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { canonicalUrl, FetchRefused, isPublicAddress, safeFetch } from "./fetch.js";
+import { describe, expect, it, vi } from "vitest";
+import { canonicalUrl, DNS_TIMEOUT_MS, FetchRefused, isPublicAddress, safeFetch } from "./fetch.js";
 
 // A fake DNS and web: every host and page here is invented (the repo is public).
 const DNS: Record<string, string[]> = {
@@ -200,5 +200,25 @@ describe("canonicalUrl", () => {
     expect(canonicalUrl("https://jobs.example.com/view?gh_jid=123&utm_medium=email")).toBe(
       "https://jobs.example.com/view?gh_jid=123",
     );
+  });
+});
+
+describe("safeFetch's host lookup (NS-176, RES-005)", () => {
+  it("gives up on a resolver that never answers after DNS_TIMEOUT_MS", async () => {
+    vi.useFakeTimers();
+    try {
+      const stuck = safeFetch(
+        {
+          resolve: () => new Promise<string[]>(() => {}),
+          fetch: (async () => new Response("never")) as typeof fetch,
+        },
+        "https://jobs.example.com/1",
+      );
+      const result = expect(stuck).rejects.toThrow("jobs.example.com can't be found");
+      await vi.advanceTimersByTimeAsync(DNS_TIMEOUT_MS);
+      await result;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
