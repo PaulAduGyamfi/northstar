@@ -30,6 +30,7 @@ export default defineConfig({
     "./src/verification-schema.ts",
     "./src/job-form-schema.ts",
     "./src/file-schema.ts",
+    "./src/contact-schema.ts",
   ],
   out: "./migrations",
 });

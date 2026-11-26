@@ -236,6 +236,12 @@ Exists now:
   field's qualifier as a whole word in the question, or says why not (`not_factual`,
   `no_setting`, `no_qualifier`, `form_mismatch`). Every answer shows the canonical question and
   the setting used and is marked for review. No form filling yet (NS-161).
+- Paul's contact details (NS-227 slice 3, APPLY-001), for an application package's `contact`:
+  append-only `profile_contact` in `packages/db` (`contact-schema.ts`, `contact-write.ts`:
+  `setContact`, `readContact`; newest wins, the same details store nothing), checked with the
+  package's own `ContactDetails` schema (`packages/domain`), and `profile contact set|show`
+  (`contact-cli.ts`). `profile.contact_set` carries a phone flag only. No caller reads it yet
+  (the package caller, slice 4).
 - The voice profile (NS-136, ANS-007/008) in `packages/profile/src/voice/`, plain code, no model:
   - `measureVoice` turns 5–10 writing samples into a style guide (sentence length, contractions,
     "I"/"we", exclamation marks, phrases used in 3+ samples), rendered by `renderVoiceGuide` for
@@ -642,8 +648,11 @@ Exists now:
   `confirmedBy`, and a model's pick always counts as `new` for the Gate, never `bank_exact` or
   `bank_high_confidence`. The negation check runs on the normalized label (curly quotes, NFKC).
   `filePackage` files the package with the Gate (`requestApproval`, actor `system`, key
-  `package:<packageId>`); it never submits. No caller, form questions from the ATS or stored
-  resume files yet.
+  `package:<packageId>`); it never submits. Since NS-227 (slice 4) also `formQuestions`
+  (`form.ts`): a stored Greenhouse form as `FormQuestion`s. The standard contact, resume and cover
+  letter fields (and their paste-in alternatives) and hidden fields are not questions; it flags a
+  required cover letter or phone, and lists a required upload it can't fill as `unsupported`.
+  Choices are the option labels. No caller yet (slice 5).
 - `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
   (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
   decision as an `approval` signal (or `withdrawn`), then runs the `submitApplication` activity
@@ -714,6 +723,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/profile profile tailor <job-id> [--drop <skill,skill>]` | tailor the resume to a ready job (plain code, no model): prints the diff, what it doesn't claim, the pre-send score and the validator result, and stores a new version (unchanged content stores nothing); `--drop` turns off skills the tailor added. Paul only: it prints his real profile, needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile audit` / `profile audit accept <key> "<new line>"` / `profile audit reject <key>` | audit the current resume against the search preferences' titles and ready jobs' requirements and store the run (leaving out suggestions rejected on this import) / accept one line suggestion with Paul's own line (checked like `applySuggestion`; the tailor uses it from then on) / reject one. Paul only: it prints his real resume, needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile settings set <field> <value> [--for <qualifier>]` / `profile settings show` | store an answer to a factual question (`work_authorization --for <country>`, `years_of_experience --for <skill>`, `previously_employed --for <company>`; yes/no, whole years, `YYYY-MM-DD`, `remote\|hybrid\|onsite`, https links, short text) / list the current ones. Paul only: his real data, needs `DATABASE_URL`; agents never run them |
+| repo root | `pnpm --filter @northstar/profile profile contact set --first <name> --last <name> --email <address> [--phone <number>]` / `profile contact show` | store Paul's contact details for application forms (every field each time; no `--phone` means none; the same details store nothing) / print them. Paul only: his real data, needs `DATABASE_URL`; agents never run them |
 | repo root | `pnpm --filter @northstar/profile profile answer "<question>"` | answer a form question from the settings: prints the answer, the canonical question and the setting used, or why it can't. Paul only: needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel backfill [--since YYYY-MM-DD] [--max-messages N]` | sign in to Gmail read-only (browser consent every run), rebuild the funnel from job mail since `--since` (default 2026-02-01); prints the model-call count and estimated cost first and stops at `--max-messages` (default 500). Safe to rerun. Paul only: his real mail, needs `DATABASE_URL`, `GOOGLE_OAUTH_CLIENT_*` and `ANTHROPIC_API_KEY`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel import data/<file>.csv` | import a tracker export (`company, role, applied_on, stage_reached, outcome` plus optional `outcome_on, channel, notes`); a file with any bad row stores nothing. Paul only |

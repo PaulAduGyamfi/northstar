@@ -20,6 +20,18 @@ export const PackageFile = z
   .strict();
 export type PackageFile = z.infer<typeof PackageFile>;
 
+// The applicant's contact details, typed into each form's standard fields by the adapters.
+// Paul's own data (NS-227 slice 3 stores it in packages/db with this same schema).
+export const ContactDetails = z
+  .object({
+    firstName: z.string().trim().min(1).max(100),
+    lastName: z.string().trim().min(1).max(100),
+    email: z.email(),
+    phone: z.string().trim().min(1).max(40).nullable(),
+  })
+  .strict();
+export type ContactDetails = z.infer<typeof ContactDetails>;
+
 export const ApplicationPackage = z
   .object({
     packageId: z.uuid(),
@@ -29,14 +41,7 @@ export const ApplicationPackage = z
     postingId: z.string().trim().min(1).max(200),
     // Checked against the adapter's own hosts by the gateway; https only here.
     applyUrl: z.url({ protocol: /^https$/ }),
-    contact: z
-      .object({
-        firstName: z.string().trim().min(1).max(100),
-        lastName: z.string().trim().min(1).max(100),
-        email: z.email(),
-        phone: z.string().trim().min(1).max(40).nullable(),
-      })
-      .strict(),
+    contact: ContactDetails,
     resume: PackageFile,
     coverLetter: PackageFile.nullable(),
     // The field map: one value per form field the package fills beyond the standard ones, keyed
