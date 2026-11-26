@@ -10,6 +10,7 @@ describe("the workflow bundle", () => {
     const workflowsPath = fileURLToPath(new URL("./index.ts", import.meta.url));
     const { code } = await bundleWorkflowCode({ workflowsPath, logger: quiet });
     expect(code).toContain("submissionWorkflow");
+    expect(code).toContain("staleClaimSweepWorkflow");
   }, 60_000);
 });
 

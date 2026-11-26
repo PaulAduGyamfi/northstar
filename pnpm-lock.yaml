@@ -78,6 +78,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@northstar/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@northstar/domain':
         specifier: workspace:*
         version: link:../../packages/domain
