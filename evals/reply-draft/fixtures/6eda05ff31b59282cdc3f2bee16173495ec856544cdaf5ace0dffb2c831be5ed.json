@@ -1,0 +1,27 @@
+{
+  "requestSha256": "6eda05ff31b59282cdc3f2bee16173495ec856544cdaf5ace0dffb2c831be5ed",
+  "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval reply-draft --record.",
+  "response": {
+    "id": "msg_handwritten_0",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-5-5",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"sentences\":[{\"text\":\"Hi Dana, thanks for reaching out.\",\"cites\":[]},{\"text\":\"I built the card payments flow at Globex for 12 merchants.\",\"cites\":[{\"id\":\"a-payments\",\"quote\":\"Built the card payments flow at Globex for 12 merchants.\"}]},{\"text\":\"I also wrote the on-call runbook for the payments team.\",\"cites\":[{\"id\":\"a-runbook\",\"quote\":\"Wrote the on-call runbook for the payments team.\"}]},{\"text\":\"I'd be glad to talk more.\",\"cites\":[]}],\"followUps\":[]}",
+        "citations": null
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  }
+}
