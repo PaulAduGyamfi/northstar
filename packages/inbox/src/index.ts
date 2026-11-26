@@ -101,3 +101,10 @@ export {
   windowQuery,
 } from "./verify/poll.js";
 export { VerificationSecret } from "./verify/secret.js";
+export {
+  type CloseReason,
+  createStoredCatcher,
+  type StoredCatcher,
+  type StoredWindow,
+  type WindowStore,
+} from "./verify/stored-catcher.js";
