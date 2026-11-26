@@ -84,6 +84,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   there checks they agree). Values and qualifiers are Paul's data: `profile.setting_set` carries
   the field and a qualified flag, `answer.factual_used` the canonical id, kind, field and
   confidence, never a value, qualifier or question text.
+- Tailored resumes (NS-146) are `tailored_resume`, one row per version per job, append-only (a
+  trigger), written only through `tailor-write.ts`; `readTailorInput` reads the current resume
+  import (`kind = 'resume'`) and a ready job. The stored resume, validation and score hold Paul's
+  lines and the job's requirements: `resume.tailored` carries ids, counts and flags only.
 - One agent at a time changes this package's schema or migrations (ADR-0016): parallel agents
   renumbering migrations caused replacement PRs. Before adding a migration, merge the latest
   `main` and generate it then.

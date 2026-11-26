@@ -295,6 +295,20 @@
       "when": 1795652673520,
       "tag": "0041_profile_setting_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1795654950887,
+      "tag": "0042_tailored_resume",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1795654952046,
+      "tag": "0043_tailored_resume_append_only",
+      "breakpoints": true
     }
   ]
 }

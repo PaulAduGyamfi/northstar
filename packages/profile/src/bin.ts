@@ -14,6 +14,7 @@ import {
   readProfileSettings,
   readSourceRoles,
   readStories,
+  readTailorInput,
   readThesisProfile,
   recordAnswer,
   recordDraftOutcome,
@@ -21,6 +22,7 @@ import {
   recordFactualAnswer,
   saveApprovedStory,
   saveApprovedThesis,
+  saveTailoredResume,
   setEmploymentFacts,
   setProfileSetting,
   soleCandidate,
@@ -34,6 +36,7 @@ import { importResume } from "./import.js";
 import { type Choice, runInterview, type Terminal } from "./interview.js";
 import { profileExtractRoute } from "./route.js";
 import { storyDraftRoute } from "./story-route.js";
+import { tailorForJob } from "./tailor/run.js";
 import { fileToText } from "./text.js";
 import { draftTheses } from "./thesis-draft.js";
 
@@ -147,6 +150,15 @@ try {
         ...(qualifier === undefined ? {} : { qualifier }),
       }),
     readSettings: () => readProfileSettings(db, candidateId),
+    runTailor: (jobId, drop) =>
+      tailorForJob(
+        {
+          readInput: (id) => readTailorInput(db, candidateId, id),
+          save: (input) => saveTailoredResume(db, { ...input, candidateId }),
+        },
+        jobId,
+        drop,
+      ),
     recordFactualUse: (use) => recordFactualAnswer(db, { candidateId, kind: "factual", ...use }),
   });
   process.exitCode = exitCode;

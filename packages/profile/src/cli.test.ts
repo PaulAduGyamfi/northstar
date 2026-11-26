@@ -62,6 +62,7 @@ function deps(
     setSetting: async () => ({ ok: true, value: { saved: true } }),
     readSettings: async () => [],
     recordFactualUse: async () => {},
+    runTailor: async () => ({ kind: "refused", reason: "NoProfile" }),
   };
   return { d, printed, interviewedAtoms };
 }
@@ -222,6 +223,12 @@ describe("profile cli", () => {
     expect(printed).toEqual([
       'usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check | profile thesis draft | profile thesis set "<text>" --atoms <id,id> | profile thesis show | profile import-linkedin <folder>',
     ]);
+  });
+
+  it("prints the tailor usage for a malformed tailor command", async () => {
+    const { d, printed } = deps(["tailor", "job-1", "--keep", "Go"], { kind: "unchanged" });
+    expect(await main(d)).toBe(1);
+    expect(printed).toEqual(["usage: profile tailor <job-id> [--drop <skill,skill>]"]);
   });
 
   it("prints the settings usage for a malformed settings command", async () => {

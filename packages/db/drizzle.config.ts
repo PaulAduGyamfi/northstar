@@ -20,6 +20,7 @@ export default defineConfig({
     "./src/handoff-schema.ts",
     "./src/tenant-schema.ts",
     "./src/consent-schema.ts",
+    "./src/tailor-schema.ts",
   ],
   out: "./migrations",
 });
