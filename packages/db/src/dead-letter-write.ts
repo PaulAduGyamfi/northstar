@@ -4,6 +4,7 @@ import type { Db } from "./db.js";
 import { appendEvent, inSpan } from "./resilience-event.js";
 import {
   type DEAD_LETTER_ACTIONS,
+  DEAD_LETTER_ID_KEY_PATTERN,
   DEAD_LETTER_SUBJECT_PATTERN,
   deadLetter,
   deadLetterResolution,
@@ -18,8 +19,8 @@ import {
 const KIND = new RegExp(NAME_PATTERN);
 const SUBJECT = new RegExp(DEAD_LETTER_SUBJECT_PATTERN);
 const REASON = new RegExp(REASON_CODE_PATTERN);
+const ID_KEY = new RegExp(DEAD_LETTER_ID_KEY_PATTERN);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const UNIQUE_VIOLATION = "23505";
 
 export type DeadLetterAction = (typeof DEAD_LETTER_ACTIONS)[number];
 
@@ -50,7 +51,7 @@ function invalidField(input: DeadLetterInput): string | null {
   if (!SUBJECT.test(input.subject)) return "subject";
   if (!REASON.test(input.reasonCode)) return "reasonCode";
   if (!Number.isSafeInteger(input.attempts) || input.attempts < 1) return "attempts";
-  if (input.idempotencyKey.length < 1 || input.idempotencyKey.length > 200) return "idempotencyKey";
+  if (!ID_KEY.test(input.idempotencyKey)) return "idempotencyKey";
   return null;
 }
 
@@ -88,15 +89,18 @@ export async function recordDeadLetter(
               eq(deadLetter.idempotencyKey, input.idempotencyKey),
             ),
           );
+        // The conflicting row was committed, so a fresh statement sees it; anything else is a bug.
+        if (!existing) throw new Error("dead_letter conflict without a row");
         span.setAttribute("northstar.dead_letter.outcome", "exists");
-        return { ok: true, value: { status: "exists", deadLetterId: existing?.id ?? "" } } as const;
+        return { ok: true, value: { status: "exists", deadLetterId: existing.id } } as const;
       }
       await appendEvent(tx, span, {
         candidateId: input.candidateId,
         aggregate: `dead_letter:${row.id}`,
         type: "dead_letter.recorded",
         actor: "system",
-        reason: `Work stopped after ${input.attempts} attempt${input.attempts === 1 ? "" : "s"}; it waits for you to retry, skip or hand it off`,
+        // Kind and reason code are pattern-checked names, safe to show.
+        reason: `${input.kind} stopped after ${input.attempts} attempt${input.attempts === 1 ? "" : "s"} (${input.reasonCode}); it waits for you to retry, skip or hand it off`,
         // Ids, kind, codes and counts only: never a payload, message or URL.
         payload: {
           deadLetterId: row.id,
@@ -166,58 +170,50 @@ export async function resolveDeadLetter(
     "dead_letter.resolve",
     { "northstar.dead_letter.action": input.action },
     async (span) => {
-      try {
-        return await db.transaction(async (tx) => {
-          const [letter] = await tx
-            .select({ kind: deadLetter.kind, subject: deadLetter.subject })
-            .from(deadLetter)
-            .where(
-              and(
-                eq(deadLetter.id, input.deadLetterId),
-                eq(deadLetter.candidateId, input.candidateId),
-              ),
-            );
-          if (!letter) return { ok: false, error: { kind: "NotFound" } } as const;
-          const [row] = await tx
-            .insert(deadLetterResolution)
-            .values({
-              candidateId: input.candidateId,
-              deadLetterId: input.deadLetterId,
-              action: input.action,
-              actor: input.actor,
-            })
-            .onConflictDoNothing({ target: deadLetterResolution.deadLetterId })
-            .returning({
-              id: deadLetterResolution.id,
-              resolvedAt: deadLetterResolution.resolvedAt,
-            });
-          if (!row) return { ok: false, error: { kind: "AlreadyResolved" } } as const;
-          await appendEvent(tx, span, {
+      // A second resolution racing this one waits on the unique key, then does nothing (ON
+      // CONFLICT below) and gets AlreadyResolved: no error to catch.
+      return db.transaction(async (tx) => {
+        const [letter] = await tx
+          .select({ kind: deadLetter.kind, subject: deadLetter.subject })
+          .from(deadLetter)
+          .where(
+            and(
+              eq(deadLetter.id, input.deadLetterId),
+              eq(deadLetter.candidateId, input.candidateId),
+            ),
+          );
+        if (!letter) return { ok: false, error: { kind: "NotFound" } } as const;
+        const [row] = await tx
+          .insert(deadLetterResolution)
+          .values({
             candidateId: input.candidateId,
-            aggregate: `dead_letter:${input.deadLetterId}`,
-            type: "dead_letter.resolved",
+            deadLetterId: input.deadLetterId,
+            action: input.action,
             actor: input.actor,
-            reason: ACTION_REASON[input.action],
-            payload: {
-              deadLetterId: input.deadLetterId,
-              resolutionId: row.id,
-              action: input.action,
-              kind: letter.kind,
-            },
-            idempotencyKey: `dead_letter_resolution:${row.id}`,
-            at: row.resolvedAt,
+          })
+          .onConflictDoNothing({ target: deadLetterResolution.deadLetterId })
+          .returning({
+            id: deadLetterResolution.id,
+            resolvedAt: deadLetterResolution.resolvedAt,
           });
-          return { ok: true, value: letter } as const;
+        if (!row) return { ok: false, error: { kind: "AlreadyResolved" } } as const;
+        await appendEvent(tx, span, {
+          candidateId: input.candidateId,
+          aggregate: `dead_letter:${input.deadLetterId}`,
+          type: "dead_letter.resolved",
+          actor: input.actor,
+          reason: ACTION_REASON[input.action],
+          payload: {
+            deadLetterId: input.deadLetterId,
+            resolutionId: row.id,
+            action: input.action,
+            kind: letter.kind,
+          },
+          idempotencyKey: `dead_letter_resolution:${row.id}`,
+          at: row.resolvedAt,
         });
-      } catch (error) {
-        // A concurrent resolution of the same letter committed first.
-        const code =
-          (error as { code?: unknown; cause?: { code?: unknown } }).code ??
-          (error as { cause?: { code?: unknown } }).cause?.code;
-        if (code === UNIQUE_VIOLATION)
-          return { ok: false, error: { kind: "AlreadyResolved" } } as const;
-        throw error;
-      }
+        return { ok: true, value: letter } as const;
+      });
     },
   );
 }

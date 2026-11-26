@@ -1,5 +1,5 @@
 {
-  "id": "ff099b3f-b7ab-433c-a64f-2b377df74182",
+  "id": "e827e1bf-6c72-4918-bb3b-74120e6640e9",
   "prevId": "df5d2568-a84d-4a68-9263-741713c6fe21",
   "version": "7",
   "dialect": "postgresql",
@@ -3917,9 +3917,9 @@
           "name": "dead_letter_attempts_positive",
           "value": "\"dead_letter\".\"attempts\" >= 1"
         },
-        "dead_letter_key_length": {
-          "name": "dead_letter_key_length",
-          "value": "length(\"dead_letter\".\"idempotency_key\") between 1 and 200"
+        "dead_letter_key_valid": {
+          "name": "dead_letter_key_valid",
+          "value": "\"dead_letter\".\"idempotency_key\" ~ '^[a-z0-9][a-z0-9_.:-]{0,199}$'"
         }
       },
       "isRLSEnabled": false

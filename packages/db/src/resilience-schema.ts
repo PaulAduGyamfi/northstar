@@ -101,6 +101,9 @@ export const DEAD_LETTER_SUBJECT_PATTERN =
 // A reason code (`timeout`, `rate_limited`): never a message.
 export const REASON_CODE_PATTERN = "^[a-z][a-z0-9_]{0,63}$";
 export const DEAD_LETTER_ACTIONS = ["retry", "skip", "hand_off"] as const;
+// A producer's idempotency key: lowercase ids and separators only, so it can never hold a URL,
+// an address, a link or a code (no `/`, `@`, `?`, `=`, `%` or spaces).
+export const DEAD_LETTER_ID_KEY_PATTERN = "^[a-z0-9][a-z0-9_.:-]{0,199}$";
 
 // Work that exhausted its retries (NS-175, RES-007): append-only, one row per failure (the same
 // idempotency key twice is one row). Kind, subject, reason code and attempts only: never a
@@ -134,7 +137,10 @@ export const deadLetter = pgTable(
       sql`${t.reasonCode} ~ ${sql.raw(`'${REASON_CODE_PATTERN}'`)}`,
     ),
     check("dead_letter_attempts_positive", sql`${t.attempts} >= 1`),
-    check("dead_letter_key_length", sql`length(${t.idempotencyKey}) between 1 and 200`),
+    check(
+      "dead_letter_key_valid",
+      sql`${t.idempotencyKey} ~ ${sql.raw(`'${DEAD_LETTER_ID_KEY_PATTERN}'`)}`,
+    ),
   ],
 );
 

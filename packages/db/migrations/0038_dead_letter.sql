@@ -13,7 +13,7 @@ CREATE TABLE "dead_letter" (
 	CONSTRAINT "dead_letter_subject_valid" CHECK ("dead_letter"."subject" ~ '^[a-z_]+:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'),
 	CONSTRAINT "dead_letter_reason_valid" CHECK ("dead_letter"."reason_code" ~ '^[a-z][a-z0-9_]{0,63}$'),
 	CONSTRAINT "dead_letter_attempts_positive" CHECK ("dead_letter"."attempts" >= 1),
-	CONSTRAINT "dead_letter_key_length" CHECK (length("dead_letter"."idempotency_key") between 1 and 200)
+	CONSTRAINT "dead_letter_key_valid" CHECK ("dead_letter"."idempotency_key" ~ '^[a-z0-9][a-z0-9_.:-]{0,199}$')
 );
 --> statement-breakpoint
 CREATE TABLE "dead_letter_resolution" (

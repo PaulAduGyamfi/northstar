@@ -73,7 +73,7 @@ describe("recordDeadLetter", () => {
       .from(domainEvent)
       .where(eq(domainEvent.type, "dead_letter.recorded"));
     expect([event?.reason, event?.payload]).toEqual([
-      "Work stopped after 1 attempt; it waits for you to retry, skip or hand it off",
+      "apply.submit stopped after 1 attempt (timeout); it waits for you to retry, skip or hand it off",
       { deadLetterId: id, kind: "apply.submit", reasonCode: "timeout", attempts: 1 },
     ]);
   });
@@ -85,12 +85,17 @@ describe("recordDeadLetter", () => {
       recordDeadLetter(db, letter({ reasonCode: "Timed out after 30s" })),
       recordDeadLetter(db, letter({ attempts: 0 })),
       recordDeadLetter(db, letter({ idempotencyKey: "" })),
+      recordDeadLetter(
+        db,
+        letter({ idempotencyKey: "apply:https://example.com/jobs/1?email=a@example.com" }),
+      ),
     ]);
     expect(results.map((r) => (r.ok ? null : r.error.field))).toEqual([
       "kind",
       "subject",
       "reasonCode",
       "attempts",
+      "idempotencyKey",
       "idempotencyKey",
     ]);
     expect(await db.select().from(deadLetter)).toEqual([]);
@@ -209,18 +214,26 @@ describe("dead-letter tables in the database", () => {
     ]).toEqual(Array(6).fill(RESTRICT_VIOLATION));
   });
 
-  it("refuses free text in a reason code even written directly", async () => {
-    expect(
-      await sqlState(
+  it("refuses free text, a URL or a bad count in any field even written directly", async () => {
+    const row = (over: Partial<typeof deadLetter.$inferInsert>) =>
+      sqlState(
         db.insert(deadLetter).values({
           candidateId,
           kind: "apply.submit",
           subject: `application:${randomUUID()}`,
-          reasonCode: "The ATS said: invalid email jane@example.com",
+          reasonCode: "timeout",
           attempts: 1,
           idempotencyKey: randomUUID(),
+          ...over,
         }),
-      ),
-    ).toBe(CHECK_VIOLATION);
+      );
+    expect([
+      await row({ reasonCode: "The ATS said: invalid email jane@example.com" }),
+      await row({ kind: "Apply Submit" }),
+      await row({ subject: "https://example.com/job" }),
+      await row({ attempts: 0 }),
+      await row({ idempotencyKey: "apply:https://example.com/x" }),
+      await row({ idempotencyKey: "a b" }),
+    ]).toEqual(Array(6).fill(CHECK_VIOLATION));
   });
 });
