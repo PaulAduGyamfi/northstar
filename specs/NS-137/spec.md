@@ -1,6 +1,6 @@
 # NS-137: Model confirm step for canonical-question matching
 
-Status: draft
+Status: built
 Requirements: ANS-002 (and ANS-001 for the kinds)
 Rules that apply: ADR-0004, ADR-0006, ADR-0016 (item 8: hand-written fixtures), ADR-0021 (spend
 cap priority), `.claude/rules/llm.md`, `.claude/rules/tests.md`. Decision on #62 (Paul's
@@ -43,12 +43,12 @@ decide anything code can.
   case), hand-written fixtures and a provisional baseline.
 
 ## Acceptance criteria
-- [ ] `matchQuestion`'s existing tests pass unchanged.
-- [ ] Tests: off by default makes no call; a lexical match makes no call; factual-only
+- [x] `matchQuestion`'s existing tests pass unchanged.
+- [x] Tests: off by default makes no call; a lexical match makes no call; factual-only
       candidates make no call; a question nearest a factual one makes no call; a valid choice matches by model; null, out of range and a refusal
       keep the rules result; a transport error throws; the question goes in an untrusted block.
 - [ ] `eval --all` in CI replays `question-confirm` at or above its baseline.
-- [ ] The prompt is locked in `prompts.lock.json`.
+- [x] The prompt is locked in `prompts.lock.json`.
 
 ## Failure modes
 - Anthropic slow or down: the gateway's timeout and breaker; `HeldBack`/transport errors throw to

@@ -126,10 +126,12 @@ describe("confirmQuestion", () => {
   it("makes no call for a question whose nearest canonical question is factual", async () => {
     const { gateway, inputs } = gatewayAnswering(null);
     const q = "Are you authorized to work in Canada and do you need sponsorship?";
-    expect([await confirmQuestion({ gateway, enabled: true }, q), inputs.length]).toEqual([
-      { match: matchQuestion(q), by: "rules" },
-      0,
-    ]);
+    // It has narrative candidates, so only the factual-nearest guard keeps it from the model.
+    expect([
+      confirmCandidates(q).map((c) => c.id),
+      await confirmQuestion({ gateway, enabled: true }, q),
+      inputs.length,
+    ]).toEqual([["ambiguity", "why-this-company"], { match: matchQuestion(q), by: "rules" }, 0]);
   });
 
   it("makes no call for a negated question", async () => {
