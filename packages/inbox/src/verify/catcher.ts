@@ -165,7 +165,11 @@ export function recordCatch(
 
 // Whether a message is for this window: an allowlisted sender Gmail authenticated, received
 // inside the window (VER-002).
-export function windowMatches(w: VerificationWindow, m: VerificationMessage): boolean {
+// Headers only: the mail-link step (#224) asks before any body is fetched.
+export function windowMatches(
+  w: VerificationWindow,
+  m: Pick<VerificationMessage, "senderDomain" | "authenticationResults" | "receivedAt">,
+): boolean {
   const domain = m.senderDomain.toLowerCase();
   return (
     m.receivedAt.getTime() >= w.openedAt.getTime() &&

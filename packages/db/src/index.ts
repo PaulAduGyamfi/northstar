@@ -299,10 +299,12 @@ export {
 export * as mailLinkSchema from "./mail-link-schema.js";
 export {
   assignTag,
+  type LinkCandidateRow,
   type LinkDecision,
   listConfirmQueue,
   type QueuedMail,
   type RecordLinkInput,
+  readLinkCandidates,
   readLinkedThreads,
   readTags,
   recordMailLink,

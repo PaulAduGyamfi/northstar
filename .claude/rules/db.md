@@ -208,6 +208,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   append-only, written only through `mail-link-write.ts`. They hold Gmail ids, tags, steps and
   reasons: never an address, subject, sender or body. A link never changes an application's
   status; `sender_verified` is what a later automatic change must require (INB-011).
+  `readLinkCandidates` (NS-223) is their read-only candidates reader: applications not in a
+  terminal status, with their creation time and the job's and sources' ATS names, never a name or
+  address.
 - Verification windows (NS-151) are `verification_window`, `verification_window_restart` (one
   per window), `verification_window_close` (one per window) and `verification_used_message` (one
   per candidate and Gmail id), append-only (triggers), written only through
