@@ -14,7 +14,10 @@ export type TrackStatus = (typeof TRACK_STATUSES)[number];
 export const MAX_NEXT_ACTION_MINUTES = 90;
 
 // A real date: an Invalid Date would break the plan order (NaN compares false both ways).
-const ValidDate = z.date().refine((d) => !Number.isNaN(d.getTime()), { message: "invalid date" });
+// Shared with growth-progress.ts.
+export const ValidDate = z
+  .date()
+  .refine((d) => !Number.isNaN(d.getTime()), { message: "invalid date" });
 
 const Track = z.object({
   id: z.string().min(1),
@@ -88,9 +91,11 @@ export type WeekPlan = {
   unplanned: { trackId: string; reason: Exclude<TrackStatus, "active"> }[];
 };
 
-const DAY_MS = 86_400_000;
+export const DAY_MS = 86_400_000;
 
-function isAtRisk(t: GrowthTrack, now: Date): boolean {
+// GRW-004's rule, shared with the dashboard and the review so they can't drift apart. Callers
+// apply it to active tracks only: pausing a track is how Paul says it isn't at risk.
+export function isAtRisk(t: GrowthTrack, now: Date): boolean {
   if (t.lastTouchedAt === null) return true;
   return now.getTime() - t.lastTouchedAt.getTime() > t.untouchedDays * DAY_MS;
 }
