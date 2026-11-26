@@ -1,5 +1,5 @@
 import type { OfficialPosition, ProfileView, StoryView, ThesisProfile } from "@northstar/db";
-import { LlmTransportError } from "@northstar/llm";
+import { HeldBack, LlmTransportError } from "@northstar/llm";
 import { describe, expect, it } from "vitest";
 import { type CliDeps, main } from "./cli.js";
 import type { ImportResult } from "./import.js";
@@ -124,6 +124,17 @@ describe("profile cli", () => {
     expect(await main(d)).toBe(1);
     expect(printed).toEqual([
       "Not imported: the Claude API didn't answer (status 529). Nothing was written; try again later.",
+    ]);
+  });
+
+  it("names the switch that held the model call back", async () => {
+    const { d, printed } = deps(
+      ["import-resume", "data/resume.pdf"],
+      new HeldBack("kill_switch", "agent:profile-extract"),
+    );
+    expect(await main(d)).toBe(1);
+    expect(printed).toEqual([
+      "Not imported: held back (agent:profile-extract is switched off). Nothing was written.",
     ]);
   });
 

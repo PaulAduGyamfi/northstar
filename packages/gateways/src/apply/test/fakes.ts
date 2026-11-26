@@ -3,6 +3,8 @@ import type { ProofView, SubmissionView } from "@northstar/db";
 import {
   type ApplicationPackage,
   type ApplicationStatus,
+  type CallDecision,
+  type CallOutcome,
   err,
   type NeedsHumanReason,
   nextStatus,
@@ -24,6 +26,10 @@ export type FakeWorld = {
   submissions: SubmissionView[];
   proofs: ProofView[];
   driverCalls: { open: number; submit: number; close: number };
+  // What the gateway told the breakers: dependency, outcome and the probe's token.
+  reports: { dependency: string; outcome: CallOutcome; probeToken: string | null }[];
+  // The switches and breakers it asked about, in order.
+  checks: string[];
   // A decision id for this package; with a refusal, the Gate refuses it that way.
   approve: (pkg: ApplicationPackage, refusal?: "Rejected" | "Undone" | "UndoWindowOpen") => string;
 };
@@ -35,6 +41,10 @@ export function fakeWorld(script: {
   initialStatus?: ApplicationStatus;
   // Whether a repeated in-progress claim is past CLAIM_STALE_AFTER_MS (the database decides).
   claimStale?: boolean;
+  // Kill switches that are off (every other one is on).
+  switchesOff?: string[];
+  // The breaker's answer (allowed, no probe, by default); a throw stands for Postgres down.
+  breaker?: (dependency: string) => Promise<CallDecision>;
 }): FakeWorld {
   let status: ApplicationStatus = script.initialStatus ?? "awaiting_approval";
   type GateRefusal = "Rejected" | "Undone" | "UndoWindowOpen";
@@ -44,6 +54,8 @@ export function fakeWorld(script: {
   const keys = new Map<string, SubmissionView>();
   const requisitions = new Set<string>();
   const driverCalls = { open: 0, submit: 0, close: 0 };
+  const reports: FakeWorld["reports"] = [];
+  const checks: string[] = [];
   const files = new Map([
     [sha(RESUME), RESUME],
     [sha(COVER), COVER],
@@ -155,6 +167,17 @@ export function fakeWorld(script: {
     },
     readFile: async (hash) => files.get(hash) ?? null,
     openDriver: () => driver,
+    isSubsystemOn: async (_c, subsystem) => {
+      checks.push(subsystem);
+      return !(script.switchesOff ?? []).includes(subsystem);
+    },
+    acquireCall: async (_c, dependency) => {
+      checks.push(dependency);
+      return script.breaker ? script.breaker(dependency) : { allowed: true, probe: false };
+    },
+    recordCallOutcome: async (_c, dependency, outcome, probeToken) => {
+      reports.push({ dependency, outcome, probeToken });
+    },
   };
 
   return {
@@ -163,6 +186,8 @@ export function fakeWorld(script: {
     submissions,
     proofs,
     driverCalls,
+    reports,
+    checks,
     approve: (pkg, refusal) => {
       const id = randomUUID();
       const record = { subject: packageSubject(pkg), hash: packageSha256(pkg) };

@@ -3,6 +3,7 @@ import {
   ApplicationId,
   type ApplicationPackage,
   type ApplicationStatus,
+  type CallOutcome,
   type CandidateId,
   err,
   type InvalidPackage,
@@ -16,6 +17,7 @@ import {
 import { type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 import { type AtsAdapter, adapterFor, hostAllowed } from "./adapters/index.js";
 import type { FormDriver, PageState, Upload } from "./driver.js";
+import { admit, atsDependency } from "./guard.js";
 import { mapPackage } from "./map.js";
 import type { ApplyPorts } from "./ports.js";
 import { ApplyInvariantError, applyMoveKey, closeStaleClaim } from "./stale.js";
@@ -51,12 +53,22 @@ export type FileChanged = { kind: "FileChanged"; file: "resume" | "coverLetter" 
 export type PostingMismatch = { kind: "PostingMismatch" };
 // An earlier run holds the claim and may still be in the browser: try again later.
 export type InProgress = { kind: "InProgress" };
+// A kill switch or the ATS's breaker held the submission back before anything was claimed
+// (NS-206): call again later (at `retryAt` when the breaker gave one). `what` names the switch
+// (auto_apply, adapter:<ats>) or the breaker (ats:<ats>).
+export type HeldBack = {
+  kind: "HeldBack";
+  by: "kill_switch" | "breaker" | "guard_error";
+  what: string;
+  retryAt: Date | null;
+};
 export type SubmitRefusal =
   | InvalidPackage
   | HostNotAllowed
   | PostingMismatch
   | FileChanged
   | InProgress
+  | HeldBack
   | { kind: "DuplicateRequisition" }
   | { kind: "AtsBusy" }
   | { kind: "Paced"; retryAt: Date }
@@ -143,7 +155,23 @@ async function submit(
     }
   }
 
-  // 3. Claim it once.
+  // 3. The kill switches and the ATS's breaker, now (RES-002, RES-008): held back, nothing is
+  // claimed or moved and the browser never opens, so a later call simply tries again.
+  const dependency = atsDependency(pkg.ats);
+  const admitted = await admit(ports, input.candidateId, pkg.ats, span);
+  if (!admitted.ok) return admitted;
+  const probeToken = admitted.value;
+  // Tells the breaker how the ATS answered. A report that fails is noted, never thrown: the
+  // submission's outcome is already decided.
+  const report = async (outcome: CallOutcome) => {
+    try {
+      await ports.recordCallOutcome(input.candidateId, dependency, outcome, probeToken);
+    } catch {
+      span.setAttribute("northstar.apply.breaker_report_failed", true);
+    }
+  };
+
+  // 4. Claim it once.
   const claim = await ports.claimSubmission({
     candidateId: input.candidateId,
     applicationId: pkg.applicationId,
@@ -213,15 +241,18 @@ async function submit(
     });
   }
 
-  // 4. Only an application awaiting approval may go out.
+  // 5. Only an application awaiting approval may go out.
   const started = await move("awaiting_approval", "submitting");
   if (!started.ok) return handOff("status_conflict", null);
 
-  // 5. The browser: one session, closed whatever happens.
+  // 6. The browser: one session, closed whatever happens. Only the ATS's own trouble (a step
+  // timeout) counts against its breaker; a page it served is it working; a browser crash isn't
+  // its fault and isn't reported.
   const driven = await drive(ports.openDriver(), adapter, pkg, resume, coverLetter);
+  if (driven.ats !== "unknown") await report(driven.ats);
   if (driven.kind === "handoff") return handOff(driven.reason, "submitting");
 
-  // 6. Proof, then the status. Only this run holds a live claim (a replay leaves it alone until
+  // 7. Proof, then the status. Only this run holds a live claim (a replay leaves it alone until
   // it is stale), so the ledger refusing here means the invariant broke.
   const recorded = await ports.recordSubmitted(input.candidateId, id, {
     confirmationHtml: driven.page.html,
@@ -240,11 +271,20 @@ async function submit(
 }
 
 type Confirmed = Extract<PageState, { kind: "page" }>;
+// `ats` is what the ATS's breaker is told: it answered (ok), it didn't in time (a failure), or
+// the browser failed in a way that says nothing about the ATS (unknown, not reported).
+type AtsReport = CallOutcome | "unknown";
 type Driven =
-  | { kind: "handoff"; reason: NeedsHumanReason }
-  | { kind: "confirmed"; page: Confirmed; fieldValues: Record<string, string | string[]> };
+  | { kind: "handoff"; reason: NeedsHumanReason; ats: AtsReport }
+  | {
+      kind: "confirmed";
+      page: Confirmed;
+      fieldValues: Record<string, string | string[]>;
+      ats: AtsReport;
+    };
 
 class StepTimeout extends Error {}
+const OK: CallOutcome = { ok: true };
 
 // Rejects when the step takes longer than ms; the timer never outlives the step.
 async function within<T>(ms: number, step: Promise<T>): Promise<T> {
@@ -269,7 +309,8 @@ async function drive(
   resume: Uint8Array,
   coverLetter: Uint8Array | null,
 ): Promise<Driven> {
-  const handoff = (reason: NeedsHumanReason): Driven => ({ kind: "handoff", reason });
+  // Every handoff below follows a page the ATS served, so it answered.
+  const handoff = (reason: NeedsHumanReason): Driven => ({ kind: "handoff", reason, ats: OK });
   try {
     const page = await within(OPEN_TIMEOUT_MS, driver.open(pkg.applyUrl));
     if (page.kind === "challenge") return handoff(page.challenge);
@@ -298,9 +339,17 @@ async function drive(
       fieldValues[fill.field] = typeof fill.value === "string" ? fill.value : [...fill.value];
     }
     for (const upload of uploads) fieldValues[upload.field] = upload.fileName;
-    return { kind: "confirmed", page: after, fieldValues };
-  } catch {
-    return handoff("driver_error");
+    return { kind: "confirmed", page: after, fieldValues, ats: OK };
+  } catch (error) {
+    // Our step limit, or the browser's own timeout (Playwright's TimeoutError): the ATS didn't
+    // answer in time. Anything else (a crashed tab) isn't the ATS's fault.
+    const timedOut =
+      error instanceof StepTimeout || (error instanceof Error && error.name === "TimeoutError");
+    return {
+      kind: "handoff",
+      reason: "driver_error",
+      ats: timedOut ? { ok: false, error: "Timeout" } : "unknown",
+    };
   } finally {
     await closeQuietly(driver);
   }
