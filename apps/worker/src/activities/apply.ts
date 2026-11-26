@@ -42,6 +42,13 @@ export function createApplyActivities(submit: Submit, now: () => Date = () => ne
         if (error instanceof NotApprovedError && error.reason === UNDO_WINDOW_OPEN) {
           return { kind: "refused", refusal: UNDO_WINDOW_OPEN, waitMs: null };
         }
+        // The package changed inside the undo window (NS-234): the gateway's withdrawal was
+        // refused until the window ends, so wait for it and call again. The next call withdraws
+        // the approval, then ends as not_approved, which NS-226 records as a dead letter.
+        if (error instanceof NotApprovedError && error.retryAt instanceof Date) {
+          const waitMs = Math.max(0, error.retryAt.getTime() - now().getTime());
+          return { kind: "refused", refusal: UNDO_WINDOW_OPEN, waitMs };
+        }
         if (error instanceof NotApprovedError) {
           // The message is the Gate's refusal kind (Rejected, Undone...), which the workflow
           // returns as its not_approved reason.

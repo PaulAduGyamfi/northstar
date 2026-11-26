@@ -64,8 +64,10 @@ For every gateway (the Apply Gateway now, the others when they land):
   `ContentChanged` (and nothing else, never its own transient `FileChanged`) by withdrawing the
   approval: `requestOfDecision`, then `withdrawApproval({ by: "gateway", newContentSha256 })`,
   then it still throws. It writes no ledger row (that would block the resubmission); the
-  `approval.withdrawn` feed line is the visible item, and a refused withdrawal is on the span
-  only, so the caller must surface the thrown `NotApprovedError`.
+  `approval.withdrawn` feed line is the visible item, and a refused withdrawal is on the span,
+  so the caller must surface the thrown `NotApprovedError`. When the refusal is the approval's
+  open undo window (NS-234), the error's `retryAt` is the window's end: the caller comes back
+  then (the worker waits it out), never drops it.
 - A gateway call without a verified `approvalId` or `policyDecisionId` throws. Look the approval
   up server-side; never trust an ID the caller merely asserts. Test the refusal.
 - Every side effect has an idempotency key (`application:{id}:submit`, `email:{draftId}:send`).
