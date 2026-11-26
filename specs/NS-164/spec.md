@@ -14,8 +14,9 @@ when that change may happen by itself and when it must wait for Paul.
 
 ## Behavior
 1. **`mailStatusChange`** (`packages/domain`, `mail-status.ts`): plain code, no I/O.
-   - **Input:** the message's kind, the application's current status, and how it was linked
-     (`deterministic`, plus `senderVerified` from `matchMail`).
+   - **Input:** the message's kind, the application's current status, and how it was linked:
+     `source` (`match` when `matchMail` linked it, `other` for any other link) and
+     `senderVerified` from `matchMail` (never `isAuthenticatedSender`, which any domain passes).
    - **Target status from the kind:**
      - `confirmation` → `confirmed`;
      - `assessment`, `interview_request`, `scheduling` → `in_process`;
@@ -26,12 +27,15 @@ when that change may happen by itself and when it must wait for Paul.
      status (`nextStatus`). Otherwise there is no change, with a reason (`same`, `not_a_move`).
      A confirmation after `in_process`, for example, changes nothing.
    - **Apply or propose (INB-011):** a change applies by itself only when the link is
-     deterministic and `senderVerified` is true. Otherwise it becomes a proposal for Paul's
-     confirm queue, naming why (`sender_not_verified`).
+     a `match` and `senderVerified` is true. Otherwise it becomes a proposal for Paul's
+     confirm queue, naming why (`link_not_deterministic`, `sender_not_verified`).
 2. **`classifyLinkedMail`** (`packages/inbox`, `triage.ts`): one fetched message in, its
    classification or a reason out. Rules and the model are the same as the backfill (NS-113).
-   - **Verification mail is never classified (INB-012).** It is skipped when its headers match
-     `isVerificationMail` or its body holds a code (`hasVerificationCode`).
+   - **Verification mail is never classified (INB-012), from any sender.** It is skipped when
+     its subject has a verification phrase or its body a code beside a code word (VER-003).
+     - The backfill's checks are ATS-only, but linked mail can come from an employer's own
+       portal or an assessment vendor (from the security review).
+     - A false positive only skips a message.
    - **Rules first,** only for a sender Gmail authenticated (`classifyByRules`).
    - **Otherwise the `mail-classify` route.**
      - A refusal, truncated reply or invalid output goes to `review` with that reason.
@@ -49,9 +53,19 @@ when that change may happen by itself and when it must wait for Paul.
 - [ ] A confirmation after `in_process` changes nothing (`not_a_move`), and a second rejection
       changes nothing either (`same`).
 - [ ] `recruiter_inbound`, `follow_up_needed` and `info_other` never change a status.
-- [ ] Verification mail never reaches the route (a fake gateway counts calls).
+- [ ] Verification mail never reaches the route, from an ATS or any other sender (a fake gateway
+      counts calls).
 - [ ] A model reply naming a company not in the email goes to review (`provenance`).
 - [ ] `pnpm turbo run lint typecheck test build --force` exits 0, and `checks` is green.
+
+## Known gaps
+- **A magic link with no code and no verification subject** still reaches the model, as in the
+  backfill: job mail often carries portal links, so a link alone can't mark verification mail.
+- **An offer before `in_process`** (an offer on a `confirmed` application) changes nothing,
+  because the state machine has no such move. #224 should surface it in the confirm queue rather
+  than only storing the classification.
+- **Two copies of the classification steps.** The backfill keeps its own (`backfill.ts`); a
+  follow-up could make it call `classifyLinkedMail`.
 
 ## Out of scope
 - **The loop:** fetching new mail, linking it, storing the classification, writing the status

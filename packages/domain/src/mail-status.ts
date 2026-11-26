@@ -17,11 +17,12 @@ export type MailKind =
   | "offer"
   | "info_other";
 
-// How the message was tied to the application. deterministic: a tag, an already-linked thread or
-// the application's own company domain picked exactly one application (matchMail's "linked"); a
-// link Paul confirmed from the queue is not. senderVerified: a DMARC or aligned DKIM pass for the
-// application's company or ATS domains (matchMail's senderVerified).
-export type MailLink = { deterministic: boolean; senderVerified: boolean };
+// How the message was tied to the application. source "match": matchMail picked exactly one
+// application by a tag, an already-linked thread or the company's own domain (its "linked"). Any
+// other link (one Paul confirmed from the queue, one a model proposed) is "other". senderVerified:
+// matchMail's senderVerified (a DMARC or aligned DKIM pass for the application's company or ATS
+// domains), never isAuthenticatedSender, which is true for any domain Gmail authenticated.
+export type MailLink = { source: "match" | "other"; senderVerified: boolean };
 
 export type MailStatusChange =
   // Both INB-011 conditions hold: the status moves by itself.
@@ -65,10 +66,11 @@ export function mailStatusChange(input: {
   // Only moves the state machine allows: a late confirmation never pulls an application back
   // from in_process, and nothing moves one that was never submitted.
   if (!nextStatus(input.current, to).ok) return { action: "none", reason: "not_a_move" };
-  // INB-011: a tag or a thread says which application, not who wrote the mail.
-  if (!input.link.deterministic) {
+  // Only a deterministic match proves which application the mail is about.
+  if (input.link.source !== "match") {
     return { action: "propose", to, reason: "link_not_deterministic" };
   }
+  // INB-011: a tag or a thread says which application, not who wrote the mail.
   if (!input.link.senderVerified) return { action: "propose", to, reason: "sender_not_verified" };
   return { action: "apply", to };
 }

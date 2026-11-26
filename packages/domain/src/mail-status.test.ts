@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { type MailLink, mailStatusChange } from "./mail-status.js";
 
-const verified: MailLink = { deterministic: true, senderVerified: true };
-const unverified: MailLink = { deterministic: true, senderVerified: false };
+const verified: MailLink = { source: "match", senderVerified: true };
+const unverified: MailLink = { source: "match", senderVerified: false };
 
 describe("mailStatusChange", () => {
   it("applies a rejection from a verified sender on a deterministic link", () => {
@@ -19,7 +19,7 @@ describe("mailStatusChange", () => {
   });
 
   it("proposes a change when the link isn't deterministic, even from a verified sender", () => {
-    const link: MailLink = { deterministic: false, senderVerified: true };
+    const link: MailLink = { source: "other", senderVerified: true };
     expect(mailStatusChange({ kind: "offer", current: "in_process", link })).toEqual({
       action: "propose",
       to: "offer",

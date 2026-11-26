@@ -5,7 +5,8 @@ import { BODY_LIMIT, type MailClassifyInput } from "./mail-classify-route.js";
 import type { MailClassification } from "./mail-schema.js";
 import { isAuthenticatedSender } from "./prefilter.js";
 import { checkMailProvenance } from "./provenance.js";
-import { hasVerificationCode, isVerificationMail } from "./verify/detect.js";
+import { VERIFICATION_PHRASES } from "./verify/detect.js";
+import { extractVerification } from "./verify/extract.js";
 
 // Classifying one job email that is linked to an application (NS-164, INB-003): the same rules
 // and route as the backfill (NS-113). Its result feeds mailStatusChange (@northstar/domain),
@@ -36,12 +37,14 @@ export async function classifyLinkedMail(
   deps: TriageDeps,
   mail: FullMessage,
 ): Promise<TriageResult> {
-  // By headers first, then by a code in the body: either way nothing reaches the model.
-  if (isVerificationMail(mail) || hasVerificationCode(mail.senderDomain, mail.body)) {
-    return { kind: "skip", reason: "verification" };
-  }
+  // Verification mail from any sender, not only an ATS (the backfill's NS-150 checks are
+  // ATS-only): a linked message can come from an employer's own portal or an assessment vendor.
+  // A false positive only skips a message, which is safer than a code reaching the model.
+  if (isAnyVerificationMail(mail)) return { kind: "skip", reason: "verification" };
   // Rules only for a sender Gmail authenticated: a forged "Thank you for applying" goes to the
-  // model, whose answer the provenance check holds to the email's own words.
+  // model, whose answer the provenance check holds to the email's own words. Any authenticated
+  // domain passes here, so `by: "rules"` is no proof of the sender: only matchMail's
+  // senderVerified may let a status change apply (mailStatusChange).
   const rule = isAuthenticatedSender(mail) ? classifyByRules(mail) : null;
   if (rule !== null) {
     return {
@@ -79,4 +82,11 @@ export async function classifyLinkedMail(
       return { kind: "classified", by: "model", classification: o, stamp };
     }
   }
+}
+
+// A verification subject phrase, or a code beside a code word in the body (VER-003's patterns).
+function isAnyVerificationMail(mail: FullMessage): boolean {
+  const subject = mail.subject.toLowerCase().replace(/\s+/g, " ");
+  if (VERIFICATION_PHRASES.some((phrase) => subject.includes(phrase))) return true;
+  return extractVerification(mail.body, null).codes.length > 0;
 }

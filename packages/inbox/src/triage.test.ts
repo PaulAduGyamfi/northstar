@@ -106,15 +106,23 @@ describe("classifyLinkedMail", () => {
     expect(calls).toEqual([]);
   });
 
-  it("sends a confirmation subject from an unverified sender to the model", async () => {
-    const { deps, calls } = gateway(() => ok({ ...REJECTION, kind: "confirmation" }));
-    await classifyLinkedMail(
+  it("sends a confirmation subject from a forged sender to the model", async () => {
+    // Gmail authenticated another domain, not the one in From: no rule may answer.
+    const confirmation: MailClassification = { ...REJECTION, kind: "confirmation" };
+    const { deps, calls } = gateway(() => ok(confirmation));
+    const result = await classifyLinkedMail(
       deps,
       mail({
         subject: "Thank you for applying for the Platform Engineer role at Globex",
-        authenticationResults: null,
+        authenticationResults: "mx.google.com; dkim=pass header.d=attacker.example.net",
       }),
     );
+    expect(result).toEqual({
+      kind: "classified",
+      by: "model",
+      classification: confirmation,
+      stamp: STAMP,
+    });
     expect(calls).toHaveLength(1);
   });
 
@@ -137,6 +145,27 @@ describe("classifyLinkedMail", () => {
     expect(calls).toEqual([]);
   });
 
+  it("never sends verification mail from a non-ATS sender to the model", async () => {
+    const { deps, calls } = gateway(() => ok(REJECTION));
+    const byBody = mail({
+      subject: "Your Globex careers sign-up",
+      body: "Your verification code is 482913.",
+    });
+    const bySubject = mail({
+      subject: "Globex: your one-time code",
+      body: "Use it within 10 minutes.",
+    });
+    expect(await classifyLinkedMail(deps, byBody)).toEqual({
+      kind: "skip",
+      reason: "verification",
+    });
+    expect(await classifyLinkedMail(deps, bySubject)).toEqual({
+      kind: "skip",
+      reason: "verification",
+    });
+    expect(calls).toEqual([]);
+  });
+
   it("sends a reply naming a company not in the email to review", async () => {
     const { deps } = gateway(() => ok({ ...REJECTION, company: "Initech" }));
     expect(await classifyLinkedMail(deps, mail())).toEqual({
@@ -147,10 +176,12 @@ describe("classifyLinkedMail", () => {
   });
 
   it("checks names only against the part of the body the model saw", async () => {
-    // The employer appears only after the cut at BODY_LIMIT (6,000 characters).
-    const body = `${"x ".repeat(3_100)}Globex`;
+    // The employer and role appear only after the cut at BODY_LIMIT (6,000 characters), and
+    // nowhere in From or the subject.
+    const body = `${"x ".repeat(3_100)}The Platform Engineer role at Globex is filled.`;
     const { deps } = gateway(() => ok(REJECTION));
-    expect(await classifyLinkedMail(deps, mail({ body, subject: "Update" }))).toEqual({
+    const cut = mail({ body, subject: "Update", from: "Recruiting <jobs@example.com>" });
+    expect(await classifyLinkedMail(deps, cut)).toEqual({
       kind: "review",
       reason: "provenance",
       stamp: STAMP,
