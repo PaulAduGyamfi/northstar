@@ -199,7 +199,7 @@ describe("verification mail (VER-005)", () => {
       From: "Acme Careers via Workday",
       Subject: subject,
       ...(verified
-        ? { "Authentication-Results": "mx.example; dkim=pass header.d=myworkday.com" }
+        ? { "Authentication-Results": "mx.google.com; dkim=pass header.d=myworkday.com" }
         : {}),
     },
     text: "Your verification code is 482913.",

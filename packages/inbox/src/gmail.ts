@@ -1,6 +1,7 @@
 import { admit, type CallGuard, type GuardOutcome } from "@northstar/llm";
 import { type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 import type { GmailAccess } from "./oauth.js";
+import { GMAIL_AUTHSERV } from "./prefilter.js";
 
 // A small read-only Gmail REST client (ADR-0014): list ids, get headers, get the body. Plain
 // fetch, no SDK. Retries 429, 5xx and rate-limit 403s with backoff (ADR-0007; Google sends quota
@@ -226,16 +227,15 @@ export function createGmailClient(deps: GmailDeps): GmailClient {
   };
 }
 
-// Gmail's own Authentication-Results header (authserv-id mx.google.com), not just the first one.
-// Gmail adds its header above everything the sender wrote, so the first mx.google.com match is
-// Gmail's, and a forged one (with that authserv-id or another) below it is never read. A message
-// with no Google header reads the first one, as before (see #205).
-const GOOGLE_AUTHSERV = /^\s*mx\.google\.com\s*;/i;
+// Gmail's own Authentication-Results header (authserv-id mx.google.com) and no other. Gmail adds
+// its header above everything the sender wrote, so the first mx.google.com match is Gmail's, and a
+// forged one (with that authserv-id or another) below it is never read. A message with no Google
+// header has no results at all: its sender is unverified (NS-217).
 function authenticationResults(m: GmailMessage): string | null {
   const all = (m.payload?.headers ?? [])
     .filter((h) => h.name.toLowerCase() === "authentication-results")
     .map((h) => h.value);
-  return all.find((v) => GOOGLE_AUTHSERV.test(v)) ?? all[0] ?? null;
+  return all.find((v) => GMAIL_AUTHSERV.test(v)) ?? null;
 }
 
 // Gmail's own Delivered-To (INB-011, NS-188): on mail Gmail received, it adds one at the top,

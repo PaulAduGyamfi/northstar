@@ -365,7 +365,7 @@ export function mailbox(): { messages: FakeMessage[]; answers: Map<string, MailC
         Date: s.at,
         // Company mail passes DMARC; the newsletters and the stray sender carry no verdict.
         ...(verified
-          ? { "Authentication-Results": `mx.example; dmarc=pass header.from=${verified}` }
+          ? { "Authentication-Results": `mx.google.com; dmarc=pass header.from=${verified}` }
           : {}),
       },
       text: s.body,
