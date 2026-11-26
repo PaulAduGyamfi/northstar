@@ -153,6 +153,8 @@ export {
   readFeedAfter,
   readFeedNames,
 } from "./feed-read.js";
+// Files an application sends, by SHA-256 (NS-227): read only; tailor-write.ts stores them.
+export { readStoredFile } from "./file-write.js";
 export * as fitSchema from "./fit-schema.js";
 export {
   FIT_METHODS,

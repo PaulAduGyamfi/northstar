@@ -69,6 +69,18 @@ describe("tailorForJob", () => {
     expect(last?.skills.some((s) => s.name === "Terraform")).toBe(false);
   });
 
+  it("saves the PDF it scored, the one rendered after the toggles (NS-227)", async () => {
+    const { deps, saved } = fake();
+    const render = vi.mocked(renderResumePdf);
+    render.mockClear();
+    await tailorForJob(deps, JOB_ID, ["Terraform"]);
+    const last = await render.mock.results.at(-1)?.value;
+    expect([saved[0]?.pdf === last?.bytes, saved[0]?.pdf.byteLength ?? 0]).toEqual([
+      true,
+      last?.bytes.byteLength,
+    ]);
+  });
+
   it("counts a skill dropped twice in different case once", async () => {
     const { deps, saved } = fake();
     await tailorForJob(deps, JOB_ID, ["Terraform", "terraform"]);
