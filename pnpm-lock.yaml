@@ -32,6 +32,9 @@ importers:
       '@northstar/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@northstar/gateways':
+        specifier: workspace:*
+        version: link:../../packages/gateways
       '@northstar/llm':
         specifier: workspace:*
         version: link:../../packages/llm

@@ -21,6 +21,8 @@ import { keyMatches, type Sessions } from "./sessions.js";
 
 // How long a challenge may be answered, and how many may wait at once (oldest dropped first).
 export const CHALLENGE_TTL_MS = 5 * 60_000;
+// A reveal must follow a fresh check (NS-230, ADR-0024): its challenge lives a minute only.
+export const REVEAL_CHALLENGE_TTL_MS = 60_000;
 const MAX_CHALLENGES = 64;
 // COSE algorithms accepted: ES256, EdDSA, RS256 (what platform and security-key passkeys use).
 const ALGORITHMS = [-7, -8, -257];
@@ -39,7 +41,13 @@ export type PasskeyStore = {
   ) => Promise<DomainResult<void, { kind: "SignCountNotIncreased" } | { kind: "NotFound" }>>;
 };
 
-type Ceremony = "register" | "sign-in";
+type Ceremony = "register" | "sign-in" | "reveal";
+
+const TTL_MS: Record<Ceremony, number> = {
+  register: CHALLENGE_TTL_MS,
+  "sign-in": CHALLENGE_TTL_MS,
+  reveal: REVEAL_CHALLENGE_TTL_MS,
+};
 
 // Challenges in memory, each answerable once within its time (ADR-0022): a replayed response
 // finds its challenge gone. A restart forgets them, which only means asking again. One store per
@@ -49,6 +57,7 @@ export function createChallenges(now: () => number) {
   const stores: Record<Ceremony, Map<string, number>> = {
     register: new Map(),
     "sign-in": new Map(),
+    reveal: new Map(),
   };
   return {
     // Raw bytes for the library (a string it would encode again); kept by their base64url form,
@@ -61,7 +70,7 @@ export function createChallenges(now: () => number) {
         const oldest = live.keys().next().value;
         if (oldest !== undefined) live.delete(oldest);
       }
-      live.set(challenge, now() + CHALLENGE_TTL_MS);
+      live.set(challenge, now() + TTL_MS[ceremony]);
       return bytes;
     },
     consume(ceremony: Ceremony, challenge: string): boolean {
@@ -93,8 +102,8 @@ const RegistrationJson = z.object({
   clientExtensionResults: z.record(z.string(), z.unknown()),
 });
 
-// The sign-in form.
-const AuthenticationJson = z.object({
+// The sign-in form (also a reveal's fresh check, NS-230).
+export const AuthenticationJson = z.object({
   id: B64U,
   rawId: B64U,
   type: z.literal("public-key"),
@@ -114,6 +123,77 @@ const asJson = (options: object): Record<string, unknown> =>
   Object.fromEntries(Object.entries(options));
 const Me = z.object({ user: z.literal("paul") });
 
+export type AssertionJson = z.infer<typeof AuthenticationJson>;
+
+// Checks one assertion against a stored passkey for a ceremony, and records its new sign count.
+// Returns null when it passes, or the refusal's reason (a code for the span, never the response's
+// contents). Used by sign-in and by a reveal's fresh check.
+function assertionChecker(deps: {
+  config: ApiConfig;
+  store: PasskeyStore;
+  challenges: ReturnType<typeof createChallenges>;
+}) {
+  const rpID = new URL(deps.config.webOrigin).hostname;
+  return async (ceremony: Ceremony, response: AssertionJson): Promise<string | null> => {
+    const stored = await deps.store.read(response.id);
+    if (!stored) return "unknown_passkey";
+    let newCounter: number;
+    try {
+      const verified = await verifyAuthenticationResponse({
+        response,
+        expectedChallenge: (c) => deps.challenges.consume(ceremony, c),
+        expectedOrigin: deps.config.webOrigin,
+        expectedRPID: rpID,
+        credential: {
+          id: stored.credentialId,
+          publicKey: new Uint8Array(stored.publicKey),
+          counter: stored.signCount,
+          transports: stored.transports,
+        },
+        requireUserVerification: true,
+      });
+      if (!verified.verified) return "passkey_refused";
+      newCounter = verified.authenticationInfo.newCounter;
+    } catch {
+      // A replay, a wrong origin, a bad signature, a stale challenge or a count that went backwards.
+      return "passkey_refused";
+    }
+    // Stored before the caller acts, so two racing uses of one count can't both win.
+    const used = await deps.store.recordUse(stored.passkeyId, newCounter);
+    return used.ok ? null : "sign_count";
+  };
+}
+
+// A fresh passkey check for a reveal (NS-230): its own single-use challenges, a minute each, so a
+// sign-in challenge (or an old one) can't stand in for it.
+export type PasskeyAssertion = {
+  options: () => Promise<Record<string, unknown>>;
+  // null when the assertion passes, else the refusal's reason code.
+  verify: (response: AssertionJson) => Promise<string | null>;
+};
+
+export function passkeyAssertion(deps: {
+  config: ApiConfig;
+  store: PasskeyStore;
+  now: () => number;
+}): PasskeyAssertion {
+  const challenges = createChallenges(deps.now);
+  const check = assertionChecker({ config: deps.config, store: deps.store, challenges });
+  const rpID = new URL(deps.config.webOrigin).hostname;
+  return {
+    options: async () =>
+      asJson(
+        await generateAuthenticationOptions({
+          rpID,
+          challenge: challenges.issue("reveal"),
+          userVerification: "required",
+          timeout: REVEAL_CHALLENGE_TTL_MS,
+        }),
+      ),
+    verify: (response) => check("reveal", response),
+  };
+}
+
 export function passkeyEndpoints(deps: {
   config: ApiConfig;
   sessions: Sessions;
@@ -122,6 +202,7 @@ export function passkeyEndpoints(deps: {
 }): AnyEndpoint[] {
   const { config, sessions, store } = deps;
   const challenges = createChallenges(deps.now);
+  const check = assertionChecker({ config, store, challenges });
   // The passkey's scope is the web app's own host name (ADR-0018 item 4), and the browser must
   // report that exact origin.
   const rpID = new URL(config.webOrigin).hostname;
@@ -236,32 +317,8 @@ export function passkeyEndpoints(deps: {
         span.setAttribute("northstar.auth.outcome", why);
         return { ok: false as const, status: 401 as const, error: "passkey_refused" };
       };
-      const stored = await store.read(response.id);
-      if (!stored) return refuse("unknown_passkey");
-      let newCounter: number;
-      try {
-        const verified = await verifyAuthenticationResponse({
-          response,
-          expectedChallenge: (c) => challenges.consume("sign-in", c),
-          expectedOrigin,
-          expectedRPID: rpID,
-          credential: {
-            id: stored.credentialId,
-            publicKey: new Uint8Array(stored.publicKey),
-            counter: stored.signCount,
-            transports: stored.transports,
-          },
-          requireUserVerification: true,
-        });
-        if (!verified.verified) return refuse("passkey_refused");
-        newCounter = verified.authenticationInfo.newCounter;
-      } catch {
-        // A replay, a wrong origin, a bad signature or a count that went backwards.
-        return refuse("passkey_refused");
-      }
-      // Stored before the session opens, so two racing sign-ins with one count can't both win.
-      const used = await store.recordUse(stored.passkeyId, newCounter);
-      if (!used.ok) return refuse("sign_count");
+      const refused = await check("sign-in", response);
+      if (refused !== null) return refuse(refused);
       const { token } = sessions.open();
       span.setAttribute("northstar.auth.outcome", "ok");
       span.setAttribute("northstar.auth.method", "passkey");
