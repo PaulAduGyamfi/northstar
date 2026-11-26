@@ -44,9 +44,20 @@ export type HostNotAllowed = { kind: "HostNotAllowed" };
 // Gate's refusal kind (NotFound, Rejected, Undone, UndoWindowOpen, SubjectMismatch, ContentChanged,
 // Withdrawn). On ContentChanged the gateway has already asked the Gate to withdraw (NS-211).
 export class NotApprovedError extends Error {
-  constructor(readonly reason: string) {
+  // When to call again (NS-234): set only when a ContentChanged withdrawal was refused because the
+  // approval's undo window is still open, to the window's end. A private field behind a getter, so
+  // the error's own fields (and equality on it) stay `reason` and the message.
+  readonly #retryAt: Date | null;
+  constructor(
+    readonly reason: string,
+    retryAt: Date | null = null,
+  ) {
     super(`not approved: ${reason}`);
     this.name = "NotApprovedError";
+    this.#retryAt = retryAt;
+  }
+  get retryAt(): Date | null {
+    return this.#retryAt;
   }
 }
 export type FileChanged = { kind: "FileChanged"; file: "resume" | "coverLetter" };
@@ -123,20 +134,22 @@ export async function submitApplication(
 // hash to the Gate. Nothing is claimed yet, so no ledger row: a needs_human row here would make
 // the resubmission under the new approval replay as needs_human forever. The visible item is the
 // Gate's approval.withdrawn feed line and the NotApprovedError the caller still gets. A refusal
-// (not found, not approved, undo window open, already closed) is recorded on the span only.
+// (not found, not approved, undo window open, already closed) is recorded on the span. For an
+// open undo window it also returns the window's end (NS-234): the approval is still Paul's to undo
+// until then, so the caller comes back after it and the withdrawal goes through.
 async function withdrawChanged(
   ports: ApplyPorts,
   input: SubmitInput,
   newContentSha256: string,
   span: Span,
-): Promise<void> {
+): Promise<Date | null> {
   const found = await ports.requestOfDecision({
     candidateId: input.candidateId,
     decisionId: input.decisionId,
   });
   if (!found.ok) {
     span.setAttribute("northstar.apply.withdraw", found.error.kind);
-    return;
+    return null;
   }
   const withdrawn = await ports.withdrawApproval({
     candidateId: input.candidateId,
@@ -145,6 +158,9 @@ async function withdrawChanged(
     newContentSha256,
   });
   span.setAttribute("northstar.apply.withdraw", withdrawn.ok ? "withdrawn" : withdrawn.error.kind);
+  return !withdrawn.ok && withdrawn.error.kind === "UndoWindowOpen"
+    ? withdrawn.error.effectiveAt
+    : null;
 }
 
 async function submit(
@@ -179,7 +195,8 @@ async function submit(
     // package hash differs); every other refusal, and the transient FileChanged below, withdraws
     // nothing.
     if (verified.error.kind === "ContentChanged") {
-      await withdrawChanged(ports, input, packageSha256(pkg), span);
+      const retryAt = await withdrawChanged(ports, input, packageSha256(pkg), span);
+      throw new NotApprovedError("ContentChanged", retryAt);
     }
     throw new NotApprovedError(verified.error.kind);
   }

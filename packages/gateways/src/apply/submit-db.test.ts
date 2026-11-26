@@ -331,6 +331,38 @@ describe("an approval whose package changed, on the real write paths (NS-211)", 
     ]);
   });
 
+  it("says when to come back when the edit lands inside the undo window, then withdraws after it (NS-234)", async () => {
+    const decisionId = await approve(false);
+    const first = await submitApplication(ports(), {
+      candidateId,
+      decisionId,
+      package: editedPackage(),
+    }).catch((e: unknown) => e);
+    expect(first).toBeInstanceOf(NotApprovedError);
+    const retryAt = (first as NotApprovedError).retryAt;
+    expect(retryAt?.getTime()).toBe(after(UNDO_WINDOW_MS).getTime());
+    // After the window, the same call withdraws the approval and has nothing left to wait for.
+    await setGateClock(db, after(UNDO_WINDOW_MS + 1_000));
+    const second = await submitApplication(ports(), {
+      candidateId,
+      decisionId,
+      package: editedPackage(),
+    }).catch((e: unknown) => e);
+    expect(second).toEqual(new NotApprovedError("ContentChanged"));
+    expect((second as NotApprovedError).retryAt).toBeNull();
+    expect([(await withdrawnEvents()).length, await ledger()]).toEqual([1, []]);
+  });
+
+  it("gives no time to come back once the approval is withdrawn", async () => {
+    const decisionId = await approve();
+    const error = await submitApplication(ports(), {
+      candidateId,
+      decisionId,
+      package: editedPackage(),
+    }).catch((e: unknown) => e);
+    expect((error as NotApprovedError).retryAt).toBeNull();
+  });
+
   it("withdraws nothing when only the stored resume bytes changed", async () => {
     const decisionId = await approve();
     const result = await submitApplication(

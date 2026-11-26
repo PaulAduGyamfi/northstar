@@ -515,7 +515,10 @@ Exists now:
   approval (`requestOfDecision`, then `withdrawApproval` by `gateway` with the new package hash),
   then still throws `NotApprovedError("ContentChanged")`, so the subject can be requested again.
   The gateway's own `FileChanged` withdraws nothing, and no ledger row is written: the visible
-  item is the `approval.withdrawn` feed line; a refused withdrawal is on the span only.
+  item is the `approval.withdrawn` feed line; a refused withdrawal is on the span. Since NS-234 a
+  withdrawal refused because the approval's undo window is still open also sets
+  `NotApprovedError.retryAt` to the window's end, and the worker's activity turns it into a dated
+  `UndoWindowOpen` wait, so the next call after the window withdraws it.
   Since NS-121 a challenge (`captcha`, `login`, `mfa`, `account`) also opens a human handoff:
   `recordNeedsHuman` stores `apply_handoff` (the apply URL, https only) in the same transaction,
   `listOpenHandoffs` and `resolveHandoff` (`handoff-write.ts`, append-only) serve the API's
