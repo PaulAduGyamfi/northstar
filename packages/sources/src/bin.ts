@@ -31,6 +31,7 @@ import {
   savePreferences,
   setJobField,
   soleCandidate,
+  withdrawClosedApplications,
 } from "@northstar/db";
 import {
   createAnthropicClient,
@@ -157,6 +158,7 @@ try {
               }),
             record: (job, outcome) =>
               recordPostingCheck(db, { candidateId, jobId: job.jobId, ats: job.ats, outcome }),
+            withdrawClosed: () => withdrawClosedApplications(db, candidateId),
           },
         },
         new Date(),

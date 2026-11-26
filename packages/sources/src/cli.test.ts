@@ -44,6 +44,8 @@ function deps(argv: string[], result?: IngestResult | Error) {
       unavailable: 0,
       heldBack: 0,
       unchecked: 0,
+      withdrawn: 0,
+      withdrawFailed: 0,
     }),
   };
   return { d, printed, calls };
@@ -59,12 +61,46 @@ describe("jobs check (NS-173)", () => {
       unavailable: 1,
       heldBack: 2,
       unchecked: 1,
+      withdrawn: 0,
+      withdrawFailed: 0,
     });
     expect([await main(d), printed]).toEqual([
       0,
       [
         "Checked 3 postings: 1 open, 1 closed, 1 couldn't be reached, 2 held back by a switch or breaker, 1 with no API to ask",
       ],
+    ]);
+  });
+});
+
+describe("jobs check after closed postings (NS-218)", () => {
+  const pass = {
+    checked: 1,
+    open: 0,
+    closed: 1,
+    unavailable: 0,
+    heldBack: 0,
+    unchecked: 0,
+  };
+
+  it("says how many applications left the pipeline, and how many will be tried again", async () => {
+    const { d, printed } = deps(["check"]);
+    d.check = async () => ({ ...pass, withdrawn: 2, withdrawFailed: 1 });
+    expect([await main(d), printed.slice(1)]).toEqual([
+      0,
+      [
+        "2 applications left the pipeline: their job postings closed.",
+        "1 application couldn't be moved; the next pass tries again.",
+      ],
+    ]);
+  });
+
+  it("says so when the withdrawal step couldn't run", async () => {
+    const { d, printed } = deps(["check"]);
+    d.check = async () => ({ ...pass, withdrawn: null, withdrawFailed: 0 });
+    await main(d);
+    expect(printed.slice(1)).toEqual([
+      "Couldn't withdraw applications for closed postings; the next pass tries again.",
     ]);
   });
 });

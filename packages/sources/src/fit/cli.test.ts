@@ -55,6 +55,8 @@ function deps(argv: string[]) {
       unavailable: 0,
       heldBack: 0,
       unchecked: 0,
+      withdrawn: 0,
+      withdrawFailed: 0,
     }),
     fit: {
       ...noFit(),

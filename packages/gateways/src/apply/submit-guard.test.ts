@@ -109,6 +109,15 @@ describe("held back before anything is claimed", () => {
     ]).toEqual(["HeldBack", "guard_error", "Error"]);
   });
 
+  it("refuses a closed posting before the switches, the claim or the browser (NS-218)", async () => {
+    const world = fakeWorld({ open: form, submit: confirmed, postingClosed: true });
+    expect([await run(world), untouched(world), world.checks]).toEqual([
+      { ok: false, error: { kind: "PostingClosed" } },
+      [0, "awaiting_approval", 0, 0],
+      [],
+    ]);
+  });
+
   it("asks auto_apply, then the adapter's switch, then the ATS's breaker", async () => {
     const world = fakeWorld({ open: form, submit: confirmed });
     await run(world);

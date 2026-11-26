@@ -30,6 +30,7 @@ describe("decide", () => {
     "PostingMismatch",
     "FileChanged",
     "DuplicateRequisition",
+    "PostingClosed",
   ] as const)("stops for good on %s", (refusal) => {
     expect(decide(refused(refusal), 0)).toEqual({
       kind: "finish",

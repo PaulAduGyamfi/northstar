@@ -38,6 +38,9 @@ export type TransitionInput = {
   // How it went out (INB-007): required for a move to `submitted`, and stored in that move's
   // event, so the origin is written in the same transaction as the move. Ignored otherwise.
   submittedVia?: SubmittedVia;
+  // A fixed code for why the move happened (NS-218: `posting_closed`), stored in the event's
+  // payload so the feed can say so. Never free text: no title, company or URL.
+  reasonCode?: string;
   // Injected clock for tests; defaults to the current time.
   now?: Date;
 };
@@ -127,6 +130,7 @@ async function transition(
       from: input.from,
       to: input.to,
       ...(submitted ? { submittedVia: input.submittedVia } : {}),
+      ...(input.reasonCode === undefined ? {} : { reasonCode: input.reasonCode }),
     },
     links: input.links,
     // A no-op tracer (OpenTelemetry not set up) has an all-zero context: store null instead.
@@ -196,7 +200,9 @@ async function findReplay(tx: Tx, event: DomainEvent): Promise<TransitionResult 
     row.type === event.type &&
     row.payload.from === event.payload.from &&
     // A repeat must say the same about how it went out (INB-007).
-    row.payload.submittedVia === event.payload.submittedVia;
+    row.payload.submittedVia === event.payload.submittedVia &&
+    // And the same about why (NS-218).
+    row.payload.reasonCode === event.payload.reasonCode;
   if (!sameMove) {
     throw new Rollback({ kind: "IdempotencyKeyReused", idempotencyKey: event.idempotencyKey });
   }

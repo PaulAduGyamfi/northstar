@@ -325,8 +325,12 @@ Exists now:
   `source:<ats>` switch and breaker (only a 5xx, 429 or failed fetch counts against it), into
   append-only `posting_check` (`packages/db`, `liveness-write.ts`). A job closes only after two
   closed answers in a row (`job.closed`; `job.reopened` when it answers open again) and then
-  leaves scoring; `jobs list` still shows it. EU Lever links aren't checked. Applications and the
-  Apply Gateway don't act on it yet (#209).
+  leaves scoring; `jobs list` still shows it. EU Lever links aren't checked. Since NS-218 every
+  `jobs check` pass then runs `withdrawClosedApplications` (`packages/db`): a closed job's
+  application that hasn't gone out (`discovered` … `awaiting_approval`) moves to `withdrawn` with
+  `reasonCode: "posting_closed"` (feed "Application withdrawn: the job's posting closed"), and
+  the Apply Gateway refuses a closed posting (`PostingClosed`, via `isPostingClosed`) before it
+  claims.
   Since NS-163 also fresh-job alerts (`alerts.ts`, SRC-015, plain code): after every scoring
   pass, a job whose latest score is in the queue band and that is under an hour old gets one
   `job.fresh_alert` event, its feed line "Posted 12 min ago · Fit 88 · ready to approve". Inside

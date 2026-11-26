@@ -52,6 +52,9 @@ export class NotApprovedError extends Error {
 export type FileChanged = { kind: "FileChanged"; file: "resume" | "coverLetter" };
 // The package's posting id isn't the one in its apply URL.
 export type PostingMismatch = { kind: "PostingMismatch" };
+// The job's posting has closed (NS-218, SRC-010): nothing is claimed or moved, and a later call
+// refuses the same way. The liveness pass withdraws the application.
+export type PostingClosed = { kind: "PostingClosed" };
 // An earlier run holds the claim and may still be in the browser: try again later.
 export type InProgress = { kind: "InProgress" };
 // A kill switch or the ATS's breaker held the submission back before anything was claimed
@@ -70,6 +73,7 @@ export type SubmitRefusal =
   | FileChanged
   | InProgress
   | HeldBack
+  | PostingClosed
   | { kind: "DuplicateRequisition" }
   | { kind: "AtsBusy" }
   | { kind: "Paced"; retryAt: Date }
@@ -193,7 +197,13 @@ async function submit(
     }
   }
 
-  // 3. The kill switches and the ATS's breaker, now (RES-002, RES-008): held back, nothing is
+  // 3. The posting, now (NS-218): never submit to a job whose posting closed. Before the switches
+  // and the claim, so a closed posting leaves no claim and no needs_human behind.
+  if (await ports.isPostingClosed(input.candidateId, pkg.applicationId)) {
+    return err({ kind: "PostingClosed" });
+  }
+
+  // 4. The kill switches and the ATS's breaker, now (RES-002, RES-008): held back, nothing is
   // claimed or moved and the browser never opens, so a later call simply tries again.
   const dependency = atsDependency(pkg.ats);
   const admitted = await admit(ports, input.candidateId, pkg.ats, span);
@@ -212,7 +222,7 @@ async function submit(
     }
   };
 
-  // 4. Claim it once.
+  // 5. Claim it once.
   const claim = await ports.claimSubmission({
     candidateId: input.candidateId,
     applicationId: pkg.applicationId,
@@ -284,18 +294,18 @@ async function submit(
     });
   }
 
-  // 5. Only an application awaiting approval may go out.
+  // 6. Only an application awaiting approval may go out.
   const started = await move("awaiting_approval", "submitting");
   if (!started.ok) return handOff("status_conflict", null);
 
-  // 6. The browser: one session, closed whatever happens. Only the ATS's own trouble (a step
+  // 7. The browser: one session, closed whatever happens. Only the ATS's own trouble (a step
   // timeout) counts against its breaker; a page it served is it working; a browser crash isn't
   // its fault and isn't reported.
   const driven = await drive(ports.openDriver(), adapter, pkg, resume, coverLetter);
   if (driven.ats !== "unknown") await report(driven.ats);
   if (driven.kind === "handoff") return handOff(driven.reason, "submitting");
 
-  // 7. Proof, then the status. Only this run holds a live claim (a replay leaves it alone until
+  // 8. Proof, then the status. Only this run holds a live claim (a replay leaves it alone until
   // it is stale), so the ledger refusing here means the invariant broke.
   const recorded = await ports.recordSubmitted(input.candidateId, id, {
     confirmationHtml: driven.page.html,

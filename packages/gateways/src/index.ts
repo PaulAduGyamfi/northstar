@@ -14,6 +14,7 @@ export {
   type InProgress,
   NotApprovedError,
   OPEN_TIMEOUT_MS,
+  type PostingClosed,
   type PostingMismatch,
   SUBMIT_TIMEOUT_MS,
   type SubmitInput,
