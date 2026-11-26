@@ -222,6 +222,15 @@ export {
   resolveHandoff,
 } from "./handoff-write.js";
 export { readSystemHealth } from "./health-read.js";
+// The unified job inbox's read (NS-165).
+export {
+  type Inbox,
+  type InboxApplication,
+  type InboxThread,
+  MAX_INBOX_THREADS,
+  type QueuedThread,
+  readInboxThreads,
+} from "./inbox-read.js";
 export * as independentWorkSchema from "./independent-work-schema.js";
 export {
   type IndependentWorkInput,
