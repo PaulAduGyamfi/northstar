@@ -15,6 +15,7 @@ import {
 import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
 import { type AuditCliDeps, auditCommand } from "./audit-cli.js";
 import { type Claim, checkEmploymentFacts, type Mismatch, parseOfficialRecord } from "./facts.js";
+import { type GrowthCliDeps, growthCommand } from "./growth-cli.js";
 import type { ImportResult } from "./import.js";
 import type { InterviewOutcome } from "./interview.js";
 import { describeLinkedinProblem, type LinkedinFiles, parseLinkedinExport } from "./linkedin.js";
@@ -62,7 +63,8 @@ export type CliDeps = {
 } & SettingsDeps &
   TailorCliDeps &
   AuditCliDeps &
-  WorkCliDeps;
+  WorkCliDeps &
+  GrowthCliDeps;
 
 const USAGE =
   'usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check | profile thesis draft | profile thesis set "<text>" --atoms <id,id> | profile thesis show | profile import-linkedin <folder>';
@@ -136,6 +138,8 @@ export async function main(deps: CliDeps): Promise<number> {
   if (command === "audit") return auditCommand(deps, deps.argv.slice(1));
   // Independent work since the last role (NS-196): its own usage line, like audit's.
   if (command === "work") return workCommand(deps, deps.argv.slice(1));
+  // Growth tracks, touches, settings and the week's plan (NS-210).
+  if (command === "growth") return growthCommand(deps, deps.argv.slice(1));
   deps.print(command === "settings" || command === "answer" ? SETTINGS_USAGE : USAGE);
   return 1;
 }

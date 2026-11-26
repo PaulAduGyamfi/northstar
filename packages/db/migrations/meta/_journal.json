@@ -428,6 +428,20 @@
       "when": 1795688170083,
       "tag": "0060_profile_source_site",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1795689704136,
+      "tag": "0061_growth",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1795689705586,
+      "tag": "0062_growth_append_only",
+      "breakpoints": true
     }
   ]
 }

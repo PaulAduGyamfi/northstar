@@ -155,6 +155,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   written only through `independent-work-write.ts`; the newest version is current and the same
   content stores nothing. Titles, lines and links are Paul's words: `independent_work.set`
   carries the version and counts only.
+- Growth (NS-210, GRW-001…004) is `growth_track_set` and `growth_track` (a version per tracks
+  file), `growth_touch`, `growth_settings` (newest wins) and `growth_plan` (one per Monday-start
+  week), append-only (triggers), written only through `growth-write.ts`. Track keys, names and
+  next actions are Paul's words: `growth.tracks_set`, `growth.touched` and `growth.planned` carry
+  versions, counts, row ids and the week only.
 - Mail tags and links (NS-158) are `mail_tag` (one tag per application or tenant, never reused)
   and `mail_link` (one decision per Gmail message: linked by a step, or queued with a reason),
   append-only, written only through `mail-link-write.ts`. They hold Gmail ids, tags, steps and

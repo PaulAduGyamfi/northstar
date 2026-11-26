@@ -68,6 +68,13 @@ function deps(
     rejectSuggestion: async () => ({ kind: "refused", reason: "NoAudit" }),
     setIndependentWork: async () => ({ status: "set", version: 1, entries: 0, lines: 0 }),
     readIndependentWork: async () => null,
+    now: () => new Date("2026-11-26T12:00:00Z"),
+    setGrowthTracks: async () => ({ status: "set", version: 1, tracks: 0 }),
+    readGrowthTracks: async () => null,
+    recordGrowthTouch: async () => ({ ok: true }),
+    readGrowthSettings: async () => null,
+    setGrowthSettings: async () => {},
+    saveWeekPlan: async (input) => ({ ...input, status: "planned" }),
   };
   return { d, printed, interviewedAtoms };
 }
