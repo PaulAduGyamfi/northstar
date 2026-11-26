@@ -2,7 +2,8 @@
 
 Status: accepted (autonomous lane, ADR-0016), in slices
 Requirements: RES-005, RES-009 · ADR-0007
-Rules that apply: `.claude/rules/llm.md`, `.claude/rules/db.md`, `.claude/rules/tests.md`
+Rules that apply: ADR-0021 (slice 2), `.claude/rules/llm.md`, `.claude/rules/db.md`,
+`.claude/rules/tests.md`
 Parent: #87 (NS-147)
 
 ## Why
@@ -43,5 +44,26 @@ Gaps closed:
 - [ ] The SDK client options carry the default timeout; the Postgres pool carries its limits.
 - [ ] The extension's and the web app's requests carry an abort signal with their limit.
 
+## Slice 2: LLM spend cap (RES-009, ADR-0021)
+1. `Route.priority` (`fresh` / `normal` default / `low`); `job-extract`, `job-match` and
+   `verification-extract` are `fresh`, `mail-classify` is `low`.
+2. `loadLlmBudget` (`packages/llm`): `LLM_DAILY_CAP_USD`, `LLM_MONTHLY_CAP_USD`, optional
+   positive numbers; documented in the example settings file.
+3. `budgetHold(spent, caps, priority)` (plain code): held back at 80 % (low), 100 % (normal) or
+   125 % (fresh) of either cap.
+4. `createLlmGateway({ budget: { caps, meter } })`: checks before the kill switch and breaker
+   (`HeldBack` by `budget`, retryable, never reported to a breaker), records each reply's cost;
+   a meter that throws holds the call back; a failed record is noted on the span.
+5. `llm_spend` (`packages/db`, append-only, one migration and its trigger), `recordLlmSpend`,
+   `readLlmSpend` (UTC today and this month).
+6. The funnel, profile and sources CLIs and the API wire a meter on the stored spend.
+
+### Acceptance criteria (slice 2)
+- [ ] Under the caps every route runs; at 80 % a low route is held back, a normal one runs; at
+      100 % normal is held back, fresh runs; at 125 % fresh is held back too.
+- [ ] A held-back call never reaches the API or a breaker; a meter that throws holds it back.
+- [ ] Each reply's cost is recorded; spend sums by UTC day and month; the table is append-only.
+- [ ] No cap set: nothing is held back.
+
 ## Out of scope
-Slices 2 and 3 (above).
+Slice 3 (above).

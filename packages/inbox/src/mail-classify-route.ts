@@ -30,6 +30,8 @@ export function mailClassifyRoute(): Route<MailClassifyInput, MailClassification
     effort: "low",
     maxTokens: 1_000,
     timeoutMs: 60_000,
+    // Bulk backfill work that can wait a day: the first to pause at the spend cap (ADR-0021).
+    priority: "low",
     output: MailClassification,
     render: (input) => ({ stable: [], volatile: untrustedBlock("email", renderEmail(input)) }),
   };

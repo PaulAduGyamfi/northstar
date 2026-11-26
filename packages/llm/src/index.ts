@@ -1,5 +1,15 @@
 // Public entry of @northstar/llm: the only package that talks to Claude (ADR-0006, ADR-0013).
 export { anthropicClientOptions, createAnthropicClient } from "./anthropic-client.js";
+// The LLM spend cap (NS-176, ADR-0021).
+export {
+  budgetHold,
+  HOLD_AT,
+  type LlmBudget,
+  loadLlmBudget,
+  type RoutePriority,
+  type SpendMeter,
+  type Spent,
+} from "./budget.js";
 export type { MessagesClient } from "./client.js";
 export { type LlmConfig, loadLlmConfig } from "./config.js";
 export { LlmTransportError } from "./errors.js";

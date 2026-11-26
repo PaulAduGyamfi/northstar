@@ -20,7 +20,8 @@ export type CallGuard = {
   report: (dependency: string, outcome: GuardOutcome, probeToken: string | null) => Promise<void>;
 };
 
-export type HeldBy = "kill_switch" | "breaker" | "guard_error";
+// `budget` (NS-176, ADR-0021): the LLM spend cap holds this route's priority back.
+export type HeldBy = "kill_switch" | "breaker" | "guard_error" | "budget";
 
 // A call the guard held back: it never went out and is never reported to a breaker. Always
 // retryable: the work waits (a Temporal activity retries it; the CLIs are safe to rerun).
@@ -74,6 +75,12 @@ export async function admit(
 // from the fixed fields only (names and a date), so it is safe to print.
 export function describeHeldBack(held: HeldBack): string {
   if (held.by === "kill_switch") return `${held.what} is switched off`;
+  if (held.by === "budget") {
+    if (held.what === "unknown") return "LLM spend couldn't be read (is the database up?)";
+    if (held.what === "unrecorded")
+      return "earlier LLM spend couldn't be recorded (is the database up?)";
+    return `the ${held.what} LLM spend cap is reached for this route`;
+  }
   if (held.by === "breaker") {
     const until = held.retryAt ? ` until ${held.retryAt.toISOString()}` : "";
     return `the ${held.what} breaker is open${until}`;

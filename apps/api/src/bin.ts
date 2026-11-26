@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import {
   acquireCall,
   connectDb,
+  dbSpendMeter,
   isSubsystemOn,
   listApplications,
   listOpenHandoffs,
@@ -31,6 +32,7 @@ import {
   createAnthropicClient,
   createLlmGateway,
   type LlmGateway,
+  loadLlmBudget,
   loadLlmConfig,
 } from "@northstar/llm";
 import {
@@ -57,6 +59,11 @@ try {
   const config = loadApiConfig(process.env);
   const extensionTokenSha256 = loadExtensionTokenHash(process.env);
   const { db } = connectDb(loadDbConfig(process.env));
+  // The LLM spend caps, read at startup so a bad value shows at once (NS-176, ADR-0021).
+  const llmBudget = loadLlmBudget({
+    LLM_DAILY_CAP_USD: process.env.LLM_DAILY_CAP_USD,
+    LLM_MONTHLY_CAP_USD: process.env.LLM_MONTHLY_CAP_USD,
+  });
   // Paul's candidate row, looked up on the first capture (the pool connects lazily, so sign-in
   // works while Postgres is down). A failed lookup is forgotten, so the next capture tries again.
   let candidate: Promise<Awaited<ReturnType<typeof soleCandidate>>> | undefined;
@@ -93,6 +100,11 @@ try {
         ),
         now: () => performance.now(),
         guard,
+        budget: {
+          // The LLM spend cap (NS-176, ADR-0021): low routes pause first, fresh ones run longest.
+          caps: llmBudget,
+          meter: dbSpendMeter(db, candidateId),
+        },
       });
       return gateway.call(route, input);
     },

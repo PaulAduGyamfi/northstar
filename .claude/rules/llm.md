@@ -71,7 +71,10 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
   read it get no side-effect tools.
 - Generated claims cite atom or story IDs; the provenance validator is plain code and runs after
   every generation.
-- Meter tokens, cache hits, cost and latency per call (OBV-003). Respect the budget caps (RES-009).
+- Meter tokens, cache hits, cost and latency per call (OBV-003). Respect the budget caps (RES-009):
+  give every new route a deliberate `priority` (ADR-0021; default `normal`), and pass the gateway
+  a `budget` (`loadLlmBudget` and `dbSpendMeter`) in every CLI or service, like the guard. Let a
+  `HeldBack` by `budget` throw: the call never went out and is retryable.
 - Tests use recorded fixtures, never a real model. Evals are the only place real model calls run,
   and only on purpose (they cost money).
 - A prompt or model change needs Paul's `eval <route> --live` run. Commit the new

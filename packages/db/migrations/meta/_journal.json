@@ -330,6 +330,20 @@
       "when": 1795659608165,
       "tag": "0046_posting_check_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795662172327,
+      "tag": "0047_llm_spend",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1795662173482,
+      "tag": "0048_llm_spend_append_only",
+      "breakpoints": true
     }
   ]
 }

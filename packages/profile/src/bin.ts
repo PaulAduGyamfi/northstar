@@ -6,6 +6,7 @@ import {
   acquireCall,
   connectDb,
   currentResumeHash,
+  dbSpendMeter,
   isSubsystemOn,
   loadDbConfig,
   nextAtomForInterview,
@@ -36,7 +37,9 @@ import {
   type CallGuard,
   createAnthropicClient,
   createLlmGateway,
+  loadLlmBudget,
   loadLlmConfig,
+  type SpendMeter,
 } from "@northstar/llm";
 import { sql } from "drizzle-orm";
 import { main, safeErrorSummary } from "./cli.js";
@@ -54,13 +57,21 @@ const { db, close } = connectDb(loadDbConfig(process.env));
 // The model gateway, built only by commands that call the model, behind the stored kill
 // switches and breakers (NS-206): agent:<route> and the anthropic breaker, read from Postgres on
 // every call, so a switch flipped in the app holds the next call.
-const gatewayWith = (guard: CallGuard) =>
+const gatewayWith = (guard: CallGuard, meter: SpendMeter) =>
   createLlmGateway({
     client: createAnthropicClient(
       loadLlmConfig({ ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }),
     ),
     now: () => performance.now(),
     guard,
+    budget: {
+      // The LLM spend cap (NS-176, ADR-0021): low routes pause first, fresh ones run longest.
+      caps: loadLlmBudget({
+        LLM_DAILY_CAP_USD: process.env.LLM_DAILY_CAP_USD,
+        LLM_MONTHLY_CAP_USD: process.env.LLM_MONTHLY_CAP_USD,
+      }),
+      meter,
+    },
   });
 // Paul's keyboard, opened only for `interview` (an open readline keeps the process waiting).
 let rl: Interface | undefined;
@@ -76,7 +87,11 @@ try {
       await recordCallOutcome(db, { candidateId, dependency, outcome, probeToken });
     },
   };
-  const gateway = () => gatewayWith(guard);
+  const gateway = () =>
+    gatewayWith(
+      guard,
+      dbSpendMeter(db, () => candidateId),
+    );
   const exitCode = await main({
     argv: process.argv.slice(2),
     print: (line) => console.log(printable(line)),

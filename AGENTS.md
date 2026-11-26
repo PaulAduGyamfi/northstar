@@ -282,7 +282,14 @@ Exists now:
   `DNS_TIMEOUT_MS`), the Anthropic client's default (180 s, down from the SDK's 10 min; each route
   still passes its own), Postgres in `connectDb` (10 s connect, 60 s per statement; migrations use
   their own pool), the extension's capture request (5 min) and the web app's browser calls through
-  `apiFetch` (15 s). The spend cap and per-pool concurrency (RES-009) are later slices.
+  `apiFetch` (15 s). Since NS-176 slice 2 also an LLM spend cap (RES-009, ADR-0021, Proposed):
+  each route has a priority (`fresh`: `job-extract`, `job-match`, `verification-extract`; `low`:
+  `mail-classify`; else `normal`), and with `LLM_DAILY_CAP_USD` / `LLM_MONTHLY_CAP_USD` set
+  (`loadLlmBudget`) the gateway holds a call back (`HeldBack` by `budget`, before the switch and
+  breaker) once today's or this month's spend reaches 80 % of a cap for low, 100 % for normal or
+  125 % for fresh. Each reply's cost goes to append-only `llm_spend` (`packages/db`,
+  `spend-write.ts`: `recordLlmSpend`, `readLlmSpend`, `dbSpendMeter`); the CLIs and the API wire
+  it. Per-pool concurrency waits for the worker (NS-157).
   Since NS-175 also the dead-letter store (RES-007, `dead-letter-write.ts` in `packages/db`,
   append-only): `recordDeadLetter` keeps work that exhausted its retries (kind, subject id, reason
   code, attempts; one per idempotency key), `listOpenDeadLetters` shows what waits, and

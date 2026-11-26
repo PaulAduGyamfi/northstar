@@ -28,3 +28,10 @@ export function costUsd(model: string, usage: TokenUsage): number | null {
     usage.cacheWriteTokens * price.cacheWrite;
   return millionthsOfCent / 100_000_000;
 }
+
+// What a call would cost at the most expensive known model. The spend cap (NS-176, ADR-0021)
+// meters an unpriced reply (a fallback model the API chose, a new id) at this, never at zero, so
+// a model missing from the table can only over-count, never let spend through unmetered.
+export function ceilingCostUsd(usage: TokenUsage): number {
+  return Math.max(...Object.keys(CENTS_PER_MILLION).map((m) => costUsd(m, usage) ?? 0));
+}
