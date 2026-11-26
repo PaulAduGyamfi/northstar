@@ -292,6 +292,21 @@ Exists now:
   package's own `ContactDetails` schema (`packages/domain`), and `profile contact set|show`
   (`contact-cli.ts`). `profile.contact_set` carries a phone flag only. No caller reads it yet
   (the package caller, slice 4).
+- Career DNA (NS-130, DNA-001…003), slice 1, plain code in `packages/profile/src/career-dna/`, no
+  model, database or caller yet:
+  - `CAREER_DNA_RUBRIC` (version 1, software engineering): six dimensions (engineering,
+    architecture, infrastructure, leadership, communication, problem-solving), each with
+    whole-word terms and the story competencies that count toward it.
+  - `scoreDimensions`: 1 point per matching atom and 2 per approved story, each counted once per
+    dimension. Under 3 items the dimension is `not_enough` and shows no score; 3–5 is low, 6–9
+    medium and 10+ high.
+  - `archetypeOf`: a fixed label for the top one or two scored dimensions (ties by rubric order),
+    with their evidence.
+  - `buildCareerDna` gives the report's label, strength and gap lines. `checkCareerDna` refuses an
+    uncited strength or label line, an unknown atom or story id, and a gap line with a score.
+
+  No directions, handoffs, storage or share card yet; the share card waits on a Publish gateway
+  ADR and Q-10.
 - The voice profile (NS-136, ANS-007/008) in `packages/profile/src/voice/`, plain code, no model:
   - `measureVoice` turns 5–10 writing samples into a style guide (sentence length, contractions,
     "I"/"we", exclamation marks, phrases used in 3+ samples), rendered by `renderVoiceGuide` for

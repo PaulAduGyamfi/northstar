@@ -46,6 +46,18 @@ export {
   type SuggestionTarget,
 } from "./audit/audit.js";
 export {
+  type Archetype as CareerDnaArchetype,
+  archetypeOf,
+  buildCareerDna,
+  CAREER_DNA_RUBRIC,
+  type CareerDnaEvidence,
+  type CareerDnaFailure,
+  type CareerDnaReport,
+  checkCareerDna,
+  type DimensionScore as CareerDnaDimension,
+  scoreDimensions,
+} from "./career-dna/index.js";
+export {
   blocksAutoSubmit,
   type Claim,
   type ClaimSource,

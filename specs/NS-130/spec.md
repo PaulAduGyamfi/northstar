@@ -2,7 +2,7 @@
 
 Status: draft (autonomous lane, ADR-0016)
 Requirements: DNA-001, DNA-002, DNA-003 (`docs/requirements/07-profile-optimization.md`)
-Rules that apply: ADR-0004 (no fabrication), ADR-0016, `.claude/rules/profile.md`, `.claude/rules/tests.md`
+Rules that apply: ADR-0004 (no fabrication), ADR-0016, `.claude/rules/tests.md`
 
 ## Why
 Paul wants a career report that shows what his work actually proves: demonstrated strengths, a
@@ -31,7 +31,8 @@ New folder `packages/profile/src/career-dna/`, plain code with no model, databas
   - 6–9: `medium`;
   - 10 or more: `high`.
 
-  Removing one cited atom lowers that dimension's points by exactly 1.
+  While the dimension still has 3 or more items, removing one cited atom lowers its points by
+  exactly 1. At 2 items it reads "not enough evidence yet" instead.
 - `archetypeOf(scores)`: the two dimensions with the most points that aren't `not_enough` (ties go
   by rubric order), mapped to a label through a fixed table. A single qualifying dimension gets its
   own label, and none gives `null`. The archetype's evidence is the union of its dimensions'
@@ -48,7 +49,7 @@ New folder `packages/profile/src/career-dna/`, plain code with no model, databas
 
 ## Acceptance criteria
 - [ ] A dimension with fewer than three cited items reads "not enough evidence yet" and shows no score (test).
-- [ ] Removing one cited atom lowers that dimension's points by exactly 1, with no model call (test).
+- [ ] Removing one cited atom lowers that dimension's points by exactly 1 while it keeps 3+ items, and leaves no score at 2, with no model call (tests).
 - [ ] An approved story counts 2 points toward each dimension its competencies map to, at most once (test).
 - [ ] Terms match whole words only ("led" does not match "filed") (test).
 - [ ] The archetype comes from the top two qualifying dimensions through the fixed table, ties by rubric order, and is `null` with no qualifying dimension (tests).
@@ -64,6 +65,8 @@ None in this slice: nothing calls it, and pure functions emit no events. The cal
 report (DNA-008) writes `career_dna.built` with counts and bands only, never atom text.
 
 ## Out of scope
+- DNA-001's other inputs: employment facts and growth tracks. LinkedIn and site lines already
+  arrive as atoms, so they count.
 - Directions from the job feed (DNA-004), the Profile Grade and growth handoffs (DNA-005/006).
 - Storage, versions and the diff (DNA-008), and any CLI or page.
 - The share card and public page (DNA-007): they wait on a Publish gateway ADR (an ADR-0002
@@ -76,6 +79,7 @@ Paul's issue lists these as his. I picked defaults under his delegation of 2026-
 needed from my use your recommended choice"), and recorded them in the PR:
 - the dimension set: DNA-002's own example list, for software engineering only;
 - the terms, the points (1 per atom, 2 per story) and the band edges (3 / 6 / 10);
-- the archetype labels.
+- the archetype labels, which name work and never a job title ("Lead"), since titles are locked
+  facts.
 
 The chart (radar or bars) comes with the page, not this slice.
