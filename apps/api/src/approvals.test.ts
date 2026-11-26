@@ -71,6 +71,10 @@ beforeEach(async () => {
       if (decisionId === D1) return { ok: true, value: { requestId: R1 } };
       return { ok: false, error: { kind: "UndoWindowClosed" } };
     },
+    // NS-237: no reply drafts unless a test sets them; these record nothing.
+    readReply: async () => null,
+    missingReplies: async () => [],
+    otherDomainReplies: async () => [],
   };
   const sessions = createSessions(() => 0);
   cookie = `ns_session=${sessions.open().token}`;
@@ -87,6 +91,9 @@ beforeEach(async () => {
         list: (k) => ports.list(k),
         decide: (i) => ports.decide(i),
         undo: (d) => ports.undo(d),
+        readReply: (id) => ports.readReply(id),
+        missingReplies: (ids) => ports.missingReplies(ids),
+        otherDomainReplies: (ids) => ports.otherDomainReplies(ids),
       }),
     }),
   );
@@ -272,5 +279,102 @@ describe("POST /approvals/undo", () => {
     ports.undo = async () => ({ ok: false, error: { kind: "Withdrawn" } });
     const res = await post("/approvals/undo", { decisionId: D1 });
     expect([res.status, JSON.parse(res.body)]).toEqual([409, { error: "withdrawn" }]);
+  });
+});
+
+describe("reply drafts in the queue (NS-237)", () => {
+  const VIEW = {
+    to: "jo@acme.example",
+    replyToOtherDomain: true,
+    subject: "Re: Your application",
+    body: "Hi Jo, thank you.",
+    cites: ["atom-1"],
+    followUps: ["Which week?"],
+  };
+
+  it("shows the stored draft behind a reply request, and 404 for none", async () => {
+    ports.readReply = async (id) => (id === R1 ? VIEW : null);
+    const found = await get(`/approvals/reply?requestId=${R1}`);
+    const none = await get(`/approvals/reply?requestId=${R2}`);
+    expect([found.status, JSON.parse(found.body), none.status]).toEqual([200, VIEW, 404]);
+  });
+
+  it("refuses to show a draft without a session", async () => {
+    ports.readReply = async () => VIEW;
+    expect((await get(`/approvals/reply?requestId=${R1}`, {})).status).toBe(401);
+  });
+
+  it("never approves a reply with no stored draft, and still decides the rest", async () => {
+    ports.missingReplies = async (ids) => ids.filter((id) => id === R2);
+    const res = await post("/approvals/decide", { requestIds: [R1, R2], decision: "approve" });
+    expect([
+      res.status,
+      JSON.parse(res.body).outcomes.map((o: { requestId: string; outcome: string }) => [
+        o.requestId,
+        o.outcome,
+      ]),
+      calls.filter((c) => Array.isArray(c) && c[0] === "decide"),
+    ]).toEqual([
+      200,
+      [
+        [R2, "missing_draft"],
+        [R1, "approved"],
+      ],
+      [["decide", { requestIds: [R1], decision: "approve" }]],
+    ]);
+  });
+
+  it("answers missing_draft without reaching the Gate when every id is an empty reply", async () => {
+    ports.missingReplies = async (ids) => ids;
+    const res = await post("/approvals/decide", { requestIds: [R2], decision: "approve" });
+    expect([JSON.parse(res.body), calls]).toEqual([
+      { outcomes: [{ requestId: R2, outcome: "missing_draft" }] },
+      [],
+    ]);
+  });
+
+  it("still lets Paul reject an empty reply, to clear it", async () => {
+    let asked = false;
+    ports.missingReplies = async (ids) => {
+      asked = true;
+      return ids;
+    };
+    const res = await post("/approvals/decide", {
+      requestIds: [R1],
+      decision: "reject",
+      reason: "Nothing to send",
+    });
+    expect([res.status, asked, JSON.parse(res.body).outcomes[0].outcome]).toEqual([
+      200,
+      false,
+      "rejected",
+    ]);
+  });
+
+  it("approves a reply to another domain only on its own, never in a batch", async () => {
+    ports.otherDomainReplies = async (ids) => ids.filter((id) => id === R2);
+    const batch = await post("/approvals/decide", { requestIds: [R1, R2], decision: "approve" });
+    const alone = await post("/approvals/decide", { requestIds: [R2], decision: "approve" });
+    const pick = (body: string) =>
+      JSON.parse(body).outcomes.map((o: { requestId: string; outcome: string }) => [
+        o.requestId,
+        o.outcome,
+      ]);
+    // On its own it reaches the Gate (the fake answers already_decided for R2).
+    expect([
+      pick(batch.body),
+      pick(alone.body),
+      calls.flatMap((c) => (Array.isArray(c) && c[0] === "decide" ? [c[1]] : [])),
+    ]).toEqual([
+      [
+        [R2, "approve_alone"],
+        [R1, "approved"],
+      ],
+      [[R2, "already_decided"]],
+      [
+        { requestIds: [R1], decision: "approve" },
+        { requestIds: [R2], decision: "approve" },
+      ],
+    ]);
   });
 });

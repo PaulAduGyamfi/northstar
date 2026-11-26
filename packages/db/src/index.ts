@@ -368,7 +368,13 @@ export {
 export { readEventsAfter } from "./read-events.js";
 export * as replySchema from "./reply-schema.js";
 // Reply drafts filed with the Gate (NS-237).
-export { type FiledReply, fileReplyDraft, readReplyDraft } from "./reply-write.js";
+export {
+  type FiledReply,
+  fileReplyDraft,
+  missingReplyDrafts,
+  otherDomainReplies,
+  readReplyDraft,
+} from "./reply-write.js";
 export * as resilienceSchema from "./resilience-schema.js";
 export {
   MAX_RUN_STEPS,

@@ -9,6 +9,8 @@ import {
   MAX_BATCH,
   type Outcome,
   type QueueItem,
+  ReplyBody,
+  replyLines,
   secondsLeft,
   summarizeOutcomes,
   undoErrorWords,
@@ -208,6 +210,7 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
                 {item.subject}, waiting {waitedFor(item.requestedAt, now)}
               </span>
             </label>
+            {item.kind === "email_reply" ? <ReplyPreview requestId={item.requestId} /> : null}
           </li>
         ))}
       </ul>
@@ -257,5 +260,54 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
         </p>
       )}
     </>
+  );
+}
+
+// "Show the reply" for one email reply (NS-237): fetched only when Paul asks, shown as plain text.
+function ReplyPreview({ requestId }: { requestId: string }) {
+  const [lines, setLines] = useState<string[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  async function show() {
+    setError(null);
+    try {
+      const res = await apiFetch(`/api/approvals/reply?requestId=${encodeURIComponent(requestId)}`);
+      if (res.status === 404) {
+        setError("No draft is stored for this reply. Reject it to clear it.");
+        return;
+      }
+      const parsed = res.ok ? ReplyBody.safeParse(await res.json()) : null;
+      if (!parsed?.success) {
+        setError("The reply couldn't be read. Try again.");
+        return;
+      }
+      setLines(replyLines(parsed.data));
+    } catch (e) {
+      setError(isTimeout(e) ? "No answer in time. Try again." : "Couldn't reach Northstar.");
+    }
+  }
+  if (lines !== null) {
+    return (
+      <div className="muted">
+        {lines.map((line, i) => (
+          // Lines are in a fixed order and never reorder, so the index is a stable key.
+          // pre-wrap keeps the body's line breaks, so Paul reads it laid out as it will be written.
+          // biome-ignore lint/suspicious/noArrayIndexKey: fixed order, see above
+          <p key={i} style={{ whiteSpace: "pre-wrap" }}>
+            {line}
+          </p>
+        ))}
+        <button type="button" className="secondary" onClick={() => setLines(null)}>
+          Hide the reply
+        </button>
+      </div>
+    );
+  }
+  return (
+    <p>
+      <button type="button" className="secondary" onClick={() => void show()}>
+        Show the reply
+      </button>
+      {error ? <span role="status"> {error}</span> : null}
+    </p>
   );
 }
