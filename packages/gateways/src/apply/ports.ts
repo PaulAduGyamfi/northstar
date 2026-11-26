@@ -4,6 +4,7 @@ import {
   claimSubmission,
   type Db,
   DEFAULT_APPLY_LIMITS,
+  isPostingClosed,
   isSubsystemOn,
   listHalfClosedClaims,
   listStaleClaims,
@@ -57,6 +58,9 @@ export type ApplyPorts = {
   transitionApplication: (
     input: Parameters<typeof transitionApplication>[1],
   ) => ReturnType<typeof transitionApplication>;
+  // Whether the application's job posting has closed (NS-218, SRC-010), asked right before the
+  // claim so nothing goes to a dead posting.
+  isPostingClosed: (candidateId: CandidateId, applicationId: string) => Promise<boolean>;
   // The bytes of an approved file by its SHA-256, or null if it is gone.
   readFile: (sha256: string) => Promise<Uint8Array | null>;
   // A fresh browser session for one submission.
@@ -87,6 +91,7 @@ export function dbPorts(
     recordSubmitted: (c, s, p) => recordSubmitted(db, c, s, p),
     recordNeedsHuman: (c, s, r, url) => recordNeedsHuman(db, c, s, r, url),
     transitionApplication: (input) => transitionApplication(db, input),
+    isPostingClosed: (c, applicationId) => isPostingClosed(db, c, applicationId),
     isSubsystemOn: (c, subsystem) => isSubsystemOn(db, c, subsystem),
     acquireCall: (c, dependency) => acquireCall(db, { candidateId: c, dependency }),
     recordCallOutcome: async (c, dependency, outcome, probeToken) => {

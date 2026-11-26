@@ -232,6 +232,18 @@ describe("feedLine: applications and approvals", () => {
     );
   });
 
+  it("says an application left the pipeline because its posting closed (NS-218)", () => {
+    expect(
+      feedLine(
+        ev("application.withdrawn", {
+          from: "queued",
+          to: "withdrawn",
+          reasonCode: "posting_closed",
+        }),
+      ),
+    ).toBe("Application withdrawn: the job's posting closed");
+  });
+
   it("describes a withdrawal by Paul or by a gateway (NS-140)", () => {
     expect([
       feedLine(ev("approval.withdrawn", { withdrawnBy: "user" }, { actor: "user" })),

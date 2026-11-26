@@ -275,11 +275,13 @@ export * as livenessSchema from "./liveness-schema.js";
 export {
   CHECKABLE_ATS,
   type CheckableAts,
+  isPostingClosed,
   type JobToCheck,
   type PostingOutcome,
   readClosedJobIds,
   readJobsToCheck,
   recordPostingCheck,
+  withdrawClosedApplications,
 } from "./liveness-write.js";
 export * as mailLinkSchema from "./mail-link-schema.js";
 export {
@@ -422,6 +424,7 @@ export {
   type StaleStatus,
   type TransitionError,
   type TransitionInput,
+  type TransitionReasonCode,
   type TransitionResult,
   transitionApplication,
 } from "./transition-application.js";

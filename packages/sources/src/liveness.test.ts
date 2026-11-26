@@ -72,6 +72,10 @@ function world(pages: Record<string, Page>, jobs: JobToCheck[]) {
   const reports: { dependency: string; outcome: CallOutcome }[] = [];
   const recorded: [string, PostingOutcome][] = [];
   let failSave = false;
+  let withdraw: () => Promise<{ withdrawn: number; failed: number }> = async () => ({
+    withdrawn: 0,
+    failed: 0,
+  });
   const deps: CheckPassDeps = {
     ...web.deps,
     guard: {
@@ -88,6 +92,7 @@ function world(pages: Record<string, Page>, jobs: JobToCheck[]) {
         recorded.push([job.jobId, outcome]);
         return { closedNow: false, reopenedNow: false };
       },
+      withdrawClosed: () => withdraw(),
     },
   };
   return {
@@ -98,11 +103,23 @@ function world(pages: Record<string, Page>, jobs: JobToCheck[]) {
     recorded,
     asked: web.asked,
     failSaves: () => (failSave = true),
+    withdrawWith: (f: typeof withdraw) => {
+      withdraw = f;
+    },
   };
 }
 
 const NOW = new Date("2026-11-26T12:00:00Z");
-const zero = { checked: 0, open: 0, closed: 0, unavailable: 0, heldBack: 0, unchecked: 0 };
+const zero = {
+  checked: 0,
+  open: 0,
+  closed: 0,
+  unavailable: 0,
+  heldBack: 0,
+  unchecked: 0,
+  withdrawn: 0,
+  withdrawFailed: 0,
+};
 
 describe("checkPass", () => {
   it("records every attempt, unavailable included, and counts each", async () => {
@@ -197,5 +214,33 @@ describe("checkPass", () => {
     ]);
     w.failSaves();
     expect(await checkPass(w.deps, NOW)).toEqual({ ...zero, checked: 2, unavailable: 2 });
+  });
+
+  it("withdraws closed jobs' applications after the pass and counts them (NS-218)", async () => {
+    const w = world({ [LEVER_API]: { status: 404 } }, [{ jobId: "j2", ats: "lever", url: LEVER }]);
+    const order: string[] = [];
+    w.withdrawWith(async () => {
+      order.push(`withdraw after ${w.recorded.length} recorded`);
+      return { withdrawn: 2, failed: 1 };
+    });
+    expect([await checkPass(w.deps, NOW), order]).toEqual([
+      { ...zero, checked: 1, closed: 1, withdrawn: 2, withdrawFailed: 1 },
+      ["withdraw after 1 recorded"],
+    ]);
+  });
+
+  it("still returns the pass when withdrawing fails, saying it didn't run", async () => {
+    const w = world({ [GH_API]: { body: { id: 4001 } } }, [
+      { jobId: "j1", ats: "greenhouse", url: GH },
+    ]);
+    w.withdrawWith(async () => {
+      throw new Error("database down");
+    });
+    expect(await checkPass(w.deps, NOW)).toEqual({
+      ...zero,
+      checked: 1,
+      open: 1,
+      withdrawn: null,
+    });
   });
 });

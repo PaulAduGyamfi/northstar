@@ -239,6 +239,10 @@ const TEMPLATES: Record<string, Template> = {
   "application.*": (p) => {
     const from = name(p, "from");
     const to = name(p, "to");
+    // A fixed reason code (NS-218), never free text from the payload.
+    if (to === "withdrawn" && p.reasonCode === "posting_closed") {
+      return "Application withdrawn: the job's posting closed";
+    }
     if (from && to) return `Application moved from ${words(from)} to ${words(to)}`;
     return to ? `Application is now ${words(to)}` : "Application status changed";
   },
