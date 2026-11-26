@@ -1,15 +1,11 @@
 import { z } from "zod";
-import type { GrowthTrack, WeekPlan } from "./growth.js";
+import { DAY_MS, type GrowthTrack, isAtRisk, ValidDate, type WeekPlan } from "./growth.js";
 import { err, ok, type Result } from "./result.js";
 
 // Growth check-ins, dashboard figures and the weekly review (NS-172, GRW-005…007). Plain code, no
 // I/O. Framing follows UX-032: progress is counted, never shamed.
 
-const DAY_MS = 86_400_000;
 const WEEK_MS = 7 * DAY_MS;
-
-// A real date: an Invalid Date would break every comparison below.
-const ValidDate = z.date().refine((d) => !Number.isNaN(d.getTime()), { message: "invalid date" });
 
 // GRW-005's 10-second manual check-in. No free-text field: nothing of Paul's words is kept here.
 const CheckInSchema = z.object({
@@ -99,16 +95,21 @@ export function trackDashboard(
   return applyCheckIns(tracks, checkIns).map((t) => {
     const mine = ofTrack(checkIns, t.id);
     const touched = t.lastTouchedAt;
+    // Never negative: a check-in dated after now counts as touched today.
     const daysSinceTouched =
-      touched === null ? null : Math.floor((now.getTime() - touched.getTime()) / DAY_MS);
-    // The planner's own rule (GRW-004): untouched longer than the track's threshold.
-    const atRisk = touched === null || now.getTime() - touched.getTime() > t.untouchedDays * DAY_MS;
+      touched === null
+        ? null
+        : Math.max(0, Math.floor((now.getTime() - touched.getTime()) / DAY_MS));
+    // The planner's own rule (GRW-004), for active tracks only: a paused or finished track is
+    // never at risk (UX-032).
+    const atRisk = t.status === "active" && isAtRisk(t, now);
     const withPercent = mine.filter((c) => c.percent !== null);
     const latest = withPercent.reduce<CheckIn | null>(
       (best, c) => (best === null || c.at > best.at ? c : best),
       null,
     );
     const percent = latest?.percent ?? null;
+    // Once the target date has passed there's no weekly pace to give: null, as with no target.
     const weeksLeft = t.targetDate ? (t.targetDate.getTime() - now.getTime()) / WEEK_MS : null;
     const percentPerWeekNeeded =
       percent === null || weeksLeft === null || weeksLeft <= 0
@@ -152,15 +153,20 @@ export function weeklyReview(
     }))
     .filter((m) => m.minutes > 0);
   const movedIds = new Set(moved.map((m) => m.trackId));
+  // The tracks as next week's plan will see them: this week's check-ins applied.
+  const touchedById = new Map(applyCheckIns(tracks, checkIns).map((t) => [t.id, t]));
+  const nextWeekStart = new Date(weekStart.getTime() + WEEK_MS);
   const notReached = planned.filter((id) => !movedIds.has(id));
   const log = [
     ...moved.map(
       (m) => `${name.get(m.trackId) ?? m.trackId}: ${m.minutes} of ${m.plannedMinutes} min`,
     ),
-    ...notReached.map(
-      (id) =>
-        `${name.get(id) ?? id}: not reached this week; it moves up next week if it stays untouched`,
-    ),
+    ...notReached.map((id) => {
+      const t = touchedById.get(id);
+      // Only say what the planner will do: at risk when next week starts puts it first.
+      const first = t !== undefined && t.status === "active" && isAtRisk(t, nextWeekStart);
+      return `${name.get(id) ?? id}: not reached this week${first ? "; it goes first in next week's plan" : ""}`;
+    }),
   ];
   return { moved, notReached, log };
 }

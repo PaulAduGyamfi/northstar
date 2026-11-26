@@ -60,11 +60,12 @@ describe("parseCheckIn (GRW-005)", () => {
       { trackId: "a", at: NOW, minutes: 0, percent: null },
       { trackId: "a", at: NOW, minutes: 601, percent: null },
       { trackId: "a", at: NOW, minutes: 30, percent: 101 },
+      { trackId: "a", at: NOW, minutes: 30, percent: -1 },
     ].map((input) => {
       const r = parseCheckIn(input);
       return r.ok ? "ok" : r.error.fields[0];
     });
-    expect(fields).toEqual(["minutes", "minutes", "percent"]);
+    expect(fields).toEqual(["minutes", "minutes", "percent", "percent"]);
   });
 });
 
@@ -102,6 +103,32 @@ describe("trackDashboard (GRW-006)", () => {
     expect(rows.map((r) => [r.trackId, r.minutesThisWeek, r.plannedMinutes])).toEqual([
       ["a", 75, 120],
     ]);
+  });
+
+  it("leaves a check-in exactly at the week's end to the next week", () => {
+    const rows = trackDashboard([track("a")], [checkIn("a", 7, 40)], plan([]), WEEK_START, at(7));
+    expect(rows[0]?.minutesThisWeek).toBe(0);
+  });
+
+  it("never marks a paused, backlogged or done track at risk, however long untouched (GRW-004)", () => {
+    const old = at(-60);
+    const rows = trackDashboard(
+      [
+        track("p", { status: "paused", lastTouchedAt: old }),
+        track("b", { status: "backlogged", lastTouchedAt: old }),
+        track("d", { status: "done", lastTouchedAt: null }),
+      ],
+      [],
+      plan([]),
+      WEEK_START,
+      NOW,
+    );
+    expect(rows.map((r) => r.atRisk)).toEqual([false, false, false]);
+  });
+
+  it("never shows negative days for a check-in dated after now", () => {
+    const rows = trackDashboard([track("a")], [checkIn("a", 5, 20)], plan([]), WEEK_START, NOW);
+    expect(rows[0]?.daysSinceTouched).toBe(0);
   });
 
   it("says how many whole days since the track was last touched, and whether it's at risk", () => {
@@ -182,12 +209,19 @@ describe("weeklyReview (GRW-007)", () => {
     expect(review.log).toEqual([
       "Track A: 90 of 120 min",
       "Track C: 30 of 30 min",
-      "Track B: not reached this week; it moves up next week if it stays untouched",
+      // Touched 2 days before the week, 7-day threshold: at risk when next week starts.
+      "Track B: not reached this week; it goes first in next week's plan",
     ]);
+  });
+
+  it("promises nothing the planner won't do: a track not yet at risk next week just says not reached", () => {
+    const patient = track("e", { lastTouchedAt: at(-2), untouchedDays: 14 });
+    const review = weeklyReview([patient], plan([["e", [60, 60]]]), [], WEEK_START);
+    expect(review.log).toEqual(["Track E: not reached this week"]);
   });
 
   it("never uses guilt words in its log (UX-032)", () => {
     const review = weeklyReview(tracks, week, [], WEEK_START);
-    expect(review.log.join(" ")).not.toMatch(/miss|fail|broke|behind|lazy/i);
+    expect(review.log.join(" ")).not.toMatch(/miss|fail|broke|behind|lazy|slip/i);
   });
 });

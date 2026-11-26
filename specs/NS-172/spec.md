@@ -1,6 +1,6 @@
 # NS-172: Growth check-ins, dashboard figures and the weekly review (slice 1)
 
-Status: draft (autonomous lane, ADR-0016)
+Status: built, in review (autonomous lane, ADR-0016)
 Requirements: GRW-005 (manual check-in), GRW-006 (dashboard figures), GRW-007 (weekly review);
 auto-detected progress, storage and the page follow up
 Rules that apply: AGENTS.md "Code decides, the model drafts"; UX-030, UX-032 (no shame
@@ -22,7 +22,8 @@ plain code over check-ins, before anything is stored or drawn.
    with no check-in keeps aging and becomes at risk on its own (GRW-004).
 3. `trackDashboard(tracks, checkIns, plan, weekStart, now)`, one row per track (GRW-006):
    - minutes done this week (from `weekStart`, 7 days) against minutes planned;
-   - days since last touched, and at risk (the planner's own rule);
+   - days since last touched (never negative), and at risk: the planner's own `isAtRisk`, for
+     active tracks only, so a paused or finished track never shows at risk;
    - a streak in weeks: the run of weeks with at least one check-in. The current week counts only
      once it has one; until then the run continues from last week. It never resets mid-week and
      never says "broken" (UX-032);
@@ -32,7 +33,20 @@ plain code over check-ins, before anything is stored or drawn.
    - **moved:** each track with minutes this week, with done against planned;
    - **not reached:** each planned track with none;
    - a short log in neutral words, for example "Track A: 90 of 120 min" and "Track B: not reached
-     this week; it moves up next week if it stays untouched". There is no guilt copy.
+     this week". It adds "it goes first in next week's plan" only when the planner's own rule says
+     so at next week's start, so it never promises what the planner won't do. There is no guilt
+     copy.
+
+## Plan
+1. `growth-progress.ts`: `parseCheckIn`, `applyCheckIns`, `trackDashboard`, `weeklyReview`; the
+   at-risk rule, `DAY_MS` and `ValidDate` shared from `growth.ts`, not copied.
+2. Tests first for each acceptance criterion; export from `index.ts`; AGENTS.md line.
+
+## Tasks
+- [x] Check-in validation (minutes and percent ranges).
+- [x] `applyCheckIns` forward only, feeding `planWeek`.
+- [x] Dashboard minutes, days, at risk (active only), streak, percent pace.
+- [x] Review moved / not reached with a truthful, neutral log.
 
 ## Acceptance criteria
 - [ ] A check-in outside 1–600 minutes or 0–100 percent is refused, naming the field.
