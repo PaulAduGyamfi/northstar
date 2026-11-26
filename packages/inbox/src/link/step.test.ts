@@ -9,6 +9,7 @@ import type { MessageHeaders } from "../gmail.js";
 import type { VerificationWindow } from "../verify/catcher.js";
 import {
   type CandidateRow,
+  GMAIL_DOMAINS,
   isStampedDelivery,
   type LinkDecision,
   type LinkStepDeps,
@@ -34,7 +35,7 @@ const OTHER = "00000000-0000-4000-8000-0000000000a2";
 const mail = (over: Partial<MessageHeaders> = {}): MessageHeaders => ({
   id: "m1",
   threadId: "t1",
-  from: "Globex Recruiting <talent@globex.example.com>",
+  from: "Globex Recruiting <talent@globex.example>",
   senderDomain: "globex.example.com",
   subject: "Next steps for your application",
   deliveredTo: "candidate+ns-k3q2m7@example.com",
@@ -227,9 +228,9 @@ describe("linkNewMessage", () => {
 });
 
 describe("isStampedDelivery", () => {
-  it("accepts Paul's own Gmail address however its dots and domain are written", () => {
-    const headers = mail({ deliveredTo: "Some.Candidate+ns-k3q2m7@googlemail.com" });
-    expect(isStampedDelivery(headers, "somecandidate@gmail.com")).toBe(true);
+  it("accepts Paul's own address with a tag and different letter case", () => {
+    const headers = mail({ deliveredTo: "Candidate <CANDIDATE+ns-k3q2m7@Example.com>" });
+    expect(isStampedDelivery(headers, MAILBOX)).toBe(true);
   });
 
   it("keeps dots significant outside Gmail's own domains", () => {
@@ -249,6 +250,31 @@ describe("mailboxKey", () => {
     ["\u212Aandidate@example.com", null],
   ])("reads %s as %s", (address, key) => {
     expect(mailboxKey(address)).toBe(key);
+  });
+});
+
+describe("mailboxKey for domains where dots don't count", () => {
+  // Reserved .example domains stand in for Gmail's (the repo holds no real-domain address).
+  const dotless = {
+    domains: new Set(["mail-a.example", "mail-b.example"]),
+    canonical: "mail-a.example",
+  };
+
+  it("drops the dots and reads every such domain as the canonical one", () => {
+    expect(mailboxKey("Some.Candidate+ns-k3q2m7@mail-b.example", dotless)).toBe(
+      "somecandidate@mail-a.example",
+    );
+  });
+
+  it("keeps dots for any other domain", () => {
+    expect(mailboxKey("some.candidate@example.com", dotless)).toBe("some.candidate@example.com");
+  });
+
+  it("treats Gmail's two domains this way by default", () => {
+    expect(GMAIL_DOMAINS).toEqual({
+      domains: new Set(["gmail.com", "googlemail.com"]),
+      canonical: "gmail.com",
+    });
   });
 });
 

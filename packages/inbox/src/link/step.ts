@@ -61,12 +61,21 @@ export type StepResult =
 // Labels Gmail puts on mail it didn't receive: Paul's own sent mail and drafts. Their headers
 // are whatever their author wrote.
 const UNSTAMPED_LABELS = new Set(["SENT", "DRAFT"]);
-const GMAIL_DOMAINS = new Set(["gmail.com", "googlemail.com"]);
+// Domains whose addresses reach one mailbox however the dots in the local part are written, all
+// read as `canonical`. For Gmail: googlemail.com is gmail.com, and dots don't count.
+export type DotlessDomains = { domains: ReadonlySet<string>; canonical: string };
+export const GMAIL_DOMAINS: DotlessDomains = {
+  domains: new Set(["gmail.com", "googlemail.com"]),
+  canonical: "gmail.com",
+};
 
-// An address in a comparable form: lower case, any `+…` part dropped, and for Gmail's own
-// domains the dots in the local part dropped and googlemail.com read as gmail.com (Gmail
-// delivers all of those to one mailbox). Null when it isn't a plain address.
-export function mailboxKey(address: string): string | null {
+// An address in a comparable form: lower case, any `+…` part dropped, and for `dotless`
+// domains (Gmail's own by default) the dots in the local part dropped and the domain read as
+// the canonical one. Null when it isn't a plain address.
+export function mailboxKey(
+  address: string,
+  dotless: DotlessDomains = GMAIL_DOMAINS,
+): string | null {
   const raw = (address.match(/<([^>]*)>/)?.[1] ?? address).trim();
   // Printable ASCII only, before lower-casing: toLowerCase folds some other characters (the
   // Kelvin sign) into ASCII letters, so a lookalike could otherwise match Paul's address.
@@ -78,9 +87,9 @@ export function mailboxKey(address: string): string | null {
   let domain = bare.slice(at + 1);
   const plus = local.indexOf("+");
   if (plus >= 0) local = local.slice(0, plus);
-  if (GMAIL_DOMAINS.has(domain)) {
+  if (dotless.domains.has(domain)) {
     local = local.replaceAll(".", "");
-    domain = "gmail.com";
+    domain = dotless.canonical;
   }
   return local === "" ? null : `${local}@${domain}`;
 }

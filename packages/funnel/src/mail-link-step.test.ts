@@ -35,7 +35,7 @@ const gmailMessage = (id: string, deliveredTo: string, labelIds: string[]) => ({
     mimeType: "text/plain",
     headers: [
       { name: "Delivered-To", value: deliveredTo },
-      { name: "From", value: "Globex Recruiting <talent@globex.example.com>" },
+      { name: "From", value: "Globex Recruiting <talent@globex.example>" },
       { name: "Subject", value: "Next steps for your application" },
       {
         name: "Authentication-Results",

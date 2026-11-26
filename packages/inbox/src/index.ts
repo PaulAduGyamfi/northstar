@@ -45,6 +45,8 @@ export {
 export {
   ATS_SENDER_DOMAINS,
   type CandidateRow,
+  type DotlessDomains,
+  GMAIL_DOMAINS,
   isStampedDelivery,
   type LinkDecision,
   type LinkStepDeps,
