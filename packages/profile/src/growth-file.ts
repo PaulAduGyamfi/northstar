@@ -55,8 +55,8 @@ function realDay(d: string): boolean {
 // One indented line of a track, added to it; a problem as a sentence, or null.
 function addDetail(track: TrackLine, raw: string): string | null {
   if (CONTROL.test(raw)) return "a line can't hold a tab or other control character";
-  const goal = /^goal:\s*(.*)$/i.exec(raw);
-  const doneWhen = /^done when:\s*(.*)$/i.exec(raw);
+  const goal = /^goal:\s*(.*)$/.exec(raw);
+  const doneWhen = /^done when:\s*(.*)$/.exec(raw);
   const milestone = /^-\s*(.*)$/.exec(raw);
   if (goal || doneWhen) {
     const field = goal ? "goal" : "doneWhen";
@@ -160,6 +160,14 @@ export function parseGrowthTracks(
     const line = i + 1;
     const trimmed = raw.trim();
     if (trimmed === "" || trimmed.startsWith("#")) return;
+    // Indented lines are indented with spaces; a tab would only meet the control-character rule.
+    if (/^\t/.test(raw)) {
+      problems.push({
+        line,
+        problem: "indent a goal, done when or milestone with spaces, not a tab",
+      });
+      return;
+    }
     if (/^[ ]/.test(raw)) {
       if (current === "bad") return;
       const problem =

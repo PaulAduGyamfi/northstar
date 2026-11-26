@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { CandidateId } from "@northstar/domain";
 import { trace } from "@opentelemetry/api";
 import {
@@ -88,6 +89,18 @@ describe("growth goals and milestones", () => {
       false,
       false,
     ]);
+  });
+
+  it("hashes a file without goals or milestones exactly as before NS-232, so it isn't stored again", async () => {
+    await setGrowthTracks(db, { candidateId, tracks: [PLAIN] });
+    const [set] = await db.select({ sha: growthTrackSet.contentSha256 }).from(growthTrackSet);
+    // The NS-210 formula: the nine track fields, in order.
+    const before = createHash("sha256")
+      .update(
+        JSON.stringify([["side-app", "Budget app", "project", "paused", 2, null, 14, null, null]]),
+      )
+      .digest("hex");
+    expect(set?.sha).toBe(before);
   });
 
   it("stores a new version when only a milestone changes, and nothing for the same file", async () => {

@@ -164,4 +164,11 @@ describe("parseGrowthTracks", () => {
       error: [{ line: 1, problem: "the key must be 1–40 lowercase letters, digits or dashes" }],
     });
   });
+
+  it("asks for spaces, not a tab, before an indented line", () => {
+    expect(parseGrowthTracks("ok | Fine | skill | active | 1\n\tgoal: Anything")).toEqual({
+      ok: false,
+      error: [{ line: 2, problem: "indent a goal, done when or milestone with spaces, not a tab" }],
+    });
+  });
 });

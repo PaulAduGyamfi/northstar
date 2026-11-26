@@ -83,6 +83,13 @@ async function guarded<T>(name: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
+// The stored row id of the track at a file position; the insert returns one per track.
+function trackIdAt(ids: Map<number, string>, position: number): string {
+  const id = ids.get(position);
+  if (id === undefined) throw new Error("growth_track insert returned no row for a position");
+  return id;
+}
+
 // Stores Paul's tracks file as the next version; the same tracks as the newest store nothing.
 export async function setGrowthTracks(
   db: Db,
@@ -137,7 +144,7 @@ export async function setGrowthTracks(
           const milestones = input.tracks.flatMap((t, position) =>
             (t.milestones ?? []).map((m, i) => ({
               candidateId: input.candidateId,
-              trackId: idAt.get(position) ?? "",
+              trackId: trackIdAt(idAt, position),
               position: i,
               title: m.title,
               doneOn: m.doneOn,

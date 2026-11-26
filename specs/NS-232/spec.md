@@ -1,6 +1,6 @@
 # NS-232: Growth milestones, and each track's goal and definition of done
 
-Status: in progress
+Status: done
 Requirements: GRW-001 (goal, definition of done), GRW-002 (milestones)
 Rules that apply: ADR-0016, `.claude/rules/db.md`, `.claude/rules/tests.md`.
 Parent: #190, issue #250.
@@ -19,8 +19,9 @@ optional done date.
 
   An indented line before any track, an unknown indented line, a second goal or definition of
   done, a bad done date, or too many milestones names its line and stores nothing (NS-210's rule).
-  Track lines are read exactly as before, and a file without indented lines parses to the same
-  values as before.
+  Track lines are read as before, and a file without indented lines parses to the same values as
+  before. A track line that starts with spaces is now an indented line and is refused (nothing is
+  stored); a tab before an indented line gets its own message.
 - **Storage** (`packages/db`):
   - `growth_track` gets `goal` and `done_when` (nullable, the length and control-character
     CHECKs).
@@ -34,17 +35,18 @@ optional done date.
 - They are Paul's words: no event, span or error carries them (a test).
 
 ## Acceptance criteria
-- [ ] A file with goals, definitions of done and milestones parses; each bad indented line names
+- [x] A file with goals, definitions of done and milestones parses; each bad indented line names
       its line and stores nothing.
-- [ ] Milestones are stored with the version and read back in order with their done dates.
-- [ ] No goal, definition of done or milestone appears in any event or span.
-- [ ] AGENTS.md and `.claude/rules/db.md` describe them.
-- [ ] `pnpm turbo run lint typecheck test build` passes.
+- [x] Milestones are stored with the version and read back in order with their done dates.
+- [x] No goal, definition of done or milestone appears in any event or span.
+- [x] AGENTS.md and `.claude/rules/db.md` describe them.
+- [x] `pnpm turbo run lint typecheck test build` passes.
 
 ## Decisions made without Paul (ADR-0016)
 - A schema change (two columns, one table), and the file syntax above.
 - The new fields are left off a track when absent, so the existing reads and their tests are
   unchanged.
+- The diff is about 565 lines without generated files, over ~300: about half are tests.
 
 ## Out of scope
 - Milestones in the planner, the Grow tab or the weekly review; a settings page.
