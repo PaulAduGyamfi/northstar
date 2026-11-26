@@ -20,7 +20,8 @@ queued for Paul", and the database read it needs. Producers (a poller) and form 
      Nothing is stored for skipped mail.
   2. **The Verification Catcher goes first** (INB-012). Mail that matches an open verification
      window (`windowMatches` over the window store's open windows) is skipped, and so is mail
-     `isVerificationMail` catches. Nothing is stored for it, so the Catcher keeps it.
+     with a verification subject from any sender (`hasVerificationSubject`, the same subject rule
+     triage uses; `isVerificationMail` only covers ATS senders). Nothing is stored for it, so the Catcher keeps it.
   3. **Then `matchMail`** over `readTags`, and over the candidates from `readLinkCandidates`
      plus their linked threads.
   4. **Then `recordMailLink`**, once per message. A repeat stores nothing.
@@ -57,8 +58,8 @@ queued for Paul", and the database read it needs. Producers (a poller) and form 
       (a second run records nothing). This is tested with a fake Gmail message and PGlite.
 - [ ] Sent and draft mail, mail with unknown labels, and mail whose top `Delivered-To` is another
       mailbox are skipped, and nothing is stored.
-- [ ] Mail matching an open verification window, or verification mail by its headers, is skipped
-      and nothing is stored.
+- [ ] Mail matching an open verification window, or with a verification subject from any sender
+      (an employer's own domain too), is skipped and nothing is stored.
 - [ ] Mail in an already-linked thread links by `thread`. Untagged mail from a new thread queues
       as `no_match`.
 - [ ] `readLinkCandidates` leaves out applications in a terminal status and gives each one's ATS

@@ -1,7 +1,7 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import type { MessageHeaders } from "../gmail.js";
 import { type VerificationWindow, windowMatches } from "../verify/catcher.js";
-import { isVerificationMail } from "../verify/detect.js";
+import { hasVerificationSubject } from "../verify/detect.js";
 import { type LinkCandidate, type MatchResult, matchMail, type TagRow } from "./match.js";
 
 // The mail-link step for one new message (#224, INB-009/011/012). Plain code, headers only. A
@@ -63,9 +63,13 @@ const GMAIL_DOMAINS = new Set(["gmail.com", "googlemail.com"]);
 // domains the dots in the local part dropped and googlemail.com read as gmail.com (Gmail
 // delivers all of those to one mailbox). Null when it isn't a plain address.
 export function mailboxKey(address: string): string | null {
-  const bare = (address.match(/<([^>]*)>/)?.[1] ?? address).trim().toLowerCase();
+  const raw = (address.match(/<([^>]*)>/)?.[1] ?? address).trim();
+  // Printable ASCII only, before lower-casing: toLowerCase folds some other characters (the
+  // Kelvin sign) into ASCII letters, so a lookalike could otherwise match Paul's address.
+  if (!/^[\x21-\x7e]+$/.test(raw)) return null;
+  const bare = raw.toLowerCase();
   const at = bare.lastIndexOf("@");
-  if (at <= 0 || at === bare.length - 1 || /[\s<>"]/.test(bare)) return null;
+  if (at <= 0 || at === bare.length - 1 || /[<>"]/.test(bare)) return null;
   let local = bare.slice(0, at);
   let domain = bare.slice(at + 1);
   const plus = local.indexOf("+");
@@ -140,7 +144,9 @@ async function decideAndRecord(deps: LinkStepDeps, mail: MessageHeaders): Promis
   if (windows.some((w) => windowMatches(w.window, mail))) {
     return { kind: "skipped", reason: "verification_window" };
   }
-  if (isVerificationMail(mail)) return { kind: "skipped", reason: "verification" };
+  // A verification subject from any sender (stricter than matchMail's ATS-only check): a false
+  // positive only leaves a message unlinked, which is safer than linking the Catcher's mail.
+  if (hasVerificationSubject(mail.subject)) return { kind: "skipped", reason: "verification" };
 
   const [tags, rows, threads] = await Promise.all([
     deps.readTags(),

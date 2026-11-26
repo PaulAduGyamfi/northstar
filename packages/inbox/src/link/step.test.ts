@@ -197,6 +197,13 @@ describe("linkNewMessage", () => {
     expect(recorded).toEqual([]);
   });
 
+  it("skips a verification subject from a company's own domain sent to a tag, and stores nothing", async () => {
+    const { deps, recorded } = fakeDeps();
+    const verify = mail({ subject: "Please verify your email address" });
+    expect(await linkNewMessage(deps, verify)).toEqual({ kind: "skipped", reason: "verification" });
+    expect(recorded).toEqual([]);
+  });
+
   it("reads nothing from the database for mail it skips as unstamped", async () => {
     let reads = 0;
     const count = async () => {
@@ -238,6 +245,8 @@ describe("mailboxKey", () => {
     ["not an address", null],
     ["@example.com", null],
     ["+ns-abcdef@example.com", null],
+    // The Kelvin sign lower-cases to "k"; it must never read as an ASCII address.
+    ["\u212Aandidate@example.com", null],
   ])("reads %s as %s", (address, key) => {
     expect(mailboxKey(address)).toBe(key);
   });
