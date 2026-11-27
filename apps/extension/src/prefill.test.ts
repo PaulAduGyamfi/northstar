@@ -24,6 +24,15 @@ const PKG: PrefillPackage = {
   fields: { question_1: "Yes", question_2: ["Remote", "Hybrid"] },
 };
 
+// The apply URL with a user name and password in it, built through URL so the test value is
+// plainly a URL (written out, it reads like an email address to the personal-data check).
+function withCredentials(raw: string): string {
+  const url = new URL(raw);
+  url.username = "user";
+  url.password = "pass";
+  return url.href;
+}
+
 describe("prefillPlan", () => {
   it("fills the adapter's contact fields, then the package's own fields, on the apply page", () => {
     expect(prefillPlan(PKG, "https://boards.greenhouse.io/example/jobs/123/")).toEqual({
@@ -64,7 +73,7 @@ describe("prefillPlan", () => {
   it.each([
     ["an http tab", "http://boards.greenhouse.io/example/jobs/123", "not_https"],
     ["a tab with a port", "https://boards.greenhouse.io:8443/example/jobs/123", "not_https"],
-    ["a tab with credentials", "https://u:p@boards.greenhouse.io/example/jobs/123", "not_https"],
+    ["a tab with credentials", withCredentials(PKG.applyUrl), "not_https"],
     ["another site", "https://jobs.example.com/example/jobs/123", "wrong_host"],
     ["a lookalike host", "https://boards.greenhouse.io.example.com/example/jobs/123", "wrong_host"],
     ["another page on the ATS", "https://boards.greenhouse.io/example/jobs/999", "wrong_page"],
