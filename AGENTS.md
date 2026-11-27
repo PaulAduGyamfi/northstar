@@ -406,7 +406,8 @@ Exists now:
   over ready, open jobs (dated by posting, else first seen) and the current resume import, then
   `evidenceGaps` over the newest report's dimensions, those directions and Paul's growth tracks.
   It answers counts, coverage and gap words only (never an atom or job id); posting text passes
-  `postingText` (hidden characters removed, at most 200 characters). The page's "Directions" and
+  `postingText` (control, formatting and blank-looking characters removed, at most 200
+  characters). The page's "Directions" and
   "Proof to build" sections word it (`src/career-directions.ts`).
   Since slice 10 also a jobs page: the API's `GET /jobs` (session only, `apps/api/src/jobs.ts`,
   read-only) answers ready jobs whose posting isn't known closed (`readScorableJobs`), in the

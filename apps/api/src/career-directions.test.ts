@@ -207,6 +207,13 @@ describe("postingText", () => {
     );
   });
 
+  it("turns a filler or braille blank used alone between words into a space, never joining them", () => {
+    expect([postingText("Senior\u3164Engineer"), postingText("Go\u2800Rust\uffa0APIs")]).toEqual([
+      "Senior Engineer",
+      "Go Rust APIs",
+    ]);
+  });
+
   it("leaves letters, digits and ordinary punctuation alone", () => {
     expect(postingText("Café · C++ / Node.js (5+ years) — 한국어")).toBe(
       "Café · C++ / Node.js (5+ years) — 한국어",

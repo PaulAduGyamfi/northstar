@@ -57,13 +57,17 @@ export function directionJobs(
 // fillers, the braille blank, the combining grapheme joiner and the variation selectors), so a
 // posting can't pad a line with characters that look like nothing, and the two lists can't drift.
 const HIDDEN = new RegExp(`[\\p{Cc}\\u2028\\u2029]|${INVISIBLE_IN_WORK.source}`, "gu");
-/[\p{Cc}\p{Cf}\u2028\u2029\u115f\u1160\u3164\uffa0\u2800\u034f]|\p{Variation_Selector}/gu;
+// Of those, the ones that take no space (controls, formatting characters, combining marks such as
+// the joiner and the selectors) are removed; the rest (the Hangul fillers and the braille blank)
+// show as a blank with width, so they become a space and never join the words beside them.
+const ZERO_WIDTH = /^[\p{Cc}\p{Cf}\p{M}]$/u;
+const unhide = (ch: string): string => (ZERO_WIDTH.test(ch) ? "" : " ");
 
 // Posting text as the page may show it: hidden characters gone, spaces collapsed, cut to
 // POSTING_TEXT_MAX characters (whole code points, so no half of a pair is left).
 export function postingText(text: string): string {
   // Tabs and line breaks become spaces first, so removing hidden characters never joins words.
-  const clean = text.replace(/\s+/g, " ").replace(HIDDEN, "").replace(/\s+/g, " ").trim();
+  const clean = text.replace(/\s+/g, " ").replace(HIDDEN, unhide).replace(/\s+/g, " ").trim();
   return Array.from(clean).slice(0, POSTING_TEXT_MAX).join("");
 }
 
