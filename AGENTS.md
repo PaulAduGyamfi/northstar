@@ -596,7 +596,11 @@ Exists now:
   `recruiter.graded` event whose feed line is its fixed-word `reason` ("Graded a recruiter email:
   B"). `readInboxThreads` gives each thread its newest grade, `GET /inbox` passes it on, and the
   Inbox tab shows it in words (`gradeWords`). No caller grades mail yet (classifications aren't
-  stored), and there are no reply drafts by grade or learning from Paul's actions (REC-002/003).
+  stored). Since NS-238 slice 2 also replies by grade (REC-002), plain code built like a nudge:
+  `recruiterReplyPackage` (`packages/profile`, `reply/recruiter.ts`) gives A/B an interested
+  sentence, C a "share more" sentence and D a polite no (`RECRUITER_REPLY_SENTENCES`: no fact,
+  number, link or commitment word, so nothing to cite), filed by `fileReplyDraft`; an F gets no
+  reply (`ArchiveSuggested`). No caller yet, and no learning from Paul's actions (REC-003).
 - `packages/funnel/` (NS-113): the 9-month backfill, funnel records derived by plain code from
   `funnel_message` and `funnel_manual_row` (`packages/db`, `funnel-schema.ts`), the tracker CSV
   import, the funnel report (Wilson intervals, rejection latency) and the hypothesis board.
