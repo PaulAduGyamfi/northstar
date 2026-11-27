@@ -14,9 +14,22 @@ const badUrl = (name: string) =>
     `${name} is missing or is not a postgres:// URL (percent-encode # / ? @ % in the password)`,
   );
 
+// The database owner's credentials (NS-235). They belong only to compose and `db:migrate` (the
+// root .env); an app holding them could connect as the owner and disable the append-only
+// triggers that the northstar_app role can't. Apps load .env.app instead.
+export const OWNER_SETTINGS = ["DATABASE_MIGRATION_URL", "POSTGRES_PASSWORD"] as const;
+
 // The one place this package reads settings. Callers pass the environment in, so only the entry
-// point (src/migrate.ts) touches process.env (AGENTS.md: one typed config module).
+// point (src/migrate.ts) touches process.env (AGENTS.md: one typed config module). Every app
+// connects through here, so here is where an app refuses the owner's credentials.
 export function loadDbConfig(env: Record<string, string | undefined>): DbConfig {
+  const owner = OWNER_SETTINGS.find((name) => (env[name] ?? "") !== "");
+  if (owner) {
+    // Names the setting, never its value.
+    throw new Error(
+      `${owner} is set for an app: the owner's credentials belong only to .env (compose and db:migrate); apps load .env.app`,
+    );
+  }
   const parsed = Env.safeParse(env);
   if (!parsed.success) throw badUrl("DATABASE_URL");
   return { databaseUrl: parsed.data.DATABASE_URL };

@@ -28,6 +28,35 @@ describe("loadDbConfig", () => {
       "DATABASE_URL is missing or is not a postgres:// URL (percent-encode # / ? @ % in the password)",
     );
   });
+
+  // NS-235: an app never runs with the database owner's credentials in its environment.
+  it.each(["DATABASE_MIGRATION_URL", "POSTGRES_PASSWORD"])(
+    "refuses to start while %s is set, naming it but never its value",
+    (name) => {
+      let message = "";
+      try {
+        loadDbConfig({
+          DATABASE_URL: "postgres://northstar_app:test-key@127.0.0.1:5432/northstar_test",
+          [name]: "owner-test-key",
+        });
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect([message, message.includes("owner-test-key")]).toEqual([
+        `${name} is set for an app: the owner's credentials belong only to .env (compose and db:migrate); apps load .env.app`,
+        false,
+      ]);
+    },
+  );
+
+  it("treats an empty owner setting as unset", () => {
+    expect(
+      loadDbConfig({
+        DATABASE_URL: "postgres://northstar_app:test-key@127.0.0.1:5432/northstar_test",
+        POSTGRES_PASSWORD: "",
+      }),
+    ).toEqual({ databaseUrl: "postgres://northstar_app:test-key@127.0.0.1:5432/northstar_test" });
+  });
 });
 
 describe("loadMigrationConfig", () => {

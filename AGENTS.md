@@ -73,7 +73,10 @@ Exists now:
   Paul gives it a password, no temporary tables; on tables a `*_reject_change` trigger guards only
   SELECT, INSERT and UPDATE on one column so `FOR UPDATE` locks work, which the trigger still
   refuses; never TRUNCATE), and `db:migrate` runs as the owner from `DATABASE_MIGRATION_URL`
-  (`loadMigrationConfig`, read only by `src/migrate.ts`).
+  (`loadMigrationConfig`, read only by `src/migrate.ts`). Since NS-235 the owner's credentials
+  (`DATABASE_MIGRATION_URL`, `POSTGRES_PASSWORD`) stay in the root `.env` for compose and
+  `db:migrate`; the apps load `.env.app`, and `loadDbConfig` (every app's way in) refuses to start
+  while either is in their environment, naming it, never its value.
   Since NS-188 also application origin (INB-007), stored in events: `createApplication`
   (`origin-write.ts`) writes the row and `application.created` with `startedBy` in one
   transaction; a move to `submitted` must carry `submittedVia` (`auto` or `approved` from the
@@ -1110,14 +1113,14 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/sources jobs form <job-id>` | read a saved Greenhouse job's application questions from its public API and store them with the job (a changed form is a new version; the same form stores nothing); prints counts and the required questions' labels. Paul only: real network and database |
 | repo root | `pnpm --filter @northstar/sources jobs alerts` / `jobs alerts set quiet <HH:MM-HH:MM\|off>` / `jobs alerts set zone <IANA zone>` / `jobs alerts set tier1 <true\|false>` / `jobs alerts reset quiet\|zone\|tier1` | show the fresh-job alert settings in effect and whether each is set here or the `ALERT_*` default / store one (checked like the env value; the next alert pass uses it, no restart) / put one back to its default. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs check` | re-check the postings of saved jobs not tried in a day (closed ones weekly; at most 50 a pass); a job closes after two closed answers in a row and leaves scoring; prints counts only. Paul only: real network and database |
-| repo root | `cp .env.example .env` | once per clone (Paul): then replace every `change-me` in `.env` |
+| repo root | `cp .env.example .env` | once per clone (Paul): keep the part above the "Apps" line in `.env` (compose and `db:migrate`: the owner's credentials) and move the "Apps" part into `.env.app`, which the API and the `profile`, `jobs`, `funnel` and `eval` commands load (NS-235); then replace every `change-me`. An app refuses to start while `DATABASE_MIGRATION_URL` or `POSTGRES_PASSWORD` is in its environment |
 | repo root | `docker compose -f docker-compose.yml up -d --wait` | local stack: Postgres+pgvector :5432, Temporal :7233 (UI :8233), SeaweedFS S3 :8333, Grafana :3000 + OTLP :4317/:4318, all on 127.0.0.1. Agents must use this exact form (runs outside the sandbox) |
 | repo root | `docker compose -f docker-compose.yml ps` | each service's health and ports |
 | repo root | `docker compose down` | stop the stack, **keep the data** (Paul runs it; agents ask). Never `down -v` (deletes every volume) |
 | repo root | `pnpm --filter @northstar/db db:generate` | new migration from `packages/db/src/schema.ts` (no database needed); prints "No schema changes" when migrations match |
 | repo root | `pnpm --filter @northstar/db db:migrate` | apply pending migrations as the tables' owner, `DATABASE_MIGRATION_URL`, which Node loads from the root `.env` (Paul, outside the sandbox, stack up). Builds `domain` and `db` first. The apps use `DATABASE_URL`, the `northstar_app` role (NS-212) |
-| repo root | `pnpm --filter @northstar/api start` | build and run the API on 127.0.0.1:`NORTHSTAR_API_PORT` (8787), reading the root `.env`; refuses to start until `NORTHSTAR_SIGNIN_KEY_SHA256` and `DATABASE_URL` are set (Paul) |
-| repo root | `pnpm --filter @northstar/web build` / `pnpm --filter @northstar/web start` | build and serve the web app on 127.0.0.1:3100; open it at `http://northstar.localhost:3100` (`NORTHSTAR_WEB_ORIGIN`, ADR-0018). It doesn't read the root `.env`: export `NORTHSTAR_API_ORIGIN` (default `http://127.0.0.1:8787`) in the shell before build and start if the API's port changed. `pnpm --filter @northstar/web dev` while developing |
+| repo root | `pnpm --filter @northstar/api start` | build and run the API on 127.0.0.1:`NORTHSTAR_API_PORT` (8787), reading the root `.env.app`; refuses to start until `NORTHSTAR_SIGNIN_KEY_SHA256` and `DATABASE_URL` are set (Paul) |
+| repo root | `pnpm --filter @northstar/web build` / `pnpm --filter @northstar/web start` | build and serve the web app on 127.0.0.1:3100; open it at `http://northstar.localhost:3100` (`NORTHSTAR_WEB_ORIGIN`, ADR-0018). It doesn't read the root `.env` or `.env.app`: export `NORTHSTAR_API_ORIGIN` (default `http://127.0.0.1:8787`) in the shell before build and start if the API's port changed. `pnpm --filter @northstar/web dev` while developing |
 | repo root | `pnpm --filter @northstar/extension build` | build the browser extension into `apps/extension/dist`; load that folder in `chrome://extensions` ("Load unpacked"), then paste the extension token in its options (Paul). The API needs `NORTHSTAR_EXTENSION_TOKEN_SHA256` and `DATABASE_URL` for captures |
 
 **Done** means every check passes in every package you touched and you showed the output.

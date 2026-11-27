@@ -75,7 +75,7 @@ import { fileToText } from "./text.js";
 import { draftTheses } from "./thesis-draft.js";
 
 // Entry point for `pnpm --filter @northstar/profile profile …`. The only place in this package
-// that reads process.env (DATABASE_URL, ANTHROPIC_API_KEY from .env).
+// that reads process.env (DATABASE_URL, ANTHROPIC_API_KEY from .env.app, NS-235).
 const { db, close } = connectDb(loadDbConfig(process.env));
 // The model gateway, built only by commands that call the model, behind the stored kill
 // switches and breakers (NS-206): agent:<route> and the anthropic breaker, read from Postgres on

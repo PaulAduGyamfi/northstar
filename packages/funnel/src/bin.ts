@@ -39,7 +39,7 @@ import { main } from "./cli.js";
 import { Baselines } from "./report.js";
 
 // Entry point for `pnpm --filter @northstar/funnel funnel …`. The only place in this package that
-// reads process.env (DATABASE_URL, GOOGLE_OAUTH_CLIENT_*, ANTHROPIC_API_KEY from .env). Paul runs
+// reads process.env (DATABASE_URL, GOOGLE_OAUTH_CLIENT_*, ANTHROPIC_API_KEY from .env.app, NS-235). Paul runs
 // it; agents never do (it reads his real mail and prints his real funnel).
 const { db, close } = connectDb(loadDbConfig(process.env));
 // Paul's keyboard, opened only when `review` asks (an open readline keeps the process waiting).
