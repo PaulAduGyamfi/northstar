@@ -279,6 +279,12 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   reasons to the fixed list `RECRUITER_GRADE_REASONS` (`packages/domain`), never email text; `recruiter.graded`
   carries the message id, grade, confidence and reasons, and its feed line is its fixed-word
   `reason`.
+  Mail classifications (NS-261) are `mail_classification`, append-only (a trigger), one per
+  candidate and Gmail message (`recordMailClassification` checks the message's `mail_link` first,
+  not a foreign key, as for `recruiter_grade`), written only through
+  `mail-classification-write.ts`. CHECKs keep the kind, stage signal and review reason to their
+  fixed lists and the shape consistent; never store the classification's company, role or
+  requisition, a subject or an address.
   `readLinkCandidates` (NS-223) is their read-only candidates reader: applications not in a
   terminal status, with their creation time and the job's and sources' ATS names, never a name or
   address.

@@ -1,6 +1,7 @@
 import type { ApplicationStatus, CandidateId } from "@northstar/domain";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Db } from "./db.js";
+import { mailClassification } from "./mail-classification-schema.js";
 import { type MATCH_STEPS, mailLink, type QUEUE_REASONS } from "./mail-link-schema.js";
 import { type Origin, readOrigins } from "./origin-write.js";
 import { recruiterGrade } from "./recruiter-grade-schema.js";
@@ -19,7 +20,7 @@ export type InboxThread = {
   step: (typeof MATCH_STEPS)[number];
   // Any message's sender was verified for this application (INB-011).
   senderVerified: boolean;
-  // The mail's kind once the mail-link loop stores classifications (#224); null until then.
+  // The newest classified message's kind (NS-261); null until one is classified.
   kind: string | null;
   // The newest graded message's recruiter grade (NS-238); absent when none is graded.
   recruiterGrade?: ThreadGrade;
@@ -140,6 +141,37 @@ export async function readInboxThreads(db: Db, candidateId: CandidateId): Promis
       }
     }
 
+    // Each linked thread's newest classified message's kind (NS-261), keyed like the grades. A
+    // message that went to review has no kind, so an older classified one shows instead.
+    const kinds = new Map<string, string>();
+    const kindRows = await db
+      .select({
+        gmailThreadId: mailLink.gmailThreadId,
+        applicationId: mailLink.applicationId,
+        kind: mailClassification.kind,
+      })
+      .from(mailClassification)
+      .innerJoin(
+        mailLink,
+        and(
+          eq(mailLink.candidateId, mailClassification.candidateId),
+          eq(mailLink.gmailMessageId, mailClassification.gmailMessageId),
+        ),
+      )
+      .where(
+        and(
+          eq(mailClassification.candidateId, candidateId),
+          isNotNull(mailClassification.kind),
+          isNotNull(mailLink.applicationId),
+          inArray(mailLink.gmailThreadId, ["", ...new Set(linked.map((t) => t.gmailThreadId))]),
+        ),
+      )
+      .orderBy(desc(mailLink.receivedAt), desc(mailLink.gmailMessageId));
+    for (const k of kindRows) {
+      const key = `${k.gmailThreadId}:${k.applicationId ?? ""}`;
+      if (!kinds.has(key) && k.kind !== null) kinds.set(key, k.kind);
+    }
+
     // Only a graded thread carries the field.
     const gradeOf = (key: string) => {
       const g = grades.get(key);
@@ -168,7 +200,7 @@ export async function readInboxThreads(db: Db, candidateId: CandidateId): Promis
         lastReceivedAt: new Date(r.lastReceivedAt),
         step: r.step as InboxThread["step"],
         senderVerified: r.senderVerified,
-        kind: null,
+        kind: kinds.get(`${r.gmailThreadId}:${id}`) ?? null,
         ...gradeOf(`${r.gmailThreadId}:${id}`),
       });
     }

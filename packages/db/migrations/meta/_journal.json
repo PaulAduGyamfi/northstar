@@ -687,6 +687,13 @@
       "when": 1795761756806,
       "tag": "0097_mail_poll_cursor",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1795762356806,
+      "tag": "0098_mail_classification",
+      "breakpoints": true
     }
   ]
 }

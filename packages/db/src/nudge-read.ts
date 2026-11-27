@@ -6,6 +6,7 @@ import {
 } from "@northstar/domain";
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import type { Db } from "./db.js";
+import { readMailClassifications } from "./mail-classification-write.js";
 import { mailLink } from "./mail-link-schema.js";
 import { replyDraft } from "./reply-schema.js";
 import { inSpan } from "./resilience-event.js";
@@ -74,6 +75,12 @@ export async function readNudgeCandidates(
               ),
             );
     const filedIds = new Set(filed.map((f) => f.gmailMessageId));
+    // The newest messages' stored kinds (NS-261): a review or an unclassified message has none.
+    const kinds = new Map(
+      (await readMailClassifications(db, candidateId, messageIds))
+        .filter((c) => c.outcome === "classified")
+        .map((c) => [c.gmailMessageId, c.kind]),
+    );
     return apps.map((a) => {
       const mail = newest.get(a.id) ?? null;
       return {
@@ -87,8 +94,8 @@ export async function readNudgeCandidates(
                 gmailMessageId: mail.gmailMessageId,
                 threadId: mail.threadId,
                 receivedAt: mail.receivedAt,
-                // No classification is stored yet (#224): until it is, nothing is due.
-                kind: null,
+                // The stored classification (NS-261), or null until the message is classified.
+                kind: kinds.get(mail.gmailMessageId) ?? null,
               },
         replyFiled: mail !== null && filedIds.has(mail.gmailMessageId),
       };
