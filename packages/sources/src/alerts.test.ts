@@ -11,6 +11,7 @@ import {
   type AlertStore,
   alertPass,
   decideAlert,
+  effectiveAlertConfig,
   FRESH_MINUTES,
   freshSince,
   inQuietHours,
@@ -160,6 +161,27 @@ describe("alertPass", () => {
       "sources.fresh_alerts",
       { "alerts.sent": 1, "alerts.held": 0, "alerts.released": 0 },
     ]);
+  });
+
+  it("names where its settings came from on the span when the caller says (NS-199)", async () => {
+    const { store } = memoryStore([candidate()]);
+    await alertPass(store, DAY, config, "mixed");
+    const [span] = exporter.getFinishedSpans();
+    expect(span?.attributes["alerts.settings_source"]).toBe("mixed");
+  });
+
+  it("sends a fresh job at night when Paul's stored setting turns quiet hours off (NS-199)", async () => {
+    const { store } = memoryStore([candidate({}, 5, NIGHT)]);
+    const effective = effectiveAlertConfig(config, {
+      quiet: "off",
+      timeZone: null,
+      tier1InQuietHours: null,
+    });
+    expect(await alertPass(store, NIGHT, effective.config)).toEqual({
+      sent: 1,
+      held: 0,
+      released: 0,
+    });
   });
 
   it("marks the span as an error, by name only, when the store fails", async () => {

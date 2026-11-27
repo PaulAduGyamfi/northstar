@@ -2,6 +2,7 @@ import { basename } from "node:path";
 import type { JobListItem, SetFieldError } from "@northstar/db";
 import type { Result } from "@northstar/domain";
 import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
+import { type AlertsCliDeps, alertsCommand } from "./alerts-cli.js";
 import { FIT_USAGE, type FitCliDeps, fitCommand, scoreAfter } from "./fit/cli.js";
 import { type FormCliDeps, formCommand } from "./form-cli.js";
 import type { IngestResult } from "./ingest.js";
@@ -32,6 +33,8 @@ export type CliDeps = {
   check: () => Promise<CheckPassSummary>;
   // A saved job's application form (NS-227): its own usage line, so USAGE stays as it was.
   form: FormCliDeps;
+  // Fresh-job alert settings (NS-199 slice 2): their own usage line, so USAGE stays as it was.
+  alerts: AlertsCliDeps;
 };
 
 const USAGE = `usage: jobs add <url> | jobs add --text <file> --url <url> | jobs list | jobs set <job-id> <field> <value>\n       jobs watch add <board-url> --tier 1|2|3 | jobs watch list | jobs watch remove|retry <id> | jobs poll | jobs run\n       jobs check\n${FIT_USAGE}`;
@@ -61,6 +64,8 @@ export async function main(deps: CliDeps): Promise<number> {
     const [id, field, ...value] = rest;
     if (id && field) return scored(deps, await setCommand(deps, id, field, value.join(" ")));
   }
+  const alerts = await alertsCommand({ ...deps.alerts, print: deps.print }, deps.argv);
+  if (alerts !== null) return alerts;
   const form = await formCommand({ ...deps.form, print: deps.print }, deps.argv);
   if (form !== null) return form;
   const fit = await fitCommand(deps, deps.argv);

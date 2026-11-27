@@ -32,15 +32,15 @@ search settings are editable at any time, with nothing fixed at setup.
 - `jobs alerts reset <quiet|zone|tier1>` puts one field back to its default (null).
 
 ## Acceptance criteria
-- [ ] Setting a field stores a version and an `alerts.settings_changed` event; setting the same
+- [x] Setting a field stores a version and an `alerts.settings_changed` event; setting the same
       value again stores nothing (test, PGlite).
-- [ ] The table refuses UPDATE and DELETE (append-only trigger test), and its CHECKs refuse
+- [x] The table refuses UPDATE and DELETE (append-only trigger test), and its CHECKs refuse
       out-of-range minutes, equal start and end, or only one of start and end.
-- [ ] `effectiveAlertConfig` takes each stored field and falls back to the default per field
+- [x] `effectiveAlertConfig` takes each stored field and falls back to the default per field
       (tests).
-- [ ] An alert pass uses the stored quiet hours over the env default (test).
-- [ ] The CLI refuses a bad value with nothing stored and prints the source of each value (tests).
-- [ ] `node_modules/.bin/turbo run lint typecheck test build --force` green; evals unchanged.
+- [x] An alert pass uses the stored quiet hours over the env default (test).
+- [x] The CLI refuses a bad value with nothing stored and prints the source of each value (tests).
+- [x] `node_modules/.bin/turbo run lint typecheck test build --force` green; evals unchanged.
 
 ## Failure modes
 - The database read fails: the alert pass fails as a database read fails today (the span is

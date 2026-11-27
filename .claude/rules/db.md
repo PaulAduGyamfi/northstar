@@ -72,6 +72,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   never a title, company or URL. `readAlertCandidates` (NS-199) reads only jobs that could still
   alert, fresh after the caller's `freshSince` (`coalesce(posted_at, first_seen_at)`, the age
   rule) or held and not yet sent; the window's length stays in `packages/sources`.
+  Paul's alert settings (NS-199 slice 2) are `alert_setting`, append-only (a trigger), written
+  only through `alert-setting-write.ts`; the newest row is current, a null field means the
+  `ALERT_*` default, and the same values store nothing. Its CHECKs are NULL-safe (a CHECK that
+  evaluates to NULL passes). `alerts.settings_changed` carries field names only, never a time zone
+  (it says where Paul lives).
 - The Approval Gate's records (NS-119, ADR-0017) are `approval_request`, `approval_policy_set`,
   `approval_decision`, `approval_undo` and (NS-140) `approval_withdrawal`: append-only
   (triggers), written only through `approval-write.ts` (`requestOfDecision`, NS-211, is its read-only
