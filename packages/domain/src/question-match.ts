@@ -89,9 +89,68 @@ const CONCEPTS: Record<string, readonly string[]> = {
 // matching, confirming and package assembly all ask `isNegatedQuestion` (NS-244).
 const NEGATION = /\b(?:without|not|no|never)\b|n't\b/i;
 
+// Characters that stand in for a letter or the apostrophe of a negation and that no other rule
+// refuses (NS-274): an employer's label could write "wouldn`t", "n0t" or "nøt" to hide the word
+// from NEGATION while the matcher still reads the rest. They are ASCII or Latin letters that real
+// labels and company names need, so the disguise rule (question-reuse.ts) can't refuse them; the
+// negation check reads through them instead.
+// Swapped before NFKC (which splits ´ into a space and a mark) and again after it (which turns the
+// full-width grave U+FF40 into a backtick). The saltillos U+A78B/U+A78C are Latin letters.
+const APOSTROPHE_LIKE = /[`\u00b4\u201b\u2035\ua78b\ua78c]/g;
+// Each key is a digit or a Latin letter with no decomposition that can stand for a letter of
+// "not", "no", "never" or "without" and that the disguise rule allows.
+const LOOKALIKE: Readonly<Record<string, string>> = {
+  "0": "o",
+  "1": "i",
+  "3": "e",
+  "7": "t",
+  "\u00f8": "o", // ø
+  "\u2c7a": "o", // ⱺ, o with a low ring
+  "\ua74b": "o", // ꝋ, o with a long stroke
+  "\ua74d": "o", // ꝍ, o with a loop
+  "\u014b": "n", // ŋ
+  "\u019e": "n", // ƞ
+  "\ua791": "n", // ꞑ
+  "\ua7a5": "n", // ꞥ
+  "\u0167": "t", // ŧ
+  "\u01ab": "t", // ƫ
+  "\u01ad": "t", // ƭ
+  "\u2c66": "t", // ⱦ
+  "\u0247": "e", // ɇ
+  "\u0131": "i", // ı, dotless i
+};
+const LOOKALIKE_CHARS = new RegExp(`[${Object.keys(LOOKALIKE).join("")}]`, "g");
+
+// The label as the negation check reads it: apostrophe stand-ins as "'", normalized (NFKC, curly
+// quotes), accents and other marks stripped ("nót" and "nǫt" read "not"), lowercase, then each
+// lookalike above as its letter. Only NEGATION reads it, never the matcher or a company name.
+export function negationSkeleton(label: string): string {
+  const marked = normalize(label.replace(APOSTROPHE_LIKE, "'")).replace(APOSTROPHE_LIKE, "'");
+  const bare = marked.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
+  return bare.replace(LOOKALIKE_CHARS, (c) => LOOKALIKE[c] ?? c);
+}
+
+// The skeleton read again with everything but letters and spaces dropped: letters split by
+// punctuation ("n-o-t", "n'ot", "n.e.v.e.r") join up, and a contraction loses its apostrophe
+// ("wouldn't" → "wouldnt"), which GLUED then reads. "nt" alone is what a symbol standing for the
+// o leaves behind ("n@t", "n°t").
+const squeezed = (skeleton: string): string => skeleton.replace(/[^\p{L}\s]/gu, "");
+// "ca" and "wo" are what "can't" and "won't" leave before "nt"; "ai" is "ain't".
+const AUXILIARIES =
+  "do does did is are was were has have had ca can could would should wo will must need might ai";
+const GLUED = new RegExp(`\\b(?:(?:${AUXILIARIES.replaceAll(" ", "|")})(?:nt|not)|cannot|nt)\\b`);
+
 // Is this question negated? Normalized first (NFKC, curly quotes), so "wouldn’t" and
-// full-width letters count the same as plain ASCII.
-export const isNegatedQuestion = (label: string): boolean => NEGATION.test(normalize(label));
+// full-width letters count the same as plain ASCII; since NS-274 also read through lookalikes
+// (negationSkeleton), punctuation inside a word, and "not" or "nt" glued to its verb ("wouldnt",
+// "dont", "cannot"). Any reading counts, so each one only ever adds negations.
+export function isNegatedQuestion(label: string): boolean {
+  if (NEGATION.test(normalize(label))) return true;
+  const skeleton = negationSkeleton(label);
+  if (NEGATION.test(skeleton)) return true;
+  const joined = squeezed(skeleton);
+  return NEGATION.test(joined) || GLUED.test(joined);
+}
 
 // "us" after these verbs is the reader of the form ("Tell us about…"), not the company ("Why us?").
 const ADDRESS_VERBS = new Set(["tell", "give", "show", "send", "let"]);

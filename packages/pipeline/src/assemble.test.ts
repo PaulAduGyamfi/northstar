@@ -162,6 +162,19 @@ describe("assemblePackage", () => {
     });
   });
 
+  it.each([
+    "Why wouldn`t you want to work at Example Co?",
+    "Why would you n0t want to work at Example Co?",
+    "Why would you n\u00f8t want to work at Example Co?",
+    "Why would you n\u00f3t want to work at Example Co?",
+    "Why wouldnt you want to work at Example Co?",
+  ])("never answers a negation behind an allowed lookalike from the bank (%s, NS-274)", (label) => {
+    expect(assemblePackage(base({ questions: [q("question_2", label)] }))).toMatchObject({
+      ok: false,
+      error: { unanswered: [{ fieldName: "question_2", reason: "not_matched" }] },
+    });
+  });
+
   it("never answers a disguised factual label from settings (NS-273)", () => {
     // Matches work-authorization for Canada, which the base settings answer "yes".
     const label = "Are you legally n\u043et authorized to work in Canada?";

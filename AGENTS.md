@@ -1205,7 +1205,9 @@ Exists now:
   refuses every combining mark (so a decomposed label too), IPA and phonetic letters ("nᴏt"), the
   braille blank, private-use and unassigned code points and any character outside the Latin, Common
   and Inherited scripts (Armenian, Cherokee, Hangul fillers…), on the label and its NFKC form, and the producer checks it before the factual path,
-  so a disguised label is never answered from settings either. Since NS-249 (slice 1) `requestApproval` refuses
+  so a disguised label is never answered from settings either. Since NS-274 `isNegatedQuestion` also
+  reads the label's `negationSkeleton` (backtick and acute as apostrophes, marks stripped, 0/1/3 and
+  ø, ꝋ, ŧ… as letters), so "wouldn`t", "n0t" and "nót" count as negated everywhere it is used. Since NS-249 (slice 1) `requestApproval` refuses
   facts from every caller (`InvalidRequest` on `facts`; its input says `facts: null`): a package
   filed there waits for Paul and, with no stored package, can't be submitted. Only
   `requestPackageApproval` passes facts, through `requestApprovalWithFacts`, which
