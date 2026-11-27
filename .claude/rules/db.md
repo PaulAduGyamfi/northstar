@@ -213,6 +213,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   written only through `independent-work-write.ts`; the newest version is current and the same
   content stores nothing. Titles, lines and links are Paul's words: `independent_work.set`
   carries the version and counts only.
+  Since NS-231 slice 5 (migration 0092) CHECKs added `NOT VALID` refuse the invisible characters
+  `parseIndependentWork` refuses, listed by code point (Postgres regexes have no `\p{Cf}`); a test
+  in `packages/profile` (`independent-work-db.test.ts`) checks they cover every one the parser's
+  `INVISIBLE_IN_WORK` matches, so a change to that pattern needs a new migration.
 - Growth (NS-210, GRW-001…004) is `growth_track_set` and `growth_track` (a version per tracks
   file), `growth_touch`, `growth_settings` (newest wins) and `growth_plan` (one per Monday-start
   week), append-only (triggers), written only through `growth-write.ts`. Track keys, names and

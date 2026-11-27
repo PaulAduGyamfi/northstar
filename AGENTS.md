@@ -199,7 +199,8 @@ Exists now:
   or present [| https link]` header and 1–6 `- ` lines per entry; any bad line stores nothing,
   and since NS-231 slice 3 a title, line or link with an invisible formatting character such as
   U+202E or U+200B (`\p{Cf}`), a line or paragraph separator, or a blank-looking character (Hangul
-  fillers, the braille blank, the grapheme joiner, variation selectors) is a bad line),
+  fillers, the braille blank, the grapheme joiner, variation selectors) is a bad line; since
+  slice 5 the database refuses them too, by CHECKs listing each code point),
   `independentWorkSection` (the "Projects / Independent work" lines, verbatim) and
   `twentySecondAnswer` (at most 55 words from the entries and the official record's last employer,
   with its sources). Stored in `packages/db` (`independent-work-schema.ts`,
