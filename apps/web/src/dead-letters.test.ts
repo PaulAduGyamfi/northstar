@@ -113,6 +113,27 @@ describe("nextStep", () => {
     ]);
   });
 
+  it("names a recruiter email it couldn't grade, with each reason", () => {
+    const grade = { ...ITEM, kind: "mail.grade", attempts: 1 };
+    const reasons = [
+      "refused",
+      "truncated",
+      "invalid_output",
+      "read_failed",
+      "grade_failed",
+      "record_refused",
+    ];
+    expect(reasons.map((reasonCode) => letterLine({ ...grade, reasonCode }).why)).toEqual([
+      "Stopped after 1 attempt: the model declined to read it",
+      "Stopped after 1 attempt: the model's answer was cut off",
+      "Stopped after 1 attempt: the model's answer was malformed",
+      "Stopped after 1 attempt: Gmail wouldn't give the email",
+      "Stopped after 1 attempt: grading it failed",
+      "Stopped after 1 attempt: its result couldn't be stored",
+    ]);
+    expect(letterLine(grade).what).toBe("Grading a recruiter email");
+  });
+
   it("says a retried email is tried on the next inbox run and a skipped one is passed over", () => {
     expect(DEAD_LETTER_ACTIONS.map((a) => nextStep("mail.poll", a))).toEqual([
       "The next `funnel inbox` run reads this email again.",

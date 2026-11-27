@@ -83,7 +83,8 @@ Temporal's queue (it isn't dropped) and still needs your approval when the pool 
 interviews` (Google consent each run, no stored token) and wait for you on the Interviews page;
 detection doesn't run on its own yet. New job mail is linked to your applications and sorted when
 you run `pnpm --filter @northstar/funnel funnel inbox` (Gmail consent each run, no stored token);
-it shows on the Inbox page, and recruiter emails aren't graded yet. What each package does today is listed
+it shows on the Inbox page. Recruiter emails are graded A–F in the same run once you turn on
+`RECRUITER_EXTRACT` (off by default). What each package does today is listed
 under "Layout" in [AGENTS.md](AGENTS.md).
 
 ## Getting started (local)

@@ -87,6 +87,16 @@ const KINDS: Record<string, KindWords> = {
         "Later `funnel inbox` runs pass over this email. Look through your recent job mail in Gmail yourself: one email in it can't be read here.",
     },
   },
+  // NS-238 item 1 slice 2: a recruiter email `funnel inbox` couldn't grade.
+  "mail.grade": {
+    what: "Grading a recruiter email",
+    next: {
+      retry: "The next `funnel inbox` run tries to grade this email again.",
+      skip: "Later `funnel inbox` runs leave this email ungraded.",
+      hand_off:
+        "Later `funnel inbox` runs leave this email ungraded. It is still on /inbox; read it in Gmail from there and decide yourself.",
+    },
+  },
   // NS-238 item 1: a recorded email `funnel inbox` couldn't read or sort.
   "mail.classify": {
     what: "Sorting a job email",
@@ -111,6 +121,10 @@ const REASONS: Record<string, string> = {
   step_failed: "linking it to your applications failed",
   classify_failed: "sorting it failed",
   record_refused: "its result couldn't be stored",
+  refused: "the model declined to read it",
+  truncated: "the model's answer was cut off",
+  invalid_output: "the model's answer was malformed",
+  grade_failed: "grading it failed",
 };
 
 // Own keys only: a code such as "constructor" must not find Object's built-ins.

@@ -100,3 +100,46 @@ export async function readRecordedMessageIds(
     );
   return new Set(rows.map((r) => r.gmailMessageId));
 }
+
+// Messages classified as recruiter mail with no grade and no dismissal, newest first, at most
+// `limit` (NS-238 item 1 slice 2: what `funnel inbox` grades). Ids only.
+export async function readUngradedRecruiterMail(
+  db: Pick<Db, "select">,
+  candidateId: CandidateId,
+  limit: number,
+): Promise<UnclassifiedMail[]> {
+  return db
+    .select({ mailLinkId: mailLink.id, gmailMessageId: mailLink.gmailMessageId })
+    .from(mailClassification)
+    .innerJoin(
+      mailLink,
+      and(
+        eq(mailLink.candidateId, mailClassification.candidateId),
+        eq(mailLink.gmailMessageId, mailClassification.gmailMessageId),
+      ),
+    )
+    .leftJoin(
+      recruiterGrade,
+      and(
+        eq(recruiterGrade.candidateId, mailClassification.candidateId),
+        eq(recruiterGrade.gmailMessageId, mailClassification.gmailMessageId),
+      ),
+    )
+    .leftJoin(
+      mailLinkDecision,
+      and(
+        eq(mailLinkDecision.candidateId, mailClassification.candidateId),
+        eq(mailLinkDecision.gmailMessageId, mailClassification.gmailMessageId),
+      ),
+    )
+    .where(
+      and(
+        eq(mailClassification.candidateId, candidateId),
+        eq(mailClassification.kind, "recruiter_inbound"),
+        isNull(recruiterGrade.id),
+        sql`${mailLinkDecision.decision} is distinct from 'dismissed'`,
+      ),
+    )
+    .orderBy(desc(mailLink.receivedAt), desc(mailLink.gmailMessageId))
+    .limit(limit);
+}

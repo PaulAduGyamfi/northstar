@@ -7,6 +7,8 @@ import {
   type TriageResult,
 } from "@northstar/inbox";
 import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
+import { FunnelConfigError } from "./config.js";
+import type { GradingReport } from "./grade.js";
 
 // `funnel inbox` (NS-238 item 1; INB-002/003/009/012): the mail loop, run once when Paul asks
 // (#400: no stored Google token, no schedule). It links new mail from the stored cursor, then
@@ -19,7 +21,7 @@ export const MAX_POLLS = 3;
 export const MAX_CLASSIFY = 25;
 
 export type LetterRow = { idempotencyKey: string; action: "retry" | "skip" | "hand_off" | null };
-type LetterKind = "mail.poll" | "mail.classify";
+export type LetterKind = "mail.poll" | "mail.classify" | "mail.grade";
 
 // What the stored letters say about each message: pass it over unless Paul sent its newest letter
 // back with Retry (an open letter, Skip and Hand off all keep it out), and how many letters it has,
@@ -78,6 +80,8 @@ export type InboxRunDeps = {
     result: ClassificationResult,
   ) => Promise<{ ok: boolean }>;
   ungradedRecruiterMail: () => Promise<number>;
+  // The grading step (`runGrading`, grade.ts), after sorting; off unless RECRUITER_EXTRACT is on.
+  grading: () => Promise<GradingReport>;
 };
 
 export type InboxRunReport = {
@@ -106,10 +110,15 @@ export type InboxRunReport = {
   // Unclassified messages are left for a later run.
   moreWaiting: boolean;
   recruiterWaiting: number;
+  // Grading (slice 2): whether it ran, how many were graded or given up on, and why it stopped.
+  gradingOn: boolean;
+  graded: number;
+  gradeLetters: number;
+  gradeStoppedBy: string | null;
 };
 
 // A failure of the dependency, not of the message: stop, and leave the rest for a later run.
-function dependencyDown(e: unknown): boolean {
+export function dependencyDown(e: unknown): boolean {
   if (e instanceof HeldBack || e instanceof LlmTransportError) return true;
   // 400 and 404 are about this message (bad id, deleted since); anything else is Gmail or the token.
   return e instanceof GmailError && e.status !== 400 && e.status !== 404;
@@ -120,7 +129,7 @@ function dependencyDown(e: unknown): boolean {
 // GmailErrors too; such a message stays at the head and the run says Gmail didn't answer.
 const NOT_THE_MESSAGE = new Set(["HeldBack", "GmailError", "OAuthError", "FutureCursorError"]);
 
-const errorName = (e: unknown) => (e instanceof Error ? e.name : "Error");
+export const errorName = (e: unknown) => (e instanceof Error ? e.name : "Error");
 
 export async function runInbox(deps: InboxRunDeps): Promise<InboxRunReport> {
   const r: InboxRunReport = {
@@ -143,9 +152,18 @@ export async function runInbox(deps: InboxRunDeps): Promise<InboxRunReport> {
     classifyStoppedBy: null,
     moreWaiting: false,
     recruiterWaiting: 0,
+    gradingOn: false,
+    graded: 0,
+    gradeLetters: 0,
+    gradeStoppedBy: null,
   };
   await linkNewMail(deps, r);
   await classifyRecorded(deps, r);
+  const g = await deps.grading();
+  r.gradingOn = g.enabled;
+  r.graded = g.graded;
+  r.gradeLetters = g.gradeLetters;
+  r.gradeStoppedBy = g.gradeStoppedBy;
   r.recruiterWaiting = await deps.ungradedRecruiterMail();
   return r;
 }
@@ -340,7 +358,15 @@ export async function inboxCommand(deps: InboxDeps): Promise<number> {
     deps.print(`Couldn't sort: ${r.classifyLetters}. Each is in Stuck work on /health.`);
   }
   if (r.moreWaiting) deps.print("More mail is waiting to be sorted; run it again later.");
-  if (r.recruiterWaiting > 0) {
+  if (r.gradingOn) {
+    deps.print(`Graded recruiter emails: ${r.graded}.`);
+    if (r.gradeLetters > 0) {
+      deps.print(`Couldn't grade: ${r.gradeLetters}. Each is in Stuck work on /health.`);
+    }
+    if (r.recruiterWaiting > 0) {
+      deps.print(`Recruiter emails still to grade: ${r.recruiterWaiting}; run it again later.`);
+    }
+  } else if (r.recruiterWaiting > 0) {
     deps.print(
       `Recruiter emails waiting for a grade: ${r.recruiterWaiting}. Grading starts once recruiter reading is turned on.`,
     );
@@ -354,7 +380,12 @@ export async function inboxCommand(deps: InboxDeps): Promise<number> {
     deps.print(`Sorting stopped early: ${stopWords(r.classifyStoppedBy)}.`);
     code = 1;
   }
+  if (r.gradeStoppedBy !== null) {
+    deps.print(`Grading stopped early: ${stopWords(r.gradeStoppedBy)}.`);
+    code = 1;
+  }
   if (r.queued > 0 || r.review > 0) deps.print("Link or review them on /inbox.");
+  if (r.graded > 0) deps.print("See the grades on /inbox.");
   return code;
 }
 
@@ -364,6 +395,7 @@ function stopWords(name: string): string {
   if (name === "LlmTransportError") return "the Claude API didn't answer";
   if (name === "GmailError") return "Gmail didn't answer";
   if (name === "FutureCursorError") return "the stored mail cursor is in the future";
+  if (name === "RecruiterExtractOff") return "recruiter reading is turned off";
   return name;
 }
 
@@ -371,6 +403,8 @@ function stopWords(name: string): string {
 // else is named only.
 function describeError(error: unknown): string {
   if (error instanceof OAuthError || error instanceof GmailError) return error.message;
+  // Fixed words naming the setting, never its value.
+  if (error instanceof FunnelConfigError) return error.message;
   if (error instanceof HeldBack) return `${describeHeldBack(error)}; run it again later`;
   return error instanceof Error ? error.name : "an unknown error";
 }
