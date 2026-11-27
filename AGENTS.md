@@ -610,7 +610,14 @@ Exists now:
   (`packages/db`, `alert-write.ts`). Since NS-199 (#172, slice 1) `readAlertCandidates` takes a
   `freshSince` (the caller passes now less `FRESH_MINUTES`) and reads only jobs that could still
   alert: those whose posting date, or first-seen time when undated, is after it, and those with a
-  held alert not yet sent. No phone push yet: that needs the PWA.
+  held alert not yet sent. Since NS-199 slice 2 Paul's own settings win over the `ALERT_*`
+  defaults, field by field: append-only `alert_setting` (`packages/db`, `alert-setting-write.ts`:
+  `setAlertSettings` merges one change into the newest version, a null field means the default,
+  the same values store nothing, `alerts.settings_changed` carries field names only;
+  `readAlertSettings`), merged by `effectiveAlertConfig` (`alerts.ts`, with the env parsers
+  shared) and read on every alert pass, and `jobs alerts` (`alerts-cli.ts`). A stored zone this
+  machine doesn't know falls back to the default. No Settings page yet. No phone push yet: that
+  needs the PWA.
 - The Approval Gate (NS-119, ADR-0002, ADR-0017): the auto-approve rules and their evaluator in
   `packages/domain` (`approval.ts`; only application packages can ever be auto-approved), and
   the append-only `approval_*` tables with the Gate's one write path in `packages/db`
@@ -1020,6 +1027,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/sources jobs score` / `jobs why <job-id>` | score every job not scored for the current preferences and resume (also runs after `jobs add`, `jobs set`, each poll pass and each browser capture) / a job's score with each matched requirement, its atom, and the unmatched ones. Paul only: prints his real profile |
 | repo root | `pnpm --filter @northstar/sources jobs poll` / `jobs run` | one pass over the due boards / poll once a minute until Ctrl-C (boards are only polled while it runs). Paul only: real network and database |
 | repo root | `pnpm --filter @northstar/sources jobs form <job-id>` | read a saved Greenhouse job's application questions from its public API and store them with the job (a changed form is a new version; the same form stores nothing); prints counts and the required questions' labels. Paul only: real network and database |
+| repo root | `pnpm --filter @northstar/sources jobs alerts` / `jobs alerts set quiet <HH:MM-HH:MM\|off>` / `jobs alerts set zone <IANA zone>` / `jobs alerts set tier1 <true\|false>` / `jobs alerts reset quiet\|zone\|tier1` | show the fresh-job alert settings in effect and whether each is set here or the `ALERT_*` default / store one (checked like the env value; the next alert pass uses it, no restart) / put one back to its default. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs check` | re-check the postings of saved jobs not tried in a day (closed ones weekly; at most 50 a pass); a job closes after two closed answers in a row and leaves scoring; prints counts only. Paul only: real network and database |
 | repo root | `cp .env.example .env` | once per clone (Paul): then replace every `change-me` in `.env` |
 | repo root | `docker compose -f docker-compose.yml up -d --wait` | local stack: Postgres+pgvector :5432, Temporal :7233 (UI :8233), SeaweedFS S3 :8333, Grafana :3000 + OTLP :4317/:4318, all on 127.0.0.1. Agents must use this exact form (runs outside the sandbox) |

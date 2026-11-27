@@ -48,6 +48,14 @@ function deps(argv: string[]) {
       poll: async () => ({ boards: 1, added: 2, failed: 0, quarantined: 0 }),
       wait: async () => false,
     },
+    alerts: {
+      defaults: { quiet: null, timeZone: "UTC", tier1InQuietHours: true },
+      read: async () => null,
+      save: async () => ({
+        ok: true,
+        value: { saved: false, settings: { quiet: null, timeZone: null, tier1InQuietHours: null } },
+      }),
+    },
     form: {
       sources: async () => [],
       readGreenhouse: async () => null,

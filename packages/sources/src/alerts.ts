@@ -1,4 +1,4 @@
-import type { AlertCandidate, AlertInput } from "@northstar/db";
+import type { AlertCandidate, AlertInput, StoredAlertSettings } from "@northstar/db";
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { detectAts } from "./ats/detect.js";
 import { ageHours } from "./queue.js";
@@ -48,31 +48,90 @@ export class AlertSettingError extends Error {
 
 export type AlertConfigResult = { ok: true; value: AlertConfig } | { ok: false; setting: string };
 
+// Quiet hours as written in ALERT_QUIET_HOURS or `jobs alerts set quiet`: `HH:MM-HH:MM` (it may
+// wrap midnight) or `off`. Null for anything else; equal ends would mean "always quiet" or
+// "never", so they are refused as unclear.
+export function parseQuietHours(raw: string): { quiet: AlertConfig["quiet"] } | null {
+  const text = raw.trim();
+  if (text === "off") return { quiet: null };
+  const [a, b, ...rest] = text.split("-");
+  const start = toMinutes(a ?? "");
+  const end = toMinutes(b ?? "");
+  if (rest.length > 0 || start === null || end === null || start === end) return null;
+  return { quiet: { start, end } };
+}
+
+// An IANA time zone the runtime knows, or null.
+export function parseTimeZone(raw: string): string | null {
+  const zone = raw.trim();
+  return zone !== "" && validZone(zone) ? zone : null;
+}
+
+// `true` or `false`, or null for anything else.
+export function parseTier1(raw: string): boolean | null {
+  const text = raw.trim();
+  return text === "true" ? true : text === "false" ? false : null;
+}
+
 // The alert settings from the environment (bin.ts passes process.env). A bad value is refused by
-// its setting's name, never echoed.
+// its setting's name, never echoed. Since NS-199 slice 2 these are the defaults: a stored setting
+// wins (effectiveAlertConfig).
 export function loadAlertConfig(
   env: Record<string, string | undefined>,
   machineZone: string,
 ): AlertConfigResult {
-  const rawQuiet = (env.ALERT_QUIET_HOURS ?? "").trim() || "22:00-07:00";
-  let quiet: AlertConfig["quiet"] = null;
-  if (rawQuiet !== "off") {
-    const [a, b, ...rest] = rawQuiet.split("-");
-    const start = toMinutes(a ?? "");
-    const end = toMinutes(b ?? "");
-    // Equal ends would mean "always quiet" or "never": refused as unclear.
-    if (rest.length > 0 || start === null || end === null || start === end) {
-      return { ok: false, setting: "ALERT_QUIET_HOURS" };
-    }
-    quiet = { start, end };
-  }
-  const timeZone = (env.ALERT_TIME_ZONE ?? "").trim() || machineZone;
-  if (!validZone(timeZone)) return { ok: false, setting: "ALERT_TIME_ZONE" };
-  const rawTier = (env.ALERT_TIER1_IN_QUIET_HOURS ?? "").trim() || "true";
-  if (rawTier !== "true" && rawTier !== "false") {
-    return { ok: false, setting: "ALERT_TIER1_IN_QUIET_HOURS" };
-  }
-  return { ok: true, value: { quiet, timeZone, tier1InQuietHours: rawTier === "true" } };
+  const quiet = parseQuietHours((env.ALERT_QUIET_HOURS ?? "").trim() || "22:00-07:00");
+  if (!quiet) return { ok: false, setting: "ALERT_QUIET_HOURS" };
+  const timeZone = parseTimeZone((env.ALERT_TIME_ZONE ?? "").trim() || machineZone);
+  if (!timeZone) return { ok: false, setting: "ALERT_TIME_ZONE" };
+  const tier1InQuietHours = parseTier1((env.ALERT_TIER1_IN_QUIET_HOURS ?? "").trim() || "true");
+  if (tier1InQuietHours === null) return { ok: false, setting: "ALERT_TIER1_IN_QUIET_HOURS" };
+  return { ok: true, value: { quiet: quiet.quiet, timeZone, tier1InQuietHours } };
+}
+
+export type AlertSettingSource = "stored" | "default";
+
+export type EffectiveAlertConfig = {
+  config: AlertConfig;
+  // Where each value came from, for `jobs alerts` and the alert pass's span.
+  sources: { quiet: AlertSettingSource; timeZone: AlertSettingSource; tier1: AlertSettingSource };
+  // A stored zone this runtime no longer knows: the default zone is used instead.
+  unknownStoredZone: boolean;
+};
+
+// Paul's stored alert settings over the ALERT_* defaults, field by field (NS-199 slice 2, SRC-017).
+// A null stored field means "use the default".
+export function effectiveAlertConfig(
+  defaults: AlertConfig,
+  stored: StoredAlertSettings | null,
+): EffectiveAlertConfig {
+  const quiet = stored?.quiet ?? null;
+  const storedZone = stored?.timeZone ?? null;
+  const zone = storedZone === null ? null : parseTimeZone(storedZone);
+  const tier1 = stored?.tier1InQuietHours ?? null;
+  return {
+    config: {
+      quiet: quiet === null ? defaults.quiet : quiet === "off" ? null : quiet,
+      timeZone: zone ?? defaults.timeZone,
+      tier1InQuietHours: tier1 ?? defaults.tier1InQuietHours,
+    },
+    sources: {
+      quiet: quiet === null ? "default" : "stored",
+      timeZone: zone === null ? "default" : "stored",
+      tier1: tier1 === null ? "default" : "stored",
+    },
+    unknownStoredZone: storedZone !== null && zone === null,
+  };
+}
+
+// One word for the span: every value from the defaults, every one stored, or a mix.
+export function settingsSource(e: EffectiveAlertConfig): "default" | "stored" | "mixed" {
+  const all = Object.values(e.sources);
+  return all.every((s) => s === "default")
+    ? "default"
+    : all.every((s) => s === "stored")
+      ? "stored"
+      : "mixed";
 }
 
 // Whether `now` falls inside quiet hours in the configured zone. A range can wrap midnight
@@ -159,16 +218,30 @@ export type AlertStore = {
     input: Omit<AlertInput, "candidateId"> & { wasHeld: boolean },
   ) => Promise<"recorded" | "exists">;
   hold: (input: Omit<AlertInput, "candidateId">) => Promise<"recorded" | "exists">;
+  // Paul's stored settings (NS-199 slice 2), read inside the pass's span so a change needs no
+  // restart and a failed read marks the span. Without it the pass uses its config as given.
+  settings?: () => Promise<StoredAlertSettings | null>;
 };
 
 export type AlertCounts = { sent: number; held: number; released: number };
 
 // One alert pass over the queue-band jobs. Safe to repeat: the keys store each decision once.
-export function alertPass(store: AlertStore, now: Date, config: AlertConfig): Promise<AlertCounts> {
+// `defaults` are the ALERT_* settings; with a `settings` port, Paul's stored ones win over them.
+export function alertPass(
+  store: AlertStore,
+  now: Date,
+  defaults: AlertConfig,
+): Promise<AlertCounts> {
   return trace
     .getTracer("@northstar/sources")
     .startActiveSpan("sources.fresh_alerts", async (span): Promise<AlertCounts> => {
       try {
+        let config = defaults;
+        if (store.settings) {
+          const effective = effectiveAlertConfig(defaults, await store.settings());
+          config = effective.config;
+          span.setAttribute("alerts.settings_source", settingsSource(effective));
+        }
         const candidates = await store.candidates();
         const counts: AlertCounts = { sent: 0, held: 0, released: 0 };
         if (candidates.length > 0) {

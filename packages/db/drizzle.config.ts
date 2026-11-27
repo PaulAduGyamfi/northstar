@@ -36,6 +36,7 @@ export default defineConfig({
     "./src/interview-schema.ts",
     "./src/career-dna-schema.ts",
     "./src/application-package-schema.ts",
+    "./src/alert-setting-schema.ts",
   ],
   out: "./migrations",
 });

@@ -1,5 +1,15 @@
 // Public entry of @northstar/db: the schema, the status-change write path and the event reader.
 
+// Paul's fresh-job alert settings, stored over the ALERT_* defaults (NS-199 slice 2).
+export {
+  type AlertSettingField,
+  type AlertSettingsChange,
+  type AlertSettingsRefusal,
+  readAlertSettings,
+  type StoredAlertSettings,
+  type StoredQuiet,
+  setAlertSettings,
+} from "./alert-setting-write.js";
 // Fresh-job alerts (NS-163): candidates and the per-job alert events.
 export {
   type AlertCandidate,

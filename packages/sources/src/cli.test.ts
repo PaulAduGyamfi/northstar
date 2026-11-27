@@ -37,6 +37,14 @@ function deps(argv: string[], result?: IngestResult | Error) {
       wait: async () => false,
     },
     fit: noFit(),
+    alerts: {
+      defaults: { quiet: null, timeZone: "UTC", tier1InQuietHours: true },
+      read: async () => null,
+      save: async () => ({
+        ok: true,
+        value: { saved: false, settings: { quiet: null, timeZone: null, tier1InQuietHours: null } },
+      }),
+    },
     form: {
       sources: async () => [],
       readGreenhouse: async () => null,
