@@ -1,4 +1,4 @@
-import { CandidateId } from "@northstar/domain";
+import { CandidateId, DEFAULT_NUDGE_DAYS, nudgesDue } from "@northstar/domain";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "./db.js";
@@ -195,6 +195,22 @@ describe("reads that use the stored kind", () => {
     await link(M2, 2);
     await record(M2, REVIEW);
     expect((await readNudgeCandidates(db, candidateId))[0]?.lastMail?.kind).toBeNull();
+  });
+
+  it("lets a nudge come due from a stored confirmation, and not before it is stored", async () => {
+    await link(M1, 1);
+    const before = await readNudgeCandidates(db, candidateId);
+    const row = before[0];
+    if (!row?.lastMail) throw new Error("no candidate row");
+    // Eight days after the newest sign of life: past the applied stage's 7.
+    const lastActivity = Math.max(row.lastMoveAt.getTime(), row.lastMail.receivedAt.getTime());
+    const now = new Date(lastActivity + 8 * 24 * 60 * 60 * 1000);
+    await record(M1, RULES);
+    const after = await readNudgeCandidates(db, candidateId);
+    expect([
+      nudgesDue(before, DEFAULT_NUDGE_DAYS, now).map((d) => d.gmailMessageId),
+      nudgesDue(after, DEFAULT_NUDGE_DAYS, now).map((d) => [d.applicationId, d.gmailMessageId]),
+    ]).toEqual([[], [[applicationId, M1]]]);
   });
 });
 

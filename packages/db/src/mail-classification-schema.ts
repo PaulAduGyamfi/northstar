@@ -4,7 +4,7 @@ import { MAIL_KINDS, STAGE_SIGNALS } from "./funnel-schema.js";
 import { candidate } from "./schema.js";
 
 // Why a message went to Paul's review instead of being classified: the triage step's reasons
-// (classifyLinkedMail in @northstar/inbox).
+// (classifyLinkedMail in @northstar/inbox, its ReviewReason type): keep the two lists the same.
 export const CLASSIFICATION_REVIEW_REASONS = [
   "refused",
   "truncated",

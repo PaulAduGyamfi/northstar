@@ -41,13 +41,13 @@ nothing stores it. The credit report's inbox stages (#294), follow-up nudges
 - No caller classifies new mail yet: the worker (#230) calls `classifyLinkedMail` then this.
 
 ## Acceptance criteria
-- [ ] Stored once per message, the repeat stores nothing, an unknown message is refused, a bad shape
+- [x] Stored once per message, the repeat stores nothing, an unknown message is refused, a bad shape
       is refused (PGlite).
-- [ ] The table refuses UPDATE, DELETE, TRUNCATE and bad shapes written directly.
-- [ ] The events and their feed lines carry codes only.
-- [ ] The Inbox read shows the newest classified kind per thread; the nudge read shows the stored
+- [x] The table refuses UPDATE, DELETE, TRUNCATE and bad shapes written directly.
+- [x] The events and their feed lines carry codes only.
+- [x] The Inbox read shows the newest classified kind per thread; the nudge read shows the stored
       kind, and a nudge comes due from it (PGlite).
-- [ ] lint, typecheck, test, build green (CI `checks`: this container's Node 22 can't install the
+- [x] lint, typecheck, test, build green (CI `checks`: this container's Node 22 can't install the
       workspace).
 
 ## Out of scope
