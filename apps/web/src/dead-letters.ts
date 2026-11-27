@@ -49,7 +49,7 @@ const KINDS: Record<string, KindWords> = {
         "Nothing runs now: a submission can't be restarted from here yet. The application stays where it is on the Pipeline.",
       skip: "Nothing more is done about this run. The application stays where it is on the Pipeline.",
       hand_off:
-        "Nothing runs now. Find the application on the Pipeline and apply on the job's own page yourself.",
+        "Nothing runs now. Check the application on the Pipeline and your email first: the run may already have sent it, or the job may have closed. Only if it wasn't sent, apply on the job's own page yourself.",
     },
   },
 };
