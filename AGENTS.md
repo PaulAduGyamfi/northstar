@@ -361,6 +361,11 @@ Exists now:
   Since slice 6 `profile import-resume` (a new import) and `profile interview` (an approved story)
   also run it afterwards (`refreshAfterChange`, `dna-cli.ts`) and print the version and what
   changed; a failed refresh prints one retry line and never fails the import or the story.
+  Since slice 7 Paul's LinkedIn export and site lines count too (DNA-001): `readSourceAtoms`
+  (`packages/db`, the current import of one non-resume kind) feeds `refreshCareerDna` after the
+  resume's atoms, a line already in (case and spacing aside) counts once with the first atom cited,
+  and `profile import-linkedin` and `profile import-site` rebuild the report after a new import.
+  The report still needs a resume import.
 
   No Profile Grade handoff, page or share card yet; the share card waits on a Publish gateway
   ADR and Q-10.

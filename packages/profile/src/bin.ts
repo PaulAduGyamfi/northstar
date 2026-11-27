@@ -25,6 +25,7 @@ import {
   readProfile,
   readProfileSettings,
   readScoringProfile,
+  readSourceAtoms,
   readSourceRoles,
   readStories,
   readTailorInput,
@@ -201,6 +202,7 @@ try {
     // The Career DNA report and its history (NS-130 slice 5).
     readScoringProfile: () => readScoringProfile(db, candidateId),
     readCareerDnaHistory: () => readCareerDnaHistory(db, candidateId),
+    readSourceAtoms: (kind) => readSourceAtoms(db, candidateId, kind),
     saveCareerDnaReport: (snapshot) => saveCareerDnaReport(db, { candidateId, snapshot }),
     recordCheck: (claims, mismatches) => recordFactsCheck(db, { candidateId, claims, mismatches }),
     readThesisProfile: () => readThesisProfile(db, candidateId),
