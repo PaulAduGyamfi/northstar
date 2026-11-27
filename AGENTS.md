@@ -82,8 +82,11 @@ Exists now:
   transaction; a move to `submitted` must carry `submittedVia` (`auto` or `approved` from the
   Apply Gateway by the Gate's `decidedBy`, `handoff` from "I submitted it"), stored in that
   move's event. `readOrigin` and `readCreditReport` (INB-010: submitted, in process and offer
-  per origin bucket; screen and interview wait for NS-164). Nothing calls `createApplication`
-  yet.
+  per origin bucket). Since NS-248 item 2 also `readInboxCreditReport`: per origin bucket, how many
+  applications reached replied (a classified linked message other than a confirmation), screen
+  (a `screen` stage signal) and interview (`technical` or `onsite`), from stored
+  `mail_classification`; review results, queued and dismissed mail count nowhere. Counts only, no
+  caller yet. Nothing calls `createApplication` yet.
 - `packages/llm/` (NS-106): the LLM gateway, the only importer of `@anthropic-ai/sdk`. Typed
   routes, structured output, caching order, refusal fallback, call records and the `llm.call`
   span. Plus `untrustedBlock` and the request-keyed replay/recording fixtures (ADR-0013).
