@@ -664,8 +664,12 @@ Exists now:
   the same values store nothing, `alerts.settings_changed` carries field names only;
   `readAlertSettings`), merged by `effectiveAlertConfig` (`alerts.ts`, with the env parsers
   shared) and read on every alert pass, and `jobs alerts` (`alerts-cli.ts`). A stored zone this
-  machine doesn't know falls back to the default. No Settings page yet. No phone push yet: that
-  needs the PWA.
+  machine doesn't know falls back to the default. Since NS-199 slice 3 also Settings → Search in
+  the app: the API's `GET` and `POST /settings/alerts` (session only, `apps/api/src/alert-settings.ts`;
+  a value is checked by `alertChange`, the same function as `jobs alerts set`, a null value resets
+  it, and bad `ALERT_*` defaults fail only these routes with `503 alert_defaults_invalid`) and the
+  web app's `/settings/search` (`src/search-settings.ts`, linked from Today): each setting in words,
+  "set here" or "default", with Save and "Use the default". No phone push yet: that needs the PWA.
 - The Approval Gate (NS-119, ADR-0002, ADR-0017): the auto-approve rules and their evaluator in
   `packages/domain` (`approval.ts`; only application packages can ever be auto-approved), and
   the append-only `approval_*` tables with the Gate's one write path in `packages/db`

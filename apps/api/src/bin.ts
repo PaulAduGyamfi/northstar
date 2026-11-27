@@ -16,6 +16,7 @@ import {
   listPasskeys,
   listTenants,
   loadDbConfig,
+  readAlertSettings,
   readApplicationHistories,
   readApplicationTimeline,
   readCareerDnaHistory,
@@ -49,6 +50,7 @@ import {
   saveIngestedJob,
   savePasskey,
   saveWeekReview,
+  setAlertSettings,
   setConsentPolicy,
   setKillSwitch,
   soleCandidate,
@@ -68,9 +70,11 @@ import {
   ingestText,
   ingestUrl,
   jobExtractRoute,
+  loadAlertConfig,
   scorePending,
 } from "@northstar/sources";
 import { accountsEndpoints } from "./accounts.js";
+import { alertSettingsEndpoints } from "./alert-settings.js";
 import { dbApprovalPorts } from "./approval-ports.js";
 import { approvalEndpoints } from "./approvals.js";
 import { captureEndpoint } from "./capture.js";
@@ -225,6 +229,13 @@ try {
     listConsents: async () => listConsentRecords(db, await candidateId()),
     readConsentText: async (recordId) => readConsentText(db, await candidateId(), recordId),
   });
+  // Fresh-job alert settings on Settings → Search (NS-199 slice 3): stored over the ALERT_*
+  // defaults, read here the way `jobs` reads them. A bad default fails only these two routes.
+  const alertSettings = alertSettingsEndpoints({
+    defaults: loadAlertConfig(process.env, Intl.DateTimeFormat().resolvedOptions().timeZone),
+    read: async () => readAlertSettings(db, await candidateId()),
+    save: async (change) => setAlertSettings(db, { candidateId: await candidateId(), change }),
+  });
   // The approval queue (NS-139): the only path to decideApprovals and undoDecision, behind
   // Paul's session, so every decision is his (ADR-0002).
   const approvals = approvalEndpoints(dbApprovalPorts(db, candidateId));
@@ -328,6 +339,7 @@ try {
       ...prefill,
       ...accounts,
       ...consent,
+      ...alertSettings,
       ...approvals,
       ...pipeline,
       ...inbox,
