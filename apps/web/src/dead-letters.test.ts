@@ -36,12 +36,31 @@ describe("letterLine", () => {
   });
 });
 
+describe("letterLine for a submission", () => {
+  it("names a submission that gave up, and an activity that failed every attempt", () => {
+    expect(
+      letterLine({ ...ITEM, kind: "apply.submission", reasonCode: "activity_failed", attempts: 5 }),
+    ).toEqual({
+      what: "Submitting an application",
+      why: "Stopped after 5 attempts: every attempt to run it failed",
+    });
+  });
+});
+
 describe("nextStep", () => {
   it("says what happens next for every action on the sweep", () => {
     expect(DEAD_LETTER_ACTIONS.map((a) => nextStep("apply.stale_sweep", a))).toEqual([
       "Nothing runs now: the sweep already tries again on every pass, every few minutes. If it keeps failing, a new item shows here.",
       "Nothing more is done about this pass. Later passes still run.",
       "Nothing runs now: the sweep keeps trying on its own passes. There's no page for open claims yet, so check the Apply ledger in the database if this keeps happening.",
+    ]);
+  });
+
+  it("says what happens next for every action on a submission, without claiming a restart", () => {
+    expect(DEAD_LETTER_ACTIONS.map((a) => nextStep("apply.submission", a))).toEqual([
+      "Nothing runs now: a submission can't be restarted from here yet. The application stays where it is on the Pipeline.",
+      "Nothing more is done about this run. The application stays where it is on the Pipeline.",
+      "Nothing runs now. Check the application on the Pipeline and your email first: the run may already have sent it, or the job may have closed. Only if it wasn't sent, apply on the job's own page yourself.",
     ]);
   });
 
