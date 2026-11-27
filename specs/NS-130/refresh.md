@@ -15,6 +15,8 @@ adds that step and a command Paul can run after an import or a new story.
     quotes (`readThesisProfile`), and Paul's approved stories (`readStories`: id and competencies,
     unknown competencies dropped);
   - with no resume import, returns `NoProfile` and stores nothing;
+  - runs the DNA-001 citation check (`checkCareerDna`) on the built report; any failure returns
+    `CheckFailed` and stores nothing;
   - builds the report (`buildCareerDna`), reads the newest stored version, saves the snapshot
     (`saveCareerDnaReport`) and returns the report, whether a version was stored, the version, and
     `changeLines` against the previous version.
@@ -26,7 +28,10 @@ adds that step and a command Paul can run after an import or a new story.
 - [ ] With no import, nothing is saved and the command says so.
 - [ ] A refresh saves version 1 and says it is the first report; an unchanged second refresh stores
       nothing and says nothing changed.
-- [ ] A new approved story changes the next refresh's lines and stores version 2.
+- [ ] A new approved story changes the next refresh's lines and stores version 2; a story's unknown
+      competencies count toward nothing.
+- [ ] A report that fails the citation check, or that the save refuses, stores nothing and the
+      command exits 1.
 - [ ] An atom's imported quote counts toward its dimension (the quote joins by atom id).
 - [ ] `pnpm turbo run lint typecheck test build` passes in `packages/profile`.
 

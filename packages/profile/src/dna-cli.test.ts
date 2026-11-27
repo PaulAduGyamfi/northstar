@@ -82,23 +82,60 @@ describe("profile dna", () => {
     expect(h.versions).toHaveLength(1);
   });
 
-  it("stores version 2 after a new approved story and says what changed", async () => {
+  // A synthetic approved story with the given competencies.
+  const story = (n: number, competencies: string[]): StoryView => ({
+    id: id(n),
+    title: "Ledger",
+    situation: "s",
+    task: "t",
+    action: "a",
+    result: "r",
+    competencies,
+    atomIds: [],
+  });
+
+  it("stores version 2 after a new approved story, with changed lines and what changed", async () => {
     const h = harness();
     await dnaCommand(h.deps, []);
-    h.stories.push({
-      id: id(4),
-      title: "Ledger",
-      situation: "s",
-      task: "t",
-      action: "a",
-      result: "r",
-      competencies: ["ownership", "not-a-competency"],
-      atomIds: [],
-    });
+    h.stories.push(story(4, ["technical-depth"]));
     h.lines.length = 0;
     await dnaCommand(h.deps, []);
+    expect(h.lines).toContain("Engineering: low confidence, 4 pieces of evidence.");
+    expect(h.lines).not.toContain("Engineering: low confidence, 3 pieces of evidence.");
     expect(h.lines).toContain("Saved as version 2.");
     expect(h.lines).toContain("  1 new piece of evidence.");
+  });
+
+  it("drops a story's unknown competencies, so they count toward nothing", async () => {
+    const h = harness();
+    await dnaCommand(h.deps, []);
+    h.stories.push(story(4, ["not-a-competency"]));
+    h.lines.length = 0;
+    await dnaCommand(h.deps, []);
+    expect(h.lines).toContain("Unchanged since version 1; nothing stored.");
+    expect(h.versions).toHaveLength(1);
+  });
+
+  it("stores nothing and exits 1 when the report fails the citation check", async () => {
+    const h = harness({ checkReport: () => [{ kind: "uncited", line: 0 }] });
+    expect([await dnaCommand(h.deps, []), h.lines, h.versions]).toEqual([
+      1,
+      ["Not stored: the report didn't pass its checks. Nothing was changed."],
+      [],
+    ]);
+  });
+
+  it("says nothing was stored when the save refuses the report", async () => {
+    const h = harness({
+      saveCareerDnaReport: async () => ({
+        ok: false,
+        error: { kind: "InvalidReport", fields: ["dimensions"] },
+      }),
+    });
+    expect(await dnaCommand(h.deps, [])).toBe(1);
+    expect(h.lines).toEqual([
+      "Not stored: the report didn't pass its checks. Nothing was changed.",
+    ]);
   });
 
   it("refuses extra arguments with its usage line", async () => {
