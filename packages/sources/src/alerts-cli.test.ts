@@ -158,6 +158,12 @@ describe("jobs alerts", () => {
     expect(c.lines.every((l) => l.startsWith("usage: jobs alerts"))).toBe(true);
   });
 
+  it("treats an inherited object name such as toString as an unknown field", async () => {
+    const c = cli();
+    expect(await c.run("alerts", "reset", "toString")).toBe(1);
+    expect(c.saved).toEqual([]);
+  });
+
   it("leaves other commands to the caller", async () => {
     expect(await cli().run("form", "j1")).toBeNull();
   });

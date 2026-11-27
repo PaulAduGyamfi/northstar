@@ -155,7 +155,7 @@ describe("the alert_setting table", () => {
     expect(await sqlState(db.execute(sql`DELETE FROM alert_setting`))).toBe(RESTRICT_VIOLATION);
   });
 
-  it("refuses quiet hours with only one end, or with equal ends", async () => {
+  it("refuses quiet hours with only one end, equal ends, minutes past the day or an unknown kind", async () => {
     const insert = (kind: string | null, start: number | null, end: number | null) =>
       sqlState(
         db.execute(
@@ -167,6 +167,12 @@ describe("the alert_setting table", () => {
     expect(await insert("range", 60, 60)).toBe(CHECK_VIOLATION);
     expect(await insert("off", 60, 120)).toBe(CHECK_VIOLATION);
     expect(await insert(null, 60, 120)).toBe(CHECK_VIOLATION);
+    expect(await insert("range", 0, 1440)).toBe(CHECK_VIOLATION);
+    expect(await insert("xyz", null, null)).toBe(CHECK_VIOLATION);
+    // The three good shapes go in.
+    expect(await insert("range", 1320, 420)).toBeNull();
+    expect(await insert("off", null, null)).toBeNull();
+    expect(await insert(null, null, null)).toBeNull();
   });
 
   it("refuses a time zone that isn't shaped like a zone name", async () => {

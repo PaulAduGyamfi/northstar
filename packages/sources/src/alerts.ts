@@ -218,24 +218,30 @@ export type AlertStore = {
     input: Omit<AlertInput, "candidateId"> & { wasHeld: boolean },
   ) => Promise<"recorded" | "exists">;
   hold: (input: Omit<AlertInput, "candidateId">) => Promise<"recorded" | "exists">;
+  // Paul's stored settings (NS-199 slice 2), read inside the pass's span so a change needs no
+  // restart and a failed read marks the span. Without it the pass uses its config as given.
+  settings?: () => Promise<StoredAlertSettings | null>;
 };
 
 export type AlertCounts = { sent: number; held: number; released: number };
 
 // One alert pass over the queue-band jobs. Safe to repeat: the keys store each decision once.
-// `source` says where the settings came from (NS-199 slice 2), for the span only; the bin always
-// passes it.
+// `defaults` are the ALERT_* settings; with a `settings` port, Paul's stored ones win over them.
 export function alertPass(
   store: AlertStore,
   now: Date,
-  config: AlertConfig,
-  source?: "default" | "stored" | "mixed",
+  defaults: AlertConfig,
 ): Promise<AlertCounts> {
   return trace
     .getTracer("@northstar/sources")
     .startActiveSpan("sources.fresh_alerts", async (span): Promise<AlertCounts> => {
-      if (source) span.setAttribute("alerts.settings_source", source);
       try {
+        let config = defaults;
+        if (store.settings) {
+          const effective = effectiveAlertConfig(defaults, await store.settings());
+          config = effective.config;
+          span.setAttribute("alerts.settings_source", settingsSource(effective));
+        }
         const candidates = await store.candidates();
         const counts: AlertCounts = { sent: 0, held: 0, released: 0 };
         if (candidates.length > 0) {

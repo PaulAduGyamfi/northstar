@@ -29,7 +29,8 @@ export const ALERTS_USAGE =
 
 const FIELD = { quiet: "quiet", zone: "timeZone", tier1: "tier1InQuietHours" } as const;
 type FieldWord = keyof typeof FIELD;
-const isField = (w: string | undefined): w is FieldWord => w !== undefined && w in FIELD;
+const isField = (w: string | undefined): w is FieldWord =>
+  w !== undefined && Object.hasOwn(FIELD, w);
 
 const hhmm = (minutes: number) =>
   `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;

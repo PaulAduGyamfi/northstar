@@ -1,6 +1,6 @@
 # NS-199 slice 2: quiet hours as a stored setting
 
-Status: in progress (autonomous lane, ADR-0016)
+Status: done, in review (autonomous lane, ADR-0016)
 Issue: #172, item 2
 Requirements: SRC-015 (quiet hours, tier-1 rule "configurable"), SRC-017 (editable any time, no
 onboarding-only fields)
@@ -16,15 +16,16 @@ search settings are editable at any time, with nothing fixed at setup.
 - A new append-only `alert_setting` table holds versions of the three settings per candidate:
   quiet hours (start and end in minutes after local midnight, or off), the time zone (an IANA
   name) and `tier1_in_quiet_hours`. A field left null in a version means "use the default".
-- `setAlertSettings(db, candidateId, change)` (`packages/db`) merges one change into the newest
-  version and stores a new version, plus an `alerts.settings_changed` event, in one transaction.
-  The event payload holds the field names only (`changed: ["quiet"]`), and the feed line is fixed:
-  "Changed the fresh-job alert settings". Setting the values a field already has stores nothing.
+- `setAlertSettings(db, { candidateId, change })` (`packages/db`) locks the candidate row, merges
+  one change into the newest version and stores a new version, plus an `alerts.settings_changed` event, in one transaction.
+  The event payload holds the field names only (`changed: ["quiet"]`), and the feed shows its fixed
+  `reason`: "You changed the fresh-job alert settings". Setting the values a field already has stores nothing.
   `readAlertSettings` returns the newest version, or null.
 - `effectiveAlertConfig(defaults, stored)` (`packages/sources`, plain code) uses each stored
   field where it is set, and the `ALERT_*` default otherwise, and says where each value came from.
-- Every alert pass (`jobs score`, `jobs poll`, each capture) reads the stored settings at that
-  moment, so a change applies on the next pass without a restart.
+- Every alert pass (`jobs score`, `jobs poll`; a capture's job alerts on the next one) reads the
+  stored settings inside its span through the store's `settings` port, so a change applies on the
+  next pass without a restart.
 - `jobs alerts` prints the effective settings and their sources. `jobs alerts set quiet
   <HH:MM-HH:MM|off>`, `jobs alerts set zone <IANA zone>` and `jobs alerts set tier1 <true|false>`
   change one field each. They are checked by the same parser as the env values (the parsing moves
@@ -42,11 +43,22 @@ search settings are editable at any time, with nothing fixed at setup.
 - [x] The CLI refuses a bad value with nothing stored and prints the source of each value (tests).
 - [x] `node_modules/.bin/turbo run lint typecheck test build --force` green; evals unchanged.
 
+## Tasks
+- [x] `alert_setting` with NULL-safe CHECKs and the append-only trigger (migrations 0090–0091).
+- [x] `setAlertSettings` / `readAlertSettings` with tests.
+- [x] Shared parsers, `effectiveAlertConfig`, and the alert pass's `settings` port.
+- [x] `jobs alerts` show|set|reset with tests.
+- [x] AGENTS.md, `.claude/rules/db.md`, `.env.example`.
+- [x] Reviews: the candidate-row lock (lost update), the settings read inside the span,
+      `Object.hasOwn` for field names, more CHECK cases.
+
 ## Failure modes
-- The database read fails: the alert pass fails as a database read fails today (the span is
-  marked, the scoring pass's own counts aren't lost).
+- The settings read fails: the alert pass fails inside its span (marked by the error's name), and
+  `scoreThenAlert` prints "Alerts didn't run"; the scoring pass's own counts aren't lost, and held
+  alerts wait for the next pass.
 - A stored time zone the runtime no longer knows: the effective config falls back to the default
-  zone and reports `zone: default (stored zone unknown)`, so alerts keep working.
+  zone, and `jobs alerts` adds "the zone set here isn't known on this machine", so alerts keep
+  working.
 
 ## Observability
 - `alerts.settings_changed` event (field names only) with its feed line.

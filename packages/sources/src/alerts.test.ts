@@ -1,4 +1,4 @@
-import type { AlertCandidate } from "@northstar/db";
+import type { AlertCandidate, StoredAlertSettings } from "@northstar/db";
 import { trace } from "@opentelemetry/api";
 import {
   BasicTracerProvider,
@@ -11,7 +11,6 @@ import {
   type AlertStore,
   alertPass,
   decideAlert,
-  effectiveAlertConfig,
   FRESH_MINUTES,
   freshSince,
   inQuietHours,
@@ -163,25 +162,27 @@ describe("alertPass", () => {
     ]);
   });
 
-  it("names where its settings came from on the span when the caller says (NS-199)", async () => {
-    const { store } = memoryStore([candidate()]);
-    await alertPass(store, DAY, config, "mixed");
-    const [span] = exporter.getFinishedSpans();
-    expect(span?.attributes["alerts.settings_source"]).toBe("mixed");
+  it("reads Paul's stored settings on each pass and sends at night once he turns quiet hours off (NS-199)", async () => {
+    const { store } = memoryStore([candidate({}, 5, NIGHT)]);
+    let stored: StoredAlertSettings | null = null;
+    store.settings = async () => stored;
+    // The env default holds it for quiet hours...
+    expect(await alertPass(store, NIGHT, config)).toEqual({ sent: 0, held: 1, released: 0 });
+    // ...and the next pass, with no restart, releases it under Paul's stored setting.
+    stored = { quiet: "off", timeZone: null, tier1InQuietHours: null };
+    expect(await alertPass(store, NIGHT, config)).toEqual({ sent: 0, held: 0, released: 1 });
+    const spans = exporter.getFinishedSpans();
+    expect(spans.map((s) => s.attributes["alerts.settings_source"])).toEqual(["default", "mixed"]);
   });
 
-  it("sends a fresh job at night when Paul's stored setting turns quiet hours off (NS-199)", async () => {
-    const { store } = memoryStore([candidate({}, 5, NIGHT)]);
-    const effective = effectiveAlertConfig(config, {
-      quiet: "off",
-      timeZone: null,
-      tier1InQuietHours: null,
-    });
-    expect(await alertPass(store, NIGHT, effective.config)).toEqual({
-      sent: 1,
-      held: 0,
-      released: 0,
-    });
+  it("marks the span as an error, by name only, when the settings read fails (NS-199)", async () => {
+    const { store } = memoryStore([candidate()]);
+    store.settings = async () => {
+      throw new TypeError("row (secret) failed");
+    };
+    await expect(alertPass(store, DAY, config)).rejects.toThrow(TypeError);
+    const [span] = exporter.getFinishedSpans();
+    expect(span?.status).toEqual({ code: 2, message: "TypeError" });
   });
 
   it("marks the span as an error, by name only, when the store fails", async () => {

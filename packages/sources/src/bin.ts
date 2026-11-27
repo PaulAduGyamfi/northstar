@@ -48,11 +48,9 @@ import { sql } from "drizzle-orm";
 import {
   AlertSettingError,
   alertPass,
-  effectiveAlertConfig,
   freshSince,
   loadAlertConfig,
   scoreThenAlert,
-  settingsSource,
 } from "./alerts.js";
 import { readGreenhouseForm } from "./ats/greenhouse-form.js";
 import { main } from "./cli.js";
@@ -119,12 +117,9 @@ try {
   );
   if (!alertConfig.ok) throw new AlertSettingError(alertConfig.setting);
   const defaults = alertConfig.value;
-  const alerts = async () => {
+  const alerts = () => {
     // One clock for the pass: the read's window and every decision use the same now.
     const now = new Date();
-    // Paul's stored settings over the ALERT_* defaults, read each pass so a change needs no
-    // restart (NS-199 slice 2).
-    const effective = effectiveAlertConfig(defaults, await readAlertSettings(db, candidateId));
     return alertPass(
       {
         // Only jobs that could still alert (NS-199): fresh ones and held ones.
@@ -132,10 +127,11 @@ try {
         watches: () => listWatches(db, candidateId),
         alert: (input) => recordFreshAlert(db, { ...input, candidateId }),
         hold: (input) => recordAlertHeld(db, { ...input, candidateId }),
+        // Paul's stored settings over the ALERT_* defaults, read each pass (NS-199 slice 2).
+        settings: () => readAlertSettings(db, candidateId),
       },
       now,
-      effective.config,
-      settingsSource(effective),
+      defaults,
     );
   };
   // One scoring pass over the current preferences and resume import (NS-116), then the alert
