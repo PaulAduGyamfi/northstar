@@ -652,6 +652,20 @@
       "when": 1795753821250,
       "tag": "0092_independent_work_invisible_chars",
       "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1795758877663,
+      "tag": "0093_reply_draft_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1795758879571,
+      "tag": "0094_reply_draft_ledger_append_only",
+      "breakpoints": true
     }
   ]
 }

@@ -424,6 +424,18 @@ export {
   recordRecruiterGrade,
   type StoredGrade,
 } from "./recruiter-grade-write.js";
+export * as replyLedgerSchema from "./reply-ledger-schema.js";
+// The Gmail draft writer's ledger (NS-237 slice 6): one approval, one draft.
+export {
+  claimDraft,
+  DRAFT_CLAIM_LEASE_MS,
+  type DraftClaim,
+  DraftClaimsExhausted,
+  DraftRecordConflict,
+  dbMailLedger,
+  MAX_DRAFT_CLAIMS,
+  recordDraft,
+} from "./reply-ledger-write.js";
 export * as replySchema from "./reply-schema.js";
 // Reply drafts filed with the Gate (NS-237), and Paul's edits of them (NS-203).
 export {

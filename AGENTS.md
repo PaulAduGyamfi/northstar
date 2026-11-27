@@ -314,7 +314,13 @@ Exists now:
   `fetch`. So no function hands its caller the token. That is a guard against misuse, not an
   isolation boundary: code in the same process that replaced the global `fetch` could still read
   it, so the boundary test refuses a `fetch`-shaped port under `src/mail/` and any replacement of
-  the global `fetch` outside tests, and review catches the rest. No database ledger (it needs a migration) or caller yet.
+  the global `fetch` outside tests, and review catches the rest. Since slice 6 the ledger is stored
+  (`packages/db`, `reply-ledger-write.ts`, migrations 0093–0094, append-only): `claimDraft` takes a
+  claim per attempt in `reply_draft_claim` under a per-decision advisory lock (`new`; `in_progress`
+  with the lease's end inside `DRAFT_CLAIM_LEASE_MS`, 5 min; `unknown`, with a fresh claim, after
+  it; `done` once recorded), `recordDraft` writes one `reply_draft_record` per decision with a
+  `reply.draft_created` event (decision and message ids; a fixed-word feed line), refusing a
+  different second id, and `dbMailLedger(db)` binds both to the writer's ports. No caller yet (#230).
 - Factual answers (NS-141, ANS-001) from Paul's profile settings, plain code, no model:
   `profile_setting` in `packages/db` (`settings-write.ts`: `setProfileSetting`,
   `readProfileSettings`, `recordFactualAnswer`; append-only, newest wins, setting the same value
