@@ -1,6 +1,7 @@
 import type { AlertSettingsChange, AlertSettingsRefusal, StoredAlertSettings } from "@northstar/db";
 import {
   type AlertConfig,
+  type EffectiveAlertConfig,
   effectiveAlertConfig,
   parseQuietHours,
   parseTier1,
@@ -28,15 +29,22 @@ export const ALERTS_USAGE =
   "usage: jobs alerts | jobs alerts set quiet <HH:MM-HH:MM|off> | jobs alerts set zone <IANA zone> | jobs alerts set tier1 <true|false> | jobs alerts reset quiet|zone|tier1";
 
 const FIELD = { quiet: "quiet", zone: "timeZone", tier1: "tier1InQuietHours" } as const;
-type FieldWord = keyof typeof FIELD;
-const isField = (w: string | undefined): w is FieldWord =>
+// The three setting words, shared by the CLI and the API.
+export const ALERT_FIELD_WORDS = ["quiet", "zone", "tier1"] as const;
+export type AlertFieldWord = (typeof ALERT_FIELD_WORDS)[number];
+// A reset: the field word's stored change back to the default.
+export const alertReset = (field: AlertFieldWord): AlertSettingsChange => ({
+  [FIELD[field]]: null,
+});
+const isField = (w: string | undefined): w is AlertFieldWord =>
   w !== undefined && Object.hasOwn(FIELD, w);
 
 const hhmm = (minutes: number) =>
   `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 
-// Parses one `set` value into a change, or null when the value is bad.
-function changeOf(field: FieldWord, raw: string): AlertSettingsChange | null {
+// Parses one `set` value into a change, or null when the value is bad. Exported (NS-199 slice 3)
+// so the API's Settings → Search route checks a value exactly as `jobs alerts set` does.
+export function alertChange(field: AlertFieldWord, raw: string): AlertSettingsChange | null {
   if (field === "quiet") {
     const parsed = parseQuietHours(raw);
     if (!parsed) return null;
@@ -50,7 +58,7 @@ function changeOf(field: FieldWord, raw: string): AlertSettingsChange | null {
   return tier1 === null ? null : { tier1InQuietHours: tier1 };
 }
 
-const BAD_VALUE: Record<FieldWord, string> = {
+const BAD_VALUE: Record<AlertFieldWord, string> = {
   quiet: "Quiet hours must be HH:MM-HH:MM with two different times, or off.",
   zone: "That isn't a time zone this machine knows (an IANA name such as Europe/Berlin).",
   tier1: "Tier-1 must be true or false.",
@@ -65,7 +73,7 @@ export async function alertsCommand(
   if (command !== "alerts") return null;
   if (action === undefined) return show(deps);
   if (action === "set" && isField(field) && value.length > 0) {
-    const change = changeOf(field, value.join(" "));
+    const change = alertChange(field, value.join(" "));
     if (!change) {
       deps.print(BAD_VALUE[field]);
       return 1;
@@ -73,7 +81,7 @@ export async function alertsCommand(
     return save(deps, change);
   }
   if (action === "reset" && isField(field) && value.length === 0) {
-    return save(deps, { [FIELD[field]]: null });
+    return save(deps, alertReset(field));
   }
   deps.print(ALERTS_USAGE);
   return 1;
@@ -95,21 +103,43 @@ async function save(
   return show(deps, result.value.settings);
 }
 
+export type AlertSettingsView = {
+  quiet: string;
+  timeZone: string;
+  tier1InQuietHours: boolean;
+  sources: EffectiveAlertConfig["sources"];
+  unknownStoredZone: boolean;
+};
+
+// The settings in effect as text (`HH:MM-HH:MM` or `off`), with each one's source: what
+// `jobs alerts` prints and the API's Settings → Search answer (NS-199 slice 3).
+export function alertSettingsView(
+  defaults: AlertConfig,
+  stored: StoredAlertSettings | null,
+): AlertSettingsView {
+  const e = effectiveAlertConfig(defaults, stored);
+  const q = e.config.quiet;
+  return {
+    quiet: q === null ? "off" : `${hhmm(q.start)}-${hhmm(q.end)}`,
+    timeZone: e.config.timeZone,
+    tier1InQuietHours: e.config.tier1InQuietHours,
+    sources: e.sources,
+    unknownStoredZone: e.unknownStoredZone,
+  };
+}
+
 async function show(
   deps: AlertsCliDeps & { print: (line: string) => void },
   stored?: StoredAlertSettings | null,
 ): Promise<number> {
-  const e = effectiveAlertConfig(deps.defaults, stored === undefined ? await deps.read() : stored);
+  const v = alertSettingsView(deps.defaults, stored === undefined ? await deps.read() : stored);
   const from = (s: "stored" | "default") => (s === "stored" ? "set here" : "default");
-  const q = e.config.quiet;
+  deps.print(`Quiet hours: ${v.quiet} (${from(v.sources.quiet)})`);
   deps.print(
-    `Quiet hours: ${q === null ? "off" : `${hhmm(q.start)}-${hhmm(q.end)}`} (${from(e.sources.quiet)})`,
+    `Time zone: ${v.timeZone} (${from(v.sources.timeZone)}${v.unknownStoredZone ? "; the zone set here isn't known on this machine" : ""})`,
   );
   deps.print(
-    `Time zone: ${e.config.timeZone} (${from(e.sources.timeZone)}${e.unknownStoredZone ? "; the zone set here isn't known on this machine" : ""})`,
-  );
-  deps.print(
-    `Tier-1 boards alert in quiet hours: ${e.config.tier1InQuietHours ? "yes" : "no"} (${from(e.sources.tier1)})`,
+    `Tier-1 boards alert in quiet hours: ${v.tier1InQuietHours ? "yes" : "no"} (${from(v.sources.tier1)})`,
   );
   return 0;
 }

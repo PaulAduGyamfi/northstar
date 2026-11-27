@@ -38,7 +38,8 @@ with `jobs alerts set …` in a terminal. SRC-017 puts search settings in the ap
       field, needs a session, and answers 503 on a failed read or bad defaults (tests).
 - [ ] The page's plain functions word each setting and its source, and build each request body
       (tests).
-- [ ] lint, typecheck, test, build green in `packages/sources`, `apps/api`, `apps/web`.
+- [ ] lint, typecheck, test, build green in `packages/sources`, `apps/api`, `apps/web` (CI
+      `checks`: this container's Node 22 can't install the workspace, which pins Node 24).
 
 ## Tasks
 1. Export `alertChange` and `alertSettingsView` from `packages/sources`; CLI uses them.
