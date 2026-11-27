@@ -20,6 +20,7 @@ export {
 // relay the Gate's decisions.
 export {
   ensureStaleSweep,
+  type Round,
   type SignalError,
   type StartError,
   SWEEP_WORKFLOW_ID,
