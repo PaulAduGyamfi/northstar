@@ -121,13 +121,15 @@ describe("learning from regrades", () => {
 
   it("stores an empty version when Paul's letters take every adjustment back to none", async () => {
     for (const id of [M1, M2, M3]) await regrade(id, "D");
+    // Back to B one at a time: deltas 0, -2, -2 (mean -4/3, so -1), then 0, 0, -2 (still -1),
+    // then all 0 (none): three versions in all.
     for (const id of [M1, M2, M3]) await regrade(id, "B");
     expect([
       await versions(),
       await readRecruiterWeights(db, candidateId),
       (await weightEvents()).at(-1),
     ]).toEqual([
-      2,
+      3,
       {},
       {
         actor: "system",
