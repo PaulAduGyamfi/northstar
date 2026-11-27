@@ -61,9 +61,13 @@ async function appendEvent(
   span: Span,
   candidateId: CandidateId,
   handoffId: string,
-  what: "opened" | "resolved",
+  what: "opened" | "resolved" | "prefilled",
   payload: Record<string, unknown>,
   at: Date,
+  // A pre-fill can happen once per grant, so its key carries the grant's key too (NS-192).
+  keySuffix = "",
+  // The feed line for a type with no template in feed.ts: fixed words only (db.md).
+  reason = "",
 ): Promise<void> {
   const context = span.spanContext();
   const parsed = parseDomainEvent({
@@ -72,17 +76,26 @@ async function appendEvent(
     aggregate: `apply_handoff:${handoffId}`,
     type: `handoff.${what}`,
     actor: what === "opened" ? "agent:apply" : "user",
-    reason: "",
+    reason,
     inputsSummary: "",
     payload,
     links: [],
     traceId: isSpanContextValid(context) ? context.traceId : null,
-    idempotencyKey: `apply_handoff:${handoffId}:${what}`,
+    idempotencyKey: `apply_handoff:${handoffId}:${what}${keySuffix}`,
     occurredAt: at,
   });
   // Every field is built here, so a bad event is a bug, not an input error.
   if (!parsed.ok) throw new Error(`invalid handoff event: ${parsed.error.fields.join(", ")}`);
-  await tx.insert(domainEvent).values(parsed.value);
+  // Only a pre-fill may repeat its key (a retry of the same serve), and then stores nothing; a
+  // repeated opened or resolved event is still an error, as before.
+  if (what !== "prefilled") {
+    await tx.insert(domainEvent).values(parsed.value);
+    return;
+  }
+  await tx
+    .insert(domainEvent)
+    .values(parsed.value)
+    .onConflictDoNothing({ target: [domainEvent.candidateId, domainEvent.idempotencyKey] });
 }
 
 // Opens a handoff for a submission just marked needs_human, in the caller's transaction. Only
@@ -222,5 +235,74 @@ export async function resolveHandoff(
         );
         return ok({ applicationId: h.applicationId, outcome: input.outcome, replayed: false });
       }),
+  );
+}
+
+// The ATS names in fixed words, for the feed line of a pre-fill.
+const ATS_WORDS: Record<ApplyAts, string> = {
+  greenhouse: "a Greenhouse",
+  lever: "a Lever",
+  ashby: "an Ashby",
+  smartrecruiters: "a SmartRecruiters",
+};
+
+// handoff.prefilled's feed line: its `reason`, built only from fixed words (no template in feed.ts).
+export function prefillReason(ats: ApplyAts): string {
+  return `Pre-filled ${ATS_WORDS[ats] ?? "a"} form for you to finish`;
+}
+
+// A grant's key: 16 lowercase hex characters (the first of its SHA-256, from apps/api).
+const GRANT_KEY = /^[0-9a-f]{16}$/;
+
+// The extension was handed one open handoff's approved package to pre-fill (NS-192 slice 3,
+// ADR-0029): `handoff.prefilled` with ids, the ATS and the package's field count, never a value.
+// Paul's click issued the grant, so the actor is `user`. Keyed per grant, so a retry of the same
+// serve stores one event. The handoff must be the candidate's own.
+export async function recordHandoffPrefill(
+  db: Db,
+  input: {
+    candidateId: CandidateId;
+    handoffId: string;
+    applicationId: string;
+    ats: ApplyAts;
+    fieldCount: number;
+    grantKey: string;
+  },
+): Promise<Result<{ recorded: true }, { kind: "NotFound" } | { kind: "InvalidInput" }>> {
+  return inSpan("db.apply.handoff_prefilled", { "northstar.handoff.ats": input.ats }, (span) =>
+    db.transaction(async (tx) => {
+      if (!GRANT_KEY.test(input.grantKey) || !Number.isInteger(input.fieldCount)) {
+        return err({ kind: "InvalidInput" as const });
+      }
+      if (input.fieldCount < 0 || input.fieldCount > 200) {
+        return err({ kind: "InvalidInput" as const });
+      }
+      // The candidate's own handoff, for this very application (through its submission), so the
+      // event's payload can't name another application.
+      const [h] = await tx
+        .select({ id: applyHandoff.id })
+        .from(applyHandoff)
+        .innerJoin(applySubmission, eq(applySubmission.id, applyHandoff.submissionId))
+        .where(
+          and(
+            eq(applyHandoff.id, input.handoffId),
+            eq(applyHandoff.candidateId, input.candidateId),
+            eq(applySubmission.applicationId, input.applicationId),
+          ),
+        );
+      if (!h) return err({ kind: "NotFound" as const });
+      await appendEvent(
+        tx,
+        span,
+        input.candidateId,
+        h.id,
+        "prefilled",
+        { applicationId: input.applicationId, ats: input.ats, fieldCount: input.fieldCount },
+        await gateNow(tx),
+        `:${input.grantKey}`,
+        prefillReason(input.ats),
+      );
+      return ok({ recorded: true as const });
+    }),
   );
 }

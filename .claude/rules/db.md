@@ -282,7 +282,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   https apply URL) and `apply_handoff_done` (one outcome per handoff, `submitted` or `gave_up`),
   append-only (triggers), written only through `handoff-write.ts`: `openHandoff` inside
   `recordNeedsHuman`'s transaction, `resolveHandoff` for Paul. Their events carry ids, the ATS,
-  the reason and the outcome, never the URL.
+  the reason and the outcome, never the URL. Since NS-192 slice 3 `recordHandoffPrefill` writes
+  `handoff.prefilled` (by `user`; the application id, ATS and the package's field count, never a
+  value; keyed per grant, so a replay stores nothing; its feed line is a fixed-word `reason`) for
+  the candidate's own handoff and that handoff's own application.
 - The tenant registry (NS-124) is `employer_tenant` (one per candidate and tenant key, never
   changed) and `tenant_account_status` (append-only; the newest row is the account's status, none
   means `none`), written only through `tenant-write.ts`. Start an account only with
