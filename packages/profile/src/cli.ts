@@ -560,6 +560,8 @@ async function importLinkedinCommand(deps: CliDeps, folder: string): Promise<num
     `Imported your LinkedIn export: ${plural(c.roles, "position")}, ${c.education} education, ${plural(c.atoms, "atom")}, ${plural(c.skills, "skill")}.`,
   );
   deps.print("Run `profile facts check` to compare it with your official record.");
+  // Its lines are Career DNA evidence (NS-130 slice 7), so a new export rebuilds the report.
+  await refreshAfterChange(deps);
   return 0;
 }
 
@@ -592,5 +594,7 @@ async function importSiteCommand(deps: CliDeps, path: string): Promise<number> {
   deps.print(
     `Imported your site: ${plural(parsed.value.projects, "project")}, ${plural(report.counts.atoms, "atom")}, ${plural(report.counts.links, "link")}.`,
   );
+  // Its lines are Career DNA evidence too (NS-130 slice 7).
+  await refreshAfterChange(deps);
   return 0;
 }

@@ -452,3 +452,36 @@ export async function readSourceRoles(
     .orderBy(role.position);
   return rows;
 }
+
+export type SourceAtom = { id: string; what: string; how: string[]; quote: string };
+
+// The atoms of the current import of one non-resume kind (NS-130 slice 7: LinkedIn and site lines
+// as Career DNA evidence), in their order, or [] before any import of that kind. Never the
+// resume's: its readers stay on `kind = 'resume'` (readScoringProfile, readThesisProfile).
+export async function readSourceAtoms(
+  db: Db,
+  candidateId: CandidateId,
+  kind: Exclude<ProfileSourceKind, "resume">,
+): Promise<SourceAtom[]> {
+  const [source] = await db
+    .select({ id: profileSource.id })
+    .from(profileSource)
+    .where(
+      and(
+        eq(profileSource.candidateId, candidateId),
+        eq(profileSource.kind, kind),
+        isNull(profileSource.supersededAt),
+      ),
+    );
+  if (!source) return [];
+  return db
+    .select({
+      id: experienceAtom.id,
+      what: experienceAtom.what,
+      how: experienceAtom.how,
+      quote: experienceAtom.sourceQuote,
+    })
+    .from(experienceAtom)
+    .where(and(eq(experienceAtom.candidateId, candidateId), eq(experienceAtom.sourceId, source.id)))
+    .orderBy(experienceAtom.position);
+}

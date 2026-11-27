@@ -1,5 +1,5 @@
 import { CandidateId } from "@northstar/domain";
-import { eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { soleCandidate } from "./candidate.js";
 import type { Db } from "./db.js";
@@ -17,6 +17,7 @@ import {
   editLockedFact,
   type ProfileImportInput,
   readProfile,
+  readSourceAtoms,
   readSourceRoles,
   readThesisProfile,
   writeProfileImport,
@@ -235,6 +236,36 @@ describe("LinkedIn imports (NS-133)", () => {
         current: true,
       },
     ]);
+  });
+
+  it("reads the current LinkedIn import's atoms, never the resume's, or none before one", async () => {
+    await writeProfileImport(db, importInput());
+    expect(await readSourceAtoms(db, candidateId, "linkedin")).toEqual([]);
+    await writeProfileImport(db, linkedin());
+    await writeProfileImport(db, linkedin(SHA_C));
+    const atoms = await readSourceAtoms(db, candidateId, "linkedin");
+    const current = one(
+      await db
+        .select({ id: profileSource.id })
+        .from(profileSource)
+        .where(and(eq(profileSource.kind, "linkedin"), isNull(profileSource.supersededAt))),
+    );
+    const ids = await db
+      .select({ id: experienceAtom.id })
+      .from(experienceAtom)
+      .where(eq(experienceAtom.sourceId, current.id));
+    expect([atoms.map((a) => a.id), atoms.map(({ id: _, ...rest }) => rest)]).toEqual([
+      ids.map((a) => a.id),
+      [
+        {
+          what: "Made payment retries idempotent",
+          how: ["Go", "Postgres"],
+          quote:
+            "Made payment retries idempotent in Go and Postgres, cutting duplicate charges to zero.",
+        },
+      ],
+    ]);
+    expect(await readSourceAtoms(db, candidateId, "site")).toEqual([]);
   });
 
   it("names the kind in its event and keeps the resume reader on the resume", async () => {
