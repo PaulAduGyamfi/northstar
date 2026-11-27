@@ -2,6 +2,9 @@ name: checks
 
 on:
   pull_request:
+  # Runs the same checks on GitHub's merge queue, once Paul turns it on for main, so each queued PR
+  # is tested on top of the latest main before it lands and PRs stop re-running after every merge.
+  merge_group:
   push:
     branches: [main]
 
@@ -13,7 +16,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  checks:
+  # History and commit checks: gitleaks over the full history, pre-commit, harness hook tests.
+  # Runs in parallel with `build` below.
+  scan:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -65,9 +70,37 @@ jobs:
       - name: Harness hook self-tests
         run: bash .claude/hooks/test-hooks.sh
 
+  # Lint, typecheck, test and build every package, the eval replay and the compose check.
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Keep the downloaded Chromium between runs. The key follows the lock file, so a
+      # playwright-core upgrade gets a fresh browser.
+      - name: Cache Chromium for the form driver
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
       # The Chromium build that matches the locked playwright-core (ADR-0028, NS-251), so the form
       # driver's real-browser test runs in CI. Tests serve synthetic pages through context.route
-      # and touch no network themselves; only this install step downloads the browser.
+      # and touch no network themselves; only this install step downloads the browser (skipped
+      # when the cache above already holds it; the system libraries are still installed).
       - name: Install Chromium for the form driver
         run: pnpm --filter @northstar/gateways exec playwright-core install --with-deps chromium
 
@@ -85,3 +118,19 @@ jobs:
       # CI doesn't run the stack.
       - name: Compose file is valid
         run: docker compose --env-file .env.example config --quiet
+
+  # The one required status check (branch protection names `checks`). It passes only when both
+  # jobs above succeeded: a failed, cancelled or skipped job fails it, so splitting the work into
+  # parallel jobs can never let a red check through.
+  checks:
+    runs-on: ubuntu-latest
+    needs: [scan, build]
+    if: always()
+    steps:
+      - name: Both scan and build succeeded
+        env:
+          SCAN: ${{ needs.scan.result }}
+          BUILD: ${{ needs.build.result }}
+        run: |
+          echo "scan: $SCAN, build: $BUILD"
+          test "$SCAN" = "success" && test "$BUILD" = "success"
