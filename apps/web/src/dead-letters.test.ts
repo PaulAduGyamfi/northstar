@@ -101,6 +101,19 @@ describe("nextStep", () => {
     ]);
   });
 
+  it("names a failed prep write and says blocks already added aren't added twice", () => {
+    const prep = { ...ITEM, kind: "calendar.prep_write", reasonCode: "write_failed", attempts: 5 };
+    expect(letterLine(prep)).toEqual({
+      what: "Adding approved prep blocks to your Northstar calendar",
+      why: "Stopped after 5 attempts: every attempt to write to Google Calendar failed",
+    });
+    expect(DEAD_LETTER_ACTIONS.map((a) => nextStep("calendar.prep_write", a))).toEqual([
+      "Nothing runs now: the next time you add prep blocks, this plan is tried again. Blocks already added aren't added twice.",
+      "Nothing more is done about this plan. Blocks already added stay on your Northstar calendar.",
+      "Nothing runs now. Add the prep blocks to your calendar yourself; any already added stay on your Northstar calendar.",
+    ]);
+  });
+
   it("falls back to plain words for a kind it doesn't know", () => {
     expect(nextStep("other.kind", "retry")).toBe("Sent back to be tried again.");
   });

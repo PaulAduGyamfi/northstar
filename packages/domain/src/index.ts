@@ -20,6 +20,7 @@ export * from "./mail-status.js";
 export * from "./mail-tag.js";
 export * from "./origin.js";
 export * from "./pipeline-metrics.js";
+export * from "./prep-plan.js";
 export * from "./recruiter-grade.js";
 export * from "./recruiter-learn.js";
 export * from "./reply-draft.js";

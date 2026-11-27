@@ -1,4 +1,4 @@
-import type { CallOutcome } from "@northstar/domain";
+import { type CallOutcome, PREP_BLOCK_TITLES, PREP_CALENDAR_NAME } from "@northstar/domain";
 import type { Span } from "@opentelemetry/api";
 import { type CalendarWriteAccess, calendarBearer } from "./access.js";
 import {
@@ -22,12 +22,12 @@ const LIST_URL = `${API}/users/me/calendarList?minAccessRole=owner&maxResults=25
 
 // The calendar Northstar creates (CAL-001) and the fixed marker that finds it again after an
 // unknown outcome (ADR-0031 item 5): never matched by name alone.
-export const NORTHSTAR_CALENDAR_NAME = "Northstar";
+export const NORTHSTAR_CALENDAR_NAME = PREP_CALENDAR_NAME;
 export const NORTHSTAR_CALENDAR_MARKER = "Northstar prep blocks [northstar:prep-calendar:v1]";
 
 // Fixed titles only (ADR-0031, decided with acceptance): no company or interviewer name reaches
-// Google.
-export const PREP_EVENT_TITLES = { prep: "Interview prep", warm_up: "Interview warm-up" } as const;
+// Google. The same constant the prep plan's hash covers (packages/domain, prep-plan.ts).
+export const PREP_EVENT_TITLES = PREP_BLOCK_TITLES;
 export type PrepEventKind = keyof typeof PREP_EVENT_TITLES;
 
 // One block as the writer sends it. The id is client-chosen (from the Gate decision and the

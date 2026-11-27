@@ -324,6 +324,15 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `interview-prep-write.ts`. Code plans the times from the stored interview; the caller passes busy
   time, working hours, time zone and the clock. Never a time zone in a row, event or span:
   `interview.prep_proposed` carries ids and counts only.
+  Prep plans (NS-241 slice 4, ADR-0031, migration 0104) are `prep_plan_request` (one per
+  `prep_plan` Gate request and per proposal, filed only by `requestPrepPlanApproval` in the same
+  transaction as the request; its foreign key names the request's id, candidate, kind and hash),
+  and the Calendar writer's ledger: `prep_write_claim` (one row per attempt, under a per-candidate
+  advisory lock, so one prep write runs at a time per candidate), `prep_write_record` (one per
+  decision; a different second record is refused) and `northstar_calendar` (one calendar id per
+  candidate). All append-only, written only through `prep-plan-write.ts` and
+  `prep-ledger-write.ts`. Ids, versions, counts and times only; `calendar.prep_written` and
+  `calendar.created` have fixed-word `reason`s and never hold the calendar id.
 - Career DNA reports (NS-130 slice 4, DNA-008) are `career_dna_report`, one row per version per
   candidate (the highest is current), append-only (a trigger), written only through
   `career-dna-write.ts` (`saveCareerDnaReport` locks the candidate row and stores a version only

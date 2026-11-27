@@ -42,8 +42,8 @@ export {
   submitApplication,
 } from "./apply/submit.js";
 // The Calendar Gateway's writer (NS-241 slice 3, ADR-0031): approved prep blocks go to a Northstar
-// calendar it creates, with calendar.app.created. Only its token type, consent entry point and
-// errors are exported; its requests (src/calendar/requests.ts) stay inside src/calendar/ (a
+// calendar it creates, with calendar.app.created. Only its token type, consent entry point, the
+// writer's entry point (slice 4) and errors are exported; its requests (src/calendar/requests.ts) stay inside src/calendar/ (a
 // boundary test).
 export { CALENDAR_APP_CREATED_SCOPE, CalendarWriteAccess } from "./calendar/access.js";
 export {
@@ -57,6 +57,14 @@ export {
   CalendarWriteHeldBack,
   CalendarWriteRequestError,
 } from "./calendar/errors.js";
+export {
+  type CalendarPorts,
+  type PrepClaim,
+  type PrepRefusal,
+  type PrepWritten,
+  type WritePrepInput,
+  writePrepPlan,
+} from "./calendar/gateway.js";
 // The Mail Gateway's draft writer (NS-237 slice 4, ADR-0025): an approved reply becomes a Gmail
 // draft, never sent. Only the entry point, its token type and its errors are exported; the Gmail
 // requests (src/mail/drafts.ts) stay inside src/mail/ (a boundary test).
