@@ -144,3 +144,4 @@ These issues were finished by work that didn't close them. This PR closes them o
 | #219 NS-221 | ADR-0024, Accepted: the reveal goes through the Gate and the API with a passkey |
 | #261 NS-236 | #344 (dead-letter kinds on a fixed list) |
 | #363 NS-258 | #365 and #373 (per-test and package-level timeouts) |
+| #263 NS-237 | slices 1–6: filing with the Gate, the Queue view and edits, nudges, the Gmail draft writer with its consent flow and stored ledger; every "done when" item is met |
