@@ -618,7 +618,17 @@ Exists now:
   detection with its `interview_prep_block` rows (`prep` or `warm_up`, times only) and one
   `interview.prep_proposed` event (ids and counts; a fixed-word feed line). A second call stores
   nothing and answers the first proposal. `readPrepProposal` reads it back. No caller, approval
-  card, calendar write (that goes through the Gate) or briefs yet.
+  card or briefs yet.
+  ADR-0031 (Paul accepted it) decides the writes: approved blocks go to a Northstar calendar
+  Northstar creates, with `calendar.app.created`, one `prep_plan` approval per interview, inserts
+  only. Since NS-241 slice 3 the Calendar Gateway's writer module exists in `packages/gateways`
+  (`src/calendar/`): `CalendarWriteAccess` and its own consent flow `authorizeCalendarWrite`
+  (exactly `calendar.app.created`, PKCE, the token in memory for one run, a wider grant refused),
+  and `requests.ts` with the only three calls (create the calendar with a fixed marker, find it by
+  that marker, `events.insert` with `sendUpdates=none` and a body of exactly the event id, a fixed
+  title and UTC start and end; 409 means already written), behind the `calendar_writes` kill
+  switch and the `calendar` breaker, with a runtime allowlist and a boundary test. No Gate check,
+  ledger or caller yet (the next slice, with a migration).
 - Recruiter grading (NS-167, REC-001/002), slice 1:
   - The `recruiter-extract` route (`packages/inbox`, `src/recruiter/`) reads a recruiter email's
     stated facts: title, seniority, company, place, remote kind, pay range, agency or in-house,
