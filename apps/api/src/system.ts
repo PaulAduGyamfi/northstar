@@ -84,6 +84,16 @@ async function namesOf(ports: SystemPorts, items: FeedItem[]): Promise<Map<strin
   }
 }
 
+// An error's class and, when it has one, its short code (a SQLSTATE such as "28P01", or a
+// socket code such as "ECONNREFUSED"); never its message.
+export function errorFacts(error: unknown): { error: string; code?: string } {
+  const name = error instanceof Error ? error.name : "Error";
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === "string" && /^[A-Z0-9_]{1,32}$/.test(code)
+    ? { error: name, code }
+    : { error: name };
+}
+
 const Flip = z.object({
   subsystem: z.string().min(1).max(100),
   enabled: z.boolean(),
@@ -106,8 +116,13 @@ export function systemEndpoints(ports: SystemPorts): AnyEndpoint[] {
       let h: SystemHealth;
       try {
         h = await ports.health();
-      } catch {
-        // The state can't be read (Postgres down): the page shows everything as down.
+      } catch (error) {
+        // The state can't be read (Postgres down): the page shows everything as down. Say why on
+        // the API's own output, as the error's class and Postgres code only (28P01 a wrong
+        // password, 42P01 a missing table): a message can quote a connection string.
+        console.error(
+          JSON.stringify({ level: "error", msg: "health read failed", ...errorFacts(error) }),
+        );
         return { ok: false, status: 503, error: "unavailable" };
       }
       const subsystems = h.subsystems.map((s) => ({
