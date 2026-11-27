@@ -1,5 +1,5 @@
 {
-  "id": "c2dbe08e-a1c6-4382-a5ae-2305dd70e050",
+  "id": "1ab201cc-6b29-4973-9e13-218b7828de66",
   "prevId": "315fc9a1-ff06-4f7b-b31f-b9f5d8cceb66",
   "version": "7",
   "dialect": "postgresql",
@@ -9802,7 +9802,7 @@
         },
         "career_dna_report_archetype_shape": {
           "name": "career_dna_report_archetype_shape",
-          "value": "\"career_dna_report\".\"archetype_label\" is null or char_length(\"career_dna_report\".\"archetype_label\") between 1 and 60"
+          "value": "(\"career_dna_report\".\"archetype_label\" is null and jsonb_array_length(\"career_dna_report\".\"archetype_dimensions\") = 0) or (char_length(\"career_dna_report\".\"archetype_label\") between 1 and 60 and jsonb_array_length(\"career_dna_report\".\"archetype_dimensions\") between 1 and 2)"
         },
         "career_dna_report_lists_shape": {
           "name": "career_dna_report_lists_shape",

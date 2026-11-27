@@ -16,9 +16,9 @@ since last time" diff gives Paul a reason to come back. Slices 1–3 build the r
   story ids, the archetype's label and dimensions, and the snapshot's SHA-256. Never atom or story
   text and never the report's sentences (they are rebuilt from the snapshot and the rubric).
 - **`saveCareerDnaReport`** (`career-dna-write.ts`) checks the snapshot's shape, locks the candidate
-  row, and stores a new version only when the snapshot differs from the newest one (the same
+  row, and stores a new version only when the snapshot (cited ids sorted) differs from the newest one (the same
   report stores nothing and returns the newest version). Its `career_dna.saved` event, on
-  `candidate:<id>`, carries the row id, version and dimension count; its feed line is its fixed
+  `career_dna_report:<id>`, carries the row id, version and dimension count; its feed line is its fixed
   `reason` ("Updated your Career DNA report").
 - **`readCareerDnaHistory`** gives the candidate's versions, newest first (at most 20).
 - **`careerDnaSnapshot`** (`packages/profile`, `career-dna/history.ts`) turns a built report into

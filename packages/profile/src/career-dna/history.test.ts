@@ -1,4 +1,4 @@
-import type { CareerDnaSnapshot } from "@northstar/db";
+import { CareerDnaSnapshot } from "@northstar/db";
 import { describe, expect, it } from "vitest";
 import { careerDnaSnapshot, changeLines, diffCareerDna } from "./history.js";
 import { buildCareerDna } from "./report.js";
@@ -62,6 +62,21 @@ describe("careerDnaSnapshot", () => {
       storyIds: [],
     });
     expect(JSON.stringify(s)).not.toContain("payments ledger");
+  });
+});
+
+describe("careerDnaSnapshot with stored ids", () => {
+  it("gives a snapshot the save's own check accepts", () => {
+    const id = (n: number) => `00000000-0000-4000-8000-00000000000${n}`;
+    const report = buildCareerDna({
+      atoms: [
+        atom(id(1), "Built a payments ledger in Java."),
+        atom(id(2), "Implemented retry queues for card captures."),
+        atom(id(3), "Shipped a claims triage service."),
+      ],
+      stories: [{ id: id(4), competencies: ["ownership"] }],
+    });
+    expect(CareerDnaSnapshot.safeParse(careerDnaSnapshot(report)).success).toBe(true);
   });
 });
 

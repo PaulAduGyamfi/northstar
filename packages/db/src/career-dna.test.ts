@@ -103,6 +103,23 @@ describe("saveCareerDnaReport", () => {
     expect(history[1]?.archetype).toEqual(SNAPSHOT.archetype);
   });
 
+  it("stores nothing more for the same evidence listed in another order", async () => {
+    await save();
+    const reordered = await save({
+      ...SNAPSHOT,
+      dimensions: [{ ...SNAPSHOT.dimensions[0], atomIds: [A2, A1] }, SNAPSHOT.dimensions[1]],
+    });
+    expect(reordered.ok && [reordered.value.stored, reordered.value.version]).toEqual([false, 1]);
+  });
+
+  it("gives two saves at once their own versions", async () => {
+    const results = await Promise.all([save(), save({ ...SNAPSHOT, archetype: null })]);
+    expect(results.map((r) => r.ok && [r.value.stored, r.value.version]).sort()).toEqual([
+      [true, 1],
+      [true, 2],
+    ]);
+  });
+
   it("refuses a snapshot holding text, an unknown band or a bad id, and stores nothing", async () => {
     const dim = SNAPSHOT.dimensions[0];
     const results = await Promise.all([

@@ -14,7 +14,7 @@ CREATE TABLE "career_dna_report" (
 	CONSTRAINT "career_dna_report_rubric_version_positive" CHECK ("career_dna_report"."rubric_version" >= 1),
 	CONSTRAINT "career_dna_report_family_shape" CHECK ("career_dna_report"."family" ~ '^[a-z_]{1,40}$'),
 	CONSTRAINT "career_dna_report_sha256_shape" CHECK ("career_dna_report"."content_sha256" ~ '^[0-9a-f]{64}$'),
-	CONSTRAINT "career_dna_report_archetype_shape" CHECK ("career_dna_report"."archetype_label" is null or char_length("career_dna_report"."archetype_label") between 1 and 60),
+	CONSTRAINT "career_dna_report_archetype_shape" CHECK (("career_dna_report"."archetype_label" is null and jsonb_array_length("career_dna_report"."archetype_dimensions") = 0) or (char_length("career_dna_report"."archetype_label") between 1 and 60 and jsonb_array_length("career_dna_report"."archetype_dimensions") between 1 and 2)),
 	CONSTRAINT "career_dna_report_lists_shape" CHECK (jsonb_typeof("career_dna_report"."dimensions") = 'array' and jsonb_array_length("career_dna_report"."dimensions") between 1 and 20 and jsonb_typeof("career_dna_report"."archetype_dimensions") = 'array' and jsonb_array_length("career_dna_report"."archetype_dimensions") <= 2)
 );
 --> statement-breakpoint

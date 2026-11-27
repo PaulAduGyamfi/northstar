@@ -45,7 +45,8 @@ export const careerDnaReport = pgTable(
     check("career_dna_report_sha256_shape", sql`${t.contentSha256} ~ '^[0-9a-f]{64}$'`),
     check(
       "career_dna_report_archetype_shape",
-      sql`${t.archetypeLabel} is null or char_length(${t.archetypeLabel}) between 1 and 60`,
+      // A label comes with the one or two dimensions it is from; no label, no dimensions.
+      sql`(${t.archetypeLabel} is null and jsonb_array_length(${t.archetypeDimensions}) = 0) or (char_length(${t.archetypeLabel}) between 1 and 60 and jsonb_array_length(${t.archetypeDimensions}) between 1 and 2)`,
     ),
     check(
       "career_dna_report_lists_shape",

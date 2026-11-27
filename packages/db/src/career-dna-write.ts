@@ -85,7 +85,15 @@ export async function saveCareerDnaReport(
     const fields = [...new Set(parsed.error.issues.map((i) => String(i.path[0] ?? "snapshot")))];
     return { ok: false, error: { kind: "InvalidReport", fields } };
   }
-  const s = parsed.data;
+  // Cited ids in a fixed order: the same evidence read back in another order is the same report.
+  const s: CareerDnaSnapshot = {
+    ...parsed.data,
+    dimensions: parsed.data.dimensions.map((d) => ({
+      ...d,
+      atomIds: [...d.atomIds].sort(),
+      storyIds: [...d.storyIds].sort(),
+    })),
+  };
   const sha = snapshotSha256(s);
   return inSpan("db.career_dna.save", { "northstar.career_dna.rubric": s.rubricVersion }, (span) =>
     db.transaction(async (tx) => {
