@@ -356,7 +356,9 @@ type RequestInputs = {
   kind: ApprovalKind;
   subject: string;
   contentSha256: string;
-  facts: PackageFacts | null;
+  // Always null from callers (NS-249): an application package's policy facts come only from
+  // what the Gate reads itself (requestPackageApproval), never from a producer.
+  facts: null;
   actor: string;
   idempotencyKey: string;
 };
@@ -364,10 +366,33 @@ type RequestInputs = {
 // Puts something in Paul's queue (APR-001) and runs his policies on it (ADR-0002 item 2). The
 // same idempotency key twice returns the first request and writes nothing. A subject already
 // pending or approved can't be requested again; one Paul rejected may be, and then always waits
-// for him.
+// for him. Facts are refused for every kind (NS-249): a package filed here has none, so it always
+// waits for Paul, and with no stored package it can never be submitted. Packages go through
+// requestPackageApproval.
 export async function requestApproval(
   db: Db,
   input: RequestInputs,
+): Promise<Result<RequestResult, RequestError>> {
+  // Checked at run time too: a caller outside TypeScript, or a cast, mustn't pass facts.
+  if ((input as { facts: unknown }).facts !== null) {
+    return Promise.resolve(err({ kind: "InvalidRequest", fields: ["facts"] }));
+  }
+  return fileRequest(db, input);
+}
+
+// requestPackageApproval's way in (NS-213, NS-249): the facts it derived from storage. Exported
+// from this module for package-approval.ts only, never from the package's index, so no code
+// outside packages/db can hand the Gate facts.
+export function requestApprovalWithFacts(
+  db: Db,
+  input: Omit<RequestInputs, "facts"> & { kind: "application_package"; facts: PackageFacts },
+): Promise<Result<RequestResult, RequestError>> {
+  return fileRequest(db, input);
+}
+
+async function fileRequest(
+  db: Db,
+  input: Omit<RequestInputs, "facts"> & { facts: PackageFacts | null },
 ): Promise<Result<RequestResult, RequestError>> {
   return inSpan("approval.request", { "northstar.approval.kind": input.kind }, async (span) => {
     const parsed = RequestInput.safeParse(input);

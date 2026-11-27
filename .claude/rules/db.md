@@ -168,7 +168,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   (`package-approval.ts`, NS-213), which derives its facts from storage (`readPackageInputs`) and
   verifies each bank claim against the newest banked text (a `{company}` slot only with an
   `isSafeCompany` name); the package must name the job's own posting, contact and newest tailored
-  PDF. New package producers use it, never `requestApproval` with their own facts. The question a
+  PDF. New package producers use it. Since NS-249 `requestApproval` refuses any caller's facts;
+  only `requestPackageApproval` passes the facts it derived, through `requestApprovalWithFacts`
+  (exported from `approval-write.ts`, never from the index). Tests that need an auto-approvable
+  package use `src/test/package-fixture.ts`. The question a
   verified answer belongs to is still the producer's claim. Its contact email may be Paul's stored
   address or that address tagged with the application's own `mail_tag` (`readApplicationTag`,
   NS-248), never another application's tag.

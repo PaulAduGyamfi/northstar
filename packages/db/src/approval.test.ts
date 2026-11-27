@@ -24,7 +24,9 @@ import {
   verifyApproval,
 } from "./approval-write.js";
 import type { Db } from "./db.js";
+import * as dbIndex from "./index.js";
 import { candidate, domainEvent } from "./schema.js";
+import { type PackageFixture, packageFixture } from "./test/package-fixture.js";
 import { createTestDb, sqlState } from "./test/pglite.js";
 
 const RESTRICT_VIOLATION = "23001";
@@ -34,7 +36,8 @@ const EXCLUSION_VIOLATION = "23P01";
 const NOW = new Date("2026-11-25T12:00:00Z");
 const after = (ms: number) => new Date(NOW.getTime() + ms);
 
-// Synthetic facts, rules and content only.
+// Synthetic facts, rules and content only. Caller facts are refused (NS-249): goodFacts is only
+// for the refusal tests; packages are filed through the fixture, whose facts the Gate derives.
 const goodFacts: PackageFacts = {
   fit: 92,
   adapter: "known",
@@ -83,6 +86,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  fixture = null;
   await close();
 });
 
@@ -101,13 +105,13 @@ const requestArgs = (overrides: Partial<RequestArgs> = {}): RequestArgs => ({
   ...overrides,
 });
 
-const packageArgs = (overrides: Partial<RequestArgs> = {}): RequestArgs =>
-  requestArgs({
-    kind: "application_package",
-    facts: goodFacts,
-    actor: "agent:apply",
-    ...overrides,
-  });
+// A real package round (NS-249): the job, contact, resume, form, a fit of 92 and the same form
+// sent before, so the strong-fit rule matches facts the Gate reads itself. Built on first use.
+let fixture: PackageFixture | null = null;
+async function packages(): Promise<PackageFixture> {
+  fixture ??= await packageFixture(db, candidateId, { now: NOW });
+  return fixture;
+}
 
 // A request in the queue; by default an email reply (no facts).
 async function request(overrides: Partial<RequestArgs> = {}): Promise<string> {
@@ -281,9 +285,10 @@ describe("requestApproval", () => {
 
   it("returns the policy's decision when an auto-approved request is replayed", async () => {
     await setApprovalPolicies(db, { candidateId, rules: [rule] });
-    const args = packageArgs();
-    const first = await requestApproval(db, args);
-    const second = await requestApproval(db, args);
+    const fx = await packages();
+    const args = { packageId: randomUUID(), idempotencyKey: randomUUID() };
+    const first = await fx.file(args);
+    const second = await fx.file(args);
     if (!first.ok || !second.ok) throw new Error("request failed");
     expect(second.value.decision).toEqual(first.value.decision);
   });
@@ -313,14 +318,43 @@ describe("requestApproval", () => {
       ok: false,
       error: { kind: "InvalidRequest", fields: ["contentSha256"] },
     });
-    expect(await requestApproval(db, requestArgs({ facts: goodFacts }))).toEqual({
+    expect(await requestApproval(db, requestArgs({ facts: goodFacts as never }))).toEqual({
       ok: false,
       error: { kind: "InvalidRequest", fields: ["facts"] },
     });
   });
 
+  it("refuses a caller's facts on an application package and stores nothing (NS-249)", async () => {
+    await setApprovalPolicies(db, { candidateId, rules: [rule] });
+    const result = await requestApproval(
+      db,
+      requestArgs({ kind: "application_package", facts: goodFacts as never }),
+    );
+    expect([result, await db.select().from(approvalRequest)]).toEqual([
+      { ok: false, error: { kind: "InvalidRequest", fields: ["facts"] } },
+      [],
+    ]);
+  });
+
+  it("keeps the facts entry point out of the package's exports, so only packages/db can pass facts", () => {
+    expect([
+      Object.keys(dbIndex).includes("requestApprovalWithFacts"),
+      Object.keys(dbIndex).includes("requestPackageApproval"),
+    ]).toEqual([false, true]);
+  });
+
+  it("files a package with no facts, and it waits for Paul even when a rule exists", async () => {
+    await setApprovalPolicies(db, { candidateId, rules: [rule] });
+    const result = await requestApproval(db, requestArgs({ kind: "application_package" }));
+    if (!result.ok) throw new Error(result.error.kind);
+    expect([result.value.outcome, result.value.decision]).toEqual([
+      { auto: false, why: "missing_facts" },
+      null,
+    ]);
+  });
+
   it("waits for Paul when no policy set exists", async () => {
-    const result = await requestApproval(db, packageArgs());
+    const result = await (await packages()).file();
     if (!result.ok) throw new Error(result.error.kind);
     expect([result.value.outcome, result.value.decision]).toEqual([
       { auto: false, why: "no_policies" },
@@ -332,7 +366,7 @@ describe("requestApproval", () => {
   it("auto-approves a package that matches a rule, citing the set and rule, with an undo window", async () => {
     const set = await setApprovalPolicies(db, { candidateId, rules: [rule] });
     if (!set.ok) throw new Error("policy set refused");
-    const result = await requestApproval(db, packageArgs());
+    const result = await (await packages()).file();
     if (!result.ok || !result.value.decision) throw new Error("not auto-approved");
     expect(result.value.decision).toMatchObject({
       decision: "approved",
@@ -341,7 +375,11 @@ describe("requestApproval", () => {
       decidedAt: NOW,
       effectiveAt: after(UNDO_WINDOW_MS),
     });
-    const [row] = await db.select().from(approvalDecision);
+    // This decision's row: the fixture's setup made one of its own.
+    const [row] = await db
+      .select()
+      .from(approvalDecision)
+      .where(eq(approvalDecision.id, result.value.decision.decisionId));
     expect(row?.policySetId).toBe(set.value.policySetId);
     expect(await listPendingApprovals(db, candidateId)).toEqual([]);
   });
@@ -362,7 +400,7 @@ describe("requestApproval", () => {
     await db
       .insert(approvalPolicySet)
       .values({ candidateId, rules: [broken as PolicyRule], createdAt: NOW });
-    const result = await requestApproval(db, packageArgs());
+    const result = await (await packages()).file();
     if (!result.ok) throw new Error(result.error.kind);
     expect([result.value.outcome, result.value.decision]).toEqual([
       { auto: false, why: "no_policies" },
@@ -393,11 +431,12 @@ describe("one open request per subject", () => {
 
   it("can't get around Paul's undo of an auto-approval by asking again", async () => {
     await setApprovalPolicies(db, { candidateId, rules: [rule] });
-    const subj = subject();
-    const first = await requestApproval(db, packageArgs({ subject: subj }));
+    const fx = await packages();
+    const packageId = randomUUID();
+    const first = await fx.file({ packageId });
     if (!first.ok || !first.value.decision) throw new Error("not auto-approved");
     await undoDecision(db, { candidateId, decisionId: first.value.decision.decisionId });
-    expect(await requestApproval(db, packageArgs({ subject: subj }))).toEqual({
+    expect(await fx.file({ packageId })).toEqual({
       ok: false,
       error: { kind: "SubjectAlreadyRequested" },
     });
@@ -405,12 +444,13 @@ describe("one open request per subject", () => {
 
   it("lets a rejected subject be requested again, and then it always waits for Paul", async () => {
     await setApprovalPolicies(db, { candidateId, rules: [rule] });
-    const subj = subject();
-    const first = await requestApproval(db, packageArgs({ subject: subj }));
+    const fx = await packages();
+    const packageId = randomUUID();
+    const first = await fx.file({ packageId });
     if (!first.ok || !first.value.decision) throw new Error("not auto-approved");
     await undoDecision(db, { candidateId, decisionId: first.value.decision.decisionId });
     await reject(first.value.requestId);
-    const again = await requestApproval(db, packageArgs({ subject: subj, contentSha256: HASH_B }));
+    const again = await fx.file({ packageId, variant: "b" });
     if (!again.ok) throw new Error(again.error.kind);
     expect([again.value.outcome, again.value.decision]).toEqual([
       { auto: false, why: "declined_before" },
@@ -676,11 +716,15 @@ describe("verifyApproval", () => {
 
   it("accepts a policy decision as a policyDecisionId after its window", async () => {
     await setApprovalPolicies(db, { candidateId, rules: [rule] });
-    const subj = subject();
-    const result = await requestApproval(db, packageArgs({ subject: subj }));
+    const fx = await packages();
+    const packageId = randomUUID();
+    const result = await fx.file({ packageId });
     const decisionId = result.ok ? (result.value.decision?.decisionId ?? "") : "";
     await setClock(after(UNDO_WINDOW_MS));
-    const verified = await verify(decisionId, subj, { kind: "application_package" });
+    const verified = await verify(decisionId, fx.subjectOf(packageId), {
+      kind: "application_package",
+      contentSha256: fx.hashOf(packageId),
+    });
     expect(verified.ok && verified.value.decidedBy).toBe("policy");
   });
 });
@@ -708,11 +752,14 @@ describe("approval events", () => {
   });
 
   it("record a policy set and a policy's decision with counts and the rule name", async () => {
+    const fx = await packages();
+    // Only this test's events: the fixture's setup wrote its own before.
+    const before = (await events()).length;
     const set = await setApprovalPolicies(db, { candidateId, rules: [rule] });
     if (!set.ok) throw new Error("policy set refused");
-    const result = await requestApproval(db, packageArgs());
+    const result = await fx.file();
     if (!result.ok || !result.value.decision) throw new Error("not auto-approved");
-    const rows = await events();
+    const rows = (await events()).slice(before);
     expect(rows.map((e) => [e.type, e.actor])).toEqual([
       ["approval.policies_set", "user"],
       ["approval.requested", "agent:apply"],
