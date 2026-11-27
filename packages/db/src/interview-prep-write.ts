@@ -4,7 +4,7 @@ import {
   planPrepBlocks,
   type Result,
 } from "@northstar/domain";
-import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "./db.js";
 import {
@@ -38,7 +38,14 @@ const knownZone = (zone: string) => {
 export const PrepRequest = z
   .object({
     // Other events and growth blocks; bounded so one call can't make the planner loop for long.
-    busy: z.array(z.object({ start: validDate, end: validDate }).strict()).max(500),
+    busy: z
+      .array(
+        z
+          .object({ start: validDate, end: validDate })
+          .strict()
+          .refine((b) => b.end.getTime() > b.start.getTime()),
+      )
+      .max(500),
     // Minutes after local midnight in timeZone, start before end (the planner's own rule).
     workingHours: z
       .object({ start: z.number().int().min(0), end: z.number().int().max(1440) })
@@ -56,7 +63,10 @@ export type PrepError =
   // A reschedule replaced this detection: prep follows the current time, never an old one.
   | { kind: "Superseded" }
   // Paul hasn't confirmed this interview (no decision yet, or he dismissed it).
-  | { kind: "NotConfirmed" };
+  | { kind: "NotConfirmed" }
+  // The interview has started (or the caller's clock says so): a plan now would be empty and,
+  // stored once, could never be redone.
+  | { kind: "InterviewStarted" };
 
 export type PrepBlockKind = "prep" | "warm_up";
 export type StoredPrepProposal = {
@@ -132,6 +142,9 @@ export async function proposeInterviewPrep(
         );
       if (decision?.decision !== "confirmed") {
         return { ok: false as const, error: { kind: "NotConfirmed" as const } };
+      }
+      if (request.now.getTime() >= detection.startsAt.getTime()) {
+        return { ok: false as const, error: { kind: "InterviewStarted" as const } };
       }
       // Already proposed: the first proposal stands and the plan isn't worked out again.
       const earlier = await readProposalIn(tx, input.candidateId, detection.id);
@@ -222,7 +235,7 @@ async function readProposalIn(
         eq(interviewPrepProposal.detectionId, detectionId),
       ),
     )
-    .orderBy(desc(interviewPrepProposal.proposedAt))
+    // One proposal per detection (a unique constraint).
     .limit(1);
   if (!proposal) return null;
   const blocks = await q

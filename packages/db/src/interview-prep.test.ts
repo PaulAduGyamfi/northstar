@@ -18,6 +18,7 @@ import { createTestDb, seedApplication, sqlState } from "./test/pglite.js";
 
 const RESTRICT_VIOLATION = "23001";
 const CHECK_VIOLATION = "23514";
+const UNIQUE_VIOLATION = "23505";
 
 const exporter = new InMemorySpanExporter();
 beforeAll(() => {
@@ -198,6 +199,23 @@ describe("proposeInterviewPrep", () => {
     ]);
   });
 
+  it("refuses once the interview has started, storing nothing", async () => {
+    const detectionId = await confirmed();
+    expect([await propose(detectionId, { now: START }), (await events()).length]).toEqual([
+      { ok: false, error: { kind: "InterviewStarted" } },
+      0,
+    ]);
+  });
+
+  it("refuses busy time that ends before it starts", async () => {
+    const detectionId = await confirmed();
+    const busy = [{ start: at("2026-11-30T10:00:00Z"), end: at("2026-11-30T09:00:00Z") }];
+    expect(await propose(detectionId, { busy })).toEqual({
+      ok: false,
+      error: { kind: "InvalidInput", fields: ["busy"] },
+    });
+  });
+
   it("refuses bad working hours, an unknown zone and an invalid date by field name", async () => {
     const detectionId = await confirmed();
     expect([
@@ -263,6 +281,21 @@ describe("the prep tables", () => {
           endsAt: at("2026-11-29T10:00:00Z"),
         }),
       ),
+      // A second proposal for the same detection, and a second block at the same start.
+      await sqlState(
+        db
+          .insert(interviewPrepProposal)
+          .values({ candidateId, detectionId, missingPrep: 0, warmUpMissing: false }),
+      ),
+      await sqlState(
+        db.insert(interviewPrepBlock).values({
+          candidateId,
+          proposalId,
+          kind: "prep",
+          startsAt: at("2026-11-30T09:00:00Z"),
+          endsAt: at("2026-11-30T09:45:00Z"),
+        }),
+      ),
     ]).toEqual([
       RESTRICT_VIOLATION,
       RESTRICT_VIOLATION,
@@ -271,6 +304,8 @@ describe("the prep tables", () => {
       RESTRICT_VIOLATION,
       CHECK_VIOLATION,
       CHECK_VIOLATION,
+      UNIQUE_VIOLATION,
+      UNIQUE_VIOLATION,
     ]);
   });
 });

@@ -13,8 +13,9 @@ wants two 45-minute blocks in the three days before and a 15-minute warm-up an h
 or calendar write can follow. This slice stores one proposal per confirmed interview.
 
 ## Behavior
-- `proposeInterviewPrep(db, { candidateId, detectionId, busy, workingHours, timeZone, now })`
-  (`packages/db`, `interview-prep-write.ts`):
+- `proposeInterviewPrep(db, { candidateId, detectionId, request })`, where `request` is
+  `{ busy, workingHours, timeZone, now }`, checked by `PrepRequest` (`packages/db`,
+  `interview-prep-write.ts`):
   - checks, in one transaction under the candidate's lock, that the detection is the candidate's
     own, is still current (no newer version for its event and application) and that Paul
     confirmed it;
@@ -29,6 +30,8 @@ or calendar write can follow. This slice stores one proposal per confirmed inter
   - a second call for the same detection stores nothing and returns the first proposal
     (`recorded: false`): the plan is not worked out again.
 - Refusals: `UnknownDetection`, `Superseded`, `NotConfirmed` (no decision yet, or dismissed),
+  `InterviewStarted` (the caller's `now` is at or after the interview's start: an empty plan stored
+  once could never be redone),
   `InvalidInput` (bad working hours, unknown time zone or invalid dates; field names only).
 - `readPrepProposal(db, candidateId, detectionId)` gives the stored proposal and its blocks, or
   null.
@@ -48,6 +51,7 @@ or calendar write can follow. This slice stores one proposal per confirmed inter
 - The database is down: the call throws and nothing is stored; the caller retries (same result,
   one row, by the unique detection id).
 - Two callers race: the candidate lock and the unique constraint keep one proposal.
+- The caller's clock is wrong (after the interview): refused as `InterviewStarted`, nothing stored.
 - Busy time is wrong or missing: the plan may overlap real events. It is only a proposal; nothing
   reaches the calendar without Paul's approval (a later slice).
 
