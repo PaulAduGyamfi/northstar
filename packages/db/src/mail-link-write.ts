@@ -95,6 +95,19 @@ export async function assignTag(
   );
 }
 
+// One application's tag, or null when it has none yet: read-only, for the Gate's check that a
+// package's tagged address is this application's own (NS-248).
+export async function readApplicationTag(
+  db: Db,
+  candidateId: CandidateId,
+  applicationId: string,
+): Promise<string | null> {
+  // Not an id at all names no application (and would be a type error in Postgres).
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(applicationId))
+    return null;
+  return (await existingTag(db, candidateId, { applicationId })) ?? null;
+}
+
 // Every tag of this candidate, for matchMail.
 export async function readTags(db: Db, candidateId: CandidateId): Promise<TagView[]> {
   return db

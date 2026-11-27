@@ -17,6 +17,7 @@ export * from "./health.js";
 export * from "./ids.js";
 export * from "./interview-prep.js";
 export * from "./mail-status.js";
+export * from "./mail-tag.js";
 export * from "./origin.js";
 export * from "./pipeline-metrics.js";
 export * from "./recruiter-grade.js";
