@@ -345,7 +345,10 @@ Exists now:
   `career-dna-write.ts`: `saveCareerDnaReport`, a new version only when it differs from the newest,
   feed "Updated your Career DNA report"; `readCareerDnaHistory`, newest 20). `diffCareerDna` and
   `changeLines` say in fixed sentences what changed: band crossings, points within a band, the label,
-  and evidence gained and lost. No caller rebuilds it on a profile change yet.
+  and evidence gained and lost. Since slice 5 `refreshCareerDna` (`career-dna/store.ts`) builds the
+  report from the current resume import's atoms (what, how and imported quote) and Paul's approved
+  stories, saves it, and returns `changeLines` against the previous version; `profile dna` runs it.
+  Nothing runs it automatically after an import or a story approval yet.
 
   No Profile Grade handoff, page or share card yet; the share card waits on a Publish gateway
   ADR and Q-10.
@@ -976,6 +979,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/profile profile audit` / `profile audit accept <key> "<new line>"` / `profile audit reject <key>` | audit the current resume against the search preferences' titles and ready jobs' requirements and store the run (leaving out suggestions rejected on this import) / accept one line suggestion with Paul's own line (checked like `applySuggestion`; the tailor uses it from then on) / reject one. Paul only: it prints his real resume, needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile settings set <field> <value> [--for <qualifier>]` / `profile settings show` | store an answer to a factual question (`work_authorization --for <country>`, `years_of_experience --for <skill>`, `previously_employed --for <company>`; yes/no, whole years, `YYYY-MM-DD`, `remote\|hybrid\|onsite`, https links, short text) / list the current ones. Paul only: his real data, needs `DATABASE_URL`; agents never run them |
 | repo root | `pnpm --filter @northstar/profile profile contact set --first <name> --last <name> --email <address> [--phone <number>]` / `profile contact show` | store Paul's contact details for application forms (every field each time; no `--phone` means none; the same details store nothing) / print them. Paul only: his real data, needs `DATABASE_URL`; agents never run them |
+| repo root | `pnpm --filter @northstar/profile profile dna` | build the Career DNA report from the stored profile (resume atoms and approved stories), save it as a new version when it changed, and print its label, strength and gap lines and what changed since the last version. Paul only: it reads his real profile, needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/profile profile answer "<question>"` | answer a form question from the settings: prints the answer, the canonical question and the setting used, or why it can't. Paul only: needs `DATABASE_URL`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel backfill [--since YYYY-MM-DD] [--max-messages N]` | sign in to Gmail read-only (browser consent every run), rebuild the funnel from job mail since `--since` (default 2026-02-01); prints the model-call count and estimated cost first and stops at `--max-messages` (default 500). Safe to rerun. Paul only: his real mail, needs `DATABASE_URL`, `GOOGLE_OAUTH_CLIENT_*` and `ANTHROPIC_API_KEY`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel import data/<file>.csv` | import a tracker export (`company, role, applied_on, stage_reached, outcome` plus optional `outcome_on, channel, notes`); a file with any bad row stores nothing. Paul only |
