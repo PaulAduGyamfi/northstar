@@ -55,6 +55,11 @@ let close: () => Promise<void>;
 let candidateId: CandidateId;
 let pkg: ReturnType<typeof makePackage>;
 
+// Each test starts on a fresh in-process PGlite database. Creating one is quick alone, but under
+// CI's parallel load this hook once passed vitest's 10 s hook default (NS-258), so it gets its own
+// limit. The tests' own assertions keep vitest's defaults.
+const PGLITE_SETUP_TIMEOUT_MS = 30_000;
+
 beforeEach(async () => {
   exporter.reset();
   ({ db, close } = await createTestDb());
@@ -62,7 +67,7 @@ beforeEach(async () => {
   candidateId = CandidateId.parse(seeded.candidateId);
   pkg = makePackage("greenhouse", { applicationId: seeded.applicationId });
   await setGateClock(db, NOW);
-});
+}, PGLITE_SETUP_TIMEOUT_MS);
 
 afterEach(async () => {
   await close();
