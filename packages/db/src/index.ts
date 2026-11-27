@@ -298,6 +298,16 @@ export {
   type SetIndependentWorkResult,
   setIndependentWork,
 } from "./independent-work-write.js";
+// Proposed interview prep (NS-241).
+export {
+  type PrepBlockKind,
+  type PrepError,
+  PrepRequest,
+  prepReason,
+  proposeInterviewPrep,
+  readPrepProposal,
+  type StoredPrepProposal,
+} from "./interview-prep-write.js";
 export * as interviewSchema from "./interview-schema.js";
 export {
   type DecisionError,
