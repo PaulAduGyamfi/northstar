@@ -25,7 +25,8 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
   real link yourself; tests use the fake web in `packages/sources/src/test/fake-web.ts`.
 - The `resume-tailor` route (NS-144) lives in `packages/profile/src/tailor/`. Call it only
   through `tailorWithModel`, which checks the output and falls back to the deterministic resume.
-  It is off by default (`enabled: true` turns it on), because its fixtures are hand-written.
+  It is off by default (`enabled: true` turns it on). Since NS-268 its prompt is v2 (lines open
+  with a word their atoms contain, no titles) and its fixtures are real recordings (5/5).
 - The `answer-draft` route (NS-135) lives in `packages/profile/src/answer/`. Every sentence
   cites a story or atom with a verbatim quote, checked by `validateAnswerDraft`. It is off by
   default (`draftAnswer` returns `off` unless the caller passes `enabled: true`). Since NS-263
