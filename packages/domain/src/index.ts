@@ -46,6 +46,7 @@ export {
 } from "./question-match.js";
 // One rule for how a reused banked answer counts (NS-249 slice 3): producer and Gate share it.
 export {
+  isDisguisedLabel,
   isExactWording,
   labelReuse,
   REUSE_HIGH_CONFIDENCE,

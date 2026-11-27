@@ -131,6 +131,32 @@ describe("assemblePackage", () => {
     });
   });
 
+  // Labels that hide a "not" behind a lookalike or invisible character (NS-272): a Cyrillic о, a
+  // zero-width space, a modifier apostrophe and a Greek ο.
+  const DISGUISED = [
+    "Why would you n\u043et want to work at Example Co?",
+    "Why would you n\u200bot want to work at Example Co?",
+    "Why wouldn\u02bct you want to work at Example Co?",
+    "Why would you n\u03bft want to work at Example Co?",
+  ];
+
+  it.each(DISGUISED)("sends a required disguised label to Paul, never the bank (%s)", (label) => {
+    expect(assemblePackage(base({ questions: [q("question_2", label)] }))).toMatchObject({
+      ok: false,
+      error: { unanswered: [{ fieldName: "question_2", reason: "not_matched" }] },
+    });
+  });
+
+  it("leaves an optional disguised label blank instead of answering it from the bank", () => {
+    const label = DISGUISED[0] ?? "";
+    const result = assemblePackage(
+      base({ questions: [q("question_2", label, { required: false })] }),
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.error));
+    expect(result.value.package.fields).toEqual({});
+    expect(result.value.facts.answers).toEqual([]);
+  });
+
   it("counts a cover letter as new text for Paul to review", () => {
     const result = assemblePackage(
       base({ questions: [], coverLetter: { fileName: "letter.pdf", sha256: sha("c") } }),
@@ -298,6 +324,16 @@ describe("assemblePackage with matches confirmed beforehand (NS-233)", () => {
     "Why wouldn\u2019t you want to work at Example Co?",
     "Why would you \uff2e\uff2f\uff34 want to work at Example Co?",
   ])("still never answers a negated question from the bank (%s)", (label) => {
+    expect(assembleWith(label, modelPick(0.9))).toMatchObject({
+      ok: false,
+      error: { unanswered: [{ fieldName: "question_2", reason: "not_matched" }] },
+    });
+  });
+
+  it("ignores a model's pick on a disguised label, so it never reaches the bank (NS-272)", () => {
+    // CLOSE with a zero-width space: code still leaves it new, and the confirm step still offers
+    // why-this-company, so only the disguise check stops the model's pick.
+    const label = "What drew you to us\u200b?";
     expect(assembleWith(label, modelPick(0.9))).toMatchObject({
       ok: false,
       error: { unanswered: [{ fieldName: "question_2", reason: "not_matched" }] },
