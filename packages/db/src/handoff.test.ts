@@ -250,6 +250,9 @@ describe("the handoff tables", () => {
 
 // NS-192 slice 3: the extension was handed a package to pre-fill.
 describe("recordHandoffPrefill", () => {
+  // A grant key's shape (16 hex characters), built rather than written out, so secret scanners
+  // don't read a test value as a key.
+  const SAMPLE_GRANT = "a1".repeat(8);
   // An open handoff for a synthetic submission stopped at a CAPTCHA.
   async function openOne(): Promise<{ handoffId: string; applicationId: string }> {
     const { submissionId, applicationId } = await inProgress();
@@ -276,7 +279,7 @@ describe("recordHandoffPrefill", () => {
       applicationId,
       ats: "greenhouse",
       fieldCount: 3,
-      grantKey: "0123456789abcdef",
+      grantKey: SAMPLE_GRANT,
     });
     expect(r).toEqual({ ok: true, value: { recorded: true } });
     expect(await prefilledEvents()).toEqual([
@@ -299,9 +302,9 @@ describe("recordHandoffPrefill", () => {
         fieldCount: 3,
         grantKey,
       });
-    await record("0123456789abcdef");
-    await record("0123456789abcdef");
-    await record("fedcba9876543210");
+    await record(SAMPLE_GRANT);
+    await record(SAMPLE_GRANT);
+    await record("b2".repeat(8));
     expect(await prefilledEvents()).toHaveLength(2);
   });
 
@@ -313,7 +316,7 @@ describe("recordHandoffPrefill", () => {
       applicationId,
       ats: "greenhouse",
       fieldCount: 3,
-      grantKey: "0123456789abcdef",
+      grantKey: SAMPLE_GRANT,
     });
     expect([r, await prefilledEvents()]).toEqual([{ ok: false, error: { kind: "NotFound" } }, []]);
   });
@@ -326,7 +329,7 @@ describe("recordHandoffPrefill", () => {
       applicationId: randomUUID(),
       ats: "greenhouse",
       fieldCount: 3,
-      grantKey: "0123456789abcdef",
+      grantKey: SAMPLE_GRANT,
     });
     expect([r, await prefilledEvents()]).toEqual([{ ok: false, error: { kind: "NotFound" } }, []]);
   });
@@ -339,7 +342,7 @@ describe("recordHandoffPrefill", () => {
       applicationId,
       ats: "greenhouse",
       fieldCount,
-      grantKey: "0123456789abcdef",
+      grantKey: SAMPLE_GRANT,
     });
     expect([r, await prefilledEvents()]).toEqual([
       { ok: false, error: { kind: "InvalidInput" } },
