@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsc -p tsconfig.build.json",
-    "eval": "turbo run build --filter=evals && node --env-file-if-exists=../.env dist/bin.js"
+    "eval": "turbo run build --filter=evals && node --env-file-if-exists=../.env.app dist/bin.js"
   },
   "dependencies": {
     "@northstar/inbox": "workspace:*",

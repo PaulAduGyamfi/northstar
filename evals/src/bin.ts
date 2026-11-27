@@ -7,7 +7,7 @@ import { registry } from "./routes.js";
 // process.env, and only --live/--record use it (for the API key).
 const exitCode = await main({
   argv: process.argv.slice(2),
-  // Only the API key: the loaded .env also holds database and storage secrets this never needs.
+  // Only the API key: the loaded .env.app (NS-235) also holds the app's database URL and other secrets this never needs.
   env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY },
   registry,
   // dist/bin.js runs from evals/dist, so the eval folders are one level up.

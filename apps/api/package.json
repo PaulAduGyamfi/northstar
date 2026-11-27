@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsc -p tsconfig.build.json",
-    "start": "turbo run build --filter=@northstar/api && node --env-file-if-exists=../../.env dist/bin.js"
+    "start": "turbo run build --filter=@northstar/api && node --env-file-if-exists=../../.env.app dist/bin.js"
   },
   "dependencies": {
     "@northstar/db": "workspace:*",
