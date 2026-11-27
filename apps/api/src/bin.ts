@@ -24,6 +24,7 @@ import {
   readFeedNames,
   readGrowthSettings,
   readGrowthTracks,
+  readHandoffPackage,
   readInboxThreads,
   readPasskey,
   readPreferences,
@@ -77,6 +78,7 @@ import { handoffEndpoints } from "./handoffs.js";
 import { inboxEndpoints } from "./inbox.js";
 import { type PasskeyStore, passkeyAssertion, passkeyEndpoints } from "./passkeys.js";
 import { pipelineEndpoints } from "./pipeline.js";
+import { createPrefillGrants, prefillEndpoints } from "./prefill.js";
 import { runEndpoints } from "./run.js";
 import { createApi } from "./server.js";
 import { createSessions } from "./sessions.js";
@@ -192,6 +194,12 @@ try {
     markSubmitted: async (applicationId, idempotencyKey) =>
       markHandoffSubmitted(db, await candidateId(), applicationId, idempotencyKey),
   });
+  // The handoff pre-fill's read (NS-192, ADR-0029 option 2): a one-time grant from Paul's session,
+  // then the extension's read of that one handoff's package, re-checked by readHandoffPackage.
+  const prefill = prefillEndpoints({
+    readPackage: async (handoffId) => readHandoffPackage(db, await candidateId(), handoffId),
+    grants: createPrefillGrants(Date.now),
+  });
   // Employer accounts (NS-124), read-only from the tenant registry.
   const accounts = accountsEndpoints({
     listTenants: async () => listTenants(db, await candidateId()),
@@ -273,6 +281,7 @@ try {
       ...system,
       ...run,
       ...handoffs,
+      ...prefill,
       ...accounts,
       ...consent,
       ...approvals,

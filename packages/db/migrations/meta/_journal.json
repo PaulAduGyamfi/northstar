@@ -617,6 +617,20 @@
       "when": 1795739549816,
       "tag": "0087_approval_edit_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1795742663381,
+      "tag": "0088_career_dna_report",
+      "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1795742665002,
+      "tag": "0089_career_dna_report_append_only",
+      "breakpoints": true
     }
   ]
 }
