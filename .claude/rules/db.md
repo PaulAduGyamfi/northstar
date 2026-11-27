@@ -168,10 +168,15 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   (`package-approval.ts`, NS-213), which derives its facts from storage (`readPackageInputs`) and
   verifies each bank claim against the newest banked text (a `{company}` slot only with an
   `isSafeCompany` name); the package must name the job's own posting, contact and newest tailored
-  PDF. New package producers use it, never `requestApproval` with their own facts. The question a
-  verified answer belongs to is still the producer's claim. Its contact email may be Paul's stored
-  address or that address tagged with the application's own `mail_tag` (`readApplicationTag`,
-  NS-248), never another application's tag.
+  PDF. New package producers use it. Since NS-249 `requestApproval` refuses any caller's facts;
+  only `requestPackageApproval` passes the facts it derived, through `requestApprovalWithFacts`
+  (exported from `approval-write.ts`, never from the index). Tests that need an auto-approvable
+  package use `src/test/package-fixture.ts`. Since NS-249 slice 3 the Gate also derives which
+  question a verified answer belongs to and its exact/high split from the stored form label
+  (`labelReuse` and `weakerReuse` in `packages/domain`): a claim counts no more than that
+  reading; exact wording needs an `isSafeCompany` name, and a label with invisible, modifier or
+  Greek/Cyrillic characters is `new`. Its contact email may be Paul's stored address or that address tagged with the
+  application's own `mail_tag` (`readApplicationTag`, NS-248), never another application's tag.
 - Stored packages (NS-192) are `application_package`, one per `application_package` Gate
   request, append-only (a trigger), written only by `requestPackageApproval` in the same
   transaction as the request (a replay stores nothing). Its foreign key names the request's id,
@@ -299,6 +304,18 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `mail-classification-write.ts`. CHECKs keep the kind, stage signal and review reason to their
   fixed lists and the shape consistent; never store the classification's company, role or
   requisition, a subject or an address.
+  `readInboxCreditReport` (`origin-write.ts`, NS-248 item 2, INB-010) is their read-only credit
+  report: per origin bucket (the same `originBucket` as `readCreditReport`), applications that
+  reached replied, screen and interview, from `classified` rows whose message belongs to the
+  application by `coalesce(mail_link.application_id, mail_link_decision.application_id)`. Counts
+  only.
+  `readUnclassifiedMail` and `countUngradedRecruiterMail` (`mail-loop-read.ts`, NS-238 item 1) are
+  `funnel inbox`'s read-only readers: recorded messages with no classification and no dismissal,
+  newest first, classified recruiter mail with no grade (counted, and since slice 2 listed newest
+  first by `readUngradedRecruiterMail`), and which given messages are recorded
+  (`readRecordedMessageIds`); ids and counts only.
+  `readDeadLetterKeys` (NS-238 item 1) gives one kind's letters with their resolution, for a
+  producer that passes over what it gave up on until Paul retries it.
   `readLinkCandidates` (NS-223) is their read-only candidates reader: applications not in a
   terminal status, with their creation time and the job's and sources' ATS names, never a name or
   address.

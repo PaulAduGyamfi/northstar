@@ -64,6 +64,9 @@ function deps(argv: string[], answers: (string | null)[] = []) {
     runInterviews: async () => {
       throw new Error("not used here");
     },
+    runInbox: async () => {
+      throw new Error("not used here");
+    },
     readText: async () =>
       "company,role,applied_on,stage_reached,outcome\nGlobex,Engineer,2026-03-02,screen,rejected\n",
     setManualRows: async (input) => {
@@ -123,6 +126,16 @@ describe("funnel cli", () => {
     const { d, printed } = deps(["interviews", "--since", "2026-01-01"]);
     let runs = 0;
     d.runInterviews = async () => {
+      runs++;
+      throw new Error("must not run");
+    };
+    expect([await main(d), runs, printed[0]?.startsWith("usage:")]).toEqual([1, 0, true]);
+  });
+
+  it("inbox with extra arguments prints the usage, exits 1 and runs nothing", async () => {
+    const { d, printed } = deps(["inbox", "--since", "2026-01-01"]);
+    let runs = 0;
+    d.runInbox = async () => {
       runs++;
       throw new Error("must not run");
     };

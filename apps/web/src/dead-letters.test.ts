@@ -88,6 +88,60 @@ describe("nextStep", () => {
     ]);
   });
 
+  it("names a stuck email for reading and sorting, with each of their reasons", () => {
+    const poll = { ...ITEM, kind: "mail.poll", reasonCode: "step_failed", attempts: 3 };
+    const sort = { ...ITEM, kind: "mail.classify", attempts: 1 };
+    expect([
+      letterLine(poll),
+      ...["read_failed", "classify_failed", "record_refused"].map((reasonCode) =>
+        letterLine({ ...sort, reasonCode }),
+      ),
+    ]).toEqual([
+      {
+        what: "Reading new job mail",
+        why: "Stopped after 3 attempts: linking it to your applications failed",
+      },
+      {
+        what: "Sorting a job email",
+        why: "Stopped after 1 attempt: Gmail wouldn't give the email",
+      },
+      { what: "Sorting a job email", why: "Stopped after 1 attempt: sorting it failed" },
+      {
+        what: "Sorting a job email",
+        why: "Stopped after 1 attempt: its result couldn't be stored",
+      },
+    ]);
+  });
+
+  it("names a recruiter email it couldn't grade, with each reason", () => {
+    const grade = { ...ITEM, kind: "mail.grade", attempts: 1 };
+    const reasons = [
+      "refused",
+      "truncated",
+      "invalid_output",
+      "read_failed",
+      "grade_failed",
+      "record_refused",
+    ];
+    expect(reasons.map((reasonCode) => letterLine({ ...grade, reasonCode }).why)).toEqual([
+      "Stopped after 1 attempt: the model declined to read it",
+      "Stopped after 1 attempt: the model's answer was cut off",
+      "Stopped after 1 attempt: the model's answer was malformed",
+      "Stopped after 1 attempt: Gmail wouldn't give the email",
+      "Stopped after 1 attempt: grading it failed",
+      "Stopped after 1 attempt: its result couldn't be stored",
+    ]);
+    expect(letterLine(grade).what).toBe("Grading a recruiter email");
+  });
+
+  it("says a retried email is tried on the next inbox run and a skipped one is passed over", () => {
+    expect(DEAD_LETTER_ACTIONS.map((a) => nextStep("mail.poll", a))).toEqual([
+      "The next `funnel inbox` run reads this email again.",
+      "Later `funnel inbox` runs pass over this email.",
+      "Later `funnel inbox` runs pass over this email. Look through your recent job mail in Gmail yourself: one email in it can't be read here.",
+    ]);
+  });
+
   it("names a failed relay pass and says every action only records the choice", () => {
     const relay = { ...ITEM, kind: "apply.signal_relay", reasonCode: "relay_failed", attempts: 3 };
     expect(letterLine(relay)).toEqual({

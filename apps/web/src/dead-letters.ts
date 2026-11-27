@@ -88,6 +88,37 @@ const KINDS: Record<string, KindWords> = {
         "Nothing runs now. Add the prep blocks to your calendar yourself; any already added stay on your Northstar calendar.",
     },
   },
+  // NS-238 item 1: an email that stopped `funnel inbox` from reading new mail three times in a
+  // run. Later runs pass over it until Paul retries it.
+  "mail.poll": {
+    what: "Reading new job mail",
+    next: {
+      retry: "The next `funnel inbox` run reads this email again.",
+      skip: "Later `funnel inbox` runs pass over this email.",
+      hand_off:
+        "Later `funnel inbox` runs pass over this email. Look through your recent job mail in Gmail yourself: one email in it can't be read here.",
+    },
+  },
+  // NS-238 item 1 slice 2: a recruiter email `funnel inbox` couldn't grade.
+  "mail.grade": {
+    what: "Grading a recruiter email",
+    next: {
+      retry: "The next `funnel inbox` run tries to grade this email again.",
+      skip: "Later `funnel inbox` runs leave this email ungraded.",
+      hand_off:
+        "Later `funnel inbox` runs leave this email ungraded. It is still on /inbox; read it in Gmail from there and decide yourself.",
+    },
+  },
+  // NS-238 item 1: a recorded email `funnel inbox` couldn't read or sort.
+  "mail.classify": {
+    what: "Sorting a job email",
+    next: {
+      retry: "The next `funnel inbox` run tries to sort this email again.",
+      skip: "Later `funnel inbox` runs leave this email unsorted.",
+      hand_off:
+        "Later `funnel inbox` runs leave this email unsorted. It is still on /inbox; open it in Gmail from there and read it yourself.",
+    },
+  },
 };
 
 const REASONS: Record<string, string> = {
@@ -100,6 +131,14 @@ const REASONS: Record<string, string> = {
   unknown_application: "its application wasn't found",
   write_failed: "every attempt to write to Google Calendar failed",
   claims_exhausted: "too many runs stopped part-way",
+  read_failed: "Gmail wouldn't give the email",
+  step_failed: "linking it to your applications failed",
+  classify_failed: "sorting it failed",
+  record_refused: "its result couldn't be stored",
+  refused: "the model declined to read it",
+  truncated: "the model's answer was cut off",
+  invalid_output: "the model's answer was malformed",
+  grade_failed: "grading it failed",
 };
 
 // Own keys only: a code such as "constructor" must not find Object's built-ins.

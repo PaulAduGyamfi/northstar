@@ -12,8 +12,11 @@ import {
   type StartedBy,
   type SubmittedVia,
 } from "@northstar/domain";
-import { and, eq, inArray, like } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, like, sql } from "drizzle-orm";
 import type { Db } from "./db.js";
+import { mailClassification } from "./mail-classification-schema.js";
+import { mailLinkDecision } from "./mail-link-decision-schema.js";
+import { mailLink } from "./mail-link-schema.js";
 import { appendEvent, inSpan } from "./resilience-event.js";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -228,7 +231,7 @@ export type CreditReport = Record<OriginBucket, StageCounts>;
 const empty = (): StageCounts => ({ applications: 0, submitted: 0, inProcess: 0, offer: 0 });
 
 // Per origin bucket, how many applications reached each stage (INB-010). The replied, screen and
-// interview stages come with inbox classification (NS-164).
+// interview stages are in `readInboxCreditReport`, from stored classifications (NS-248 item 2).
 export async function readCreditReport(db: Db, candidateId: CandidateId): Promise<CreditReport> {
   const [apps, rows] = await Promise.all([
     db
@@ -262,6 +265,90 @@ export async function readCreditReport(db: Db, candidateId: CandidateId): Promis
     if (reached("application.submitted") || createdSubmitted) counts.submitted += 1;
     if (reached("application.in_process")) counts.inProcess += 1;
     if (reached("application.offer")) counts.offer += 1;
+  }
+  return report;
+}
+
+export type InboxStageCounts = { replied: number; screen: number; interview: number };
+export type InboxCreditReport = Record<OriginBucket, InboxStageCounts>;
+
+const noStages = (): InboxStageCounts => ({ replied: 0, screen: 0, interview: 0 });
+
+// The application a message belongs to: matching's link, else Paul's choice in the confirm queue
+// (a dismissal names none, so it counts nowhere).
+const messageApplication = sql<
+  string | null
+>`coalesce(${mailLink.applicationId}, ${mailLinkDecision.applicationId})`;
+
+// Per origin bucket, how many applications reached each inbox stage (INB-010, NS-248 item 2), from
+// stored classifications (NS-261). Replied: any classified message but a confirmation (an automatic
+// receipt isn't the company answering). Screen: a `screen` stage signal. Interview: `technical` or
+// `onsite`. Each application counts once per stage; review results count nowhere. Kept apart from
+// `readCreditReport` so its shape doesn't change. Counts only.
+export async function readInboxCreditReport(
+  db: Db,
+  candidateId: CandidateId,
+): Promise<InboxCreditReport> {
+  const [stages, rows] = await Promise.all([
+    db
+      .select({
+        applicationId: messageApplication,
+        replied: sql<boolean>`bool_or(${mailClassification.kind} <> 'confirmation')`,
+        screen: sql<boolean>`bool_or(${mailClassification.stageSignal} = 'screen')`,
+        interview: sql<boolean>`bool_or(${mailClassification.stageSignal} in ('technical', 'onsite'))`,
+      })
+      .from(mailClassification)
+      .innerJoin(
+        mailLink,
+        and(
+          eq(mailLink.candidateId, mailClassification.candidateId),
+          eq(mailLink.gmailMessageId, mailClassification.gmailMessageId),
+        ),
+      )
+      .leftJoin(
+        mailLinkDecision,
+        and(
+          eq(mailLinkDecision.candidateId, mailLink.candidateId),
+          eq(mailLinkDecision.gmailMessageId, mailLink.gmailMessageId),
+        ),
+      )
+      // The application must be the candidate's own, as matching and Paul's choice already ensure.
+      .innerJoin(
+        application,
+        and(eq(application.id, messageApplication), eq(application.candidateId, candidateId)),
+      )
+      .where(
+        and(
+          eq(mailClassification.candidateId, candidateId),
+          eq(mailClassification.outcome, "classified"),
+          // Belt and braces: the join on the same expression already drops a message with none.
+          isNotNull(messageApplication),
+        ),
+      )
+      .groupBy(messageApplication),
+    originRows(db, candidateId),
+  ]);
+  const byApp = new Map<string, OriginRow[]>();
+  for (const r of rows) {
+    const list = byApp.get(r.aggregate) ?? [];
+    list.push(r);
+    byApp.set(r.aggregate, list);
+  }
+  const report: InboxCreditReport = {
+    northstar: noStages(),
+    northstar_by_hand: noStages(),
+    outside: noStages(),
+    recruiter_inbound: noStages(),
+    unknown: noStages(),
+  };
+  for (const s of stages) {
+    if (s.applicationId === null) continue;
+    // The same bucket readCreditReport gives the application, so the two reports agree.
+    const origin = foldOrigin(byApp.get(`application:${s.applicationId}`) ?? []);
+    const counts = report[originBucket(origin.startedBy, origin.submittedVia)];
+    if (s.replied) counts.replied += 1;
+    if (s.screen) counts.screen += 1;
+    if (s.interview) counts.interview += 1;
   }
   return report;
 }

@@ -29,6 +29,12 @@ export const DEAD_LETTER_KINDS = [
   "apply.signal_relay",
   // NS-241 slice 4: an approved prep plan the Calendar writer couldn't write after its tries.
   "calendar.prep_write",
+  // NS-238 item 1: a message that stopped `funnel inbox`'s mail poll three times in a run.
+  "mail.poll",
+  // NS-238 item 1: a linked message `funnel inbox` couldn't read or classify.
+  "mail.classify",
+  // NS-238 item 1 slice 2: a recruiter email `funnel inbox` couldn't grade.
+  "mail.grade",
 ] as const;
 export type DeadLetterKind = (typeof DEAD_LETTER_KINDS)[number];
 
@@ -160,6 +166,28 @@ export async function listOpenDeadLetters(
       ),
     )
     .orderBy(asc(deadLetter.deadAt), asc(deadLetter.id));
+}
+
+// Every letter of one kind with Paul's resolution (null while open), for a producer that passes
+// over what it gave up on until Paul sends it back with Retry (NS-238 item 1: keys
+// `mail.poll:<gmail id>:<n>`). Keys are lowercase ids and separators by the table's CHECK; never
+// shown to anyone.
+export async function readDeadLetterKeys(
+  db: Pick<Db, "select">,
+  candidateId: CandidateId,
+  kind: DeadLetterKind,
+): Promise<{ idempotencyKey: string; action: DeadLetterAction | null }[]> {
+  const rows = await db
+    .select({ idempotencyKey: deadLetter.idempotencyKey, action: deadLetterResolution.action })
+    .from(deadLetter)
+    .leftJoin(deadLetterResolution, eq(deadLetterResolution.deadLetterId, deadLetter.id))
+    .where(and(eq(deadLetter.candidateId, candidateId), eq(deadLetter.kind, kind)))
+    .orderBy(asc(deadLetter.deadAt), asc(deadLetter.id));
+  // The table's CHECK allows only these actions.
+  return rows.map((r) => ({
+    idempotencyKey: r.idempotencyKey,
+    action: r.action as DeadLetterAction | null,
+  }));
 }
 
 const ACTION_REASON: Record<DeadLetterAction, string> = {

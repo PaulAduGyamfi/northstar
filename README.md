@@ -37,7 +37,7 @@ One system that **finds jobs, applies to them, runs your inbox, and keeps your p
 | [packages/inbox/](packages/inbox/) | Read-only Gmail and Calendar, mail linking, verification codes, interview detection |
 | [packages/pipeline/](packages/pipeline/) | Assembling an application package for the Approval Gate |
 | [packages/gateways/](packages/gateways/) | The only code that acts outward: Apply Gateway, browser form driver, Gmail drafts, Calendar prep blocks (not wired yet), vault |
-| [packages/funnel/](packages/funnel/) | The 9-month backfill and funnel report, and the one-shot calendar interview check (`funnel interviews`) |
+| [packages/funnel/](packages/funnel/) | The 9-month backfill and funnel report, and the one-shot calendar interview check (`funnel interviews`) and job-mail check (`funnel inbox`) |
 | [evals/](evals/) | Eval sets per LLM route, replayed in CI |
 
 ## Requirement index (user's numbered asks → docs)
@@ -81,7 +81,10 @@ automatically. Its browser pool
 is off unless you turn it on (`WORKER_APPLY_BROWSER=on`); while it is off, a submission waits in
 Temporal's queue (it isn't dropped) and still needs your approval when the pool comes on. Interviews on your calendar are found when you run `pnpm --filter @northstar/funnel funnel
 interviews` (Google consent each run, no stored token) and wait for you on the Interviews page;
-detection doesn't run on its own yet. What each package does today is listed
+detection doesn't run on its own yet. New job mail is linked to your applications and sorted when
+you run `pnpm --filter @northstar/funnel funnel inbox` (Gmail consent each run, no stored token);
+it shows on the Inbox page. Recruiter emails are graded A–F in the same run once you turn on
+`RECRUITER_EXTRACT` (off by default). What each package does today is listed
 under "Layout" in [AGENTS.md](AGENTS.md).
 
 ## Getting started (local)

@@ -82,8 +82,11 @@ Exists now:
   transaction; a move to `submitted` must carry `submittedVia` (`auto` or `approved` from the
   Apply Gateway by the Gate's `decidedBy`, `handoff` from "I submitted it"), stored in that
   move's event. `readOrigin` and `readCreditReport` (INB-010: submitted, in process and offer
-  per origin bucket; screen and interview wait for NS-164). Nothing calls `createApplication`
-  yet.
+  per origin bucket). Since NS-248 item 2 also `readInboxCreditReport`: per origin bucket, how many
+  applications reached replied (a classified linked message other than a confirmation), screen
+  (a `screen` stage signal) and interview (`technical` or `onsite`), from stored
+  `mail_classification`; review results, queued and dismissed mail count nowhere. Counts only, no
+  caller yet. Nothing calls `createApplication` yet.
 - `packages/llm/` (NS-106): the LLM gateway, the only importer of `@anthropic-ai/sdk`. Typed
   routes, structured output, caching order, refusal fallback, call records and the `llm.call`
   span. Plus `untrustedBlock` and the request-keyed replay/recording fixtures (ADR-0013).
@@ -129,6 +132,9 @@ Exists now:
   questions (`question-canon.ts`) and `matchQuestion`/`classifyQuestion`, plain code that maps a
   form question to one of them with a confidence score (factual, reusable narrative or
   company-specific), or to "new". No model, no database yet; the answer bank builds on it.
+  Since NS-249 (slice 2) the canon and matcher live in `packages/domain` (`question-canon.ts`,
+  `question-match.ts`, with the text `normalize` in `text-normalize.ts`) so the Gate can match a
+  form label too; `packages/profile` re-exports them under the same names and paths.
   Since NS-137 also `confirmQuestion` (`question-confirm.ts`), with no embedding provider
   (decided on #62): for a question the matcher left new because it scored low or tied, the
   `question-confirm` route picks one of up to three close narrative or company-specific catalog
@@ -503,8 +509,8 @@ Exists now:
     `FutureCursorError`, no domain event, a `mail.cursor_save` span), and
     `pollFromCursor` (`src/link/cursor.ts`) reads it, polls from it (`firstSince` on the very first
     run; a future one throws `FutureCursorError` before Gmail is asked) and saves the report's
-    `nextSince` and `nextOverlap`, even after a stop. No caller runs it
-    on a schedule yet (#230 calls `pollFromCursor` once per tick), and no gateway uses it.
+    `nextSince` and `nextOverlap`, even after a stop. Its caller is `funnel inbox` (NS-238 item 1,
+    below), run by Paul; nothing runs it on a schedule (#400), and no gateway uses it.
   Since NS-164 also `classifyLinkedMail` (`src/triage.ts`, INB-003/012): one linked message to
   its classification by the backfill's rules (verified senders only) or the `mail-classify`
   route, with the provenance check. Verification mail from any sender (a verification subject
@@ -515,8 +521,30 @@ Exists now:
   `mail_link` message, the first standing; the kind and stage signal, or a review reason, with
   `rules`/`model` and the prompt version, never a company, role, subject or address;
   `mail.classified` / `mail.needs_review` with fixed-word feed lines; `readMailClassifications`).
-  `readInboxThreads` and `readNudgeCandidates` read the stored kind. No caller classifies new mail
-  yet (#230).
+  `readInboxThreads` and `readNudgeCandidates` read the stored kind.
+  Since NS-238 item 1 (slice 1) the loop has a caller Paul runs, `funnel inbox` (`packages/funnel`,
+  `inbox.ts`; Paul decided on #400: Gmail consent each run, no stored token, no schedule). In one
+  run it polls from the stored cursor through `linkNewMessage` (the first run reads 7 days back),
+  then classifies up to 25 recorded messages with no classification that Paul hasn't dismissed,
+  linked and queued, newest first (`readUnclassifiedMail`, `packages/db`, `mail-loop-read.ts`), and
+  stores each with `recordMailClassification`; it prints counts only. The model runs behind the
+  `agent:mail-classify` switch, the `anthropic` breaker and the spend cap; Gmail behind the `gmail`
+  breaker. A message that stops three polls in a run, or that can't be read, sorted or stored,
+  becomes a dead letter (`mail.poll` / `mail.classify`, key `<kind>:<gmail id>:<n>`), and later
+  runs pass over it unless Paul's newest resolution of it is Retry (`letterState`,
+  `readDeadLetterKeys`); a retried one is read again by its id before the poll, since the poll never
+  lists it again (`readRecordedMessageIds`). A held-back call, the token, the Claude API or Gmail
+  not answering stops that part of the run instead, with no letter.
+  Since slice 2 the run then grades recruiter mail, only while `RECRUITER_EXTRACT=on`
+  (`loadFunnelConfig`, `src/config.ts`; default off, any other value stops the run naming it):
+  `runGrading` (`src/grade.ts`) takes up to 10 classified `recruiter_inbound` messages with no
+  grade, newest first (`readUngradedRecruiterMail`), reads each body in memory, runs
+  `extractRecruiterFacts` (behind `agent:recruiter-extract`, the breaker and the spend cap) and
+  `gradeRecruiterMessage` over Paul's current preferences with **no learned weights**, so the stored
+  grade stays the grader's own, and stores it with `recordRecruiterGrade`. A refusal, cut-off or
+  malformed answer, an unreadable message or a refused store is a `mail.grade` dead letter (the same
+  pass-over rule). `@northstar/funnel` depends on `@northstar/sources` for the grader. Off, the
+  run counts recruiter mail waiting for a grade (`countUngradedRecruiterMail`).
   Since NS-229 (slice 1) also Gmail labels (`src/labels/`, ADR-0027, **Rejected** 2026-11-27: `gmail.modify` held
   only by this writer, ADR-0014's per-run token, labels add-only and outside the Gate):
   `threadLabels(kind, origin)` gives a thread's fixed `Northstar/…` type label (INB-005) and
@@ -674,8 +702,8 @@ Exists now:
   `RECRUITER_GRADE_REASONS`, a fixed list in `packages/domain`, by Zod, a CHECK and the API) and confidence. `recordRecruiterGrade` writes it once, with a
   `recruiter.graded` event whose feed line is its fixed-word `reason` ("Graded a recruiter email:
   B"). `readInboxThreads` gives each thread its newest grade, `GET /inbox` passes it on, and the
-  Inbox tab shows it in words (`gradeWords`). No caller grades mail yet (classifications aren't
-  stored). Since NS-238 slice 2 also replies by grade (REC-002), plain code built like a nudge:
+  Inbox tab shows it in words (`gradeWords`). Its caller is `funnel inbox` (NS-238 item 1 slice 2),
+  only while `RECRUITER_EXTRACT=on`. Since NS-238 slice 2 also replies by grade (REC-002), plain code built like a nudge:
   `recruiterReplyPackage` (`packages/profile`, `reply/recruiter.ts`) gives A/B an interested
   sentence, C a "share more" sentence and D a polite no (`RECRUITER_REPLY_SENTENCES`: no fact,
   number, link or commitment word, so nothing to cite), filed by `fileReplyDraft`; an F gets no
@@ -701,8 +729,7 @@ Exists now:
   N changes"); `readRecruiterWeights` gives the newest. `gradeRecruiterMessage` takes them as an
   optional `weights` argument, summed and held to ±2 per grade (`MAX_TOTAL_ADJUSTMENT`) and added
   before the letter is picked, so caps still apply. The caller must keep learning against the
-  unweighted grade (spec). No caller
-  grades mail with them yet (item 1).
+  unweighted grade (spec): `funnel inbox` grades with no weights, so nothing applies them yet.
 - `packages/funnel/` (NS-113): the 9-month backfill, funnel records derived by plain code from
   `funnel_message` and `funnel_manual_row` (`packages/db`, `funnel-schema.ts`), the tracker CSV
   import, the funnel report (Wilson intervals, rejection latency) and the hypothesis board.
@@ -1116,7 +1143,7 @@ Exists now:
   every other entry is ignored and code matches the label itself. Each bank source carries
   `confirmedBy`, and a model's pick always counts as `new` for the Gate, never `bank_exact` or
   `bank_high_confidence`. The negation check runs on the normalized label (curly quotes, NFKC):
-  since NS-244 one `isNegatedQuestion` in `packages/profile` serves the matcher, `confirmQuestion`
+  since NS-244 one `isNegatedQuestion` (in `packages/domain` since NS-249, re-exported by `packages/profile`) serves the matcher, `confirmQuestion`
   and assembly.
   `filePackage` files the package with the Gate (`requestApproval`, actor `system`, key
   `package:<packageId>`); it never submits. Since NS-227 (slice 4) also `formQuestions`
@@ -1152,9 +1179,19 @@ Exists now:
   answerable field of the stored form whose value is exactly the newest version of Paul's banked
   answer, with only `{company}` filled by a plain short name, `isSafeCompany` in
   `packages/domain`). A package must name the job's own posting, Paul's stored contact and the
-  newest tailored PDF, or it is refused. Which question a verified answer belongs to, and its
-  exact/high split, are still the producer's. `requestApproval` still accepts facts for packages
-  from other callers (#195).
+  newest tailored PDF, or it is refused. Since NS-249 (slice 3) the Gate also checks which
+  question a verified answer belongs to and its exact/high split: `labelReuse` (`packages/domain`,
+  `question-reuse.ts`) matches the stored form label itself, so an answer counts only if the label's
+  match is that answer's own narrative question (never a negated label), and the claim counts no
+  more than that reading (`weakerReuse`). `packages/pipeline` uses the same rule
+  (`isExactWording`, `REUSE_HIGH_CONFIDENCE`). A wording with `{company}` counts as exact only for
+  an `isSafeCompany` name, and the Gate counts a label with invisible formatting characters,
+  modifier letters or Greek or Cyrillic letters as `new` (a disguised "not"). Since NS-249 (slice 1) `requestApproval` refuses
+  facts from every caller (`InvalidRequest` on `facts`; its input says `facts: null`): a package
+  filed there waits for Paul and, with no stored package, can't be submitted. Only
+  `requestPackageApproval` passes facts, through `requestApprovalWithFacts`, which
+  `approval-write.ts` exports for it but the package's index doesn't. The Gate's own tests file
+  packages through a test-only fixture (`src/test/package-fixture.ts`).
   Since NS-248 (item 1) the package's email is the application's tagged address (VER-007):
   `preparePackage` assigns the application's tag once its inputs are complete (`assignTag`, kept for
   good, so a rerun builds the same package) and puts `taggedAddress(email, tag)` in the contact;
@@ -1295,6 +1332,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/funnel funnel import data/<file>.csv` | import a tracker export (`company, role, applied_on, stage_reached, outcome` plus optional `outcome_on, channel, notes`); a file with any bad row stores nothing. Paul only |
 | repo root | `pnpm --filter @northstar/funnel funnel review` | place or discard the messages the backfill couldn't decide, with a link to each in Gmail. Paul only |
 | repo root | `pnpm --filter @northstar/funnel funnel interviews` | sign in to Google Calendar read-only (browser consent every run, no stored token), detect interviews in the next 30 days against open applications whose company domains you entered (`jobs domains`), store them for `/interviews` and print counts only. Safe to rerun. Paul only: his real calendar, needs `DATABASE_URL` and `GOOGLE_OAUTH_CLIENT_*`; agents never run it |
+| repo root | `pnpm --filter @northstar/funnel funnel inbox` | sign in to Gmail read-only (browser consent every run, no stored token), link new job mail from the stored cursor (the first run reads 7 days back), sort up to 25 recorded emails with the rules or the `mail-classify` model behind its switch, breaker and the spend cap, grade up to 10 recruiter emails when `RECRUITER_EXTRACT=on` (off by default), and print counts only; emails that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real mail, needs `DATABASE_URL`, `GOOGLE_OAUTH_CLIENT_*` and `ANTHROPIC_API_KEY`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel report` / `funnel hypotheses` | the funnel report and the hypothesis board. Paul only: they print his real applications; agents never run them |
 | repo root | `pnpm --filter @northstar/sources jobs add <url>` | add a job from a link: ATS API, then the page's JSON-LD, then the `job-extract` model (needs `ANTHROPIC_API_KEY` only then). A job without a title or company is stored as a draft. LinkedIn, Indeed and Glassdoor links are refused. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs add --text data/<file> --url <url>` | add a job from a description Paul saved himself (sign-in sites such as LinkedIn); nothing is fetched |

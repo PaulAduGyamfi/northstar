@@ -4,32 +4,56 @@ import { resolve } from "node:path";
 import {
   acquireCall,
   connectDb,
+  countUngradedRecruiterMail,
+  type LinkDecision as DbLinkDecision,
   dbSpendMeter,
+  dbWindowStore,
   isSubsystemOn,
   knownGmailIds,
   latestFactsCheck,
   loadDbConfig,
+  PREFERENCE_DEFAULTS,
+  type PreferenceValues,
+  readDeadLetterKeys,
   readFunnelMessages,
   readLinkCandidates,
+  readLinkedThreads,
+  readMailCursor,
   readManualRows,
+  readPreferences,
+  readRecordedMessageIds,
+  readTags,
+  readUnclassifiedMail,
+  readUngradedRecruiterMail,
   recordCallOutcome,
   recordDeadLetter,
   recordFunnelEvent,
   recordInterviewDetection,
+  recordMailClassification,
+  recordMailLink,
+  recordRecruiterGrade,
   resolveReview,
   saveFunnelMessages,
+  saveMailCursor,
   setManualRows,
   soleCandidate,
 } from "@northstar/db";
 import {
   authorizeCalendar,
   authorizeGmail,
+  classifyLinkedMail,
   createCalendarClient,
   createGmailClient,
+  extractRecruiterFacts,
   googleTokenEndpoint,
+  isJobMail,
+  type LinkStepDeps,
+  linkNewMessage,
   loadGoogleConfig,
   mailClassifyRoute,
+  pollFromCursor,
   runInterviewDetection,
+  tagFromDeliveredTo,
 } from "@northstar/inbox";
 import {
   type CallGuard,
@@ -38,10 +62,14 @@ import {
   loadLlmBudget,
   loadLlmConfig,
 } from "@northstar/llm";
+import { gradeRecruiterMessage } from "@northstar/sources";
 import { sql } from "drizzle-orm";
 import { createAsker } from "./ask.js";
 import { runBackfill } from "./backfill.js";
 import { main } from "./cli.js";
+import { loadFunnelConfig } from "./config.js";
+import { runGrading } from "./grade.js";
+import { runInbox } from "./inbox.js";
 import { toInterviewCandidates } from "./interviews.js";
 import { Baselines } from "./report.js";
 
@@ -49,6 +77,8 @@ import { Baselines } from "./report.js";
 // reads process.env (DATABASE_URL, GOOGLE_OAUTH_CLIENT_*, ANTHROPIC_API_KEY from .env.app, NS-235). Paul runs
 // it; agents never do (it reads his real mail and calendar and prints his real funnel).
 const { db, close } = connectDb(loadDbConfig(process.env));
+// How far back the very first `funnel inbox` run reads, before a cursor is stored.
+const FIRST_RUN_DAYS = 7;
 // Paul's keyboard, opened only when `review` asks (an open readline keeps the process waiting).
 let asker: ReturnType<typeof createAsker> | undefined;
 try {
@@ -64,11 +94,40 @@ try {
       await recordCallOutcome(db, { candidateId, dependency, outcome, probeToken });
     },
   };
+  const print = (line: string) => console.log(printable(line));
+  // The Claude gateway behind the stored switch and breaker and the LLM spend cap (NS-176,
+  // ADR-0021): low routes such as mail-classify pause first, fresh ones run longest.
+  const gateway = () =>
+    createLlmGateway({
+      client: createAnthropicClient(
+        loadLlmConfig({ ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }),
+      ),
+      now: () => performance.now(),
+      guard,
+      budget: {
+        caps: loadLlmBudget({
+          LLM_DAILY_CAP_USD: process.env.LLM_DAILY_CAP_USD,
+          LLM_MONTHLY_CAP_USD: process.env.LLM_MONTHLY_CAP_USD,
+        }),
+        meter: dbSpendMeter(db, () => candidateId),
+      },
+    });
+  // ADR-0014: read-only Gmail consent on this run, the token in memory until the process ends.
+  const gmailAccess = () =>
+    authorizeGmail({
+      config: loadGoogleConfig(process.env),
+      fetchToken: googleTokenEndpoint(fetch),
+      timeoutMs: 120_000,
+      openBrowser: async (url) => {
+        print("Opening Google's consent page (read-only Gmail). If it doesn't open, visit:");
+        print(url);
+        openInBrowser(url);
+      },
+    });
   // dist/bin.js → the package root, where the committed baselines live.
   const baselines = Baselines.parse(
     JSON.parse(await readFile(new URL("../funnel-baselines.json", import.meta.url), "utf8")),
   );
-  const print = (line: string) => console.log(printable(line));
   process.exitCode = await main({
     argv: process.argv.slice(2),
     print,
@@ -79,16 +138,7 @@ try {
     now: () => new Date(),
     baselines,
     runBackfill: async (options, counts) => {
-      const access = await authorizeGmail({
-        config: loadGoogleConfig(process.env),
-        fetchToken: googleTokenEndpoint(fetch),
-        timeoutMs: 120_000,
-        openBrowser: async (url) => {
-          print("Opening Google's consent page (read-only Gmail). If it doesn't open, visit:");
-          print(url);
-          openInBrowser(url);
-        },
-      });
+      const access = await gmailAccess();
       return runBackfill(
         {
           gmail: createGmailClient({
@@ -98,21 +148,7 @@ try {
             random: Math.random,
             guard,
           }),
-          gateway: createLlmGateway({
-            client: createAnthropicClient(
-              loadLlmConfig({ ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }),
-            ),
-            now: () => performance.now(),
-            guard,
-            budget: {
-              // The LLM spend cap (NS-176, ADR-0021): low routes pause first, fresh ones run longest.
-              caps: loadLlmBudget({
-                LLM_DAILY_CAP_USD: process.env.LLM_DAILY_CAP_USD,
-                LLM_MONTHLY_CAP_USD: process.env.LLM_MONTHLY_CAP_USD,
-              }),
-              meter: dbSpendMeter(db, () => candidateId),
-            },
-          }),
+          gateway: gateway(),
           route: mailClassifyRoute(),
           store: {
             knownIds: (ids) => knownGmailIds(db, candidateId, ids),
@@ -163,6 +199,137 @@ try {
         now: () => new Date(),
       });
       return { report, applications, withDomains };
+    },
+    runInbox: async () => {
+      // A bad RECRUITER_EXTRACT stops the run before Google is asked anything.
+      const config = loadFunnelConfig(process.env);
+      const access = await gmailAccess();
+      // Every Gmail read goes through the stored `gmail` breaker.
+      const gmail = createGmailClient({
+        access,
+        fetch,
+        sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+        random: Math.random,
+        guard,
+      });
+      const llm = gateway();
+      const route = mailClassifyRoute();
+      const windows = dbWindowStore(db, candidateId);
+      // INB-002's pre-filter also passes mail from the company domains Paul entered (NS-252).
+      const candidates = await readLinkCandidates(db, candidateId);
+      const knownDomains = new Set(candidates.flatMap((c) => c.companyDomains ?? []));
+      const mailbox = await gmail.profileAddress();
+      // The link step's ports, shared by the poll and the relink of retried messages.
+      const step: LinkStepDeps = {
+        mailbox,
+        openWindows: () => windows.openWindows(),
+        readTags: () => readTags(db, candidateId),
+        readCandidates: () => readLinkCandidates(db, candidateId),
+        readLinkedThreads: () => readLinkedThreads(db, candidateId),
+        record: (input) =>
+          recordMailLink(db, {
+            candidateId,
+            ...input,
+            decision: input.decision as DbLinkDecision,
+          }),
+      };
+      const letter = async (
+        kind: "mail.poll" | "mail.classify" | "mail.grade",
+        input: {
+          subject: string;
+          reasonCode: string;
+          attempts: number;
+          key: string;
+        },
+      ) => {
+        const saved = await recordDeadLetter(db, {
+          candidateId,
+          kind,
+          subject: input.subject,
+          reasonCode: input.reasonCode,
+          attempts: input.attempts,
+          idempotencyKey: input.key,
+        });
+        // A letter that can't be stored stops the run: a silent drop would hide the message.
+        if (!saved.ok) throw new Error(`dead letter refused: ${saved.error.field}`);
+      };
+      return runInbox({
+        poll: (skip) =>
+          pollFromCursor(
+            {
+              ...step,
+              gmail,
+              now: () => new Date(),
+              knownDomains,
+              cursor: {
+                read: () => readMailCursor(db, candidateId),
+                save: (c) => saveMailCursor(db, { candidateId, ...c }),
+              },
+            },
+            // The very first run reads the last 7 days; the backfill covers before that.
+            { firstSince: new Date(Date.now() - FIRST_RUN_DAYS * 86_400_000), skip },
+          ),
+        relink: async (gmailMessageId) => {
+          const headers = await gmail.getHeaders(gmailMessageId);
+          const tag = tagFromDeliveredTo(headers.deliveredTo);
+          const tags = new Set((await step.readTags()).map((t) => t.tag));
+          // The poll's own rule (INB-002 or a known tag): anything else isn't linked or queued.
+          if (isJobMail(headers, knownDomains) || (tag.kind === "tag" && tags.has(tag.tag))) {
+            await linkNewMessage(step, headers);
+          }
+        },
+        recorded: (gmailMessageIds) => readRecordedMessageIds(db, candidateId, gmailMessageIds),
+        pollLetters: () => readDeadLetterKeys(db, candidateId, "mail.poll"),
+        classifyLetters: () => readDeadLetterKeys(db, candidateId, "mail.classify"),
+        recordPollLetter: (key, attempts) =>
+          letter("mail.poll", {
+            // The message has no row yet: the letter is the candidate's.
+            subject: `candidate:${candidateId}`,
+            // Gmail's own failures never letter (NOT_THE_MESSAGE): this is the step's.
+            reasonCode: "step_failed",
+            attempts,
+            key,
+          }),
+        recordClassifyLetter: (m, reason, key) =>
+          letter("mail.classify", {
+            subject: `mail_link:${m.mailLinkId}`,
+            reasonCode: reason,
+            attempts: 1,
+            key,
+          }),
+        unclassified: (limit) => readUnclassifiedMail(db, candidateId, limit),
+        readFull: (gmailMessageId) => gmail.getFull(gmailMessageId),
+        classify: (mail) => classifyLinkedMail({ gateway: llm, route }, mail),
+        recordClassification: (gmailMessageId, result) =>
+          recordMailClassification(db, { candidateId, gmailMessageId, result }),
+        ungradedRecruiterMail: () => countUngradedRecruiterMail(db, candidateId),
+        grading: () => {
+          // Paul's current search preferences, read once a run (the defaults before he sets any).
+          let prefs: Promise<PreferenceValues> | undefined;
+          return runGrading({
+            enabled: config.recruiterExtract,
+            gradeLetters: () => readDeadLetterKeys(db, candidateId, "mail.grade"),
+            ungraded: (limit) => readUngradedRecruiterMail(db, candidateId, limit),
+            readFull: (gmailMessageId) => gmail.getFull(gmailMessageId),
+            // The route behind its switch, the anthropic breaker and the spend cap.
+            extract: (body) => extractRecruiterFacts({ gateway: llm, enabled: true }, body),
+            grade: async (facts, body) => {
+              prefs ??= readPreferences(db, candidateId).then((p) => p ?? PREFERENCE_DEFAULTS);
+              // No learned weights: the stored grade stays the grader's own (NS-238 item 3).
+              return gradeRecruiterMessage(facts, await prefs, body);
+            },
+            record: (gmailMessageId, grade) =>
+              recordRecruiterGrade(db, { candidateId, gmailMessageId, grade }),
+            recordGradeLetter: (m, reason, key) =>
+              letter("mail.grade", {
+                subject: `mail_link:${m.mailLinkId}`,
+                reasonCode: reason,
+                attempts: 1,
+                key,
+              }),
+          });
+        },
+      });
     },
     // pnpm runs scripts from the package folder; resolve the path from where Paul ran pnpm.
     readText: (path) => readFile(resolve(process.env.INIT_CWD ?? process.cwd(), path), "utf8"),
