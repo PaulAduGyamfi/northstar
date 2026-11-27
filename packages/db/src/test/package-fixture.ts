@@ -55,6 +55,8 @@ export type FileOptions = {
 
 export type PackageFixture = {
   applicationId: string;
+  // The application's job, for a test that stores another form for it (NS-203 slice 4).
+  jobId: string;
   // The subject and content hash a package with these options is filed under.
   subjectOf: (packageId: string) => string;
   hashOf: (packageId: string, variant?: PackageVariant) => string;
@@ -231,6 +233,7 @@ export async function packageFixture(
   };
   return {
     applicationId,
+    jobId,
     subjectOf: (packageId) => {
       const parsed = parsePackage(pkg(packageId));
       if (!parsed.ok) throw new Error("fixture: package doesn't parse");

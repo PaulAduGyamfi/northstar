@@ -5,6 +5,7 @@ import { applicationPackage } from "./application-package-schema.js";
 import { approvalEdit, approvalRequest, approvalWithdrawal } from "./approval-schema.js";
 import { decideApprovals, listPendingApprovals, setApprovalPolicies } from "./approval-write.js";
 import type { Db } from "./db.js";
+import { saveJobForm } from "./job-form-write.js";
 import { editPackage } from "./package-edit.js";
 import { candidate } from "./schema.js";
 import { createTestDb } from "./test/pglite.js";
@@ -153,6 +154,29 @@ describe("editPackage", () => {
       { ok: false, error: { kind: "ContentUnchanged" } },
     ]);
     expect((await listPendingApprovals(db, candidateId)).map((p) => p.requestId)).toEqual([old]);
+  });
+
+  it("refuses a choice field, whose value must be one of the form's options", async () => {
+    const old = await filed({ question_1: "Yes" });
+    await saveJobForm(db, {
+      candidateId,
+      jobId: fixture.jobId,
+      ats: "greenhouse",
+      questions: [
+        {
+          fieldName: "question_1",
+          label: "Are you open to relocation?",
+          required: true,
+          kind: "select",
+          choices: ["Yes", "No"],
+          group: 0,
+        },
+      ],
+    });
+    expect(await edit(old, { question_1: "Maybe later" })).toEqual({
+      ok: false,
+      error: { kind: "InvalidRequest", fields: ["fields.question_1"] },
+    });
   });
 
   it("refuses a package Paul already decided", async () => {
