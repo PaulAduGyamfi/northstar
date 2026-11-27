@@ -437,7 +437,22 @@ Exists now:
     test). A boundary scan of `src/calendar/` refuses writes, other endpoints and calendars, and
     the excluded fields.
 
-  ADR-0026 is accepted; the consent flow, storage or confirm step yet (#271).
+  ADR-0026 is accepted; no consent flow yet (#271).
+  Since NS-240 slice 2 also storage and Paul's decision, in `packages/db` (`interview-schema.ts`,
+  `interview-write.ts`, append-only):
+  - `recordInterviewDetection` stores a detection once in `interview_detection`, with an
+    `interview.detected` event on the application ("Found a possible technical interview on your
+    calendar: confirm it"). It holds the event id, format (`INTERVIEW_FORMATS` in
+    `packages/domain`), start, end and interviewer count, never a title, address or name. A change
+    is a new version and the highest version per event and application is current. Invites aren't
+    authenticated, so an event keeps at most 10 versions and 50 detections are stored a day; a
+    dismissed event stores nothing more, and moves are `interview.rescheduled`.
+  - `decideInterview` records Paul's one `confirmed` or `dismissed` per detection
+    (`interview_decision`, `interview.confirmed` / `interview.dismissed` by `user`) and refuses a
+    different second decision or one on a replaced version. Neither moves a status.
+  - `listInterviews` gives the current detections with their decisions.
+
+  No caller, API or page yet.
 - Interview prep (NS-170, CAL-003/004), slice 1, plain code in `packages/domain`
   (`interview-prep.ts`): `planPrepBlocks` proposes CAL-003's default prep for one interview, two
   45-minute blocks in the 3 days before (one per day where it can, nearest days first, earliest
