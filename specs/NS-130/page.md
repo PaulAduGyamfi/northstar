@@ -27,12 +27,12 @@ terminal. DNA-008 says "what changed" is the reason to come back; it belongs in 
   in this slice (another agent is in `apps/web`'s shared files).
 
 ## Acceptance criteria
-- [ ] `GET /career-dna` answers 401 without a session (test).
-- [ ] With no report it answers `{ report: null }`; with two versions it answers the newest one's
+- [x] `GET /career-dna` answers 401 without a session (test).
+- [x] With no report it answers `{ report: null }`; with two versions it answers the newest one's
       dimensions and the change lines between them (tests on a fake reader).
-- [ ] No atom or story id appears in the response (test).
-- [ ] The page's words come from a plain function with tests (band words, counts, empty states).
-- [ ] `node_modules/.bin/turbo run lint typecheck test build --force` green for touched packages.
+- [x] No atom or story id appears in the response (test).
+- [x] The page's words come from a plain function with tests (band words, counts, empty states).
+- [x] `node_modules/.bin/turbo run lint typecheck test build --force` green for touched packages.
 
 ## Failure modes
 - The database read fails: the endpoint answers 500 by the shared pattern and the page says the
