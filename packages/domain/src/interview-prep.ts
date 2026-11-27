@@ -2,9 +2,6 @@
 // interview and the reminder times. Plain code, no model, no I/O: it proposes and never writes.
 // Writing a block to the calendar goes through the Approval Gate later (ADR-0002, ADR-0026).
 
-const MINUTE = 60_000;
-// CAL-003's default prep: 2 × 45 minutes in the 3 days before, and a 15-minute warm-up 1 hour
-// before.
 // The interview formats detection names (NS-240), the same list as @northstar/inbox's
 // `InterviewFormat`: the database stores only these.
 export const INTERVIEW_FORMATS = [
@@ -17,6 +14,9 @@ export const INTERVIEW_FORMATS = [
 ] as const;
 export type InterviewFormatCode = (typeof INTERVIEW_FORMATS)[number];
 
+const MINUTE = 60_000;
+// CAL-003's default prep: 2 × 45 minutes in the 3 days before, and a 15-minute warm-up 1 hour
+// before.
 export const PREP_BLOCKS = 2;
 export const PREP_MINUTES = 45;
 export const PREP_DAYS = 3;

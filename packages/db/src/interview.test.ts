@@ -9,7 +9,13 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "./db.js";
 import { interviewDecision, interviewDetection } from "./interview-schema.js";
-import { decideInterview, listInterviews, recordInterviewDetection } from "./interview-write.js";
+import {
+  decideInterview,
+  listInterviews,
+  MAX_DETECTION_VERSIONS,
+  MAX_DETECTIONS_PER_DAY,
+  recordInterviewDetection,
+} from "./interview-write.js";
 import { application, domainEvent } from "./schema.js";
 import { createTestDb, seedApplication, sqlState } from "./test/pglite.js";
 
@@ -71,6 +77,7 @@ describe("recordInterviewDetection", () => {
     expect(event?.payload).toEqual({
       applicationId,
       detectionId: first.value.detectionId,
+      version: 1,
       format: "technical",
       startsAt: START.toISOString(),
       endsAt: END.toISOString(),
@@ -111,6 +118,80 @@ describe("recordInterviewDetection", () => {
       { kind: "InvalidDetection", fields: ["calendarEventId"] },
       { kind: "InvalidDetection", fields: ["detection"] },
     ]);
+  });
+});
+
+describe("recordInterviewDetection's versions and limits", () => {
+  const at = (day: number) => ({
+    start: new Date(`2026-12-0${day}T15:00:00Z`),
+    end: new Date(`2026-12-0${day}T16:00:00Z`),
+  });
+
+  it("keeps the time current when an event moves back to an earlier time", async () => {
+    await record(at(1));
+    await record(at(2));
+    const back = await record(at(1));
+    if (!back.ok) throw new Error("not recorded");
+    expect(back.value.recorded).toBe(true);
+    const listed = await listInterviews(db, candidateId);
+    expect(listed.map((i) => [i.detectionId, i.start.toISOString()])).toEqual([
+      [back.value.detectionId, "2026-12-01T15:00:00.000Z"],
+    ]);
+    expect((await events("interview.rescheduled")).map((e) => e.reason)).toEqual([
+      "A possible technical interview on your calendar moved: confirm the new time",
+      "A possible technical interview on your calendar moved: confirm the new time",
+    ]);
+  });
+
+  it("stores nothing more for an event Paul dismissed, even when it moves", async () => {
+    const first = await record(at(1));
+    if (!first.ok) throw new Error("not recorded");
+    await decideInterview(db, {
+      candidateId,
+      detectionId: first.value.detectionId,
+      decision: "dismissed",
+    });
+    const moved = await record(at(2));
+    expect(moved).toEqual({
+      ok: true,
+      value: { recorded: false, detectionId: first.value.detectionId },
+    });
+    expect(await db.select().from(interviewDetection)).toHaveLength(1);
+  });
+
+  it(`stops after ${MAX_DETECTION_VERSIONS} versions of one event`, async () => {
+    for (let v = 1; v <= MAX_DETECTION_VERSIONS; v++) {
+      const r = await record({ interviewerCount: v });
+      expect(r.ok && r.value.recorded).toBe(true);
+    }
+    expect(await record({ interviewerCount: 0 })).toEqual({
+      ok: false,
+      error: { kind: "TooManyChanges" },
+    });
+  });
+
+  it(`stops after ${MAX_DETECTIONS_PER_DAY} new detections in a day`, async () => {
+    for (let n = 0; n < MAX_DETECTIONS_PER_DAY; n++) {
+      const r = await record({ calendarEventId: `event${n}` });
+      expect(r.ok && r.value.recorded).toBe(true);
+    }
+    expect(await record({ calendarEventId: "oneTooMany" })).toEqual({
+      ok: false,
+      error: { kind: "DailyLimit" },
+    });
+  });
+
+  it("refuses a decision on a detection a reschedule replaced", async () => {
+    const old = await record(at(1));
+    await record(at(2));
+    if (!old.ok) throw new Error("not recorded");
+    expect(
+      await decideInterview(db, {
+        candidateId,
+        detectionId: old.value.detectionId,
+        decision: "confirmed",
+      }),
+    ).toEqual({ ok: false, error: { kind: "Superseded" } });
   });
 });
 
@@ -190,6 +271,7 @@ describe("the interview tables", () => {
           startsAt: START,
           endsAt: END,
           interviewerCount: 99,
+          version: 1,
         }),
       ),
     ]).toEqual([

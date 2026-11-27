@@ -1,6 +1,6 @@
 {
-  "id": "9dca3455-ac81-4033-9dc0-f8670d588428",
-  "prevId": "183280a1-d1be-465a-93f3-56c94545b9d1",
+  "id": "170a255a-dc47-4fad-b090-e7451f2d29f5",
+  "prevId": "ee929590-3ab9-48bf-8d6d-1496064fcd29",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -9497,6 +9497,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "detected_at": {
           "name": "detected_at",
           "type": "timestamp with time zone",
@@ -9538,20 +9544,23 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "interview_detection_once": {
-          "name": "interview_detection_once",
+        "interview_detection_version_once": {
+          "name": "interview_detection_version_once",
           "columns": [
             "candidate_id",
             "calendar_event_id",
             "application_id",
-            "starts_at",
-            "ends_at"
+            "version"
           ],
           "nullsNotDistinct": false
         }
       },
       "policies": {},
       "checkConstraints": {
+        "interview_detection_version_range": {
+          "name": "interview_detection_version_range",
+          "value": "\"interview_detection\".\"version\" between 1 and 10"
+        },
         "interview_detection_event_id_shape": {
           "name": "interview_detection_event_id_shape",
           "value": "\"interview_detection\".\"calendar_event_id\" ~ '^[A-Za-z0-9_]{1,200}$'"

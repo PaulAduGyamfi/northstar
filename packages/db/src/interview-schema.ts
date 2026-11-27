@@ -18,7 +18,8 @@ const FORMAT_LIST = sql.raw(INTERVIEW_FORMATS.map((f) => `'${f}'`).join(", "));
 // A detected interview (NS-240 slice 2, CAL-002): a calendar event plain code matched to one of
 // Paul's applications. An invite isn't authenticated, so it waits for Paul's decision and never
 // moves a status. Times, the format and a count only: never the title, description, an address
-// or a name. A rescheduled event is a new row; the newest row per event and application is current.
+// or a name. A rescheduled event is a new version; the highest version per event and application is
+// current. Anyone can send Paul an invite, so versions are capped (MAX_DETECTION_VERSIONS).
 // Append-only (migration trigger), written only through interview-write.ts.
 export const interviewDetection = pgTable(
   "interview_detection",
@@ -34,6 +35,8 @@ export const interviewDetection = pgTable(
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
     interviewerCount: integer("interviewer_count").notNull(),
+    // 1 for the first detection of an event for this application, then one more per time change.
+    version: integer("version").notNull(),
     detectedAt: timestamp("detected_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -43,14 +46,14 @@ export const interviewDetection = pgTable(
       columns: [t.applicationId, t.candidateId],
       foreignColumns: [application.id, application.candidateId],
     }),
-    // The same detection twice stores nothing; a moved event stores a new row.
-    unique("interview_detection_once").on(
+    // One row per version: two writers racing for the same version can't both store it.
+    unique("interview_detection_version_once").on(
       t.candidateId,
       t.calendarEventId,
       t.applicationId,
-      t.startsAt,
-      t.endsAt,
+      t.version,
     ),
+    check("interview_detection_version_range", sql`${t.version} between 1 and 10`),
     check(
       "interview_detection_event_id_shape",
       sql`${t.calendarEventId} ~ '^[A-Za-z0-9_]{1,200}$'`,

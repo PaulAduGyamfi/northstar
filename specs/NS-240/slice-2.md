@@ -11,8 +11,13 @@ it, and NS-241's prep blocks wait for a confirmed interview.
 
 ## Behavior
 - **`interview_detection`** (append-only, migration + trigger): one row per candidate, calendar
-  event id, application and start/end. A rescheduled event is a new row; the newest row for an
-  event and application is current. It holds the format (`INTERVIEW_FORMATS`, `packages/domain`),
+  event id, application and version. A change of time, format or interviewer count is a new
+  version; the highest version for an event and application is current (so A → B → A ends on A).
+  After the security review: at most 10 versions per event (`TooManyChanges`) and 50 new
+  detections a day (`DailyLimit`), because anyone can send Paul an invite; nothing more is stored
+  for an event Paul dismissed; only the first version says "confirm it" (`interview.detected`),
+  later ones are `interview.rescheduled`. A reschedule needs Paul's decision again, on purpose:
+  the new time is a new, unauthenticated claim. It holds the format (`INTERVIEW_FORMATS`, `packages/domain`),
   the start and end, and the interviewer count. Never a title, description, address or name.
   The application must be the candidate's own (composite foreign key).
 - **`recordInterviewDetection`** writes it with an `interview.detected` event on the application's
@@ -20,7 +25,8 @@ it, and NS-241's prep blocks wait for a confirmed interview.
   technical interview on your calendar: confirm it"). The same detection twice stores nothing.
 - **`interview_decision`** (append-only): Paul's one `confirmed` or `dismissed` per detection.
   **`decideInterview`** writes it with `interview.confirmed` / `interview.dismissed` (actor
-  `user`). A second decision is refused (`AlreadyDecided`); the same decision again stores nothing.
+  `user`). A second decision is refused (`AlreadyDecided`); the same decision again stores nothing;
+  a decision on a version a reschedule replaced is refused (`Superseded`).
   Deciding never moves the application's status (CAL-002, P1).
 - **`listInterviews`** gives the candidate's current detections (superseded ones left out), each
   with its decision or none, by start time.

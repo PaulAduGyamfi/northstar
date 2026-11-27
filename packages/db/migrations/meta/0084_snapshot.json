@@ -1,5 +1,5 @@
 {
-  "id": "183280a1-d1be-465a-93f3-56c94545b9d1",
+  "id": "ee929590-3ab9-48bf-8d6d-1496064fcd29",
   "prevId": "7b32de30-8f71-44bb-b03f-8f744f34e537",
   "version": "7",
   "dialect": "postgresql",
@@ -9497,6 +9497,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "detected_at": {
           "name": "detected_at",
           "type": "timestamp with time zone",
@@ -9538,20 +9544,23 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "interview_detection_once": {
-          "name": "interview_detection_once",
+        "interview_detection_version_once": {
+          "name": "interview_detection_version_once",
           "nullsNotDistinct": false,
           "columns": [
             "candidate_id",
             "calendar_event_id",
             "application_id",
-            "starts_at",
-            "ends_at"
+            "version"
           ]
         }
       },
       "policies": {},
       "checkConstraints": {
+        "interview_detection_version_range": {
+          "name": "interview_detection_version_range",
+          "value": "\"interview_detection\".\"version\" between 1 and 10"
+        },
         "interview_detection_event_id_shape": {
           "name": "interview_detection_event_id_shape",
           "value": "\"interview_detection\".\"calendar_event_id\" ~ '^[A-Za-z0-9_]{1,200}$'"

@@ -423,11 +423,13 @@ Exists now:
   - `recordInterviewDetection` stores a detection once in `interview_detection`, with an
     `interview.detected` event on the application ("Found a possible technical interview on your
     calendar: confirm it"). It holds the event id, format (`INTERVIEW_FORMATS` in
-    `packages/domain`), start, end and interviewer count, never a title, address or name. A
-    rescheduled event is a new row, and the newest row per event and application is current.
+    `packages/domain`), start, end and interviewer count, never a title, address or name. A change
+    is a new version and the highest version per event and application is current. Invites aren't
+    authenticated, so an event keeps at most 10 versions and 50 detections are stored a day; a
+    dismissed event stores nothing more, and moves are `interview.rescheduled`.
   - `decideInterview` records Paul's one `confirmed` or `dismissed` per detection
     (`interview_decision`, `interview.confirmed` / `interview.dismissed` by `user`) and refuses a
-    different second decision. Neither moves a status.
+    different second decision or one on a replaced version. Neither moves a status.
   - `listInterviews` gives the current detections with their decisions.
 
   No caller, API or page yet.
