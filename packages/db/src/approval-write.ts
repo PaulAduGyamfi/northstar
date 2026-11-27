@@ -373,11 +373,7 @@ export async function requestApproval(
   db: Db,
   input: RequestInputs,
 ): Promise<Result<RequestResult, RequestError>> {
-  // Checked at run time too: a caller outside TypeScript, or a cast, mustn't pass facts.
-  if ((input as { facts: unknown }).facts !== null) {
-    return Promise.resolve(err({ kind: "InvalidRequest", fields: ["facts"] }));
-  }
-  return fileRequest(db, input);
+  return fileRequest(db, input, false);
 }
 
 // requestPackageApproval's way in (NS-213, NS-249): the facts it derived from storage. Exported
@@ -387,12 +383,16 @@ export function requestApprovalWithFacts(
   db: Db,
   input: Omit<RequestInputs, "facts"> & { kind: "application_package"; facts: PackageFacts },
 ): Promise<Result<RequestResult, RequestError>> {
-  return fileRequest(db, input);
+  return fileRequest(db, input, true);
 }
 
+// `allowFacts` is true only for requestApprovalWithFacts. The check runs on the parsed copy, the
+// one stored and evaluated: a caller outside TypeScript, a cast, or an object whose `facts` reads
+// differently the second time can't get facts past it.
 async function fileRequest(
   db: Db,
   input: Omit<RequestInputs, "facts"> & { facts: PackageFacts | null },
+  allowFacts: boolean,
 ): Promise<Result<RequestResult, RequestError>> {
   return inSpan("approval.request", { "northstar.approval.kind": input.kind }, async (span) => {
     const parsed = RequestInput.safeParse(input);
@@ -400,7 +400,7 @@ async function fileRequest(
       const fields = [...new Set(parsed.error.issues.map((i) => i.path.join(".")))];
       return err({ kind: "InvalidRequest", fields });
     }
-    if (parsed.data.kind !== "application_package" && parsed.data.facts !== null) {
+    if (parsed.data.facts !== null && (!allowFacts || parsed.data.kind !== "application_package")) {
       return err({ kind: "InvalidRequest", fields: ["facts"] });
     }
     // A reveal is filed, decided and used in one transaction by revealSealedSecret (NS-182,

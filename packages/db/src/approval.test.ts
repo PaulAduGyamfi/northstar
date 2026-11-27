@@ -343,6 +343,22 @@ describe("requestApproval", () => {
     ]).toEqual([false, true]);
   });
 
+  it("uses only the one parsed read of facts, so facts that change on a second read never auto-approve", async () => {
+    await setApprovalPolicies(db, { candidateId, rules: [rule] });
+    let reads = 0;
+    const tricky = requestArgs({ kind: "application_package" });
+    Object.defineProperty(tricky, "facts", {
+      enumerable: true,
+      get: () => (reads++ === 0 ? null : goodFacts),
+    });
+    const result = await requestApproval(db, tricky);
+    if (!result.ok) throw new Error(result.error.kind);
+    expect([result.value.outcome, result.value.decision]).toEqual([
+      { auto: false, why: "missing_facts" },
+      null,
+    ]);
+  });
+
   it("files a package with no facts, and it waits for Paul even when a rule exists", async () => {
     await setApprovalPolicies(db, { candidateId, rules: [rule] });
     const result = await requestApproval(db, requestArgs({ kind: "application_package" }));
