@@ -55,6 +55,9 @@ export {
   type CareerDnaReport,
   checkCareerDna,
   type DimensionScore as CareerDnaDimension,
+  type EvidenceGap,
+  evidenceGaps,
+  type GapDirection,
   scoreDimensions,
 } from "./career-dna/index.js";
 export {
