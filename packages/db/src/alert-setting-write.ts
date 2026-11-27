@@ -1,5 +1,5 @@
 import type { CandidateId } from "@northstar/domain";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { alertSetting } from "./alert-setting-schema.js";
 import type { Db } from "./db.js";
 import { appendEvent, inSpan } from "./resilience-event.js";
@@ -106,6 +106,9 @@ export async function setAlertSettings(
   try {
     return await inSpan("alerts.settings_set", {}, (span) =>
       db.transaction(async (tx) => {
+        // The candidate's row lock serializes changes: without it, `set zone` and `set quiet`
+        // racing could each merge into the same old row, and one change would be lost.
+        await tx.execute(sql`select id from candidate where id = ${input.candidateId} for update`);
         const current = (await readAlertSettings(tx, input.candidateId)) ?? EMPTY;
         const next: StoredAlertSettings = {
           quiet: input.change.quiet === undefined ? current.quiet : input.change.quiet,
@@ -120,7 +123,6 @@ export async function setAlertSettings(
         if (current.timeZone !== next.timeZone) changed.push("timeZone");
         if (current.tier1InQuietHours !== next.tier1InQuietHours) changed.push("tier1InQuietHours");
         span.setAttribute("northstar.alerts.changed", changed.length);
-        // Two identical changes racing may both store a row; the settings are the same either way.
         if (changed.length === 0) return { ok: true, value: { saved: false, settings: current } };
         const q = next.quiet;
         const [row] = await tx

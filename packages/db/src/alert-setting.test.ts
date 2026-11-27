@@ -125,6 +125,20 @@ describe("setAlertSettings and readAlertSettings", () => {
     expect(r.ok).toBe(false);
   });
 
+  // PGlite runs one transaction at a time, so this pins the merge, not the row lock itself; the lock
+  // is what keeps it true on a real server (review of NS-199 slice 2).
+  it("keeps both of two different changes made at the same time", async () => {
+    await Promise.all([
+      setAlertSettings(db, { candidateId, change: { timeZone: "Europe/Berlin" } }),
+      setAlertSettings(db, { candidateId, change: { quiet: "off" } }),
+    ]);
+    expect(await readAlertSettings(db, candidateId)).toEqual({
+      quiet: "off",
+      timeZone: "Europe/Berlin",
+      tier1InQuietHours: null,
+    });
+  });
+
   it("keeps each candidate's settings apart", async () => {
     const other = CandidateId.parse((await seedApplication(db, "discovered")).candidateId);
     await setAlertSettings(db, { candidateId: other, change: { quiet: "off" } });
