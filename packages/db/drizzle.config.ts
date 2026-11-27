@@ -44,6 +44,7 @@ export default defineConfig({
     "./src/worker-health-schema.ts",
     "./src/mail-link-decision-schema.ts",
     "./src/recruiter-regrade-schema.ts",
+    "./src/recruiter-weight-schema.ts",
   ],
   out: "./migrations",
 });

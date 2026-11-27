@@ -1,6 +1,6 @@
 # NS-238 item 3, slice 2: grading learns from Paul's regrades, within bounds
 
-Status: in progress (autonomous lane, ADR-0016)
+Status: built, in review (autonomous lane, ADR-0016)
 Issue: #266 item 3 (parent #118)
 Requirements: REC-003
 Rules that apply: ADR-0004 (code decides), ADR-0012 (append-only), ADR-0016, `.claude/rules/db.md`,
@@ -31,9 +31,9 @@ stores each change so he can see it, and lets the grader apply them. Plain code,
   matching reason's adjustment to the points before the letter is picked. Without weights, every
   grade is exactly as before.
 - **Storage** (`packages/db`, migration 0103, `recruiter-weight-schema.ts`): append-only
-  `recruiter_weight`, one version per change: an identity `position`, the adjustments as a JSON
-  object of listed reasons to whole numbers in −2…+2 (a CHECK on the bound), and how many regrades
-  it came from.
+  `recruiter_weight`, one version per change: an identity `position`, the adjustments as two
+  parallel arrays (`reasons`, `adjustments`) so CHECKs can hold each reason to the adjustable list
+  and each adjustment to −2, −1, 1 or 2, and how many regraded messages it came from.
 - **Write** (`recruiter-weight-write.ts`): `refreshRecruiterWeights(tx, candidateId)` reads the
   stored grades of Paul's regraded messages and his current letters, runs
   `learnRecruiterWeights`, and stores a new version only when the result differs from the newest.

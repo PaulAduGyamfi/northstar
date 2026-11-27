@@ -1,5 +1,5 @@
 import type { PreferenceValues, ScorableJob } from "@northstar/db";
-import type { RecruiterGradeReason } from "@northstar/domain";
+import type { RecruiterGradeReason, RecruiterWeights } from "@northstar/domain";
 import { dealbreakerIn, payCheck, placeCheck, titleFit } from "../fit/score.js";
 
 // Grading a recruiter's message A–F (REC-001, REC-002, NS-167). Plain code: the model only read
@@ -62,6 +62,9 @@ export function gradeRecruiterMessage(
   // The email as the route saw it. Dealbreakers are matched against it too, so leaving a fact
   // out ("a crypto exchange" with no company) can't dodge one. It is only matched, never kept.
   email = "",
+  // Points learned from Paul's regrades (NS-238 item 3, learnRecruiterWeights), each bounded. A
+  // dealbreaker or red flag still caps the letter after them. None leaves every grade as before.
+  weights: RecruiterWeights = {},
 ): RecruiterGrade {
   // The facts as a job, so the Fit Score's own checks read them.
   const job: ScorableJob = {
@@ -101,6 +104,9 @@ export function gradeRecruiterMessage(
   if (facts.personalizedQuote !== null) points += 1;
   reasons.push(facts.company === null ? "company:unnamed" : "company:named");
   if (facts.company === null) points -= 1;
+
+  // Each reason's learned adjustment, once per reason.
+  for (const r of new Set(reasons)) points += weights[r] ?? 0;
 
   let grade = gradeFor(points);
   if (dealbreakerIn(job, prefs) !== null) {

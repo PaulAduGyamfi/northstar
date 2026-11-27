@@ -482,6 +482,9 @@ export {
   regradeRecruiterMessage,
   regradeThread,
 } from "./recruiter-regrade-write.js";
+// Recruiter grading's learned adjustments from Paul's regrades (NS-238 item 3 slice 2).
+export * as recruiterWeightSchema from "./recruiter-weight-schema.js";
+export { readRecruiterWeights, refreshRecruiterWeights } from "./recruiter-weight-write.js";
 export * as replyLedgerSchema from "./reply-ledger-schema.js";
 // The Gmail draft writer's ledger (NS-237 slice 6): one approval, one draft.
 export {

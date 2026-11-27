@@ -170,3 +170,27 @@ describe("gradeRecruiterMessage", () => {
     expect(gradeRecruiterMessage(oneUnknown, PREFS).confidence).toBe("normal");
   });
 });
+
+describe("gradeRecruiterMessage with weights learned from Paul's regrades (NS-238 item 3)", () => {
+  it("adds each matching reason's adjustment to the points before picking the letter", () => {
+    // GOOD scores 7 (A); -2 for in-house and -2 for a personal note leave 3 (B).
+    const weighted = gradeRecruiterMessage(GOOD, PREFS, "", {
+      "sender:in_house": -2,
+      "personal:yes": -2,
+      "sender:agency": 2,
+    });
+    expect([weighted.points, weighted.grade]).toEqual([3, "B"]);
+  });
+
+  it("leaves a grade as before with no weights", () => {
+    expect(gradeRecruiterMessage(GOOD, PREFS, "", {})).toEqual(gradeRecruiterMessage(GOOD, PREFS));
+  });
+
+  it("still caps the letter for a dealbreaker, however the weights lean", () => {
+    const crypto = gradeRecruiterMessage(GOOD, PREFS, "a crypto exchange", {
+      "title:exact": 2,
+      "pay:ok": 2,
+    });
+    expect(crypto.grade).toBe("F");
+  });
+});
