@@ -52,6 +52,8 @@ export type PendingApproval = {
   kind: ApprovalKind;
   subject: string;
   requestedAt: Date;
+  // True when this request replaced one Paul edited (NS-203 slice 3): the Queue marks it.
+  edited: boolean;
 };
 
 export type InvalidRequest = { kind: "InvalidRequest"; fields: string[] };
@@ -555,6 +557,14 @@ export async function listPendingApprovals(
       kind: approvalRequest.kind,
       subject: approvalRequest.subject,
       requestedAt: approvalRequest.requestedAt,
+      // An approval_edit row names this request as the new one: Paul edited the one it replaced.
+      // The outer columns are written out with their table: in a select list Drizzle leaves the
+      // table off, and inside the subquery a bare "id" would be approval_edit's own.
+      edited: sql<boolean>`exists (
+        select 1 from ${approvalEdit} e
+        where e.request_id = "approval_request"."id"
+          and e.candidate_id = "approval_request"."candidate_id"
+      )`,
     })
     .from(approvalRequest)
     .where(
@@ -572,7 +582,7 @@ export async function listPendingApprovals(
       ),
     )
     .orderBy(asc(approvalRequest.requestedAt), asc(approvalRequest.id));
-  return rows.map((r) => ({ ...r, kind: r.kind as ApprovalKind }));
+  return rows.map((r) => ({ ...r, kind: r.kind as ApprovalKind, edited: r.edited === true }));
 }
 
 export type BatchOutcome = { requestId: string; result: Result<DecisionView, DecideError> };

@@ -111,6 +111,23 @@ describe("editReplyDraft", () => {
     expect(decided.value[0]?.result).toEqual({ ok: false, error: { kind: "Withdrawn" } });
   });
 
+  it("marks the request an edit replaced as edited in the pending list, and no other (NS-203 slice 3)", async () => {
+    const old = await filed();
+    // A reply to another message, left as it was drafted.
+    const other = await fileReplyDraft(db, {
+      candidateId,
+      reply: { ...REPLY, gmailMessageId: "18c3f0a2b4d6e8f1" },
+    });
+    if (!other.ok) throw new Error(other.error.kind);
+    const untouched = other.value.requestId;
+    const result = await edit(old);
+    if (!result.ok) throw new Error(result.error.kind);
+    const marks = Object.fromEntries(
+      (await listPendingApprovals(db, candidateId)).map((p) => [p.requestId, p.edited]),
+    );
+    expect(marks).toEqual({ [untouched]: false, [result.value.requestId]: true });
+  });
+
   it("puts the edit and the approval that follows in the feed, without the body", async () => {
     const old = await filed();
     const result = await edit(old);

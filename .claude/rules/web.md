@@ -53,6 +53,9 @@ are CSS variables in `apps/web/app/globals.css`.
   (`approve_alone` in a batch). Its Edit button (NS-203 slice 2) changes only the body, and only
   through `POST /approvals/edit-reply` after `editProblem`; a timeout says `TIMED_OUT_MESSAGE`,
   and a `409 not_pending` reads as already done (a second click, or a decision meanwhile).
+  An edited request (NS-203 slice 3, the API's `edited`) reads "Edited by you" (`EDITED_MARK`), and
+  its reply view says so in place of the cites line (`EDITED_LINE`): never claim the first draft's
+  cites back Paul's own text.
 - The run inspector (NS-154) fetches a feed line's run (`GET /feed/run`) only when Paul asks, and
   shows it as plain text through `src/run.ts` (`callLine`, `totalsLine`).
 - Pipeline filters (NS-207) live in the URL (`parseFilters`, `filterQuery` in `src/pipeline.ts`)
