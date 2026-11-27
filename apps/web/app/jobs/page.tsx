@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 // The jobs page (NS-130 slice 10, SRC-013): ready jobs in the queue's order, freshest and
 // best-fitting first, each with where it is, how fresh, how well it fits and a link to the posting.
 // `?role=` narrows it to one role family; each direction on /career-dna links here. Read-only.
+// Since slice 11 each job lists why it scored as it did (UX-014), under its score.
 // Signed out redirects to sign-in. No nav link: the nav's five tabs are fixed.
 export default async function JobsPage({
   searchParams,
@@ -69,6 +70,13 @@ export default async function JobsPage({
                     {j.where} · {j.posted}
                   </span>{" "}
                   · <span className="status-label">{j.fit}</span>
+                  {j.why.length === 0 ? null : (
+                    <ul className="muted" aria-label="Why this score">
+                      {j.why.map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               ))}
             </ul>

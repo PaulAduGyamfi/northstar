@@ -1,7 +1,15 @@
 import { createServer, type Server } from "node:http";
+import type { FitWhy } from "@northstar/db";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ApiConfig } from "./config.js";
-import { JOBS_PAGE_MAX, type JobsPorts, jobsEndpoints, postingLink } from "./jobs.js";
+import {
+  JOBS_PAGE_MAX,
+  type JobsPorts,
+  jobsEndpoints,
+  jobWhy,
+  postingLink,
+  WHY_MISSING_MAX,
+} from "./jobs.js";
 import { createApi } from "./server.js";
 import { createSessions } from "./sessions.js";
 import { portOf, type Sent, send } from "./test/http.js";
@@ -34,12 +42,18 @@ let jobs: Row[];
 let open: Awaited<ReturnType<JobsPorts["open"]>>;
 let fail: boolean;
 let reads: number;
+let whys: Map<string, FitWhy>;
+let whyFail: boolean;
+let whyAsked: string[][];
 
 beforeEach(async () => {
   jobs = [];
   open = [];
   fail = false;
   reads = 0;
+  whys = new Map();
+  whyFail = false;
+  whyAsked = [];
   const ports: JobsPorts = {
     jobs: async () => {
       reads++;
@@ -47,6 +61,11 @@ beforeEach(async () => {
       return jobs;
     },
     open: async () => open,
+    why: async (ids) => {
+      whyAsked.push(ids);
+      if (whyFail) throw new Error("connection refused (secret detail)");
+      return whys;
+    },
     now: () => NOW,
   };
   const sessions = createSessions(() => 0);
@@ -93,6 +112,7 @@ describe("GET /jobs", () => {
           ageHours: 1,
           fit: { score: 80, band: "queue", reason: "ok", stretch: false },
           url: "https://boards.greenhouse.io/initech/jobs/1",
+          why: null,
         },
       ],
     });
@@ -207,5 +227,88 @@ describe("postingLink", () => {
       null,
       "https://jobs.example.com/1",
     ]);
+  });
+});
+
+// A stored evidence in the scorer's shape, with an atom id, a model stamp and a dealbreaker that
+// must never reach the answer.
+const evidence = (over: Record<string, unknown> = {}): FitWhy => ({
+  evidence: {
+    matched: [
+      { requirement: "TypeScript", kind: "must", atomId: "atom-secret-1", term: "typescript" },
+      { requirement: "GraphQL", kind: "nice", atomId: "atom-secret-2", term: "graphql" },
+    ],
+    unmatched: [
+      { requirement: "Kubernetes", kind: "must" },
+      { requirement: "Terraform\u200b", kind: "must" },
+      { requirement: "Rust", kind: "nice" },
+    ],
+    title: { status: "partial", levelMismatch: true },
+    pay: { status: "below", yearly: 90000 },
+    place: { status: "ok" },
+    dealbreaker: "crypto",
+    ...over,
+  },
+});
+
+describe("GET /jobs's why (NS-130 slice 11, UX-014)", () => {
+  it("gives a scored job its checks, must-have counts and unmatched must-haves only", async () => {
+    jobs = [job("1")];
+    open = [{ id: "1", remote: null }];
+    whys = new Map([["1", evidence()]]);
+    const res = await get();
+    expect(JSON.parse(res.body).jobs[0].why).toEqual({
+      title: "partial",
+      levelMismatch: true,
+      pay: "below",
+      place: "ok",
+      mustHave: { matched: 1, total: 3 },
+      missing: ["Kubernetes", "Terraform"],
+      dealbreaker: true,
+    });
+    expect([
+      res.body.includes("atom-secret"),
+      res.body.includes("crypto"),
+      res.body.includes("GraphQL"),
+      res.body.includes("90000"),
+    ]).toEqual([false, false, false, false]);
+  });
+
+  it("asks only for the listed jobs that have a score", async () => {
+    jobs = [job("1"), job("2", { fit: null })];
+    open = [
+      { id: "1", remote: null },
+      { id: "2", remote: null },
+    ];
+    await get();
+    expect(whyAsked).toEqual([["1"]]);
+  });
+
+  it("still answers the list, every why null, when the evidence can't be read", async () => {
+    jobs = [job("1")];
+    open = [{ id: "1", remote: null }];
+    whyFail = true;
+    const res = await get();
+    expect([res.status, JSON.parse(res.body).jobs[0].why, res.body.includes("secret")]).toEqual([
+      200,
+      null,
+      false,
+    ]);
+  });
+});
+
+describe("jobWhy", () => {
+  it("lists at most five unmatched must-haves, in the posting's order", () => {
+    const unmatched = Array.from({ length: 7 }, (_, i) => ({
+      requirement: `Skill ${i}`,
+      kind: "must",
+    }));
+    expect(jobWhy(evidence({ unmatched }))?.missing).toEqual(
+      Array.from({ length: WHY_MISSING_MAX }, (_, i) => `Skill ${i}`),
+    );
+  });
+
+  it("answers null for evidence in another shape, never a guessed why", () => {
+    expect([jobWhy(undefined), jobWhy({ evidence: { matched: [] } })]).toEqual([null, null]);
   });
 });

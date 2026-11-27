@@ -28,6 +28,7 @@ import {
   readFeed,
   readFeedAfter,
   readFeedNames,
+  readFitWhy,
   readGrowthSettings,
   readGrowthTracks,
   readHandoffPackage,
@@ -317,6 +318,7 @@ try {
   const jobsPage = jobsEndpoints({
     jobs: async () => listJobs(db, await candidateId()),
     open: async () => readScorableJobs(db, await candidateId()),
+    why: async (jobIds) => readFitWhy(db, { candidateId: await candidateId(), jobIds }),
     now: () => new Date(),
   });
   // One set of sessions for the sign-in key and passkeys, so both open the same kind of session

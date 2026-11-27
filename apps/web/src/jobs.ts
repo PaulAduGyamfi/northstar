@@ -23,6 +23,20 @@ const Job = z.object({
     })
     .nullable(),
   url: z.string().nullable(),
+  // Why the score is what it is (slice 11): codes and counts, and unmatched must-haves in the
+  // posting's own words. Optional so a page served before the API's slice 11 still reads.
+  why: z
+    .object({
+      title: z.string(),
+      levelMismatch: z.boolean(),
+      pay: z.string(),
+      place: z.string(),
+      mustHave: z.object({ matched: z.number(), total: z.number() }),
+      missing: z.array(z.string()),
+      dealbreaker: z.boolean(),
+    })
+    .nullable()
+    .optional(),
 });
 export type JobView = z.infer<typeof Job>;
 
@@ -75,6 +89,49 @@ export function reasonWords(reason: string | null): string | null {
   return word === undefined ? null : `weakest on ${word}`;
 }
 
+// Each check's code in words (packages/sources, fit/score.ts). The scorer answers "unknown" for
+// several reasons (no title on the job or no target titles; pay unstated, in another currency or
+// no floor set; no places set or none stated), so its words say only that it couldn't compare.
+// An unknown code is left out, never shown raw.
+const TITLE_WORDS: Record<string, string> = {
+  exact: "Title: matches your target titles",
+  partial: "Title: close to your target titles",
+  none: "Title: not one of your target titles",
+  unknown: "Title: can't check against your target titles",
+};
+const PAY_WORDS: Record<string, string> = {
+  ok: "Pay: meets your floor",
+  below: "Pay: below your floor",
+  unknown: "Pay: can't compare with your floor",
+};
+const PLACE_WORDS: Record<string, string> = {
+  ok: "Place: fits your locations",
+  mismatch: "Place: outside your locations",
+  unknown: "Place: can't check against your places",
+};
+
+// A job's why (UX-014) as lines under its score: each check, how many must-haves Paul's
+// experience backs, which ones it doesn't show, and a dealbreaker without its words.
+export function whyLines(why: JobView["why"]): string[] {
+  if (why === null || why === undefined) return [];
+  const lines: string[] = [];
+  const title = TITLE_WORDS[why.title];
+  if (title !== undefined) {
+    lines.push(why.levelMismatch ? `${title}, at a level you didn't list` : title);
+  }
+  for (const line of [PAY_WORDS[why.pay], PLACE_WORDS[why.place]]) {
+    if (line !== undefined) lines.push(line);
+  }
+  if (why.mustHave.total > 0) {
+    lines.push(
+      `Must-haves: ${why.mustHave.matched} of ${why.mustHave.total} backed by your experience`,
+    );
+  }
+  if (why.missing.length > 0) lines.push(`Not shown in your experience: ${why.missing.join(", ")}`);
+  if (why.dealbreaker) lines.push("Matches one of your dealbreakers");
+  return lines;
+}
+
 const REMOTE_WORDS = { remote: "Remote", hybrid: "Hybrid", onsite: "On site" } as const;
 
 // A link the page may render: https only, through the app's one check (safeHref).
@@ -87,6 +144,7 @@ export type JobRow = {
   where: string;
   posted: string;
   fit: string;
+  why: string[];
   link: string | null;
 };
 
@@ -101,6 +159,7 @@ export function jobRow(j: JobView): JobRow {
     where: place.length === 0 ? "Company and place unknown" : place.join(" · "),
     posted: postedWords(j.ageHours),
     fit: fitWords(j.fit),
+    why: whyLines(j.why),
     link: safeLink(j.url),
   };
 }

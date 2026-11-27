@@ -203,6 +203,8 @@ export {
 // Files an application sends, by SHA-256 (NS-227): read only; tailor-write.ts stores them.
 export { readStoredFile } from "./file-write.js";
 export * as fitSchema from "./fit-schema.js";
+// The "why" behind the jobs page's scores (NS-130 slice 11).
+export { FIT_WHY_MAX, type FitWhy, readFitWhy } from "./fit-why-read.js";
 export {
   FIT_METHODS,
   type FitBand,

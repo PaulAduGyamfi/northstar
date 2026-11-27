@@ -7,6 +7,7 @@ import {
   reasonWords,
   roleHeading,
   safeLink,
+  whyLines,
 } from "./jobs";
 
 // The jobs page's words (NS-130 slice 10). Invented companies only.
@@ -83,6 +84,7 @@ describe("jobRow", () => {
       where: "Initech · New York, NY · Hybrid",
       posted: "Posted 5 h ago",
       fit: "Fit 80 · in the queue",
+      why: [],
       link: "https://boards.greenhouse.io/initech/jobs/1",
     });
   });
@@ -103,6 +105,60 @@ describe("jobRow", () => {
       "Company and place unknown",
       null,
     ]);
+  });
+});
+
+describe("whyLines (NS-130 slice 11, UX-014)", () => {
+  const why = {
+    title: "partial",
+    levelMismatch: true,
+    pay: "below",
+    place: "ok",
+    mustHave: { matched: 4, total: 6 },
+    missing: ["Kubernetes", "Terraform"],
+    dealbreaker: true,
+  };
+
+  it("words each check, the must-haves and what the experience doesn't show", () => {
+    expect(whyLines(why)).toEqual([
+      "Title: close to your target titles, at a level you didn't list",
+      "Pay: below your floor",
+      "Place: fits your locations",
+      "Must-haves: 4 of 6 backed by your experience",
+      "Not shown in your experience: Kubernetes, Terraform",
+      "Matches one of your dealbreakers",
+    ]);
+  });
+
+  it("leaves out an unknown code and a job with no must-haves listed", () => {
+    expect(
+      whyLines({
+        ...why,
+        title: "sideways",
+        levelMismatch: false,
+        pay: "unknown",
+        place: "elsewhere",
+        mustHave: { matched: 0, total: 0 },
+        missing: [],
+        dealbreaker: false,
+      }),
+    ).toEqual(["Pay: can't compare with your floor"]);
+  });
+
+  it("never says a pay it couldn't compare (another currency, no floor) wasn't stated", () => {
+    const lines = whyLines({ ...why, title: "unknown", pay: "unknown", place: "unknown" });
+    expect([lines.slice(0, 3), lines.some((l) => l.includes("not stated"))]).toEqual([
+      [
+        "Title: can't check against your target titles, at a level you didn't list",
+        "Pay: can't compare with your floor",
+        "Place: can't check against your places",
+      ],
+      false,
+    ]);
+  });
+
+  it("gives no lines when the API sent no why, or none at all", () => {
+    expect([whyLines(null), whyLines(undefined)]).toEqual([[], []]);
   });
 });
 
