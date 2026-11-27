@@ -305,6 +305,17 @@ describe("the tailored resume's PDF (NS-227)", () => {
     ]).toEqual([sha(PDF_A), PDF_A.byteLength, false]);
   });
 
+  it("puts the independent-work counts in the event when the summary has them", async () => {
+    await importProfile(candidateId);
+    await save({ summary: { ...summary, workEntries: 2, workLines: 3 } }, await sourceId());
+    const [event] = await db
+      .select({ payload: domainEvent.payload })
+      .from(domainEvent)
+      .where(eq(domainEvent.type, "resume.tailored"));
+    const payload = event?.payload as Record<string, unknown> | undefined;
+    expect([payload?.workEntries, payload?.workLines]).toEqual([2, 3]);
+  });
+
   it("reads nothing for another candidate, an unknown hash or a malformed one", async () => {
     await importProfile(candidateId);
     await save({}, await sourceId());
