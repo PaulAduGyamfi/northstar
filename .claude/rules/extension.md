@@ -28,6 +28,8 @@ no bundler or framework; `src/chrome.d.ts` types the few Chrome APIs it calls.
   (`prefill-run.ts`: `<handoffId>.<grant>`, held in memory only, the field cleared after each
   try). Re-read the tab's URL right before injecting, inject into that tab id's main frame only
   (`frameIds: [0]`), and let `fillForm` re-check the page's host and path (`fillTarget`). The code
-  shape is shared with `apps/web`'s `prefillCode`: change both together.
+  shape is shared with `apps/web`'s `prefillCode`: change both together. `ADAPTERS` mirrors the
+  gateway's adapters, and `packages/gateways`' `apply/prefill-parity.test.ts` fails if they differ:
+  change both together.
 - The capture request carries a time limit (`CAPTURE_TIMEOUT_MS`, 5 min, NS-176); any new request
   from the extension needs one too (RES-005).
