@@ -42,6 +42,26 @@ const NO_TAB_MESSAGE = "There is no form open to fill.";
 const UNREACHABLE_MESSAGE = "Couldn't reach Northstar. Is the API running?";
 const NOT_FILLED_MESSAGE = "Chrome didn't let the extension fill this page, so nothing was filled.";
 
+// The answer's shape, checked before prefillPlan reads it: a wrong answer from the API ends in a
+// message instead of an exception that leaves the popup on "Filling…".
+function looksLikePackage(body: unknown): body is PrefillPackage {
+  if (body === null || typeof body !== "object") return false;
+  const b = body as Record<string, unknown>;
+  const c = b.contact as Record<string, unknown> | null | undefined;
+  return (
+    typeof b.ats === "string" &&
+    typeof b.applyUrl === "string" &&
+    typeof b.fields === "object" &&
+    b.fields !== null &&
+    typeof c === "object" &&
+    c !== null &&
+    typeof c.firstName === "string" &&
+    typeof c.lastName === "string" &&
+    typeof c.email === "string" &&
+    (c.phone === null || typeof c.phone === "string")
+  );
+}
+
 export async function runPrefill(rawCode: string, ports: PrefillPorts): Promise<string> {
   // A bad code sends nothing, so a typo never uses up a grant.
   const code = parsePrefillCode(rawCode);
@@ -62,7 +82,8 @@ export async function runPrefill(rawCode: string, ports: PrefillPorts): Promise<
       body !== null && typeof body === "object" && "error" in body ? String(body.error) : "";
     return prefillMessage(error);
   }
-  const pkg = body as PrefillPackage;
+  if (!looksLikePackage(body)) return prefillMessage("bad_answer");
+  const pkg = body;
 
   // The tab is read again here, after the network wait, so a tab Paul switched to meanwhile is
   // the one checked, and the fill goes to that same tab id.

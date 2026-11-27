@@ -15,7 +15,7 @@ Paul's delegation (comment on #332).
 The grant travels as a code Paul copies from the web app and pastes into the extension popup.
 - **The code** is `<handoffId>.<grant>`: the handoff's UUID, a dot, and the grant from
   `POST /handoffs/prefill-grant` (43 base64url characters, 256 random bits). `prefillCode`
-  (`apps/web/src/handoffs.ts`) builds it; `parsePrefillCode` (`apps/extension/src/prefill.ts`)
+  (`apps/web/src/handoffs.ts`) builds it; `parsePrefillCode` (`apps/extension/src/prefill-run.ts`)
   accepts only that exact shape after trimming whitespace.
 - **The card.** "Pre-fill" on "Needs your hands" asks for a grant and shows the code in a read-only
   field with a Copy button and a countdown to the grant's `expiresAt` (2 minutes). At zero the code

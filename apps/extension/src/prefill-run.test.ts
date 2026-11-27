@@ -103,6 +103,12 @@ describe("runPrefill", () => {
     expect(p.inject).not.toHaveBeenCalled();
   });
 
+  it("fills nothing and says so when the API's answer isn't a package", async () => {
+    const p = ports({ fetch: async () => json(200, { ats: "greenhouse", fields: {} }) });
+    expect(await runPrefill(CODE, p)).toBe("Northstar couldn't pre-fill this form.");
+    expect(p.inject).not.toHaveBeenCalled();
+  });
+
   it("says the API is unreachable when the request fails", async () => {
     const p = ports({
       fetch: async () => {
