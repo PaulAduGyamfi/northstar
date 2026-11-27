@@ -88,6 +88,39 @@ describe("nextStep", () => {
     ]);
   });
 
+  it("names a stuck email for reading and sorting, with each of their reasons", () => {
+    const poll = { ...ITEM, kind: "mail.poll", reasonCode: "read_failed", attempts: 3 };
+    const sort = { ...ITEM, kind: "mail.classify", attempts: 1 };
+    expect([
+      letterLine(poll),
+      ...["read_failed", "classify_failed", "record_refused"].map((reasonCode) =>
+        letterLine({ ...sort, reasonCode }),
+      ),
+    ]).toEqual([
+      {
+        what: "Reading new job mail",
+        why: "Stopped after 3 attempts: Gmail wouldn't give the email",
+      },
+      {
+        what: "Sorting a job email",
+        why: "Stopped after 1 attempt: Gmail wouldn't give the email",
+      },
+      { what: "Sorting a job email", why: "Stopped after 1 attempt: sorting it failed" },
+      {
+        what: "Sorting a job email",
+        why: "Stopped after 1 attempt: its result couldn't be stored",
+      },
+    ]);
+  });
+
+  it("says a retried email is tried on the next inbox run and a skipped one is passed over", () => {
+    expect(DEAD_LETTER_ACTIONS.map((a) => nextStep("mail.poll", a))).toEqual([
+      "The next `funnel inbox` run tries this email again.",
+      "Later `funnel inbox` runs pass over this email.",
+      "Later `funnel inbox` runs pass over this email. Find it in Gmail and link it on /inbox if it's about an application.",
+    ]);
+  });
+
   it("names a failed relay pass and says every action only records the choice", () => {
     const relay = { ...ITEM, kind: "apply.signal_relay", reasonCode: "relay_failed", attempts: 3 };
     expect(letterLine(relay)).toEqual({

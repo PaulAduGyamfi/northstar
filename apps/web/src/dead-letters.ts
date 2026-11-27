@@ -76,6 +76,26 @@ const KINDS: Record<string, KindWords> = {
         "Nothing runs now. Check your calendar for the interview yourself: an invite that keeps changing, or many at once, may not be from the company.",
     },
   },
+  // NS-238 item 1: an email that stopped `funnel inbox` from reading new mail three times in a
+  // run. Later runs pass over it until Paul retries it.
+  "mail.poll": {
+    what: "Reading new job mail",
+    next: {
+      retry: "The next `funnel inbox` run tries this email again.",
+      skip: "Later `funnel inbox` runs pass over this email.",
+      hand_off:
+        "Later `funnel inbox` runs pass over this email. Find it in Gmail and link it on /inbox if it's about an application.",
+    },
+  },
+  // NS-238 item 1: a recorded email `funnel inbox` couldn't read or sort.
+  "mail.classify": {
+    what: "Sorting a job email",
+    next: {
+      retry: "The next `funnel inbox` run tries to sort this email again.",
+      skip: "Later `funnel inbox` runs leave this email unsorted.",
+      hand_off: "Later `funnel inbox` runs leave this email unsorted. Read it in Gmail yourself.",
+    },
+  },
 };
 
 const REASONS: Record<string, string> = {
@@ -86,6 +106,9 @@ const REASONS: Record<string, string> = {
   daily_limit: "too many possible interviews in one day",
   invalid_detection: "the calendar event couldn't be stored as it is",
   unknown_application: "its application wasn't found",
+  read_failed: "Gmail wouldn't give the email",
+  classify_failed: "sorting it failed",
+  record_refused: "its result couldn't be stored",
 };
 
 // Own keys only: a code such as "constructor" must not find Object's built-ins.

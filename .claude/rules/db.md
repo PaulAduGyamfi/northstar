@@ -299,6 +299,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `mail-classification-write.ts`. CHECKs keep the kind, stage signal and review reason to their
   fixed lists and the shape consistent; never store the classification's company, role or
   requisition, a subject or an address.
+  `readUnclassifiedMail` and `countUngradedRecruiterMail` (`mail-loop-read.ts`, NS-238 item 1) are
+  `funnel inbox`'s read-only readers: recorded messages with no classification and no dismissal,
+  newest first, and classified recruiter mail with no grade; ids and counts only.
+  `readDeadLetterKeys` (NS-238 item 1) gives one kind's letters with their resolution, for a
+  producer that passes over what it gave up on until Paul retries it.
   `readLinkCandidates` (NS-223) is their read-only candidates reader: applications not in a
   terminal status, with their creation time and the job's and sources' ATS names, never a name or
   address.

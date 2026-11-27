@@ -23,17 +23,18 @@ the calendar (#405).
    threads. A run handles at most 200 messages (the poller's own bound); a truncated run says so.
 3. **Stuck messages:** when the poll stops at a message, the run tries again (at most 3 polls a
    run). A message that stops it 3 times, for any reason except a held-back call, becomes a dead
-   letter (`mail.poll`, reason `read_failed`, key `mail.poll:<gmail id>`). Later runs pass over
-   every message with an open `mail.poll` letter, so one bad message can't hold back the rest.
-   Paul's Retry on /health resolves the letter, and the next run tries the message again.
+   letter (`mail.poll`, reason `read_failed`, key `mail.poll:<gmail id>:<n>`). Later runs pass over
+   a message unless Paul's newest resolution of its letters is Retry (an open letter, Skip and Hand
+   off keep it out), so one bad message can't hold back the rest; a message that fails again after
+   a Retry gets a new letter (`<n>` + 1).
 4. **Classifies:** up to 25 recorded messages a run that have no classification, aren't dismissed
-   by Paul and have no open `mail.classify` letter, newest first (`readUnclassifiedMail`). Each is
+   by Paul and aren't passed over for a `mail.classify` letter (the same rule), newest first (`readUnclassifiedMail`). Each is
    read in full (`getFull`, in memory only), run through `classifyLinkedMail` and stored with
    `recordMailClassification`. Queued messages are classified too, not only linked ones, because
    recruiter mail usually matches no application and grading needs its kind. A verification email
    is skipped and never sent to the model. A message whose read or classification throws (other
    than a held-back call or the Claude API not answering) becomes a dead letter (`mail.classify`,
-   reason `read_failed` or `classify_failed`, key `mail.classify:<gmail id>`). A held-back call or
+   reason `read_failed`, `classify_failed` or `record_refused`, key `mail.classify:<gmail id>:<n>`). A held-back call or
    the API not answering stops classification for this run; the rest wait for the next.
 5. **Recruiter grading:** not in this slice. The `recruiter-extract` route has no enable flag yet,
    and turning it on is out of #266's scope. The run counts the recruiter emails waiting for a
@@ -53,7 +54,7 @@ route, so it pauses first). Every Gmail read goes through the `gmail` breaker.
       held-back one), passes over open letters, classifies at most 25, skips verification mail,
       dead-letters a failing message, stops classification on a held-back call (tests, fakes).
 - [ ] `readUnclassifiedMail` gives unclassified, undismissed messages newest first, the candidate's
-      own only; `readOpenDeadLetterKeys` gives open letters' keys for one kind (PGlite).
+      own only; `readDeadLetterKeys` gives one kind's letters with their resolution (PGlite).
 - [ ] The new kinds are on `DEAD_LETTER_KINDS` with words on /health.
 - [ ] lint, typecheck, test, build green (CI `checks`).
 
