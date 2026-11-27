@@ -1,4 +1,5 @@
 import {
+  type ApplicationPackage,
   type CandidateId,
   isSafeCompany,
   isTaggableAddress,
@@ -59,6 +60,13 @@ function fill(template: string, company: string): string | null {
   return template.replace(SLOT, () => company);
 }
 
+// What the Gate files for a package: the parsed package, its hash and the facts it derived.
+export type DerivedPackage = {
+  pkg: ApplicationPackage;
+  sha: string;
+  facts: PackageFacts;
+};
+
 export async function requestPackageApproval(
   db: Db,
   input: {
@@ -69,20 +77,52 @@ export async function requestPackageApproval(
     idempotencyKey: string;
   },
 ): Promise<{ ok: true; value: RequestResult } | { ok: false; error: RequestError }> {
-  const parsed = parsePackage(input.package);
+  const derived = await derivePackage(db, input.candidateId, input.package, input.claims);
+  if (!derived.ok) return derived;
+  const { pkg, sha, facts } = derived.value;
+  // One transaction (NS-192): the request and the package behind it commit together, so an
+  // approved request always has the exact package to fill from (the Gate's own transaction nests
+  // as a savepoint).
+  return db.transaction(async (tx) => {
+    const scoped = tx as unknown as Db;
+    const filed = await requestApprovalWithFacts(scoped, {
+      candidateId: input.candidateId,
+      kind: "application_package",
+      subject: packageSubject(pkg),
+      contentSha256: sha,
+      facts,
+      actor: input.actor,
+      idempotencyKey: input.idempotencyKey,
+    });
+    if (!filed.ok) return filed;
+    await storePackage(scoped, input.candidateId, filed.value.requestId, pkg, sha);
+    return filed;
+  });
+}
+
+// Checks a package against the candidate's stored records and derives its policy facts from them
+// (NS-213), never from its producer. Shared by a first filing and Paul's edit (NS-203 slice 4),
+// which passes no claims, so every field of an edited package counts as `new`.
+export async function derivePackage(
+  db: Db,
+  candidateId: CandidateId,
+  input: unknown,
+  inputClaims: readonly BankClaim[],
+): Promise<{ ok: true; value: DerivedPackage } | { ok: false; error: RequestError }> {
+  const parsed = parsePackage(input);
   if (!parsed.ok) {
     return { ok: false, error: { kind: "InvalidRequest", fields: parsed.error.fields } };
   }
   const pkg = parsed.value;
   // The candidate's own application only: anything else names nothing the Gate can read.
-  const inputs = await readPackageInputs(db, input.candidateId, pkg.applicationId);
+  const inputs = await readPackageInputs(db, candidateId, pkg.applicationId);
   if (!inputs) {
     return { ok: false, error: { kind: "InvalidRequest", fields: ["package.applicationId"] } };
   }
   // The package must be for this application's own job, contact details and resume file: fit and
   // form-seen-before are read for that job, and an auto-approved package goes out unseen. Its
   // email may carry this application's own tag (VER-007, NS-248), never another one's.
-  const tag = await readApplicationTag(db, input.candidateId, pkg.applicationId);
+  const tag = await readApplicationTag(db, candidateId, pkg.applicationId);
   const mismatched = [
     // The posting is one of the job's stored sources, compared as the Apply Gateway does.
     inputs.sources.some(
@@ -99,7 +139,7 @@ export async function requestPackageApproval(
   // Two claims for one field would leave which one counts to chance: refuse them, and any claim
   // not shaped as one (the Gate checks its input, never the database's error).
   const claims = new Map<string, BankClaim>();
-  for (const claim of input.claims) {
+  for (const claim of inputClaims) {
     if (claims.has(claim.fieldName) || !wellFormed(claim)) {
       return { ok: false, error: { kind: "InvalidRequest", fields: ["claims"] } };
     }
@@ -159,41 +199,34 @@ export async function requestPackageApproval(
   };
   // These reads run before the Gate's own transaction: a fit or form stored in between
   // only shows on the next package, and the request still pins this package's content.
-  const sha = packageSha256(pkg);
-  // One transaction (NS-192): the request and the package behind it commit together, so an
-  // approved request always has the exact package to fill from (the Gate's own transaction nests
-  // as a savepoint).
-  return db.transaction(async (tx) => {
-    const scoped = tx as unknown as Db;
-    const filed = await requestApprovalWithFacts(scoped, {
-      candidateId: input.candidateId,
-      kind: "application_package",
-      subject: packageSubject(pkg),
-      contentSha256: sha,
-      facts,
-      actor: input.actor,
-      idempotencyKey: input.idempotencyKey,
-    });
-    if (!filed.ok) return filed;
-    try {
-      await scoped
-        .insert(applicationPackage)
-        .values({
-          candidateId: input.candidateId,
-          requestId: filed.value.requestId,
-          applicationId: pkg.applicationId,
-          contentSha256: sha,
-          package: pkg,
-        })
-        // A replay of the same filing returns the same request: it stores nothing new.
-        .onConflictDoNothing({ target: applicationPackage.requestId });
-    } catch {
-      // A fresh error with no cause: the driver's message lists the insert's parameters, which
-      // hold Paul's contact details and answers.
-      throw new Error("application_package insert failed");
-    }
-    return filed;
-  });
+  return { ok: true, value: { pkg, sha: packageSha256(pkg), facts } };
+}
+
+// Stores the package behind its Gate request, inside the caller's transaction (NS-192).
+export async function storePackage(
+  scoped: Db,
+  candidateId: CandidateId,
+  requestId: string,
+  pkg: ApplicationPackage,
+  sha: string,
+): Promise<void> {
+  try {
+    await scoped
+      .insert(applicationPackage)
+      .values({
+        candidateId,
+        requestId,
+        applicationId: pkg.applicationId,
+        contentSha256: sha,
+        package: pkg,
+      })
+      // A replay of the same filing returns the same request: it stores nothing new.
+      .onConflictDoNothing({ target: applicationPackage.requestId });
+  } catch {
+    // A fresh error with no cause: the driver's message lists the insert's parameters, which
+    // hold Paul's contact details and answers.
+    throw new Error("application_package insert failed");
+  }
 }
 
 // Paul's stored details exactly, except that the email may be his stored address tagged with

@@ -49,6 +49,8 @@ export type FileOptions = {
   variant?: PackageVariant;
   idempotencyKey?: string;
   actor?: string;
+  // The package's filled fields (NS-203 slice 4); none by default.
+  fields?: Record<string, string>;
 };
 
 export type PackageFixture = {
@@ -204,7 +206,11 @@ export async function packageFixture(
     finishedAt: now,
   });
 
-  const pkg = (packageId: string, variant: PackageVariant = "a") => ({
+  const pkg = (
+    packageId: string,
+    variant: PackageVariant = "a",
+    fields: Record<string, string> = {},
+  ) => ({
     packageId,
     applicationId,
     ats: "greenhouse",
@@ -216,7 +222,7 @@ export async function packageFixture(
       sha256: resumeSha,
     },
     coverLetter: null,
-    fields: {},
+    fields,
   });
   const hashOf = (packageId: string, variant: PackageVariant = "a"): string => {
     const parsed = parsePackage(pkg(packageId, variant));
@@ -234,7 +240,7 @@ export async function packageFixture(
     file: (o = {}) =>
       requestPackageApproval(db, {
         candidateId,
-        package: pkg(o.packageId ?? randomUUID(), o.variant),
+        package: pkg(o.packageId ?? randomUUID(), o.variant, o.fields),
         claims: [],
         actor: o.actor ?? "agent:apply",
         idempotencyKey: o.idempotencyKey ?? randomUUID(),
