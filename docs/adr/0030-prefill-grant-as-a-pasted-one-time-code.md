@@ -1,6 +1,6 @@
 # ADR-0030 — The pre-fill grant reaches the extension as a pasted one-time code
 
-**Status:** Proposed · **Date:** 2026-11-27 · **Amends:** ADR-0029's hand-off sentence ("The card
+**Status:** Accepted (Paul, by delegation to the orchestrator on 2026-11-27; option B chosen on #332) · **Date:** 2026-11-27 · **Amends:** ADR-0029's hand-off sentence ("The card
 hands it to the extension through the deep link Paul clicks")
 
 ## Context
