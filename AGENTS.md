@@ -784,8 +784,16 @@ Exists now:
   `prefillPlan` (https on one of the ATS's own hosts, at the apply URL's host and path; the
   adapter's contact fields, mirrored from the gateway's adapters, then the package's own fields),
   `fillForm` (in-page: visible, enabled fields of those names only; never a file, hidden field or
-  button; never clicks or submits) and `packageRequest` (30 s limit). Nothing calls them yet: how
-  the grant reaches the extension is Paul's choice (#332).
+  button; never clicks or submits) and `packageRequest` (30 s limit).
+  Since slice 4 (ADR-0030, Proposed: a pasted one-time code, amending ADR-0029's deep link) Paul
+  does it by hand: "Pre-fill" on the "Needs your hands" card (`apps/web/app/prefill-code.tsx`)
+  gets a grant and shows `<handoffId>.<grant>` (`prefillCode`) with a Copy button and a countdown,
+  cleared at expiry, in component state only. He pastes it into the popup's "Fill this form" on the
+  application's tab: `runPrefill` (`apps/extension/src/prefill-run.ts`) parses it
+  (`parsePrefillCode`; a bad code sends nothing), reads the package, re-reads the active tab's URL,
+  runs `prefillPlan`, and injects `fillForm` into that tab's main frame only, which re-checks the
+  page's own host and path (`fillTarget`) before touching anything. The code is never stored.
+  Manifest unchanged.
 - Verification windows (NS-151, VER-001…006) in `packages/db` (`verification-schema.ts`,
   `verification-write.ts`, append-only): `verification_window`, one `verification_window_restart`
   and one `verification_window_close` per window, and `verification_used_message` (one window per

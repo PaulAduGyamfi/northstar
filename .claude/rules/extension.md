@@ -22,8 +22,12 @@ no bundler or framework; `src/chrome.d.ts` types the few Chrome APIs it calls.
   the extension token alone reads nothing. Since slice 2 that read is `POST /handoffs/package`
   with a grant from `POST /handoffs/prefill-grant` (`apps/api/src/prefill.ts`): send the grant,
   never store it, and never widen the read beyond that one handoff. Never add an `auth: "extension"`
-  endpoint that reads Paul's data without an accepted ADR. Once decided, the fill sets only fields
-  the ATS adapter maps, on Paul's click, on the adapter's own host, never submit, never the
-  challenge.
+  endpoint that reads Paul's data without an accepted ADR. The fill sets only fields the ATS
+  adapter maps, on Paul's click, on the adapter's own host, never submit, never the challenge.
+  Since slice 4 (ADR-0030) the grant arrives as a code Paul pastes into the popup
+  (`prefill-run.ts`: `<handoffId>.<grant>`, held in memory only, the field cleared after each
+  try). Re-read the tab's URL right before injecting, inject into that tab id's main frame only
+  (`frameIds: [0]`), and let `fillForm` re-check the page's host and path (`fillTarget`). The code
+  shape is shared with `apps/web`'s `prefillCode`: change both together.
 - The capture request carries a time limit (`CAPTURE_TIMEOUT_MS`, 5 min, NS-176); any new request
   from the extension needs one too (RES-005).

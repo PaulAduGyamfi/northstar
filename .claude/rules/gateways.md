@@ -53,7 +53,8 @@ and never hand its `gmail.modify` token to code that reads mail.
   Since slice 2 the API's `prefill.ts` is that one place: it consumes the grant before any read. Never hand a package to the browser
   from anywhere else, never trust a package the caller sends, and never put a field value in a
   span, log, event or error. The extension fills; it never submits or touches the challenge
-  (ADR-0003).
+  (ADR-0003). Since slice 4 (ADR-0030) the grant reaches the extension only as a code Paul copies
+  from the "Needs your hands" card and pastes into the popup: never a URL, cookie or storage.
 
 - The browser driver (NS-142, ADR-0028) lives in `src/apply/browser/`. Only `launch.ts`
   imports `playwright-core`, and it never downloads a browser: the worker passes the installed
