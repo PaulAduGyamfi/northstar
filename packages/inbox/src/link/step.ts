@@ -25,7 +25,14 @@ export const ATS_SENDER_DOMAINS: Readonly<Record<string, readonly string[]>> = O
 });
 
 // What the database gives for an application mail can be linked to (readLinkCandidates).
-export type CandidateRow = { applicationId: string; createdAt: Date; ats: readonly string[] };
+export type CandidateRow = {
+  applicationId: string;
+  createdAt: Date;
+  ats: readonly string[];
+  // The company's own mail domains, as Paul entered them (NS-252); matchMail's own rules still
+  // drop shared ATS and freemail domains and link by sender only for an authenticated one.
+  companyDomains?: readonly string[];
+};
 
 export type LinkDecision =
   | {
@@ -111,14 +118,14 @@ export function isStampedDelivery(mail: MessageHeaders, mailbox: string): boolea
   return own !== null && mailboxKey(mail.deliveredTo) === own;
 }
 
-// A database row as matchMail's candidate. No company domains and no tenant are stored yet, so
-// step 3 (sender) never links and a tenant tag narrows to nothing (#224 slice 1).
+// A database row as matchMail's candidate. Company domains come from Paul's stored list (NS-252);
+// no tenant is stored yet, so a tenant tag narrows to nothing (#224 slice 1).
 export function toLinkCandidate(row: CandidateRow, threadIds: readonly string[]): LinkCandidate {
   return {
     applicationId: row.applicationId,
     tenantKey: null,
     threadIds,
-    companyDomains: [],
+    companyDomains: [...(row.companyDomains ?? [])],
     atsDomains: [...new Set(row.ats.flatMap((name) => ATS_SENDER_DOMAINS[name] ?? []))],
     activeFrom: row.createdAt,
     activeUntil: null,

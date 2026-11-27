@@ -314,3 +314,15 @@ describe("usage", () => {
     expect(printed[0]?.startsWith("usage: jobs add <url>")).toBe(true);
   });
 });
+
+describe("jobs domains (NS-252)", () => {
+  it("routes to the company-domain command and prints each company", async () => {
+    const { d, printed } = deps(["domains"]);
+    d.domains = {
+      read: async () => [{ companyId: "c1", name: "Acme", domains: ["acme.example"] }],
+      save: async () => ({ ok: true, value: { saved: true, domains: [] } }),
+    };
+    expect(await main(d)).toBe(0);
+    expect(printed).toEqual(["Acme (c1): acme.example"]);
+  });
+});

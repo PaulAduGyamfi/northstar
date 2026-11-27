@@ -80,6 +80,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `ALERT_*` default, and the same values store nothing. Its CHECKs are NULL-safe (a CHECK that
   evaluates to NULL passes). `alerts.settings_changed` carries field names only, never a time zone
   (it says where Paul lives).
+  A company's own mail domains (NS-252) are `company_domain`, append-only (a trigger), written
+  only through `company-domain-write.ts`: per company and domain the newest row (`add` or
+  `remove`) is current, the source is `paul` (a CHECK), and its composite foreign key keeps the
+  company the candidate's own. Never store a domain learned from mail, a job page or ATS metadata
+  without Paul's acceptance, and never put a domain in an event or span.
 - The Approval Gate's records (NS-119, ADR-0017) are `approval_request`, `approval_policy_set`,
   `approval_decision`, `approval_undo` and (NS-140) `approval_withdrawal`: append-only
   (triggers), written only through `approval-write.ts` (`requestOfDecision`, NS-211, is its read-only

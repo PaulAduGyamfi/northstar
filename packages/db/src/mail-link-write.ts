@@ -1,5 +1,6 @@
 import { APPLICATION_STATUSES, type CandidateId, isTerminal } from "@northstar/domain";
 import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { readCompanyDomains } from "./company-domain-write.js";
 import type { Db } from "./db.js";
 import { type MATCH_STEPS, mailLink, mailTag, type QUEUE_REASONS } from "./mail-link-schema.js";
 import { appendEvent, inSpan } from "./resilience-event.js";
@@ -130,6 +131,9 @@ export type LinkCandidateRow = {
   createdAt: Date;
   // The job's ATS and every source's ATS, each once, in a fixed order. Empty when none is known.
   ats: (typeof ATS_KINDS)[number][];
+  // The job's company's own mail domains, as Paul entered them (NS-252). Left out when none are
+  // set, so a row reads as before for a company without domains.
+  companyDomains?: string[];
 };
 
 // Statuses mail may still arrive for: every one with a move left (a ghosted application can be
@@ -137,8 +141,8 @@ export type LinkCandidateRow = {
 // to Paul's confirm queue instead of linking (matchMail).
 const OPEN_STATUSES = APPLICATION_STATUSES.filter((s) => !isTerminal(s));
 
-// The applications mail can be linked to, for matchMail's candidates (#224). Ids, times and ATS
-// names only: no company name, title or address. Read-only.
+// The applications mail can be linked to, for matchMail's candidates (#224). Ids, times, ATS
+// names and the company's own domains (NS-252) only: no company name, title or address. Read-only.
 export async function readLinkCandidates(
   db: Db,
   candidateId: CandidateId,
@@ -149,6 +153,7 @@ export async function readLinkCandidates(
       createdAt: application.createdAt,
       jobId: application.jobId,
       jobAts: job.ats,
+      companyId: job.companyId,
     })
     .from(application)
     .innerJoin(
@@ -173,6 +178,9 @@ export async function readLinkCandidates(
         isNotNull(jobSource.ats),
       ),
     );
+  const domains = new Map(
+    (await readCompanyDomains(db, candidateId)).map((c) => [c.companyId, c.domains]),
+  );
   return apps.map((a) => {
     const names = new Set<string>();
     if (a.jobAts !== null) names.add(a.jobAts);
@@ -182,9 +190,13 @@ export async function readLinkCandidates(
       createdAt: a.createdAt,
       // The CHECK constraints allow only these names; sorted so the order never depends on rows.
       ats: [...names].sort() as LinkCandidateRow["ats"],
+      ...companyDomainsOf(a.companyId === null ? [] : (domains.get(a.companyId) ?? [])),
     };
   });
 }
+
+// The field only when there are domains to give.
+const companyDomainsOf = (d: string[]) => (d.length > 0 ? { companyDomains: d } : {});
 
 export type LinkDecision =
   | {

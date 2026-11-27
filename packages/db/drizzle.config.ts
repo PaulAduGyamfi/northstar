@@ -38,6 +38,7 @@ export default defineConfig({
     "./src/career-dna-schema.ts",
     "./src/application-package-schema.ts",
     "./src/alert-setting-schema.ts",
+    "./src/company-domain-schema.ts",
   ],
   out: "./migrations",
 });

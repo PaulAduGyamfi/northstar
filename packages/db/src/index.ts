@@ -143,6 +143,15 @@ export {
   type StoredCareerDna,
   saveCareerDnaReport,
 } from "./career-dna-write.js";
+// A company's own mail domains, entered by Paul (NS-252).
+export {
+  type CompanyDomainRefusal,
+  type CompanyDomains,
+  isSharedDomain,
+  normalizeDomain,
+  readCompanyDomains,
+  setCompanyDomain,
+} from "./company-domain-write.js";
 // loadMigrationConfig (the owner's URL) is not exported: only src/migrate.ts reads it.
 export { type DbConfig, loadDbConfig } from "./config.js";
 export { connectDb } from "./connect.js";

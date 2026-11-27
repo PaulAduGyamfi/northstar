@@ -463,9 +463,15 @@ Exists now:
 
   Callers pass only mail that passed the INB-002 pre-filter (`isJobMail`), or mail to a known tag.
 
-  Its candidates come from `readLinkCandidates` (`packages/db`): open applications and their ATS
-  names. No company domains or tenant keys are stored yet, so the sender step never links (where
-  they come from is Paul's call). Since NS-247 (slice 1):
+  Its candidates come from `readLinkCandidates` (`packages/db`): open applications, their ATS
+  names and, since NS-252, their company's own mail domains. Paul enters those himself
+  (`jobs domains`, decided on #313): append-only `company_domain` (`packages/db`,
+  `company-domain-schema.ts`, `company-domain-write.ts`: `setCompanyDomain`, `readCompanyDomains`;
+  source `paul`, a removal is a new row, a domain another company holds is refused, and
+  `company.domain_added` / `company.domain_removed` carry ids only). `matchMail` still drops shared
+  ATS and freemail domains and links by sender only for an authenticated domain. Never the apply
+  URL's host or ATS metadata; suggestions from confirmed links come later, only with Paul's
+  acceptance. No tenant keys are stored yet. Since NS-247 (slice 1):
   - The step skips mail labelled `SPAM` or `TRASH` (`spam`) before it reads anything.
   - `pollNewMail` (`src/link/poll.ts`) is its producer. It lists received mail after the caller's
     `since`, less an hour of overlap; the query leaves out sent mail, drafts, spam, trash and
@@ -553,7 +559,8 @@ Exists now:
   storing; a refused invalid detection or unknown application gets one too (kind
   `calendar.interview_detection`; keys hold a SHA-256 prefix of the event id). It
   returns counts on a `calendar.detect` span; a failed read, store or letter stops it
-  (`stoppedBy`). No company domains are stored yet (#313), so it matches nothing until they are.
+  (`stoppedBy`). It matches only companies whose mail domains Paul entered (`jobs domains`,
+  NS-252); its caller (#230) passes them in from `readLinkCandidates`.
 
   Since slice 5 also Paul's confirm step in the app: the API's `GET /interviews` (each current
   detection's format, times, interviewer count, decision and the job's own title and company from
@@ -1123,6 +1130,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/sources jobs poll` / `jobs run` | one pass over the due boards / poll once a minute until Ctrl-C (boards are only polled while it runs). Paul only: real network and database |
 | repo root | `pnpm --filter @northstar/sources jobs form <job-id>` | read a saved Greenhouse job's application questions from its public API and store them with the job (a changed form is a new version; the same form stores nothing); prints counts and the required questions' labels. Paul only: real network and database |
 | repo root | `pnpm --filter @northstar/sources jobs alerts` / `jobs alerts set quiet <HH:MM-HH:MM\|off>` / `jobs alerts set zone <IANA zone>` / `jobs alerts set tier1 <true\|false>` / `jobs alerts reset quiet\|zone\|tier1` | show the fresh-job alert settings in effect and whether each is set here or the `ALERT_*` default / store one (checked like the env value; the next alert pass uses it, no restart) / put one back to its default. Paul only: needs `DATABASE_URL` |
+| repo root | `pnpm --filter @northstar/sources jobs domains` / `jobs domains add <company-id> <domain>` / `jobs domains remove <company-id> <domain>` | list each company with its id and mail domains / add or remove one (checked as a plain domain; one another company holds is refused; the mail-link step reads it each time; freemail, shared ATS and hosting domains and bare public suffixes are refused). Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs check` | re-check the postings of saved jobs not tried in a day (closed ones weekly; at most 50 a pass); a job closes after two closed answers in a row and leaves scoring; prints counts only. Paul only: real network and database |
 | repo root | `cp .env.example .env` | once per clone (Paul): keep the part above the "Apps" line in `.env` (compose and `db:migrate`: the owner's credentials) and move the "Apps" part into `.env.app`, which the API and the `profile`, `jobs`, `funnel` and `eval` commands load (NS-235); then replace every `change-me`. An app refuses to start while `DATABASE_MIGRATION_URL` or `POSTGRES_PASSWORD` is in its environment |
 | repo root | `docker compose -f docker-compose.yml up -d --wait` | local stack: Postgres+pgvector :5432, Temporal :7233 (UI :8233), SeaweedFS S3 :8333, Grafana :3000 + OTLP :4317/:4318, all on 127.0.0.1. Agents must use this exact form (runs outside the sandbox) |
