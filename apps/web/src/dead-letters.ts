@@ -71,6 +71,8 @@ const REASONS: Record<string, string> = {
   activity_failed: "every attempt to run it failed",
   too_many_changes: "one calendar event changed too many times",
   daily_limit: "too many possible interviews in one day",
+  invalid_detection: "the calendar event couldn't be stored as it is",
+  unknown_application: "its application wasn't found",
 };
 
 // Own keys only: a code such as "constructor" must not find Object's built-ins.

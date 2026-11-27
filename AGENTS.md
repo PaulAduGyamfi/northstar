@@ -529,7 +529,8 @@ Exists now:
   applications and stores each interview through its `record` port (ids, format, times and the
   interviewer count; the addresses stay in memory). A `TooManyChanges` refusal becomes one dead
   letter per event and application, and `DailyLimit` one per day that also stops the run's
-  storing (kind `calendar.interview_detection`; keys hold a SHA-256 prefix of the event id). It
+  storing; a refused invalid detection or unknown application gets one too (kind
+  `calendar.interview_detection`; keys hold a SHA-256 prefix of the event id). It
   returns counts on a `calendar.detect` span; a failed read, store or letter stops it
   (`stoppedBy`). No company domains are stored yet (#313), so it matches nothing until they are.
 

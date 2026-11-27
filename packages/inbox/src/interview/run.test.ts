@@ -5,6 +5,7 @@ import {
   type DetectionLetter,
   type DetectionRecordResult,
   type DetectionRunDeps,
+  MAX_INTERVIEWERS,
   runInterviewDetection,
   type StoredDetection,
 } from "./run.js";
@@ -45,6 +46,7 @@ function fakeRun(opts: {
   listFails?: boolean;
   recordFails?: boolean;
   letterFails?: boolean;
+  letterRefused?: boolean;
 }) {
   const stored: StoredDetection[] = [];
   const letters: DetectionLetter[] = [];
@@ -62,11 +64,13 @@ function fakeRun(opts: {
     record: async (d) => {
       if (opts.recordFails) throw new Error("db down");
       stored.push(d);
-      return opts.answer?.(d) ?? { ok: true, recorded: true };
+      return opts.answer?.(d) ?? { ok: true, value: { recorded: true } };
     },
     deadLetter: async (l) => {
       if (opts.letterFails) throw new Error("db down");
+      if (opts.letterRefused) return { ok: false };
       letters.push(l);
+      return { ok: true };
     },
     now: () => NOW,
   };
@@ -130,13 +134,13 @@ describe("runInterviewDetection", () => {
   });
 
   it("counts an unchanged detection apart from a new one", async () => {
-    const run = fakeRun({ answer: () => ({ ok: true, recorded: false }) });
+    const run = fakeRun({ answer: () => ({ ok: true, value: { recorded: false } }) });
     const report = await runInterviewDetection(run.deps);
     expect([report.recorded, report.unchanged]).toEqual([0, 1]);
   });
 
   it("turns too many changes into one dead letter per event and application, keyed without the event id", async () => {
-    const run = fakeRun({ answer: () => ({ ok: false, kind: "TooManyChanges" }) });
+    const run = fakeRun({ answer: () => ({ ok: false, error: { kind: "TooManyChanges" } }) });
     await runInterviewDetection(run.deps);
     await runInterviewDetection(run.deps);
     const [first, second] = run.letters;
@@ -144,8 +148,9 @@ describe("runInterviewDetection", () => {
       kind: "calendar.interview_detection",
       reasonCode: "too_many_changes",
       subject: `application:${APP}`,
+      attempts: 1,
       idempotencyKey: expect.stringMatching(
-        new RegExp(`^interview_detection:${APP}:[0-9a-f]{32}$`),
+        new RegExp(`^interview_detection:too_many_changes:${APP}:[0-9a-f]{32}$`),
       ),
     });
     // The same key both runs, so the store keeps one letter.
@@ -156,7 +161,7 @@ describe("runInterviewDetection", () => {
   it("writes one daily-limit letter for the day and stops storing for the rest of the run", async () => {
     const run = fakeRun({
       events: [event({ id: "a" }), event({ id: "b" }), event({ id: "c" })],
-      answer: () => ({ ok: false, kind: "DailyLimit" }),
+      answer: () => ({ ok: false, error: { kind: "DailyLimit" } }),
     });
     const report = await runInterviewDetection(run.deps);
     expect(run.letters).toEqual([
@@ -164,23 +169,35 @@ describe("runInterviewDetection", () => {
         kind: "calendar.interview_detection",
         reasonCode: "daily_limit",
         subject: `candidate:${CANDIDATE}`,
+        attempts: 1,
         idempotencyKey: "interview_detection:daily_limit:2026-11-27",
       },
     ]);
     expect([run.stored.length, report.interviews, report.dailyLimit]).toEqual([1, 3, 1]);
   });
 
-  it("skips a refused invalid detection or unknown application without a letter", async () => {
+  it("turns a refused invalid detection or unknown application into a dead letter, never a silent skip", async () => {
     const answers: DetectionRecordResult[] = [
-      { ok: false, kind: "InvalidDetection" },
-      { ok: false, kind: "UnknownApplication" },
+      { ok: false, error: { kind: "InvalidDetection" } },
+      { ok: false, error: { kind: "UnknownApplication" } },
     ];
     const run = fakeRun({
       events: [event({ id: "a" }), event({ id: "b" })],
-      answer: () => answers.shift() ?? { ok: true, recorded: true },
+      answer: () => answers.shift() ?? { ok: true, value: { recorded: true } },
     });
     const report = await runInterviewDetection(run.deps);
-    expect([report.skipped, run.letters]).toEqual([2, []]);
+    expect(report.skipped).toBe(2);
+    expect(run.letters.map((l) => [l.reasonCode, l.subject])).toEqual([
+      ["invalid_detection", `application:${APP}`],
+      ["unknown_application", `application:${APP}`],
+    ]);
+  });
+
+  it("stores at most the store's interviewer limit, never refusing a large invite for it", async () => {
+    const many = Array.from({ length: MAX_INTERVIEWERS + 5 }, (_, i) => `p${i}@initech.example`);
+    const run = fakeRun({ events: [event({ attendees: many })] });
+    await runInterviewDetection(run.deps);
+    expect(run.stored.map((d) => d.interviewerCount)).toEqual([MAX_INTERVIEWERS]);
   });
 
   it("stores nothing and says so when the calendar read fails", async () => {
@@ -189,11 +206,24 @@ describe("runInterviewDetection", () => {
     expect([run.stored, report.stoppedBy]).toEqual([[], "read"]);
   });
 
-  it("stops at a failed store call, and at a dead letter it couldn't write", async () => {
+  it("stops at a failed store call, and at a dead letter that threw or was refused", async () => {
     const failedStore = await runInterviewDetection(fakeRun({ recordFails: true }).deps);
     const failedLetter = await runInterviewDetection(
-      fakeRun({ letterFails: true, answer: () => ({ ok: false, kind: "TooManyChanges" }) }).deps,
+      fakeRun({
+        letterFails: true,
+        answer: () => ({ ok: false, error: { kind: "TooManyChanges" } }),
+      }).deps,
     );
-    expect([failedStore.stoppedBy, failedLetter.stoppedBy]).toEqual(["record", "dead_letter"]);
+    const refusedLetter = await runInterviewDetection(
+      fakeRun({
+        letterRefused: true,
+        answer: () => ({ ok: false, error: { kind: "TooManyChanges" } }),
+      }).deps,
+    );
+    expect([failedStore.stoppedBy, failedLetter.stoppedBy, refusedLetter.stoppedBy]).toEqual([
+      "record",
+      "dead_letter",
+      "dead_letter",
+    ]);
   });
 });

@@ -38,9 +38,11 @@ export {
   DETECTION_DEAD_LETTER_KIND,
   DETECTION_WINDOW_DAYS,
   type DetectionLetter,
+  type DetectionLetterResult,
   type DetectionRecordResult,
   type DetectionRunDeps,
   type DetectionRunReport,
+  MAX_INTERVIEWERS,
   runInterviewDetection,
   type StoredDetection,
 } from "./interview/run.js";

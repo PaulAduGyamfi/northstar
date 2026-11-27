@@ -26,21 +26,32 @@ export type StoredDetection = {
   interviewerCount: number;
 };
 
-// The store's answer, as recordInterviewDetection gives it.
+// The store's interviewer limit (DetectionInput in @northstar/db): a bigger invite is stored with
+// the limit rather than refused, since only the count is kept.
+export const MAX_INTERVIEWERS = 50;
+
+// The store's answer, in recordInterviewDetection's own Result shape, so the caller binds it as is.
 export type DetectionRecordResult =
-  | { ok: true; recorded: boolean }
+  | { ok: true; value: { recorded: boolean } }
   | {
       ok: false;
-      kind: "InvalidDetection" | "UnknownApplication" | "TooManyChanges" | "DailyLimit";
+      error: {
+        kind: "InvalidDetection" | "UnknownApplication" | "TooManyChanges" | "DailyLimit";
+      };
     };
 
 export type DetectionLetter = {
   kind: typeof DETECTION_DEAD_LETTER_KIND;
-  reasonCode: "too_many_changes" | "daily_limit";
+  reasonCode: "too_many_changes" | "daily_limit" | "invalid_detection" | "unknown_application";
   // `application:<id>` or `candidate:<id>`: the dead-letter subject pattern takes a uuid only.
   subject: string;
+  // The run tries each store call once.
+  attempts: 1;
   idempotencyKey: string;
 };
+
+// recordDeadLetter's answer shape: a refused letter (ok false) stops the run like a thrown one.
+export type DetectionLetterResult = { ok: true } | { ok: false };
 
 export type DetectionRunDeps = {
   calendar: Pick<CalendarClient, "listEvents">;
@@ -48,7 +59,8 @@ export type DetectionRunDeps = {
   // Open applications with their company domains. None are stored yet (#313).
   candidates: () => Promise<readonly InterviewCandidate[]>;
   record: (detection: StoredDetection) => Promise<DetectionRecordResult>;
-  deadLetter: (letter: DetectionLetter) => Promise<void>;
+  // The caller adds the candidate id and passes the rest to recordDeadLetter unchanged.
+  deadLetter: (letter: DetectionLetter) => Promise<DetectionLetterResult>;
   now: () => Date;
 };
 
@@ -63,7 +75,8 @@ export type DetectionRunReport = {
   noMatch: number;
   tooManyChanges: number;
   dailyLimit: number;
-  // Refused as invalid or not this candidate's application: a bug or a stale candidate list.
+  // Refused as invalid, or not this candidate's application (a stale candidate list): each one
+  // also gets a dead letter, so none passes silently.
   skipped: number;
   // Where a failure stopped the run, or null when it finished. In the report and span only.
   stoppedBy: null | "read" | "record" | "dead_letter";
@@ -148,7 +161,7 @@ async function detect(deps: DetectionRunDeps, report: DetectionRunReport): Promi
         start: found.start,
         end: found.end,
         // The addresses stay in memory: only how many interviewers there are is stored.
-        interviewerCount: found.interviewers.length,
+        interviewerCount: Math.min(found.interviewers.length, MAX_INTERVIEWERS),
       });
     } catch {
       // The store failed: stop, and let the next run try the window again.
@@ -156,35 +169,47 @@ async function detect(deps: DetectionRunDeps, report: DetectionRunReport): Promi
       return;
     }
     if (result.ok) {
-      if (result.recorded) report.recorded++;
+      if (result.value.recorded) report.recorded++;
       else report.unchanged++;
       continue;
     }
-    if (result.kind === "InvalidDetection" || result.kind === "UnknownApplication") {
-      report.skipped++;
-      continue;
+    const refusal = result.error.kind;
+    let letter: DetectionLetter;
+    if (refusal === "DailyLimit") {
+      report.dailyLimit++;
+      letter = {
+        kind: DETECTION_DEAD_LETTER_KIND,
+        reasonCode: "daily_limit",
+        subject: `candidate:${deps.candidateId}`,
+        attempts: 1,
+        // One letter per UTC day.
+        idempotencyKey: `interview_detection:daily_limit:${now.toISOString().slice(0, 10)}`,
+      };
+    } else {
+      const reasonCode =
+        refusal === "TooManyChanges"
+          ? "too_many_changes"
+          : refusal === "InvalidDetection"
+            ? "invalid_detection"
+            : "unknown_application";
+      if (refusal === "TooManyChanges") report.tooManyChanges++;
+      else report.skipped++;
+      letter = {
+        kind: DETECTION_DEAD_LETTER_KIND,
+        reasonCode,
+        subject: `application:${found.applicationId}`,
+        attempts: 1,
+        // One letter per reason, event and application, however many runs see it again.
+        idempotencyKey: `interview_detection:${reasonCode}:${found.applicationId}:${eventKey(event.id)}`,
+      };
     }
-    const letter: DetectionLetter =
-      result.kind === "TooManyChanges"
-        ? {
-            kind: DETECTION_DEAD_LETTER_KIND,
-            reasonCode: "too_many_changes",
-            subject: `application:${found.applicationId}`,
-            // One letter per event and application, however many runs see it again.
-            idempotencyKey: `interview_detection:${found.applicationId}:${eventKey(event.id)}`,
-          }
-        : {
-            kind: DETECTION_DEAD_LETTER_KIND,
-            reasonCode: "daily_limit",
-            subject: `candidate:${deps.candidateId}`,
-            // One letter per UTC day.
-            idempotencyKey: `interview_detection:daily_limit:${now.toISOString().slice(0, 10)}`,
-          };
-    if (result.kind === "TooManyChanges") report.tooManyChanges++;
-    else report.dailyLimit++;
+    let written: DetectionLetterResult;
     try {
-      await deps.deadLetter(letter);
+      written = await deps.deadLetter(letter);
     } catch {
+      written = { ok: false };
+    }
+    if (!written.ok) {
       // A refusal that can't be made visible must not pass silently: stop the run.
       report.stoppedBy = "dead_letter";
       return;

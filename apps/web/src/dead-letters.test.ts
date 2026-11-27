@@ -64,21 +64,20 @@ describe("nextStep", () => {
     ]);
   });
 
-  it("names a refused interview detection and both of its reasons", () => {
+  it("names a refused interview detection and each of its reasons", () => {
     const detection = { ...ITEM, kind: "calendar.interview_detection", attempts: 1 };
-    expect([
-      letterLine({ ...detection, reasonCode: "too_many_changes" }),
-      letterLine({ ...detection, reasonCode: "daily_limit" }),
-    ]).toEqual([
-      {
+    const reasons = ["too_many_changes", "daily_limit", "invalid_detection", "unknown_application"];
+    expect(reasons.map((reasonCode) => letterLine({ ...detection, reasonCode }))).toEqual(
+      [
+        "one calendar event changed too many times",
+        "too many possible interviews in one day",
+        "the calendar event couldn't be stored as it is",
+        "its application wasn't found",
+      ].map((why) => ({
         what: "Finding interviews on your calendar",
-        why: "Stopped after 1 attempt: one calendar event changed too many times",
-      },
-      {
-        what: "Finding interviews on your calendar",
-        why: "Stopped after 1 attempt: too many possible interviews in one day",
-      },
-    ]);
+        why: `Stopped after 1 attempt: ${why}`,
+      })),
+    );
   });
 
   it("says what happens next for every action on an interview detection, without claiming a rerun now", () => {
