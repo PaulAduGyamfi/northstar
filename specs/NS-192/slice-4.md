@@ -2,7 +2,8 @@
 
 Status: in progress (autonomous lane, ADR-0016)
 Requirements: APPLY-006, ACC-007 · ADR-0030 (amends ADR-0029's hand-off), ADR-0029, ADR-0003, ADR-0019
-Rules that apply: `.claude/rules/extension.md`, `.claude/rules/gateways.md`, `.claude/rules/tests.md`.
+Rules that apply: `.claude/rules/extension.md`, `.claude/rules/gateways.md`, `.claude/rules/tests.md`,
+`docs/adr/0030-prefill-grant-as-a-pasted-one-time-code.md`.
 Issue #161 (Parent #20). Slices 1–3: #318, #328, #333. Decision: #332 (option B).
 
 ## Why
@@ -13,7 +14,7 @@ permission, and the grant never lands in a URL, history or extension storage.
 ## Behavior
 - **ADR-0030** records option B and amends ADR-0029's "deep link" sentence.
 - **The code** is `<handoffId>.<grant>` (a UUID, a dot, the 43-character base64url grant).
-  `prefillCode` (apps/web) builds it; `parsePrefillCode` (apps/extension) trims whitespace and
+  `prefillCode` (apps/web) builds it; `parsePrefillCode` (apps/extension, `prefill-run.ts`) trims whitespace and
   accepts only that exact shape, else nothing is sent.
 - **The card** (`NeedsYourHands`): a "Pre-fill" button per handoff calls
   `POST /api/handoffs/prefill-grant`. On success it shows the code in a read-only field, a Copy
@@ -24,7 +25,8 @@ permission, and the grant never lands in a URL, history or extension storage.
   1. read settings (as capture does) and parse the code; a bad code sends nothing;
   2. `packageRequest` → `POST /handoffs/package`; a refusal shows `prefillMessage(error)`;
   3. re-read the active tab's URL right before injecting, and run `prefillPlan(pkg, url)`;
-  4. inject `fillForm(fills)` into that tab id's main frame only (`frameIds: [0]`) and show
+  4. inject `fillForm(fills, null, at)` into that tab id's main frame only (`frameIds: [0]`); it
+     re-checks the page's own host and path (`fillTarget`) and touches nothing if they moved. Show
      `filledMessage`. The field is cleared after every attempt; nothing is stored.
 
   The popup logic is a plain function (`runPrefill`) over ports, tested with fakes; `popup.ts`

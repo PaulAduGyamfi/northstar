@@ -4,12 +4,14 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { apiFetch, isTimeout, TIMED_OUT_MESSAGE } from "../src/client-fetch";
 import type { HandoffCard } from "../src/handoffs";
+import { PrefillCode } from "./prefill-code";
 
 type Outcome = "submitted" | "gave_up";
 
 // "Needs your hands" (NS-121): each application a challenge stopped, a link to open its page in a
 // new tab, and Paul's word on what he did. "I submitted it" moves the application to submitted;
 // "I gave up" only closes the handoff. A second click is safe: the API stores the first answer.
+// "Pre-fill" (NS-192 slice 4) gives a one-time code for the extension to fill the form with.
 export function NeedsYourHands({ cards }: { cards: HandoffCard[] }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -72,6 +74,7 @@ export function NeedsYourHands({ cards }: { cards: HandoffCard[] }) {
               ) : (
                 <span className="muted">No safe link to open</span>
               )}{" "}
+              <PrefillCode handoffId={card.handoffId} />{" "}
               <button
                 type="button"
                 className="primary"

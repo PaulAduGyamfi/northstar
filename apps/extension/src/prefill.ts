@@ -1,9 +1,9 @@
 import type { Settings } from "./settings.js";
 
 // The handoff pre-fill's plain logic (NS-192 slice 3, ADR-0029, APPLY-006): which fields the
-// extension may fill on which page, the in-page fill, and the package request. Nothing calls it
-// yet: how the grant reaches the extension is Paul's choice (#332). It fills only, never submits
-// or touches the challenge (ADR-0003), and reports counts, never a value.
+// extension may fill on which page, the in-page fill, and the package request. The popup's
+// "Fill this form" runs it with the code Paul pasted (prefill-run.ts, slice 4, ADR-0030). It fills
+// only, never submits or touches the challenge (ADR-0003), and reports counts, never a value.
 
 export type PrefillAts = "greenhouse" | "lever" | "ashby" | "smartrecruiters";
 
@@ -116,6 +116,12 @@ export function prefillPlan(
   return { ok: true, fills };
 }
 
+// The host and path fillForm re-checks inside the page: the tab's, as prefillPlan accepted it.
+export function fillTarget(tabUrl: string): FillTarget | null {
+  const tab = plainHttps(tabUrl);
+  return tab === null ? null : { hostname: tab.hostname, path: pathOf(tab) };
+}
+
 // The part of the page fillForm touches, so tests can pass plain objects.
 export type FillElement = {
   tagName: string;
@@ -131,13 +137,41 @@ export type FillElement = {
 };
 export type FillDocument = {
   querySelectorAll(selector: string): ArrayLike<FillElement>;
+  location?: { href: string };
 };
-export type FillResult = { filled: number; skipped: number };
+// `moved`: the page wasn't the planned one when the fill ran, so nothing was touched.
+export type FillResult = { filled: number; skipped: number; moved?: true };
+// The page the plan was made for: fillForm checks it again inside the page (NS-192 slice 4).
+export type FillTarget = { hostname: string; path: string };
 
 // Runs inside the page (Chrome serialises it, so it must use nothing from this module). For each
 // fill, only elements with exactly that name, visible and enabled; never a button, file or hidden
 // input; a select only to options it offers. Fires input and change, never clicks or submits.
-export function fillForm(fills: Fill[], doc: FillDocument = document as unknown as FillDocument) {
+// With `at`, the page's own URL must still be that host and path (the tab may have navigated
+// between the popup's check and the injection); otherwise it touches nothing.
+export function fillForm(
+  fills: Fill[],
+  doc: FillDocument | null = null,
+  at: FillTarget | null = null,
+) {
+  const page = doc ?? (document as unknown as FillDocument);
+  if (at !== null) {
+    let here: URL | null = null;
+    try {
+      here = new URL(page.location?.href ?? "");
+    } catch {
+      here = null;
+    }
+    const herePath = here?.pathname.replace(/\/+$/, "");
+    if (
+      here === null ||
+      here.protocol !== "https:" ||
+      here.hostname !== at.hostname ||
+      herePath !== at.path
+    ) {
+      return { filled: 0, skipped: fills.length, moved: true } as FillResult;
+    }
+  }
   const NEVER = ["file", "hidden", "submit", "button", "image", "reset"];
   const result: FillResult = { filled: 0, skipped: 0 };
   const fire = (el: FillElement) => {
@@ -148,7 +182,7 @@ export function fillForm(fills: Fill[], doc: FillDocument = document as unknown 
   const selectorFor = (name: string) => `[name="${name.replace(/["\\]/g, "\\$&")}"]`;
   for (const fill of fills) {
     const values = Array.isArray(fill.value) ? fill.value : [fill.value];
-    const els = Array.from(fill.name ? doc.querySelectorAll(selectorFor(fill.name)) : []);
+    const els = Array.from(fill.name ? page.querySelectorAll(selectorFor(fill.name)) : []);
     const visible = (el: FillElement) => !el.disabled && !el.hidden && el.offsetParent !== null;
     const isChoice = (el: FillElement) =>
       el.tagName.toLowerCase() === "input" &&
