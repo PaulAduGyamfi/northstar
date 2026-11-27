@@ -230,6 +230,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   kind and content hash (`approval_request_id_kind_content_unique`). It holds the recipient address, subject, thread headers
   and body Paul approves (CHECKs refuse control characters in headers), plus cites and follow-ups.
   The body and recipient never go into an event or span: `approval.requested` is the feed line.
+  Paul's edits (NS-203) go only through `editReplyDraft`, which stores the new draft behind the
+  request `editRequest` files. `approval_edit` (append-only, one row per old and per new request,
+  both the candidate's) links an edited request to the one it replaced; a trigger checks Paul
+  withdrew the old one and that both share kind and subject. Write it only through `editRequest`.
   `readNudgeCandidates` (`nudge-read.ts`, NS-237 slice 3) is the follow-up nudge check's
   read-only reader: applications in a nudge stage, their last move, newest linked message from a
   verified sender and whether a `reply_draft` is filed for it; ids and times only.

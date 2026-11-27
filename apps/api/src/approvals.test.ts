@@ -75,6 +75,14 @@ beforeEach(async () => {
     readReply: async () => null,
     missingReplies: async () => [],
     otherDomainReplies: async () => [],
+    // NS-203: an edit of R1 files R2; anything else is no longer pending.
+    editReply: async (input) => {
+      calls.push(["editReply", input]);
+      if (input.requestId === R1) {
+        return { ok: true, value: { requestId: R2, previousRequestId: R1, replayed: false } };
+      }
+      return { ok: false, error: { kind: "NotPending" } };
+    },
   };
   const sessions = createSessions(() => 0);
   cookie = `ns_session=${sessions.open().token}`;
@@ -94,6 +102,7 @@ beforeEach(async () => {
         readReply: (id) => ports.readReply(id),
         missingReplies: (ids) => ports.missingReplies(ids),
         otherDomainReplies: (ids) => ports.otherDomainReplies(ids),
+        editReply: (input) => ports.editReply(input),
       }),
     }),
   );
@@ -376,5 +385,29 @@ describe("reply drafts in the queue (NS-237)", () => {
         { requestIds: [R2], decision: "approve" },
       ],
     ]);
+  });
+});
+
+describe("POST /approvals/edit-reply (NS-203)", () => {
+  it("passes Paul's edited body to the Gate and answers with the new request", async () => {
+    const res = await post("/approvals/edit-reply", { requestId: R1, body: "Hi Jo, thanks." });
+    expect([res.status, JSON.parse(res.body), calls]).toEqual([
+      200,
+      { requestId: R2 },
+      [["editReply", { requestId: R1, body: "Hi Jo, thanks." }]],
+    ]);
+  });
+
+  it("answers 409 not_pending for a request that no longer waits", async () => {
+    const res = await post("/approvals/edit-reply", { requestId: D1, body: "Hi Jo." });
+    expect([res.status, JSON.parse(res.body).error]).toEqual([409, "not_pending"]);
+  });
+
+  it("refuses an edit without a session with 401, and an empty body with 400, reaching nothing", async () => {
+    expect([
+      (await post("/approvals/edit-reply", { requestId: R1, body: "Hi Jo." }, false)).status,
+      (await post("/approvals/edit-reply", { requestId: R1, body: "" })).status,
+    ]).toEqual([401, 400]);
+    expect(calls).toEqual([]);
   });
 });

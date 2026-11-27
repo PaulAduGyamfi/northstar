@@ -194,3 +194,38 @@ export const approvalWithdrawal = pgTable(
     }),
   ],
 );
+
+// An edited request (NS-203, APR-002): Paul changed a waiting item before approving it. An edit is
+// a new subject request (ADR-0017: one request is one send), so the old request is withdrawn, the
+// new one pins the edited content, and this row links the two. Append-only (migration trigger),
+// one row per old request and one per new request, written only by editRequest; its time comes
+// from the Gate's clock.
+export const approvalEdit = pgTable(
+  "approval_edit",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    candidateId: uuid("candidate_id")
+      .notNull()
+      .references(() => candidate.id),
+    previousRequestId: uuid("previous_request_id").notNull(),
+    requestId: uuid("request_id").notNull(),
+    editedAt: timestamp("edited_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    // An old request is edited once (it is withdrawn by then), and a new request replaces one.
+    unique("approval_edit_one_per_previous").on(t.previousRequestId),
+    unique("approval_edit_one_per_request").on(t.requestId),
+    check("approval_edit_not_itself", sql`${t.previousRequestId} <> ${t.requestId}`),
+    // Both requests are the same candidate's.
+    foreignKey({
+      name: "approval_edit_previous_same_candidate_fk",
+      columns: [t.previousRequestId, t.candidateId],
+      foreignColumns: [approvalRequest.id, approvalRequest.candidateId],
+    }),
+    foreignKey({
+      name: "approval_edit_request_same_candidate_fk",
+      columns: [t.requestId, t.candidateId],
+      foreignColumns: [approvalRequest.id, approvalRequest.candidateId],
+    }),
+  ],
+);

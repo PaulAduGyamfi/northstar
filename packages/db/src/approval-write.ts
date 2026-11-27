@@ -19,6 +19,7 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   approvalDecision,
+  approvalEdit,
   approvalPolicySet,
   approvalRequest,
   approvalUndo,
@@ -87,6 +88,11 @@ export type VerifyError =
   | SubjectMismatch
   | ContentChanged
   | Withdrawn;
+// An edit (NS-203) of a request that is no longer waiting: decided, withdrawn or edited already.
+export type NotPending = { kind: "NotPending" };
+// A kind whose content can't be edited in the queue (packages, reveals).
+export type NotEditable = { kind: "NotEditable" };
+export type EditError = NotFound | NotPending | NotEditable | ContentUnchanged | InvalidRequest;
 export type WithdrawError =
   | NotFound
   | AlreadyClosed
@@ -924,6 +930,8 @@ async function withdrawOnce(
   db: Db,
   span: Span,
   input: WithdrawInput,
+  // Set by editRequest (NS-203): Paul withdrew it because he edited it, which the feed says.
+  edited = false,
 ): Promise<Result<WithdrawResult, WithdrawError>> {
   return db.transaction(async (tx) => {
     const [request] = await tx
@@ -987,6 +995,7 @@ async function withdrawOnce(
         decisionId: closed?.decisionId ?? null,
         withdrawnBy: input.by,
         reason: WITHDRAW_REASON[input.by],
+        ...(edited ? { edited: true } : {}),
       },
       idempotencyKey: `approval_withdrawal:${row.id}`,
       at: row.withdrawnAt,
@@ -997,6 +1006,121 @@ async function withdrawOnce(
       decisionId: live?.decisionId ?? null,
     });
   });
+}
+
+// The kinds editRequest accepts (NS-203 slice 1). The approval_edit trigger names the same list.
+const EDITABLE_KINDS = new Set<string>(["email_reply"]);
+
+export type EditResult = { requestId: string; previousRequestId: string; replayed: boolean };
+
+// Rolls an edit's transaction back with a value: thrown inside it, caught outside it.
+class EditRollback extends Error {
+  constructor(readonly error: EditError) {
+    super("approval edit rolled back");
+  }
+}
+
+// Paul edits a waiting request (NS-203, APR-002). An edit is a new request (ADR-0017: one
+// request is one send), so in one transaction the old request is withdrawn by Paul, a new one
+// with the same kind and subject pins the edited content, and approval_edit links the two. Only
+// a pending request of an allowlisted kind (email_reply) can be edited: a package's facts would
+// have to be derived again (a later slice), and a reveal never waits in the queue. Not exported
+// from the package: editReplyDraft is its only caller and stores the edited content in the same
+// transaction. Repeating a committed edit returns its new request.
+export async function editRequest(
+  db: Db,
+  input: { candidateId: CandidateId; requestId: string; newContentSha256: string },
+): Promise<Result<EditResult, EditError>> {
+  return inSpan("approval.edit", {}, async (span) => {
+    if (!Uuid.safeParse(input.requestId).success) return err({ kind: "NotFound" });
+    if (!Sha256.safeParse(input.newContentSha256).success) {
+      return err({ kind: "InvalidRequest", fields: ["newContentSha256"] });
+    }
+    try {
+      return await db.transaction((tx) => editOnce(tx, span, input));
+    } catch (error) {
+      if (error instanceof EditRollback) return err(error.error);
+      const code = pgCode(error);
+      // A concurrent edit, withdrawal or decision of the same request committed first. The
+      // approval_edit trigger's own refusals use another code (23000), so a broken link throws.
+      if (code === UNIQUE_VIOLATION || code === CHECK_VIOLATION || code === EXCLUSION_VIOLATION) {
+        span.setAttribute("northstar.approval.edit_refused_code", code);
+        return err({ kind: "NotPending" });
+      }
+      throw error;
+    }
+  });
+}
+
+async function editOnce(
+  tx: Tx,
+  span: Span,
+  input: { candidateId: CandidateId; requestId: string; newContentSha256: string },
+): Promise<Result<EditResult, EditError>> {
+  const scoped = tx as unknown as Db;
+  const [request] = await tx
+    .select()
+    .from(approvalRequest)
+    .where(
+      and(
+        eq(approvalRequest.id, input.requestId),
+        eq(approvalRequest.candidateId, input.candidateId),
+      ),
+    );
+  if (!request) return err({ kind: "NotFound" });
+  span.setAttribute("northstar.approval.kind", request.kind);
+  // An allowlist: a kind is editable only once it has its own edit path that stores the edited
+  // content behind the new request (today reply drafts, editReplyDraft). Any other kind could
+  // otherwise get a new hash with nothing behind it, recorded as Paul's.
+  if (!EDITABLE_KINDS.has(request.kind)) return err({ kind: "NotEditable" });
+  // A retried edit that already committed: the same edited content returns its new request.
+  const [done] = await tx
+    .select({ requestId: approvalEdit.requestId, sha: approvalRequest.contentSha256 })
+    .from(approvalEdit)
+    .innerJoin(approvalRequest, eq(approvalRequest.id, approvalEdit.requestId))
+    .where(eq(approvalEdit.previousRequestId, request.id));
+  if (done) {
+    if (done.sha !== input.newContentSha256) return err({ kind: "NotPending" });
+    return ok({ requestId: done.requestId, previousRequestId: request.id, replayed: true });
+  }
+  if ((await isWithdrawn(tx, request.id)) || (await liveDecision(tx, request.id)) !== null) {
+    return err({ kind: "NotPending" });
+  }
+  if (input.newContentSha256 === request.contentSha256) return err({ kind: "ContentUnchanged" });
+
+  const withdrawn = await withdrawOnce(
+    scoped,
+    span,
+    { candidateId: input.candidateId, requestId: request.id, by: "user" },
+    true,
+  );
+  if (!withdrawn.ok) throw new EditRollback({ kind: "NotPending" });
+  // The withdrawal's trigger now holds the request's locks: a decision that committed after the
+  // first read means Paul decided while editing, so nothing of the edit stays.
+  if ((await liveDecision(tx, request.id)) !== null) {
+    throw new EditRollback({ kind: "NotPending" });
+  }
+  // The same kind and subject, so the edit replaces exactly what the old request would have let
+  // out; no facts, so no policy can approve it (only packages carry facts).
+  const filed = await requestOnce(scoped, span, input.candidateId, {
+    kind: request.kind as ApprovalKind,
+    subject: request.subject,
+    contentSha256: input.newContentSha256,
+    facts: null,
+    // Paul's own edit: deliberately outside RequestInput's agent/system actors, which describe
+    // producers. Only this path files a request as `user`.
+    actor: "user",
+    idempotencyKey: `edit:${request.id}`,
+  });
+  if (!filed.ok || filed.value.decision !== null) throw new EditRollback({ kind: "NotPending" });
+  // edited_at is overwritten by the trigger from the database clock.
+  await tx.insert(approvalEdit).values({
+    candidateId: input.candidateId,
+    previousRequestId: request.id,
+    requestId: filed.value.requestId,
+    editedAt: await gateNow(tx),
+  });
+  return ok({ requestId: filed.value.requestId, previousRequestId: request.id, replayed: false });
 }
 
 // Files and approves one `vault_reveal` for Paul inside the caller's transaction (NS-182,

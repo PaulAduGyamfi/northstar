@@ -102,4 +102,35 @@ describe("dbApprovalPorts", () => {
       [],
     ]);
   });
+
+  it("edits a reply as the server's candidate, never another's (NS-203)", async () => {
+    const reply = {
+      gmailMessageId: "18c3f0a2b4d6e8f1",
+      threadId: "18c3f0a2b4d6e8ab",
+      envelope: {
+        to: "jo@acme.example",
+        subject: "Re: Your application",
+        inReplyTo: "<m3@acme.example>",
+        references: ["<m3@acme.example>"],
+      },
+      replyToOtherDomain: false,
+      body: "Hi Jo, thank you.",
+      cites: [],
+      followUps: [],
+    };
+    const filed = await fileReplyDraft(db, { candidateId, reply });
+    if (!filed.ok) throw new Error(filed.error.kind);
+    const other = CandidateId.parse((await seedApplication(db, "queued")).candidateId);
+    const otherPorts = dbApprovalPorts(db, async () => other);
+    expect(
+      await otherPorts.editReply({ requestId: filed.value.requestId, body: "Hi Jo, thanks." }),
+    ).toEqual({ ok: false, error: { kind: "NotFound" } });
+    const ports = dbApprovalPorts(db, async () => candidateId);
+    const edited = await ports.editReply({
+      requestId: filed.value.requestId,
+      body: "Hi Jo, thanks.",
+    });
+    if (!edited.ok) throw new Error(edited.error.kind);
+    expect((await ports.readReply(edited.value.requestId))?.body).toBe("Hi Jo, thanks.");
+  });
 });
