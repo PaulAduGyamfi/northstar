@@ -117,7 +117,7 @@ describe("nextStep", () => {
     expect(DEAD_LETTER_ACTIONS.map((a) => nextStep("mail.poll", a))).toEqual([
       "The next `funnel inbox` run tries this email again.",
       "Later `funnel inbox` runs pass over this email.",
-      "Later `funnel inbox` runs pass over this email. Find it in Gmail and link it on /inbox if it's about an application.",
+      "Later `funnel inbox` runs pass over this email. Look through your recent job mail in Gmail yourself: one email in it can't be read here.",
     ]);
   });
 

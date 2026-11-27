@@ -84,7 +84,7 @@ const KINDS: Record<string, KindWords> = {
       retry: "The next `funnel inbox` run tries this email again.",
       skip: "Later `funnel inbox` runs pass over this email.",
       hand_off:
-        "Later `funnel inbox` runs pass over this email. Find it in Gmail and link it on /inbox if it's about an application.",
+        "Later `funnel inbox` runs pass over this email. Look through your recent job mail in Gmail yourself: one email in it can't be read here.",
     },
   },
   // NS-238 item 1: a recorded email `funnel inbox` couldn't read or sort.
@@ -93,7 +93,8 @@ const KINDS: Record<string, KindWords> = {
     next: {
       retry: "The next `funnel inbox` run tries to sort this email again.",
       skip: "Later `funnel inbox` runs leave this email unsorted.",
-      hand_off: "Later `funnel inbox` runs leave this email unsorted. Read it in Gmail yourself.",
+      hand_off:
+        "Later `funnel inbox` runs leave this email unsorted. It is still on /inbox; open it in Gmail from there and read it yourself.",
     },
   },
 };

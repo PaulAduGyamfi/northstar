@@ -105,7 +105,7 @@ describe("runInbox: linking new mail", () => {
 
   it("gives up on a message that stops three polls: one letter, and the poll isn't stuck", async () => {
     const f = fake({
-      poll: async () => ({ ...POLL, stoppedBy: "GmailError", stoppedAt: id(1) }),
+      poll: async () => ({ ...POLL, stoppedBy: "TypeError", stoppedAt: id(1) }),
     });
     const r = await runInbox(f.deps);
     expect([r.polls, r.pollLetters, r.pollStoppedBy, f.pollLetters]).toEqual([
@@ -119,16 +119,18 @@ describe("runInbox: linking new mail", () => {
   it("records no letter when different messages stop it, and reports the stop", async () => {
     let n = 0;
     const f = fake({
-      poll: async () => ({ ...POLL, stoppedBy: "GmailError", stoppedAt: id(++n) }),
+      poll: async () => ({ ...POLL, stoppedBy: "TypeError", stoppedAt: id(++n) }),
     });
     const r = await runInbox(f.deps);
-    expect([r.polls, r.pollLetters, r.pollStoppedBy]).toEqual([3, 0, "GmailError"]);
+    expect([r.polls, r.pollLetters, r.pollStoppedBy]).toEqual([3, 0, "TypeError"]);
   });
 
-  it("stops at once when the poll is held back, with no letter", async () => {
-    const f = fake({ poll: async () => ({ ...POLL, stoppedBy: "HeldBack", stoppedAt: id(1) }) });
-    const r = await runInbox(f.deps);
-    expect([r.polls, r.pollLetters, r.pollStoppedBy]).toEqual([1, 0, "HeldBack"]);
+  it("stops at once, with no letter, when Gmail, the token or a breaker failed", async () => {
+    for (const stoppedBy of ["HeldBack", "GmailError", "OAuthError", "FutureCursorError"]) {
+      const f = fake({ poll: async () => ({ ...POLL, stoppedBy, stoppedAt: id(1) }) });
+      const r = await runInbox(f.deps);
+      expect([r.polls, r.pollLetters, r.pollStoppedBy]).toEqual([1, 0, stoppedBy]);
+    }
   });
 
   it("still classifies when the listing fails", async () => {

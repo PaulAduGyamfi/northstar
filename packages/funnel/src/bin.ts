@@ -209,7 +209,7 @@ try {
           subject: string;
           reasonCode: string;
           attempts: number;
-          gmailMessageId: string;
+          key: string;
         },
       ) => {
         const saved = await recordDeadLetter(db, {

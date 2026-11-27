@@ -76,6 +76,15 @@ The existing `mail.poll`, `mail.cursor_save`, `llm.call`, `db.mail_classificatio
 - Queued (unlinked) messages are classified too; at most 25 classifications a run, newest first.
 - Three polls a run before a stuck message is dead-lettered.
 
+## Known limits
+- A message the classifier skips as verification mail stores nothing, so each run reads it again
+  (in memory only, never sent to the model or stored) and it takes a batch slot. Newest first keeps
+  new mail flowing; 25 or more such messages would hold back older unsorted mail. Storing a final
+  "skipped" outcome needs a CHECK change on `mail_classification` (a migration): follow-up.
+- A poll stop that is Gmail's, the token's, a breaker's or the cursor's (by the error's name) is
+  never blamed on a message: no letter, and the run says so. A message Gmail answers 400/404 for
+  stays at the head until Gmail answers.
+
 ## Out of scope
 - Grading (needs the route's enable flag and a funnel→sources dependency), status changes from
   mail (`mailStatusChange`), reply drafts, any schedule.

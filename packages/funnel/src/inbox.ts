@@ -105,6 +105,11 @@ function dependencyDown(e: unknown): boolean {
   return e instanceof GmailError && e.status !== 400 && e.status !== 404;
 }
 
+// Stops the poll reports by an error's name that say Gmail, the token, a breaker or the cursor
+// failed, not the message it stopped at: no letter for these. Gmail's own 400s and 404s are
+// GmailErrors too; such a message stays at the head and the run says Gmail didn't answer.
+const NOT_THE_MESSAGE = new Set(["HeldBack", "GmailError", "OAuthError", "FutureCursorError"]);
+
 const errorName = (e: unknown) => (e instanceof Error ? e.name : "Error");
 
 export async function runInbox(deps: InboxRunDeps): Promise<InboxRunReport> {
@@ -159,8 +164,9 @@ async function linkNewMail(deps: InboxRunDeps, r: InboxRunReport): Promise<void>
     r.truncated = p.truncated;
     r.pollStoppedBy = p.stoppedBy;
     if (p.stoppedBy === null || p.stoppedAt === null) return;
-    // Held back (a breaker or switch): nothing about this message; trying again now won't help.
-    if (p.stoppedBy === "HeldBack") return;
+    // Gmail, the token or a breaker failed, not the message: trying again now won't help, and the
+    // message at the head of the list mustn't be blamed for an outage.
+    if (NOT_THE_MESSAGE.has(p.stoppedBy)) return;
     const n = (stops.get(p.stoppedAt) ?? 0) + 1;
     stops.set(p.stoppedAt, n);
     if (n >= MAX_POLLS) {
