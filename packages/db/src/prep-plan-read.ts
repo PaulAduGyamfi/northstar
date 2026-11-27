@@ -91,7 +91,9 @@ export async function readPrepPlanView(
     blocks: [...plan.blocks]
       .sort((a, b) => a.start.getTime() - b.start.getTime())
       .map((b) => ({ kind: b.kind, start: b.start, end: b.end })),
-    // No current version, or a newer one: the writer would withdraw this plan.
+    // No current version, or a newer one: the writer would withdraw this plan. The writer also
+    // withdraws when the current version isn't confirmed; that can't differ here, since a plan is
+    // proposed only for a confirmed detection and a decision never changes.
     rescheduled: plan.current === null || plan.current.version !== plan.filedFor.version,
   };
 }

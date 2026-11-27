@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type PrepPlanBody, prepPlanLines, RESCHEDULED_LINE } from "./prep-plan";
+import { PrepPlanBody, prepPlanLines, RESCHEDULED_LINE } from "./prep-plan";
 
 // A prep plan's lines in the Queue (NS-241 slice 6). Invented times only.
 
@@ -31,5 +31,15 @@ describe("prepPlanLines", () => {
 
   it("ends with the rescheduled warning when the interview moved", () => {
     expect(prepPlanLines({ ...PLAN, rescheduled: true }, "UTC").at(-1)).toBe(RESCHEDULED_LINE);
+  });
+});
+
+describe("PrepPlanBody", () => {
+  it("refuses a time that isn't ISO, so the page says it couldn't be read", () => {
+    const bad = { ...PLAN, interview: { start: "next Tuesday", end: PLAN.interview.end } };
+    expect([PrepPlanBody.safeParse(PLAN).success, PrepPlanBody.safeParse(bad).success]).toEqual([
+      true,
+      false,
+    ]);
   });
 });

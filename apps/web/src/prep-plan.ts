@@ -4,7 +4,8 @@ import { z } from "zod";
 // GET /approvals/prep-plan answer, and its lines in words. Times are shown in the zone given
 // (the browser's own), so Paul reads them as his calendar will.
 
-const Interval = z.object({ start: z.string(), end: z.string() });
+// ISO times only: anything else is "couldn't be read", never a render-time RangeError.
+const Interval = z.object({ start: z.iso.datetime(), end: z.iso.datetime() });
 
 export const PrepPlanBody = z.object({
   interview: Interval,

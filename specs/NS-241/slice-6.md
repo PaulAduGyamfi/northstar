@@ -18,7 +18,8 @@ gaps remain on #275:
    - `rescheduled`: true when the interview's current version isn't the one the plan was filed
      for (the writer would withdraw it).
 
-   The data comes from `readPrepPlan` and `listInterviews` (`packages/db`), copied field by field.
+   The data comes from `readPrepPlanView` (`packages/db`, `prep-plan-read.ts`): `readPrepPlan`
+   plus the filed-for detection's own times, both scoped by candidate, copied field by field.
    It never returns an event id, title, address, calendar id or hash. An unknown request, another
    candidate's or a non-plan request is a 404 `not_found`.
 2. **Queue (`apps/web`).** A `prep_plan` item gets a "Show the plan" button:
@@ -28,8 +29,9 @@ gaps remain on #275:
      the interview's day and time, then each block's day, start and end, in time order.
    - A rescheduled plan says "The interview moved after this plan was made: reject it, and the
      next `funnel prep` plans for the new time."
-   - `approval-queue.tsx` gains one line that renders it, beside the reply preview (agent 1's #179
-     also touches this file).
+   - `approval-queue.tsx` gains one line that renders it, beside the reply preview. Agent 1's #179
+     Queue PR edits that file, so the line goes in only after that PR merges (the orchestrator's
+     sequencing).
 3. **Busy time (`packages/funnel`).** `runPrep` passes the planner Paul's busy time from what is
    already stored:
    - every other interview that isn't dismissed (start to end);
@@ -51,6 +53,8 @@ gaps remain on #275:
   #400 set.
 - **Times in the browser's zone**, not `PREP_TIME_ZONE`: the web app doesn't read the funnel's
   settings, and Paul's browser is in his zone.
+- **Diff size:** about 580 lines, roughly 280 of them non-test code, over the lane's ~300-line
+  mark with tests. One slice, since the view, its API and the busy time share one spec.
 
 ## Acceptance criteria
 - [ ] The API answers a stored plan field by field, with `rescheduled` set from the current

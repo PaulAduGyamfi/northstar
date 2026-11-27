@@ -114,7 +114,8 @@ export async function runPrep(deps: PrepRunDeps): Promise<PrepRunReport> {
     (i) => i.decision === "confirmed" && i.start.getTime() > now.getTime(),
   );
   // Read every stored proposal first, so the first interview planned already sees the others'
-  // blocks as busy.
+  // blocks as busy. Only confirmed, upcoming interviews can have one that matters: a proposal needs
+  // a confirmed current detection, and a past interview's blocks are past.
   const stored = new Map<string, PlannedProposal | null>();
   for (const interview of upcoming) {
     stored.set(interview.detectionId, await deps.proposalOf(interview.detectionId));
