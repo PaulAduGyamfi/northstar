@@ -19,6 +19,8 @@ constants today; the write path should hold them to it.
 - Existing tests move from the invented kinds `apply.submit` and `llm.route:story-draft` to listed
   kinds (Paul's OK on #261); each test still checks the same behavior.
 - No migration: the database's own CHECK stays the name pattern (the list lives in code).
+- `apps/web/src/dead-letters.ts` gets words for `apply.submission` (and the `activity_failed`
+  reason) that never claim a restart: resolving a letter only records Paul's choice today.
 
 ## Acceptance criteria
 - [x] Both producers' kinds record.
@@ -28,4 +30,3 @@ constants today; the write path should hold them to it.
 
 ## Out of scope
 - A database CHECK on the list (needs a migration).
-- Web wording for `apply.submission` (apps/web; other agents hold that area).
