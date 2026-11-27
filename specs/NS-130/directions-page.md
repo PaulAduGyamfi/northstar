@@ -32,14 +32,14 @@ they ask for that he can't prove yet, and what proof to build.
   no job page to link to yet. Its own failure never hides the report.
 
 ## Acceptance criteria
-- [ ] 401 without a session; `{ directions: null }` without a resume import (tests).
-- [ ] Two jobs of one role family give one direction with coverage, matched-atom count, gaps and
+- [x] 401 without a session; `{ directions: null }` without a resume import (tests).
+- [x] Two jobs of one role family give one direction with coverage, matched-atom count, gaps and
       fresh count; a thin dimension and a common gap become suggestions, and a track naming one
       removes it (tests on fakes).
-- [ ] No atom or job id in the answer; requirement text is cut and cleaned (tests).
-- [ ] A throwing reader gives 503 (test).
-- [ ] The page's words come from tested plain functions (empty states, counts, coverage).
-- [ ] lint, typecheck, test and build green for `@northstar/api` and `@northstar/web`.
+- [x] No atom or job id in the answer; requirement text is cut and cleaned (tests).
+- [x] A throwing reader gives 503 (test).
+- [x] The page's words come from tested plain functions (empty states, counts, coverage).
+- [x] lint, typecheck, test and build green for `@northstar/api` and `@northstar/web`.
 
 ## Out of scope
 - A link from a direction to its fresh jobs (needs a jobs page), a nav link, a chart, model
