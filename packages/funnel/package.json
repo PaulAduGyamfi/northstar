@@ -19,6 +19,7 @@
   "dependencies": {
     "@northstar/db": "workspace:*",
     "@northstar/domain": "workspace:*",
+    "@northstar/gateways": "workspace:*",
     "@northstar/inbox": "workspace:*",
     "@northstar/llm": "workspace:*",
     "@northstar/sources": "workspace:*",

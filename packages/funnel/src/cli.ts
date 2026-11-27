@@ -16,11 +16,12 @@ import { parseTracker } from "./csv.js";
 import { judgeHypotheses, summarize } from "./hypotheses.js";
 import { type InboxRunReport, inboxCommand } from "./inbox.js";
 import { type InterviewsRun, interviewsCommand } from "./interviews.js";
+import { type PrepRunReport, prepCommand } from "./prep.js";
 import { gmailRecords, mergeRecords } from "./records.js";
 import { type Baselines, buildReport, renderReport } from "./report.js";
 
-// `funnel backfill | import | review | report | hypotheses` (NS-113), `interviews` (NS-240) and
-// `inbox` (NS-238). Everything is injected, so
+// `funnel backfill | import | review | report | hypotheses` (NS-113), `interviews` (NS-240),
+// `inbox` (NS-238) and `prep` (NS-241). Everything is injected, so
 // tests run with no database, Gmail or model. Output shows Paul's own job data back to Paul only.
 export type CliDeps = {
   argv: string[];
@@ -50,6 +51,8 @@ export type CliDeps = {
   runInterviews: () => Promise<InterviewsRun>;
   // Gmail consent and one mail-loop run (NS-238 item 1): the token lives only inside it.
   runInbox: () => Promise<InboxRunReport>;
+  // Prep plans and, when one is approved, Calendar write consent for this run (NS-241 slice 5).
+  runPrep: () => Promise<PrepRunReport>;
   recordEvent: (
     type: "funnel.backfilled" | "funnel.reported",
     reason: string,
@@ -58,7 +61,7 @@ export type CliDeps = {
 };
 
 const USAGE =
-  "usage: funnel backfill [--since YYYY-MM-DD] [--max-messages N] | funnel import <file.csv> | funnel review | funnel report | funnel hypotheses | funnel interviews | funnel inbox";
+  "usage: funnel backfill [--since YYYY-MM-DD] [--max-messages N] | funnel import <file.csv> | funnel review | funnel report | funnel hypotheses | funnel interviews | funnel inbox | funnel prep";
 
 export async function main(deps: CliDeps): Promise<number> {
   const [command, ...rest] = deps.argv;
@@ -72,6 +75,7 @@ export async function main(deps: CliDeps): Promise<number> {
   if (command === "hypotheses" && rest.length === 0) return hypothesesCommand(deps);
   if (command === "interviews" && rest.length === 0) return interviewsCommand(deps);
   if (command === "inbox" && rest.length === 0) return inboxCommand(deps);
+  if (command === "prep" && rest.length === 0) return prepCommand(deps);
   deps.print(USAGE);
   return 1;
 }

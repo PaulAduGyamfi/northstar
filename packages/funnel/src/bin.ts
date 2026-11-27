@@ -6,14 +6,18 @@ import {
   connectDb,
   countUngradedRecruiterMail,
   type LinkDecision as DbLinkDecision,
+  dbCalendarLedger,
   dbSpendMeter,
   dbWindowStore,
   isSubsystemOn,
   knownGmailIds,
   latestFactsCheck,
+  listInterviews,
   loadDbConfig,
   PREFERENCE_DEFAULTS,
   type PreferenceValues,
+  proposeInterviewPrep,
+  readApprovedPrepPlans,
   readDeadLetterKeys,
   readFunnelMessages,
   readLinkCandidates,
@@ -21,6 +25,8 @@ import {
   readMailCursor,
   readManualRows,
   readPreferences,
+  readPrepPlan,
+  readPrepProposal,
   readRecordedMessageIds,
   readTags,
   readUnclassifiedMail,
@@ -32,11 +38,14 @@ import {
   recordMailClassification,
   recordMailLink,
   recordRecruiterGrade,
+  requestPrepPlanApproval,
   resolveReview,
   saveFunnelMessages,
   saveMailCursor,
   setManualRows,
   soleCandidate,
+  verifyApproval,
+  withdrawApproval,
 } from "@northstar/db";
 import {
   authorizeCalendar,
@@ -67,10 +76,11 @@ import { sql } from "drizzle-orm";
 import { createAsker } from "./ask.js";
 import { runBackfill } from "./backfill.js";
 import { main } from "./cli.js";
-import { loadFunnelConfig } from "./config.js";
+import { loadFunnelConfig, loadPrepConfig } from "./config.js";
 import { runGrading } from "./grade.js";
 import { runInbox } from "./inbox.js";
 import { toInterviewCandidates } from "./interviews.js";
+import { runPrep } from "./prep.js";
 import { Baselines } from "./report.js";
 
 // Entry point for `pnpm --filter @northstar/funnel funnel …`. The only place in this package that
@@ -199,6 +209,81 @@ try {
         now: () => new Date(),
       });
       return { report, applications, withDomains };
+    },
+    runPrep: async () => {
+      // A bad or missing zone or working hours stops the run before anything is planned.
+      const config = loadPrepConfig(process.env);
+      return runPrep({
+        config,
+        now: () => new Date(),
+        interviews: () => listInterviews(db, candidateId),
+        proposalOf: async (detectionId) => {
+          const stored = await readPrepProposal(db, candidateId, detectionId);
+          return stored === null ? null : { proposalId: stored.proposalId, blocks: stored.blocks };
+        },
+        propose: async (detectionId, request) => {
+          const proposed = await proposeInterviewPrep(db, { candidateId, detectionId, request });
+          return proposed.ok
+            ? {
+                ok: true,
+                value: {
+                  proposalId: proposed.value.proposal.proposalId,
+                  blocks: proposed.value.proposal.blocks,
+                },
+              }
+            : proposed;
+        },
+        file: (proposalId) => requestPrepPlanApproval(db, { candidateId, proposalId }),
+        approved: () => readApprovedPrepPlans(db, candidateId),
+        letters: () => readDeadLetterKeys(db, candidateId, "calendar.prep_write"),
+        recordLetter: async (plan, reason, key) => {
+          const saved = await recordDeadLetter(db, {
+            candidateId,
+            kind: "calendar.prep_write",
+            subject: `approval_decision:${plan.decisionId}`,
+            reasonCode: reason,
+            attempts: 1,
+            idempotencyKey: key,
+          });
+          // A letter that can't be stored stops the run: a silent drop would hide the plan.
+          if (!saved.ok) throw new Error(`dead letter refused: ${saved.error.field}`);
+        },
+        consent: async () => {
+          // Loaded only when an approved plan is waiting, so other funnel commands never load the
+          // Calendar writer (or its browser dependency).
+          const { authorizeCalendarWrite, writePrepPlan } = await import("@northstar/gateways");
+          // ADR-0031: calendar.app.created only, on this run; the token lives in this closure
+          // until the process ends and is never stored (#400).
+          const access = await authorizeCalendarWrite({
+            config: loadGoogleConfig(process.env),
+            timeoutMs: 120_000,
+            openBrowser: async (url) => {
+              print(
+                "Opening Google's consent page (your Northstar calendar only). If it doesn't open, visit:",
+              );
+              print(url);
+              openInBrowser(url);
+            },
+          });
+          const ports = {
+            readPrepPlan: (owner: typeof candidateId, requestId: string) =>
+              readPrepPlan(db, owner, requestId),
+            verifyApproval: (input: Parameters<typeof verifyApproval>[1]) =>
+              verifyApproval(db, input),
+            withdrawApproval: (input: Parameters<typeof withdrawApproval>[1]) =>
+              withdrawApproval(db, input),
+            ...dbCalendarLedger(db),
+            // The stored calendar_writes switch and calendar breaker, asked per request.
+            guard: () => guard,
+          };
+          return (plan) =>
+            writePrepPlan(ports, access, {
+              candidateId,
+              decisionId: plan.decisionId,
+              requestId: plan.requestId,
+            });
+        },
+      });
     },
     runInbox: async () => {
       // A bad RECRUITER_EXTRACT stops the run before Google is asked anything.

@@ -352,6 +352,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   candidate). All append-only, written only through `prep-plan-write.ts` and
   `prep-ledger-write.ts`. Ids, versions, counts and times only; `calendar.prep_written` and
   `calendar.created` have fixed-word `reason`s and never hold the calendar id.
+  `readApprovedPrepPlans` (`prep-plan-read.ts`, NS-241 slice 5) is `funnel prep`'s read-only list
+  of what to write. It lists `prep_plan` requests whose newest live decision is an approval past its
+  undo window by the Gate's clock, not undone, the request not withdrawn, and no
+  `prep_write_record` for that decision. Ids only, at most 50.
 - Career DNA reports (NS-130 slice 4, DNA-008) are `career_dna_report`, one row per version per
   candidate (the highest is current), append-only (a trigger), written only through
   `career-dna-write.ts` (`saveCareerDnaReport` locks the candidate row and stores a version only

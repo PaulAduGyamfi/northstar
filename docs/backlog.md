@@ -149,3 +149,5 @@ These issues were finished by work that didn't close them. This PR closes them o
 | #257 NS-235 | NS-235's own PR: the owner's credentials stay in the root file compose and `db:migrate` load, the apps load `.env.app`, and `loadDbConfig` refuses to start while either credential is in their environment |
 | #293 NS-247 | slices 1–2 (`pollNewMail`, spam and trash skipped, the stored cursor and `pollFromCursor`), NS-252 (#313) for company domains, and `funnel inbox` (#413) as the poller's caller |
 | #313 NS-252 | Paul chose his own input per company: append-only `company_domain` and `jobs domains`, fed into `readLinkCandidates` and the pre-filter's `knownDomains` |
+| #271 NS-240 | slices 1–6: the read-only Calendar client, stored detections and Paul's decisions, the consent flow, `runInterviewDetection`, the `/interviews` confirm page, and `funnel interviews` as its caller; a scheduled run was declined on #400 |
+| #400 NS-270 | Paul decided per-run consent: no stored Google refresh token and no scheduled detection; ADR-0014 and ADR-0026 stand |
