@@ -27,6 +27,10 @@ stored triage results, and NS-261 now stores one classification per linked messa
   confirm queue (`coalesce(mail_link.application_id, mail_link_decision.application_id)`, as the
   db rules say). Queued, undecided and dismissed messages count nowhere. Messages in review
   (`outcome = 'review'`) count nowhere.
+- A sender that isn't verified still counts: matching linked the message or Paul chose its
+  application, and the report changes no status (INB-011 restricts only automatic status moves).
+  A spoofed reply could inflate the counts. That's acceptable for diagnostics, and it's why no
+  status ever comes from this report.
 - The origin bucket is the same `originBucket(foldOrigin(...))` `readCreditReport` uses, so the
   two reports agree on which bucket an application is in.
 - `readCreditReport` and its type stay as they are. A separate reader keeps its existing test's
