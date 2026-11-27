@@ -1131,9 +1131,10 @@ Exists now:
   `submitApplication` activity also heartbeats Temporal (`beat`, bound to
   `Context.current().heartbeat`; the step name only) at once, on each browser step the gateway
   reports through its optional, side-effect-free `onStep` port (`open`, `submit`, `close`; a
-  throwing hook is ignored) and every 20 s (`BEAT_MS`), and the workflow gives it a 1-minute
-  `heartbeatTimeout`, so a worker that dies mid-step is retried in about a minute and the retry
-  finds the gateway's claim.
+  throwing hook is ignored) and every 20 s (`BEAT_MS`; the SDK sends at most one per 96 s), and the
+  workflow gives it a 2-minute `heartbeatTimeout`, so a worker that dies mid-step is retried in
+  about two minutes and the retry finds the gateway's live claim. A failed beat logs its error
+  class once per call.
   Since slice 2 also the client helper (`src/client.ts`, over a narrow `TemporalPort`, bound by
   `temporalPort`): `startSubmission` starts `submission:<applicationId>:<packageSha256>`, one run
   per package round (`REJECT_DUPLICATE`, conflict `FAIL`: a repeated start for the round starts

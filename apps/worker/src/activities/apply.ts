@@ -35,13 +35,14 @@ type Submit = (
   onStep: (step: ApplyStep) => void,
 ) => Promise<Result<SubmitOutcome, SubmitRefusal>>;
 
-// How often the activity tells Temporal it is alive (RES-005), well inside the workflow's
-// heartbeat timeout, so a worker that dies mid-step is noticed in about a minute instead of after
-// the 10-minute start-to-close. Ten-fold below the 5-minute submit step, so a long submit isn't
-// mistaken for a dead one.
+// How often the activity offers Temporal a heartbeat (RES-005). Temporal's SDK sends at most one
+// every 0.8 × the workflow's 2-minute heartbeat timeout (about every 96 s), so this mostly keeps
+// the latest step ready to send; a worker that dies mid-step is noticed within the timeout
+// instead of after the 10-minute start-to-close, and a 5-minute submit isn't taken for a dead one.
 export const BEAT_MS = 20_000;
 
-// What the heartbeat says: the step running now. Never a field value, URL or page.
+// What the heartbeat says: the step running now. Never a field value, URL or page. `load` covers
+// everything before the browser: loading the package and the gateway's own checks and claim.
 export type BeatStep = "load" | ApplyStep;
 
 // Loads the package stored behind the decision, refusing one that isn't the package named
@@ -67,16 +68,24 @@ export function createApplyActivities(
   load: LoadPackage,
   now: () => Date = () => new Date(),
   beat: (step: BeatStep) => void = () => {},
+  // Told the error's class once per call when a beat can't be sent (ADR-0007: never silent).
+  onBeatError: (errorClass: string) => void = () => {},
 ) {
   return {
     async submitApplication(args: SubmitArgs): Promise<SubmitStep> {
       let current: BeatStep = "load";
+      let reported = false;
       const tick = () => {
         try {
           beat(current);
-        } catch {
-          // A heartbeat that can't be sent never changes the submission; Temporal's timeout
-          // notices a dead worker, not a failed beat.
+        } catch (error) {
+          // A heartbeat that can't be sent never changes the submission, but it is said once:
+          // a binding that broke would otherwise slow every submission without a word.
+          if (!reported) {
+            reported = true;
+            const name = error instanceof Error ? error.name : "";
+            onBeatError(/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(name) ? name : "unknown");
+          }
         }
       };
       tick();

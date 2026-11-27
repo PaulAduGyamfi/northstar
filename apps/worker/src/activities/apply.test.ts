@@ -327,4 +327,30 @@ describe("heartbeats while the gateway works (NS-225 slice 4)", () => {
       outcome: "submitted",
     });
   });
+
+  it("says a heartbeat failed once per call, by its error class only", async () => {
+    vi.useFakeTimers();
+    const said: string[] = [];
+    let finish: () => void = () => {};
+    const activities = createApplyActivities(
+      async (_input, onStep) => {
+        onStep("open");
+        await new Promise<void>((r) => (finish = r));
+        return ok({ outcome: "submitted", submissionId: "s1", proofId: "p1", replayed: false });
+      },
+      loaded,
+      now,
+      () => {
+        const e = new Error("no activity context for postgres://user:secret@host");
+        e.name = "IllegalStateError";
+        throw e;
+      },
+      (errorClass) => said.push(errorClass),
+    );
+    const running = activities.submitApplication(args);
+    await vi.advanceTimersByTimeAsync(BEAT_MS * 3);
+    finish();
+    await running;
+    expect(said).toEqual(["IllegalStateError"]);
+  });
 });

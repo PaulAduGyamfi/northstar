@@ -66,6 +66,10 @@ export function workerActivities(
     (candidateId, named) => readDecisionPackage(db, candidateId, named),
     undefined,
     beat,
+    (errorClass) =>
+      console.error(
+        JSON.stringify({ level: "warn", msg: "activity heartbeat failed", errorClass }),
+      ),
   );
   return { pipeline, applyBrowser };
 }

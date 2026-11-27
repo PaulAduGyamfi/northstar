@@ -20,7 +20,8 @@ guard (Temporal forgets closed runs after retention): the Apply Gateway's claim 
 it trusting the id. Since slice 3 each pool beats every 30 s (`src/heartbeat.ts`) into
 `worker_heartbeat`, which Health reads; a new queue beats too (add it to the table's CHECK and
 `WORKER_QUEUES`). Since slice 4 the submit activity heartbeats Temporal every 20 s and on each
-browser step (1-minute `heartbeatTimeout`); a heartbeat carries the step name only, never a
+browser step (2-minute `heartbeatTimeout`; the gateway's claim, not the timeout, stops a second
+submission); a heartbeat carries the step name only, never a
 value. Other domains' workflows arrive with their tickets.
 
 Rules:
