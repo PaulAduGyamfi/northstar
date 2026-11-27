@@ -759,7 +759,8 @@ Exists now:
   (hand-written markers until NS-142 records real pages). Since NS-142 slice 2 the Greenhouse
   and Lever adapters' field names are checked against recorded form structures
   (`src/apply/test/recorded.ts`: structure only, all content synthetic; `recorded.test.ts`).
-  Greenhouse's current board has ids and no names, react-select dropdowns and a JS submit; Lever's
+  Greenhouse's current board has ids and no names, react-select dropdowns, and a `method="get"` form that its own
+  script sends; Lever's
   only `type="submit"` is a hidden hCaptcha button. The driver can't read or press those safely
   yet: #353 (NS-255). Ashby's page is JavaScript-only and SmartRecruiters wasn't fetched, so both
   stay hand-written, as do all confirmation markers (recording one needs a submission). The package schema and its hash

@@ -32,17 +32,19 @@ recorded copies can check the names offline.
   hand-written and are marked as such.
 
 ## Behavior
-- Recorded form structures live in `packages/gateways/src/apply/test/recorded/<ats>/`, each with
-  a header comment naming the host and path shape (never the real company), the date fetched, and
-  what was replaced.
-- A test reads each recording's form controls (plain code over the HTML: `input`, `select` and
-  `textarea` names, types and required flags) and checks that the adapter's `standardFields`
+- Recorded form structures live in `packages/gateways/src/apply/test/recorded.ts`, one entry per
+  ATS, reduced by hand from the fetched page to a typed list of controls. Each names the host and
+  path shape (never the real company) and the date fetched; the file's header says what was
+  replaced. The raw pages are never committed.
+- A test reads each recording's controls (by name, else id) and checks that the adapter's `standardFields`
   names, `resumeField` and `coverLetterField` are fields on the recorded form.
 - Outcome: Greenhouse (ids, no names) and Lever recorded; Ashby JavaScript-only, skipped. No
   adapter name was wrong. What the driver can't yet do with these forms is #353 (NS-255).
 - Where a recording shows a hand-written name is wrong, the adapter is corrected (with the
   prefill parity table in `apps/extension/src/prefill.ts`, which must match) and its comment says
   "recorded" instead of "hand-written".
+- `recordedPage` turns a recording into the stand-in DOM, so the driver's own in-page reader
+  (`collectPage`) runs on it.
 - `test/fixtures.ts`' form snapshots are aligned with the recordings where they differ.
 - Tests stay offline: nothing in a test fetches.
 
