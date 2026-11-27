@@ -1,4 +1,11 @@
-import type { BatchOutcome, PendingApproval, ReasonRequired, UndoError } from "@northstar/db";
+import type {
+  BatchOutcome,
+  EditError,
+  EditResult,
+  PendingApproval,
+  ReasonRequired,
+  UndoError,
+} from "@northstar/db";
 import { APPROVAL_KINDS, type ApprovalKind, type Result } from "@northstar/domain";
 import { z } from "zod";
 import { type AnyEndpoint, endpoint } from "./endpoint.js";
@@ -23,6 +30,9 @@ export type ApprovalPorts = {
   readReply: (requestId: string) => Promise<ReplyView | null>;
   missingReplies: (requestIds: string[]) => Promise<string[]>;
   otherDomainReplies: (requestIds: string[]) => Promise<string[]>;
+  // Paul's edit of a waiting reply's body (NS-203): the Gate withdraws the old request and files
+  // one pinning the edited body.
+  editReply: (input: { requestId: string; body: string }) => Promise<Result<EditResult, EditError>>;
 };
 
 // What Paul sees of a reply before he approves it: who it goes to (and whether that is another
@@ -91,6 +101,15 @@ const UNDO_ERRORS: Record<UndoError["kind"], { status: 404 | 409; error: string 
   SubjectReopened: { status: 409, error: "subject_reopened" },
   // The request was withdrawn (NS-140): closed, so its decision stays as it is.
   Withdrawn: { status: 409, error: "withdrawn" },
+};
+
+// What each refusal of an edit means to the page (NS-203). Never the body.
+const EDIT_ERRORS: Record<EditError["kind"], { status: 400 | 404 | 409; error: string }> = {
+  NotFound: { status: 404, error: "not_found" },
+  NotPending: { status: 409, error: "not_pending" },
+  NotEditable: { status: 409, error: "not_editable" },
+  ContentUnchanged: { status: 409, error: "unchanged" },
+  InvalidRequest: { status: 400, error: "invalid_body" },
 };
 
 export function approvalEndpoints(ports: ApprovalPorts): AnyEndpoint[] {
@@ -225,5 +244,24 @@ export function approvalEndpoints(ports: ApprovalPorts): AnyEndpoint[] {
     },
   });
 
-  return [list, decide, undo, reply];
+  // Paul edits a waiting reply's body before approving it (NS-203, APR-002). The recipient,
+  // subject and thread headers stay as filed; only the body is his to change here.
+  const editReply = endpoint({
+    method: "POST",
+    path: "/approvals/edit-reply",
+    auth: "session",
+    // The Gate's own checks decide what a body may hold; this only bounds the request's size.
+    input: z.object({ requestId: z.uuid(), body: z.string().min(1).max(10_000) }),
+    output: z.object({ requestId: z.string() }),
+    handler: async ({ requestId, body }) => {
+      const r = await ports.editReply({ requestId, body });
+      if (!r.ok) {
+        const e = EDIT_ERRORS[r.error.kind];
+        return { ok: false, status: e.status, error: e.error };
+      }
+      return { ok: true, body: { requestId: r.value.requestId } };
+    },
+  });
+
+  return [list, decide, undo, reply, editReply];
 }

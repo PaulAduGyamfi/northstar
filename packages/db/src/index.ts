@@ -69,8 +69,13 @@ export {
   type DecideError,
   type DecisionView,
   decideApprovals,
+  type EditError,
+  type EditResult,
+  editRequest,
   type InvalidRequest,
   listPendingApprovals,
+  type NotEditable,
+  type NotPending,
   type PendingApproval,
   type ReasonRequired,
   type Rejected,
@@ -396,8 +401,9 @@ export {
   type StoredGrade,
 } from "./recruiter-grade-write.js";
 export * as replySchema from "./reply-schema.js";
-// Reply drafts filed with the Gate (NS-237).
+// Reply drafts filed with the Gate (NS-237), and Paul's edits of them (NS-203).
 export {
+  editReplyDraft,
   type FiledReply,
   fileReplyDraft,
   missingReplyDrafts,

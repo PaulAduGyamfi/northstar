@@ -603,6 +603,20 @@
       "when": 1795737601221,
       "tag": "0085_interview_detection_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1795739548137,
+      "tag": "0086_approval_edit",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1795739549816,
+      "tag": "0087_approval_edit_append_only",
+      "breakpoints": true
     }
   ]
 }

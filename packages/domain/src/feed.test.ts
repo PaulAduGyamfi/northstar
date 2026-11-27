@@ -254,6 +254,12 @@ describe("feedLine: applications and approvals", () => {
     ]);
   });
 
+  it("says an edit withdrew a request and its edited version is waiting (NS-203)", () => {
+    expect(
+      feedLine(ev("approval.withdrawn", { withdrawnBy: "user", edited: true }, { actor: "user" })),
+    ).toBe("You edited a request; the edited version is waiting for your approval");
+  });
+
   it("describes approval requests, decisions, undo and policies", () => {
     expect(feedLine(ev("approval.requested", { kind: "application_package" }))).toBe(
       "Waiting for your approval: application package",
