@@ -557,7 +557,7 @@ Exists now:
   (`oauth.ts`): the same desktop PKCE flow as `authorizeGmail` (one private shared flow), asking
   for `calendar.events.readonly` only, with no refresh token. A grant of anything but exactly that
   scope (a Gmail scope, a wider Calendar scope, several) is refused, and it returns a
-  `CalendarAccess`. No caller yet.
+  `CalendarAccess`. Its caller is `funnel interviews` (slice 6).
   Since NS-240 slice 2 also storage and Paul's decision, in `packages/db` (`interview-schema.ts`,
   `interview-write.ts`, append-only):
   - `recordInterviewDetection` stores a detection once in `interview_detection`, with an
@@ -582,7 +582,7 @@ Exists now:
   `calendar.interview_detection`; keys hold a SHA-256 prefix of the event id). It
   returns counts on a `calendar.detect` span; a failed read, store or letter stops it
   (`stoppedBy`). It matches only companies whose mail domains Paul entered (`jobs domains`,
-  NS-252); its caller (#230) passes them in from `readLinkCandidates`.
+  NS-252); its caller, `funnel interviews` (slice 6), passes them in from `readLinkCandidates`.
 
   Since slice 5 also Paul's confirm step in the app: the API's `GET /interviews` (each current
   detection's format, times, interviewer count, decision and the job's own title and company from

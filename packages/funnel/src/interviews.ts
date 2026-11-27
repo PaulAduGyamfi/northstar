@@ -13,9 +13,10 @@ import {
 
 export type InterviewsRun = {
   report: DetectionRunReport;
-  // Open applications read, and how many have company domains Paul entered (`jobs domains`).
-  applications: number;
-  withDomains: number;
+  // Open applications read, and how many have company domains Paul entered (`jobs domains`);
+  // null when the run stopped before it read them (the calendar read comes first).
+  applications: number | null;
+  withDomains: number | null;
 };
 
 export type InterviewsDeps = {
@@ -51,7 +52,7 @@ export async function interviewsCommand(deps: InterviewsDeps): Promise<number> {
     return 1;
   }
   const r = run.report;
-  if (run.withDomains === 0) {
+  if (run.applications !== null && run.withDomains === 0) {
     deps.print(
       `None of your ${run.applications} open application(s) has a company mail domain, so no invite can match. Add them with \`jobs domains add <company-id> <domain>\`.`,
     );
@@ -77,7 +78,9 @@ export async function interviewsCommand(deps: InterviewsDeps): Promise<number> {
 }
 
 // Consent and Calendar errors carry fixed words and a status, never a token or an event's text;
-// anything else is named only, since its message might quote a row or a response.
+// anything else is named only, since its message might quote a row or a response. The run turns
+// a failed calendar read into `stoppedBy: "read"`, so today only consent and setup errors land
+// here; CalendarError stays for a client used outside the run.
 function describeError(error: unknown): string {
   if (error instanceof OAuthError || error instanceof CalendarError) return error.message;
   return error instanceof Error ? error.name : "an unknown error";

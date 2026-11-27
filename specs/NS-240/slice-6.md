@@ -1,10 +1,10 @@
 # NS-240 slice 6: a command that runs interview detection once
 
-Status: draft
+Status: in review (PR)
 Requirements: CAL-002 (detect interviews on the calendar)
 Rules that apply: ADR-0026 (Calendar read-only, consent each run, no stored token), ADR-0014
-(token in memory for one run), ADR-0007 (breakers), ADR-0016, `.claude/rules/inbox.md`,
-`.claude/rules/db.md`
+(token in memory for one run), ADR-0007 (breakers), ADR-0016, `.claude/rules/db.md`,
+`.claude/rules/tests.md`
 
 ## Why
 Everything for detecting interviews exists except a caller: the Calendar client and its consent
@@ -25,7 +25,7 @@ page (slice 5). Nothing reads the calendar yet, so `/interviews` stays empty.
      refused (too many changes, daily limit, skipped), and a pointer to `/interviews` when any
      are new. A stopped run says where it stopped and that rerunning is safe; exit code 1.
 - When no application has company domains, it says so (nothing can match) and still runs, so the
-  counts show what was read.
+  counts show what was read. A run that stopped before reading the applications gives no hint.
 - It lives in `packages/funnel`, the one package that already depends on both `@northstar/inbox`
   and `@northstar/db`, so no lock file change.
 

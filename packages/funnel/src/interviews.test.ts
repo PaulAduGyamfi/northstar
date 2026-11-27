@@ -63,12 +63,25 @@ describe("interviewsCommand", () => {
     );
   });
 
-  it("says where a stopped run stopped and exits 1", async () => {
-    const { code, printed } = await run(ok({ stoppedBy: "record", recorded: 1 }));
+  it.each([
+    ["read", "reading the calendar or your applications failed"],
+    ["record", "saving an interview failed"],
+    ["dead_letter", "recording a refused interview failed"],
+  ] as const)("says a run stopped at %s stopped there and exits 1", async (stoppedBy, words) => {
+    const { code, printed } = await run(ok({ stoppedBy, recorded: 0 }));
     expect([code, printed.at(-1)]).toEqual([
       1,
-      "Stopped early: saving an interview failed. What was saved stays; run it again later.",
+      `Stopped early: ${words}. What was saved stays; run it again later.`,
     ]);
+  });
+
+  it("gives no domains hint when the run stopped before reading the applications", async () => {
+    const { printed } = await run({
+      report: { ...REPORT, stoppedBy: "read", events: 0, interviews: 0, recorded: 0 },
+      applications: null,
+      withDomains: null,
+    });
+    expect(printed.some((l) => l.includes("jobs domains"))).toBe(false);
   });
 
   it("hints at jobs domains when no open application has a company domain", async () => {

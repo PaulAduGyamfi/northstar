@@ -139,8 +139,9 @@ try {
           openInBrowser(url);
         },
       });
-      let applications = 0;
-      let withDomains = 0;
+      // Stays null when the run stops before reading the applications (the calendar read is first).
+      let applications: number | null = null;
+      let withDomains: number | null = null;
       const report = await runInterviewDetection({
         // Every read goes through the stored `calendar` breaker.
         calendar: createCalendarClient({

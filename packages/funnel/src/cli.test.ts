@@ -88,6 +88,47 @@ function deps(argv: string[], answers: (string | null)[] = []) {
 }
 
 describe("funnel cli", () => {
+  it("interviews runs the detection once and returns its exit code", async () => {
+    const { d, printed } = deps(["interviews"]);
+    let runs = 0;
+    d.runInterviews = async () => {
+      runs++;
+      return {
+        report: {
+          events: 0,
+          interviews: 0,
+          recorded: 0,
+          unchanged: 0,
+          ambiguous: 0,
+          cancelled: 0,
+          notInterview: 0,
+          noMatch: 0,
+          tooManyChanges: 0,
+          dailyLimit: 0,
+          skipped: 0,
+          stoppedBy: null,
+        },
+        applications: 1,
+        withDomains: 1,
+      };
+    };
+    expect([await main(d), runs, printed[0]?.startsWith("Read 0 calendar event(s)")]).toEqual([
+      0,
+      1,
+      true,
+    ]);
+  });
+
+  it("interviews with extra arguments prints the usage, exits 1 and runs nothing", async () => {
+    const { d, printed } = deps(["interviews", "--since", "2026-01-01"]);
+    let runs = 0;
+    d.runInterviews = async () => {
+      runs++;
+      throw new Error("must not run");
+    };
+    expect([await main(d), runs, printed[0]?.startsWith("usage:")]).toEqual([1, 0, true]);
+  });
+
   it("backfill prints the counts and cost and records a counts-only event", async () => {
     const { d, printed, events } = deps(["backfill"]);
     expect(await main(d)).toBe(0);

@@ -33,7 +33,7 @@ export {
   interviewFromMail,
   type MailInterview,
 } from "./interview/detect.js";
-// The interview detection run (NS-240 slice 4): ports only, no caller yet (#230).
+// The interview detection run (NS-240 slice 4): ports only; `funnel interviews` calls it (slice 6).
 export {
   DETECTION_DEAD_LETTER_KIND,
   DETECTION_WINDOW_DAYS,
