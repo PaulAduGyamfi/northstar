@@ -3,7 +3,8 @@
 Status: draft
 Requirements: CAL-003 (default prep before an interview), CAL-002 (confirmed interviews)
 Rules that apply: ADR-0002 (nothing is written to the calendar here), ADR-0012 (append-only),
-ADR-0016 (autonomous lane; waiver on #275 for this slice), ADR-0026, `.claude/rules/db.md`,
+ADR-0016 (autonomous lane; waiver on #275 for this slice), ADR-0026, ADR-0031 (Proposed: the
+Calendar writes that follow), `.claude/rules/db.md`,
 `.claude/rules/tests.md`
 
 ## Why
@@ -59,9 +60,6 @@ or calendar write can follow. This slice stores one proposal per confirmed inter
 - Event `interview.prep_proposed` (actor `system`): `applicationId`, `detectionId`, `proposalId`,
   `prepBlocks`, `missingPrep`, `warmUp` (boolean). Feed line from its fixed `reason`.
 - Span `db.interview.prep_propose` with the block and missing counts.
-
-## Next
-- Writing approved blocks to Calendar: ADR-0031 (Proposed), for Paul to decide.
 
 ## Out of scope
 - Reading busy time from Calendar and growth blocks, and calling this on confirm (the caller).
