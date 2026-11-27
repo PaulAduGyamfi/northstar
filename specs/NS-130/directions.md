@@ -17,7 +17,8 @@ with no model, database or network.
 - **Input:** ready jobs whose postings aren't known to be closed (what `readScorableJobs` gives),
   each with its id, title, must-have requirements and when it was posted (or first seen). Paul's
   `ScoringProfile` is the same one the Fit Score reads.
-- **Role families:** a job's title is lower-cased and cut at the first `,`, ` - `, ` | ` or `(`.
+- **Role families:** a job's title (its first 200 characters: titles are untrusted) is lower-cased
+  and cut at the first `,`, spaced hyphen, en or em dash, ` | ` or `(`.
   Seniority words (`senior`, `sr`, `junior`, `jr`, `staff`, `principal`, `lead`, `i`, `ii`, `iii`,
   `iv`) are dropped, and spaces are collapsed. "Senior Backend Engineer (Payments)" and "Backend
   Engineer II" are one family, "backend engineer". A job with no title, or nothing left after
@@ -31,8 +32,11 @@ with no model, database or network.
   - its matched atoms with how many requirements each met (its evidence);
   - its 5 most frequent unmatched must-haves (its main gaps; ties go to first seen);
   - its job count;
-  - the ids of its fresh jobs, posted within 7 days of `now` (`FRESH_DIRECTION_DAYS`), freshest
-    first, for a link straight to them in the queue.
+  - the ids of its fresh jobs, posted within 7 days before `now` (`FRESH_DIRECTION_DAYS`; a date
+    after `now` is not fresh), freshest first, for a link straight to them in the queue.
+
+  A requirement a job lists twice counts twice in coverage (two of its lines) but is one gap for
+  that job, since gaps count jobs.
 - **Order:** coverage first, then fresh jobs, then all jobs, then the family's name.
 
 Requirement text comes from job postings, which are untrusted. It is only counted and shown back

@@ -39,10 +39,19 @@ export type CareerDirection = {
 const SENIORITY = new Set(["senior", "sr", "junior", "jr", "staff", "principal", "lead"]);
 const LEVELS = new Set(["i", "ii", "iii", "iv"]);
 
+// Titles come from postings (untrusted, unbounded): only this much is read, which keeps the
+// word clean-up below fast on a hostile title. No real role name is longer.
+const TITLE_MAX = 200;
+
 // The role family a title belongs to: lower-cased, cut at a qualifier, seniority words dropped.
 export function roleFamily(title: string | null): string | null {
   if (title === null) return null;
-  const head = title.toLowerCase().split(/,| - | \| |\(/)[0] ?? "";
+  // A qualifier starts at a comma, a spaced hyphen, en or em dash, a spaced bar or a bracket.
+  const head =
+    title
+      .slice(0, TITLE_MAX)
+      .toLowerCase()
+      .split(/,| [-–—] | \| |\(/)[0] ?? "";
   const words = head
     .split(/\s+/)
     // "Sr." and "Senior," are the same word.
@@ -86,7 +95,8 @@ export function careerDirections(
     f.total += requirements.length;
     f.matched += matched.length;
     for (const m of matched) f.atoms.set(m.atomId, (f.atoms.get(m.atomId) ?? 0) + 1);
-    // A requirement a job lists twice is one gap for that job.
+    // A requirement a job lists twice counts twice in coverage (it is two of the job's lines)
+    // but is one gap for that job: gaps count jobs, not lines.
     const seen = new Set<string>();
     for (const u of unmatched) {
       const key = gapKey(u.requirement);
@@ -104,7 +114,8 @@ export function careerDirections(
     if (f.jobs.length < MIN_DIRECTION_JOBS) continue;
     const fresh = f.jobs
       .filter((j): j is DirectionJob & { postedAt: Date } => j.postedAt !== null)
-      .filter((j) => j.postedAt.getTime() >= freshAfter)
+      // A date after now is bad data, not a fresh job.
+      .filter((j) => j.postedAt.getTime() >= freshAfter && j.postedAt <= now)
       .sort((a, b) => b.postedAt.getTime() - a.postedAt.getTime());
     directions.push({
       role,
@@ -123,6 +134,7 @@ export function careerDirections(
       (b.coverage ?? -1) - (a.coverage ?? -1) ||
       b.freshJobIds.length - a.freshJobIds.length ||
       b.jobCount - a.jobCount ||
-      a.role.localeCompare(b.role),
+      // Plain code-unit order, the same on every machine (localeCompare depends on the locale).
+      (a.role < b.role ? -1 : a.role > b.role ? 1 : 0),
   );
 }

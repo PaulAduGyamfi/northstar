@@ -26,6 +26,15 @@ describe("roleFamily", () => {
     expect(roleFamily("Staff Backend Engineer - Ledger")).toBe("backend engineer");
     expect(roleFamily("Backend Engineer, Platform")).toBe("backend engineer");
     expect(roleFamily("Sr. Backend Engineer | Remote")).toBe("backend engineer");
+    expect(roleFamily("Senior Backend Engineer – Payments")).toBe("backend engineer");
+    expect(roleFamily("Backend Engineer — Ledger")).toBe("backend engineer");
+  });
+
+  it("reads only the first 200 characters of a title, so a hostile one returns at once", () => {
+    const hostile = `Backend Engineer a${"!".repeat(100_000)}b`;
+    const started = performance.now();
+    expect(roleFamily(hostile)).toBe("backend engineer a");
+    expect(performance.now() - started).toBeLessThan(250);
   });
 
   it("gives no family for a missing title or one made only of seniority words", () => {
@@ -42,8 +51,9 @@ describe("careerDirections", () => {
 
   it("gives a family's coverage as matched over all its must-haves, with the atoms that matched", () => {
     const jobs = [
-      job("j1", "Senior Backend Engineer", ["Go services", "Kafka"]),
-      job("j2", "Backend Engineer II", ["PostgreSQL tuning", "Go APIs", "Rust"]),
+      // PostgreSQL first, so the atoms' order comes from the sort by count, not first seen.
+      job("j1", "Senior Backend Engineer", ["PostgreSQL tuning", "Kafka"]),
+      job("j2", "Backend Engineer II", ["Go services", "Go APIs", "Rust"]),
     ];
     const [d] = careerDirections(jobs, profile, now);
     expect(d).toMatchObject({
@@ -80,6 +90,24 @@ describe("careerDirections", () => {
     expect(careerDirections(jobs, profile, now)[0]?.gaps).toEqual([
       { requirement: "Kafka", jobs: 2 },
     ]);
+  });
+
+  it("counts a requirement a job lists twice as one gap for that job, and skips a blank one", () => {
+    const jobs = [
+      job("j1", "Backend Engineer", ["Kafka", "kafka", "  "]),
+      job("j2", "Backend Engineer", ["Go"]),
+    ];
+    expect(careerDirections(jobs, profile, now)[0]?.gaps).toEqual([
+      { requirement: "Kafka", jobs: 1 },
+    ]);
+  });
+
+  it("never counts a job dated after now as fresh", () => {
+    const jobs = [
+      job("future", "Backend Engineer", ["Go"], -1),
+      job("today", "Backend Engineer", ["Go"], 0),
+    ];
+    expect(careerDirections(jobs, profile, now)[0]?.freshJobIds).toEqual(["today"]);
   });
 
   it("lists the fresh jobs posted within seven days, freshest first, and never an undated one", () => {
