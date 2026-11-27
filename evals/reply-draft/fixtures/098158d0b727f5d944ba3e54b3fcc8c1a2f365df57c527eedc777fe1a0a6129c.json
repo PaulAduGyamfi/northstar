@@ -1,16 +1,14 @@
 {
   "requestSha256": "098158d0b727f5d944ba3e54b3fcc8c1a2f365df57c527eedc777fe1a0a6129c",
-  "handWritten": "Hand-written by an agent, not recorded from the model (ADR-0016 item 8). Replace with: eval reply-draft --record.",
   "response": {
-    "id": "msg_handwritten_1",
+    "model": "claude-opus-5-5",
+    "id": "msg_011ChTxRr6jjWvLQFj36E73M",
     "type": "message",
     "role": "assistant",
-    "model": "claude-opus-5-5",
     "content": [
       {
         "type": "text",
-        "text": "{\"sentences\":[{\"text\":\"Hello, thank you for the next step.\",\"cites\":[]},{\"text\":\"I'll get back to you soon.\",\"cites\":[]}],\"followUps\":[]}",
-        "citations": null
+        "text": "{\"sentences\":[{\"text\":\"Hello,\",\"cites\":[]},{\"text\":\"Thank you for the next step.\",\"cites\":[]},{\"text\":\"I'll get back to you soon.\",\"cites\":[]}],\"followUps\":[]}"
       }
     ],
     "container": null,
@@ -18,10 +16,35 @@
     "stop_sequence": null,
     "stop_details": null,
     "usage": {
-      "input_tokens": 0,
-      "output_tokens": 0,
+      "input_tokens": 303,
       "cache_creation_input_tokens": 0,
-      "cache_read_input_tokens": 0
-    }
+      "cache_read_input_tokens": 2011,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "iterations": [
+        {
+          "input_tokens": 303,
+          "output_tokens": 77,
+          "cache_read_input_tokens": 2011,
+          "cache_creation_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "output_tokens": 77,
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      },
+      "service_tier": "standard",
+      "inference_geo": "global",
+      "speed": "standard"
+    },
+    "diagnostics": null
   }
 }
