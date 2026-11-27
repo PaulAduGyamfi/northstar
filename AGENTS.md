@@ -1113,8 +1113,13 @@ Exists now:
   (`workerActivities`, `wiring.ts`: `pipeline` gets the ending and sweep activities, the browser
   pool only `submitApplication`, its gateway ports bound per call so a file read is the
   submission's own candidate's), and runs one Temporal `Worker` per queue with `workerOptions`:
-  `pipeline` with the workflow bundle, `apply-browser` only when it is on. There is no worker
-  health or heartbeat yet.
+  `pipeline` with the workflow bundle, `apply-browser` only when it is on. Since slice 3 it
+  beats for both queues every 30 s (`startHeartbeats`, `src/heartbeat.ts`; the browser pool as
+  `enabled: false` while off) into `worker_heartbeat` (`packages/db`, migration 0099: one row per
+  candidate and queue, state not history; `recordWorkerHeartbeat`, `readWorkerHeartbeats`, both
+  on the database's clock), and `systemHealth` shows each pool as `worker:<queue>`: running, down
+  after 180 s of silence ("Not running: last seen …"), or turned off. No heartbeat for the browser
+  steps yet (slice 4).
   Since slice 2 also the client helper (`src/client.ts`, over a narrow `TemporalPort`, bound by
   `temporalPort`): `startSubmission` starts `submission:<applicationId>:<packageSha256>`, one run
   per package round (`REJECT_DUPLICATE`, conflict `FAIL`: a repeated start for the round starts

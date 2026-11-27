@@ -694,6 +694,13 @@
       "when": 1795762356806,
       "tag": "0098_mail_classification",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1795805707887,
+      "tag": "0099_worker_heartbeat",
+      "breakpoints": true
     }
   ]
 }

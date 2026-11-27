@@ -614,3 +614,11 @@ export {
   type WatchInput,
   type WatchStatus,
 } from "./watch-write.js";
+// The worker process's heartbeats (NS-225 slice 3), shown on Health.
+export * as workerHealthSchema from "./worker-health-schema.js";
+export {
+  readWorkerHeartbeats,
+  recordWorkerHeartbeat,
+  WORKER_QUEUES,
+  type WorkerQueue,
+} from "./worker-health-write.js";

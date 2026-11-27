@@ -41,7 +41,7 @@ const Health = z.object({
   subsystems: z.array(
     z.object({
       subsystem: z.string(),
-      kind: z.enum(["dependency", "switch", "board"]),
+      kind: z.enum(["dependency", "switch", "board", "worker"]),
       health: z.enum(["healthy", "degraded", "down"]),
       reason: z.string(),
       retryAt: z.string().nullable(),
