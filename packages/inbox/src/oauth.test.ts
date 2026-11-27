@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { loadGoogleConfig } from "./config.js";
-import { authorizeGmail, GMAIL_READONLY, type OAuthDeps } from "./oauth.js";
+import {
+  authorizeCalendar,
+  authorizeGmail,
+  CALENDAR_EVENTS_READONLY,
+  GMAIL_READONLY,
+  type OAuthDeps,
+} from "./oauth.js";
 
 // Fake client and token: never a real Google credential (the repo is public).
 const config = { clientId: "test-client.apps.example.com", clientSecret: "test-secret" };
@@ -120,6 +126,89 @@ describe("authorizeGmail", () => {
       ),
     );
     await expect(run).rejects.not.toThrow(TOKEN);
+  });
+});
+
+// NS-240 slice 3 (ADR-0026): the Calendar reader's own consent, on the same flow as Gmail's.
+describe("authorizeCalendar", () => {
+  // A token response granting the given scope (exactly `calendar.events.readonly` by default).
+  const granting = (scope: string = CALENDAR_EVENTS_READONLY) => ({
+    tokenResponse: { access_token: TOKEN, expires_in: 3599, scope, token_type: "Bearer" },
+  });
+  const REFUSED = "Google granted more than calendar.events.readonly";
+
+  it("asks for calendar.events.readonly only, with PKCE S256, no refresh token and a 127.0.0.1 redirect", async () => {
+    const seen: Seen = {};
+    await authorizeCalendar(deps(seen, granting()));
+    const p = seen.authUrl?.searchParams;
+    expect([
+      seen.authUrl?.origin,
+      p?.get("scope"),
+      p?.get("code_challenge_method"),
+      p?.get("access_type"),
+      /^http:\/\/127\.0\.0\.1:\d+$/.test(p?.get("redirect_uri") ?? ""),
+    ]).toEqual([
+      "https://accounts.google.com",
+      "https://www.googleapis.com/auth/calendar.events.readonly",
+      "S256",
+      "online",
+      true,
+    ]);
+  });
+
+  it("returns a Calendar token that can be used but never printed or serialized", async () => {
+    const access = await authorizeCalendar(deps({}, granting()));
+    const { inspect } = await import("node:util");
+    const shown = [JSON.stringify({ access }), String(access), inspect(access)];
+    expect([access.authorization(), shown.some((t) => t.includes(TOKEN))]).toEqual([
+      "Bearer ".concat(TOKEN),
+      false,
+    ]);
+  });
+
+  it("refuses a grant of Gmail read-only instead of Calendar", async () => {
+    await expect(authorizeCalendar(deps({}, granting(GMAIL_READONLY)))).rejects.toThrow(REFUSED);
+  });
+
+  it.each([
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/calendar",
+  ])("refuses a grant of the wider Calendar scope %s", async (wider) => {
+    await expect(authorizeCalendar(deps({}, granting(wider)))).rejects.toThrow(REFUSED);
+  });
+
+  it("refuses a grant that adds Gmail to the Calendar scope", async () => {
+    const both = [CALENDAR_EVENTS_READONLY, GMAIL_READONLY].join(" ");
+    await expect(authorizeCalendar(deps({}, granting(both)))).rejects.toThrow(REFUSED);
+  });
+
+  it("refuses a token response that names no scope", async () => {
+    const run = authorizeCalendar(deps({}, { tokenResponse: { access_token: TOKEN } }));
+    await expect(run).rejects.toThrow(REFUSED);
+  });
+
+  it("refuses a callback whose state doesn't match", async () => {
+    const run = authorizeCalendar(
+      deps({}, { ...granting(), consent: () => "code=x&state=forged" }),
+    );
+    await expect(run).rejects.toThrow("state didn't match");
+  });
+
+  it("stops when the user cancels on Google's consent page", async () => {
+    const cancel = (u: URL) =>
+      "error=access_denied&state=".concat(u.searchParams.get("state") ?? "");
+    const run = authorizeCalendar(deps({}, { ...granting(), consent: cancel }));
+    await expect(run).rejects.toThrow("Google consent was not given (access_denied)");
+  });
+
+  it("stops after the timeout when the user never comes back", async () => {
+    const run = authorizeCalendar(deps({}, { ...granting(), consent: () => "", timeoutMs: 50 }));
+    await expect(run).rejects.toThrow("No answer from Google's consent page");
+  });
+
+  it("never puts the token in an error message", async () => {
+    await expect(authorizeCalendar(deps({}, granting(GMAIL_READONLY)))).rejects.not.toThrow(TOKEN);
   });
 });
 
