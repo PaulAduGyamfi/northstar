@@ -11,8 +11,11 @@ paths:
 activity (`src/activities/apply.ts`); since NS-220 the stale-claim sweep (`src/workflows/sweep.ts`,
 `src/activities/sweep.ts`); since NS-226 a submission's ending that only Temporal's history
 would show becomes a dead letter (`src/workflows/ending.ts`, `src/activities/ending.ts`). Workflow code may import only `@temporalio/workflow`, plain
-code and type-only imports: the bundle test (`bundleWorkflowCode`) fails otherwise. No worker
-process, client or heartbeats yet (NS-225); other domains' workflows arrive with their tickets.
+code and type-only imports: the bundle test (`bundleWorkflowCode`) fails otherwise. Since NS-225 (slice 1) the worker process: `src/main.ts`
+(entry `src/bin.ts`, the only file that reads `process.env`), its settings in `src/config.ts`
+(`loadWorkerConfig`) and the bound activities in `src/wiring.ts` (`workerActivities`). No client
+helper, worker health or heartbeats yet (#230's later slices); other domains' workflows arrive
+with their tickets.
 
 Rules:
 
@@ -35,3 +38,7 @@ Rules:
   `applicationId` and `packageSha256` only, and its activity loads the package from storage.
 - A Temporal reset gives the run a new run id, so an ending already recorded files a second dead
   letter (`endingKey`): a visible duplicate, not handled.
+- The worker connects only to a Temporal on this machine (`TEMPORAL_ADDRESS` is loopback only; no
+  TLS), and the `apply-browser` pool starts only with `WORKER_APPLY_BROWSER=on` (default off).
+  Never default it on or start it some other way: off is how Paul keeps anything from being
+  submitted. A pool gets only its own activities (`workerActivities`).

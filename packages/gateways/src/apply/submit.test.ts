@@ -6,6 +6,7 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { adapterFor } from "./adapters/index.js";
 import type { PageState } from "./driver.js";
 import {
   CLOSE_TIMEOUT_MS,
@@ -235,6 +236,18 @@ describe("submitting", () => {
       [137, 80, 78, 71],
       1,
     ]);
+  });
+
+  it("opens the browser bound to the adapter's own hosts (NS-225)", async () => {
+    const world = fakeWorld({ open: form, submit: confirmed });
+    const asked: (readonly string[])[] = [];
+    const openDriver = world.ports.openDriver;
+    world.ports.openDriver = (hosts) => {
+      asked.push(hosts);
+      return openDriver(hosts);
+    };
+    await run(world);
+    expect(asked).toEqual([adapterFor("greenhouse").hosts]);
   });
 
   it("submitting twice sends one application and returns the first proof", async () => {

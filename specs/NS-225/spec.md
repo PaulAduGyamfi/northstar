@@ -1,6 +1,6 @@
 # NS-225: The worker process (slice 1: connect to Temporal and run the pools)
 
-Status: in progress (autonomous lane, ADR-0016). Assigned by the orchestrator; the "Blocked by
+Status: built (slice 1) (autonomous lane, ADR-0016). Assigned by the orchestrator; the "Blocked by
 #76" line was lifted by the decision recorded on #230 (the driver exists; what's left on #76 is
 Paul's real submission).
 Issue: #230 (parent #108)
@@ -55,16 +55,16 @@ but no process runs them. Nothing in Northstar happens on its own until one does
   API. Placeholders for the new settings go in `.env.example`'s "Apps" part.
 
 ## Acceptance criteria
-- [ ] `loadWorkerConfig` tests: defaults (browser off), loopback-only address, namespace shape,
+- [x] `loadWorkerConfig` tests: defaults (browser off), loopback-only address, namespace shape,
       `on` needs an absolute Chromium path, errors name the setting and never the value.
-- [ ] `deferredFormDriver` tests on a fake launcher: launches once on `open` with the hosts, close
+- [x] `deferredFormDriver` tests on a fake launcher: launches once on `open` with the hosts, close
       before open launches nothing, close during launch closes the browser and fails the step, no
       step after close.
-- [ ] The gateway passes the adapter's hosts to `openDriver` (a test).
-- [ ] `workerActivities` tests: the pools get exactly their activities; the browser pool's
+- [x] The gateway passes the adapter's hosts to `openDriver` (a test).
+- [x] `workerActivities` tests: the pools get exactly their activities; the browser pool's
       activities only when it is on.
-- [ ] lint, typecheck, test and build green for `@northstar/worker` and `@northstar/gateways`.
-- [ ] README's Getting started and Status, AGENTS.md, `.claude/rules/worker.md` updated.
+- [x] lint, typecheck, test and build green for `@northstar/worker` and `@northstar/gateways`.
+- [x] README's Getting started and Status, AGENTS.md, `.claude/rules/worker.md` updated.
 
 ## Out of scope (this slice)
 - Starting workflows and sending signals (slice 2), worker health (slice 3), heartbeats (slice 4).

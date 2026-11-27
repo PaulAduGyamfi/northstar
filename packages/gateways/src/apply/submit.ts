@@ -318,7 +318,7 @@ async function submit(
   // 7. The browser: one session, closed whatever happens. Only the ATS's own trouble (a step
   // timeout) counts against its breaker; a page it served is it working; a browser crash isn't
   // its fault and isn't reported.
-  const driven = await drive(ports.openDriver(), adapter, pkg, resume, coverLetter);
+  const driven = await drive(ports.openDriver(adapter.hosts), adapter, pkg, resume, coverLetter);
   if (driven.ats !== "unknown") await report(driven.ats);
   if (driven.kind === "handoff") return handOff(driven.reason, "submitting");
 

@@ -829,8 +829,12 @@ Exists now:
     needs a migration.
 
   Its tests use a fake page and a stand-in DOM, with no browser. Its challenge markers are
-  hand-written; `recordedPage` runs its in-page reader on the recorded Lever form (NS-142 slice 2). Nothing starts it until the worker process
-  (#230), so nothing can be submitted yet.
+  hand-written; `recordedPage` runs its in-page reader on the recorded Lever form (NS-142 slice 2).
+  Since NS-225 the gateway's `openDriver` port takes the adapter's hosts, and
+  `deferredFormDriver` (`browser/deferred.ts`) launches the browser only on the form's first open
+  (after `close()` it launches nothing and takes no further action). The worker's browser pool
+  binds it, off unless `WORKER_APPLY_BROWSER=on`, and nothing starts a submission workflow yet,
+  so nothing can be submitted yet.
   Since NS-211 a Gate `ContentChanged` (the package changed after approval) also withdraws that
   approval (`requestOfDecision`, then `withdrawApproval` by `gateway` with the new package hash),
   then still throws `NotApprovedError("ContentChanged")`, so the subject can be requested again.
@@ -1055,13 +1059,13 @@ Exists now:
   retried). The activity calls the Apply Gateway and returns plain data; `decide` (plain code)
   finishes, or waits on a durable timer for `InProgress`, `AtsBusy`, `Paced`, `DailyCapReached`
   and `HeldBack` (at most 20 waits, then `gave_up`). Tests run without a server: `decide`, the
-  activity on a fake gateway, and Temporal's workflow bundler. No worker process, client or
-  restart test yet (the test server download is extra network).
+  activity on a fake gateway, and Temporal's workflow bundler. No client or restart test yet (the
+  test server download is extra network).
   Since NS-220 also `staleClaimSweepWorkflow` (on `pipeline`): every 5 minutes (input) it runs the
   `sweepStaleClaims` activity per candidate (the gateway's sweep with `dbSweepPorts`; 1 minute,
   3 attempts), continuing as new after 100 passes. A pass that fails all its attempts becomes a
   dead letter (`recordSweepFailure`: kind `apply.stale_sweep`, reason `sweep_failed`, keyed by
-  run and pass) and the next pass tries again. Nothing starts it until the worker process (#230).
+  run and pass) and the next pass tries again. Nothing starts it yet (#230's client helper).
   Since NS-226 (slice 1) `submissionWorkflow` takes an `applicationId` and ends visibly: a
   `refused`, `gave_up` or `not_approved` result, or the activity failing all 5 attempts, records
   one dead letter through the `recordSubmissionEnding` activity on `pipeline` (kind
@@ -1079,6 +1083,17 @@ Exists now:
   `applicationId` that isn't the package's own ends that way too. Since the reader only hands out
   the package the Gate pinned, the gateway's `ContentChanged` withdrawal can't happen through this
   workflow: a hash mismatch leaves the approval live (it covers only the stored package).
+  Since NS-225 (slice 1) also the worker process: `pnpm --filter @northstar/worker start` runs
+  `src/bin.ts` → `main.ts`, which reads its settings through `loadWorkerConfig` (`config.ts`:
+  `TEMPORAL_ADDRESS`, loopback only, default `127.0.0.1:7233`; `TEMPORAL_NAMESPACE`, default
+  `default`; `WORKER_APPLY_BROWSER`, default `off`; `WORKER_CHROMIUM_PATH`, an absolute path,
+  required when on; plus the pool limits and apply pacing), binds the activities to the database
+  (`workerActivities`, `wiring.ts`: `pipeline` gets the ending and sweep activities, the browser
+  pool only `submitApplication`, its gateway ports bound per call so a file read is the
+  submission's own candidate's), and runs one Temporal `Worker` per queue with `workerOptions`:
+  `pipeline` with the workflow bundle, `apply-browser` only when it is on. Nothing starts the
+  workflows yet (the client helper, #230's next slice), and there is no worker health or
+  heartbeat yet.
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 
@@ -1151,6 +1166,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/db db:generate` | new migration from `packages/db/src/schema.ts` (no database needed); prints "No schema changes" when migrations match |
 | repo root | `pnpm --filter @northstar/db db:migrate` | apply pending migrations as the tables' owner, `DATABASE_MIGRATION_URL`, which Node loads from the root `.env` (Paul, outside the sandbox, stack up). Builds `domain` and `db` first. The apps use `DATABASE_URL`, the `northstar_app` role (NS-212) |
 | repo root | `pnpm --filter @northstar/api start` | build and run the API on 127.0.0.1:`NORTHSTAR_API_PORT` (8787), reading the root `.env.app`; refuses to start until `NORTHSTAR_SIGNIN_KEY_SHA256` and `DATABASE_URL` are set (Paul) |
+| repo root | `pnpm --filter @northstar/worker start` | build and run the worker process (NS-225): connects to Temporal on this machine (`TEMPORAL_ADDRESS`, default 127.0.0.1:7233; stack up) and runs the `pipeline` pool, plus the `apply-browser` pool only with `WORKER_APPLY_BROWSER=on` and `WORKER_CHROMIUM_PATH`; reads the root `.env.app` like the API and needs `DATABASE_URL`. Nothing starts its workflows yet. Paul only: real database and Temporal; agents never run it |
 | repo root | `pnpm --filter @northstar/web build` / `pnpm --filter @northstar/web start` | build and serve the web app on 127.0.0.1:3100; open it at `http://northstar.localhost:3100` (`NORTHSTAR_WEB_ORIGIN`, ADR-0018). It doesn't read the root `.env` or `.env.app`: export `NORTHSTAR_API_ORIGIN` (default `http://127.0.0.1:8787`) in the shell before build and start if the API's port changed. `pnpm --filter @northstar/web dev` while developing |
 | repo root | `pnpm --filter @northstar/extension build` | build the browser extension into `apps/extension/dist`; load that folder in `chrome://extensions` ("Load unpacked"), then paste the extension token in its options (Paul). The API needs `NORTHSTAR_EXTENSION_TOKEN_SHA256` and `DATABASE_URL` for captures |
 

@@ -13,16 +13,15 @@
     "lint": "biome check .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "tsc -p tsconfig.build.json"
+    "build": "tsc -p tsconfig.build.json",
+    "start": "turbo run build --filter=@northstar/worker && node --env-file-if-exists=../../.env.app dist/bin.js"
   },
   "dependencies": {
     "@northstar/db": "workspace:*",
     "@northstar/domain": "workspace:*",
     "@northstar/gateways": "workspace:*",
     "@temporalio/common": "1.25.0",
+    "@temporalio/worker": "1.25.0",
     "@temporalio/workflow": "1.25.0"
-  },
-  "devDependencies": {
-    "@temporalio/worker": "1.25.0"
   }
 }
