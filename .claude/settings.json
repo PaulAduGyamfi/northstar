@@ -129,14 +129,7 @@
     "network": {
       "allowedDomains": [
         "registry.npmjs.org",
-        "nodejs.org",
-        "boards.greenhouse.io",
-        "job-boards.greenhouse.io",
-        "boards-api.greenhouse.io",
-        "jobs.lever.co",
-        "api.lever.co",
-        "jobs.ashbyhq.com",
-        "api.ashbyhq.com"
+        "nodejs.org"
       ]
     },
     "credentials": {
