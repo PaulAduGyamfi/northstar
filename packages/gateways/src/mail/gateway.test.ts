@@ -5,7 +5,7 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DraftWriteError } from "./errors.js";
 import { writeReplyDraft } from "./gateway.js";
 import {
@@ -25,6 +25,11 @@ import {
 } from "./test/fixtures.js";
 
 const input = { candidateId: CANDIDATE, decisionId: DECISION, requestId: REQUEST };
+
+// fakePorts stands the fake Gmail in for the global fetch; put the real one back after each test.
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 // The headers and body of the message Gmail was given, decoded from `raw`.
 function sentMessage(body: string | undefined): string {
