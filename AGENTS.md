@@ -274,7 +274,10 @@ Exists now:
   `email_reply` can be edited (an allowlist in code and in the table's trigger; `editRequest` isn't
   exported, so `editReplyDraft` is the only way in);
   a decision that lands meanwhile rolls the edit back. The API's `POST /approvals/edit-reply`
-  (session only) serves it. No Edit button in the web app yet (slice 2).
+  (session only) serves it. Since slice 2 the Queue's "Show the reply" has an Edit button
+  (`approval-queue.tsx`): Paul edits the body, and Save sends it there after `editProblem`
+  (`src/approvals.ts`: not empty, at most `MAX_REPLY_BODY`, changed) and says the answer with
+  `editResultWords` (a double-click's `409 not_pending` reads as already done), then reloads.
   Since slice 3 also follow-up nudges (RPL-004), plain code:
   - `nudgesDue` (`packages/domain`, `follow-up.ts`) picks the applications in `applied`
     (`submitted`, `confirmed`) or `interview` (`in_process`) whose newest verified-sender linked

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   batchUndoLabel,
+  editProblem,
+  editResultWords,
   KIND_WORDS,
+  MAX_REPLY_BODY,
   QueueBody,
   replyLines,
   secondsLeft,
@@ -161,5 +164,49 @@ describe("reply drafts (NS-237)", () => {
     expect(summarizeOutcomes([{ requestId: "a", outcome: "approve_alone" }])).toBe(
       "1 reply goes to another domain than the sender's: show it and approve it on its own.",
     );
+  });
+});
+
+describe("editProblem", () => {
+  it("allows a changed, non-empty body within the limit", () => {
+    expect(editProblem("Thanks.", "Thanks, Jo.")).toBe(null);
+  });
+
+  it("refuses an empty, too long or unchanged body before anything is sent", () => {
+    expect([
+      editProblem("Thanks.", "   \n"),
+      editProblem("Thanks.", "x".repeat(MAX_REPLY_BODY + 1)),
+      editProblem("Thanks.", "Thanks."),
+    ]).toEqual([
+      "The reply can't be empty.",
+      "The reply is too long: at most 10,000 characters.",
+      "Nothing changed, so there's nothing to save.",
+    ]);
+  });
+});
+
+describe("editResultWords", () => {
+  it("says a saved edit is waiting for approval", () => {
+    expect(editResultWords(200, undefined)).toBe(
+      "Saved. Your edited version is waiting for your approval.",
+    );
+  });
+
+  it("reads a second click's not_pending as already done, and other refusals plainly", () => {
+    expect([
+      editResultWords(409, "not_pending"),
+      editResultWords(401, "unauthorized"),
+      editResultWords(409, "unchanged"),
+      editResultWords(404, "not_found"),
+      editResultWords(503, "unavailable"),
+      editResultWords(418, "teapot"),
+    ]).toEqual([
+      "That reply isn't waiting any more, so nothing changed.",
+      "You've been signed out. Sign in again to edit.",
+      "Nothing changed, so there's nothing to save.",
+      "That reply is gone. Reload the page.",
+      "That didn't save. Try again.",
+      "That edit couldn't be saved.",
+    ]);
   });
 });

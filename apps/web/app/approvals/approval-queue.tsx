@@ -5,8 +5,11 @@ import { useEffect, useState } from "react";
 import {
   batchUndoLabel,
   DecideBody,
+  editProblem,
+  editResultWords,
   KIND_WORDS,
   MAX_BATCH,
+  MAX_REPLY_BODY,
   type Outcome,
   type QueueItem,
   ReplyBody,
@@ -264,8 +267,13 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
 }
 
 // "Show the reply" for one email reply (NS-237): fetched only when Paul asks, shown as plain text.
+// Since NS-203 slice 2 it also has "Edit": Paul changes the body, and saving files the edit with
+// the Gate (POST /approvals/edit-reply), which withdraws this request and files the edited one.
 function ReplyPreview({ requestId }: { requestId: string }) {
-  const [lines, setLines] = useState<string[] | null>(null);
+  const router = useRouter();
+  const [reply, setReply] = useState<ReplyBody | null>(null);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   async function show() {
     setError(null);
@@ -280,12 +288,80 @@ function ReplyPreview({ requestId }: { requestId: string }) {
         setError("The reply couldn't be read. Try again.");
         return;
       }
-      setLines(replyLines(parsed.data));
+      setReply(parsed.data);
     } catch (e) {
       setError(isTimeout(e) ? "No answer in time. Try again." : "Couldn't reach Northstar.");
     }
   }
-  if (lines !== null) {
+  async function save(original: string, edited: string) {
+    // Checked here first, so an empty or unchanged body never reaches the Gate.
+    const problem = editProblem(original, edited);
+    if (problem !== null) {
+      setError(problem);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await apiFetch("/api/approvals/edit-reply", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ requestId, body: edited }),
+      });
+      const answer: unknown = await res.json().catch(() => null);
+      const code =
+        answer !== null && typeof answer === "object" && "error" in answer
+          ? answer.error
+          : undefined;
+      setError(editResultWords(res.status, code));
+      // Saved, or already gone (a second click): this request is no longer the waiting one, so
+      // the queue reloads to show the edited request in its place.
+      if (res.ok || code === "not_pending") {
+        setDraft(null);
+        setReply(null);
+        router.refresh();
+      }
+    } catch (e) {
+      setError(isTimeout(e) ? TIMED_OUT_MESSAGE : "Couldn't reach Northstar.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  if (reply !== null && draft !== null) {
+    return (
+      <div className="muted">
+        <label>
+          Edit the reply&apos;s text (the recipient, subject and cited items stay as they are)
+          <textarea
+            value={draft}
+            maxLength={MAX_REPLY_BODY}
+            rows={8}
+            style={{ width: "100%" }}
+            onChange={(e) => setDraft(e.target.value)}
+          />
+        </label>
+        <button
+          type="button"
+          className="primary"
+          disabled={saving}
+          onClick={() => void save(reply.body, draft)}
+        >
+          Save the edit
+        </button>{" "}
+        <button
+          type="button"
+          className="secondary"
+          disabled={saving}
+          onClick={() => setDraft(null)}
+        >
+          Cancel
+        </button>
+        {error ? <span role="status"> {error}</span> : null}
+      </div>
+    );
+  }
+  if (reply !== null) {
+    const lines = replyLines(reply);
     return (
       <div className="muted">
         {lines.map((line, i) => (
@@ -296,7 +372,10 @@ function ReplyPreview({ requestId }: { requestId: string }) {
             {line}
           </p>
         ))}
-        <button type="button" className="secondary" onClick={() => setLines(null)}>
+        <button type="button" className="secondary" onClick={() => setDraft(reply.body)}>
+          Edit
+        </button>{" "}
+        <button type="button" className="secondary" onClick={() => setReply(null)}>
           Hide the reply
         </button>
       </div>
