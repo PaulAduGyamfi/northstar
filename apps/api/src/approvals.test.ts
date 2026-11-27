@@ -84,6 +84,15 @@ beforeEach(async () => {
       }
       return { ok: false, error: { kind: "NotPending" } };
     },
+    // NS-203 slice 5: no stored packages unless a test sets them; an edit of R1 files R2.
+    readPackage: async () => null,
+    editPackage: async (input) => {
+      calls.push(["editPackage", input]);
+      if (input.requestId === R1) {
+        return { ok: true, value: { requestId: R2, previousRequestId: R1, replayed: false } };
+      }
+      return { ok: false, error: { kind: "NotPending" } };
+    },
   };
   const sessions = createSessions(() => 0);
   cookie = `ns_session=${sessions.open().token}`;
@@ -104,6 +113,8 @@ beforeEach(async () => {
         missingReplies: (ids) => ports.missingReplies(ids),
         otherDomainReplies: (ids) => ports.otherDomainReplies(ids),
         editReply: (input) => ports.editReply(input),
+        readPackage: (id) => ports.readPackage(id),
+        editPackage: (input) => ports.editPackage(input),
       }),
     }),
   );
@@ -425,5 +436,57 @@ describe("POST /approvals/edit-reply (NS-203)", () => {
       (await post("/approvals/edit-reply", { requestId: R1, body: "" })).status,
     ]).toEqual([401, 400]);
     expect(calls).toEqual([]);
+  });
+});
+
+describe("application packages in the queue (NS-203 slice 5)", () => {
+  const ANSWERS = [
+    { fieldName: "question_1", label: "Why us?", value: "I like what you build.", editable: true },
+    { fieldName: "question_2", label: "Relocate?", value: "Yes", editable: false },
+  ];
+
+  it("shows a waiting package's answers field by field, and 404 for none", async () => {
+    ports.readPackage = async (id) => (id === R1 ? ANSWERS : null);
+    const found = await get(`/approvals/package?requestId=${R1}`);
+    const none = await get(`/approvals/package?requestId=${R2}`);
+    expect([found.status, JSON.parse(found.body), none.status]).toEqual([
+      200,
+      { answers: ANSWERS },
+      404,
+    ]);
+  });
+
+  it("refuses to show a package or edit one without a session", async () => {
+    ports.readPackage = async () => ANSWERS;
+    const fields = { question_1: "New." };
+    const edit = await post("/approvals/edit-package", { requestId: R1, fields }, false);
+    const read = await get(`/approvals/package?requestId=${R1}`, {});
+    expect([read.status, edit.status]).toEqual([401, 401]);
+  });
+
+  it("passes Paul's edited answers to the Gate and answers with the new request", async () => {
+    const fields = { question_1: "I like what your team builds." };
+    const res = await post("/approvals/edit-package", { requestId: R1, fields });
+    expect([res.status, JSON.parse(res.body), calls]).toEqual([
+      200,
+      { requestId: R2 },
+      [["editPackage", { requestId: R1, fields }]],
+    ]);
+  });
+
+  it("answers 409 not_pending for a package that no longer waits", async () => {
+    const res = await post("/approvals/edit-package", {
+      requestId: D1,
+      fields: { question_1: "New." },
+    });
+    expect([res.status, JSON.parse(res.body).error]).toEqual([409, "not_pending"]);
+  });
+
+  it("refuses an empty value without reaching the Gate", async () => {
+    const res = await post("/approvals/edit-package", {
+      requestId: R1,
+      fields: { question_1: "" },
+    });
+    expect([res.status, calls]).toEqual([400, []]);
   });
 });

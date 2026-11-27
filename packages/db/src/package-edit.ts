@@ -95,3 +95,52 @@ export async function editPackage(
     return edited;
   });
 }
+
+// One answer of a waiting package, as the Queue shows it (NS-203 slice 5).
+export type PackageAnswer = {
+  fieldName: string;
+  // The stored form's own label for the field, or the field name when the form doesn't list it.
+  label: string;
+  // A list of picked choices is joined for reading; only text answers are editable.
+  value: string;
+  editable: boolean;
+};
+
+// The answers of the stored package behind one of the candidate's application_package requests,
+// for Paul to read and edit in the Queue (NS-203 slice 5). Never the contact details, files or
+// apply URL: only each filled field's label, value and whether editPackage would take an edit.
+// Null when no package is stored behind the request.
+export async function readPackageAnswers(
+  db: Db,
+  candidateId: CandidateId,
+  requestId: string,
+): Promise<PackageAnswer[] | null> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId)) {
+    return null;
+  }
+  const [row] = await db
+    .select({ package: applicationPackage.package })
+    .from(applicationPackage)
+    .where(
+      and(
+        eq(applicationPackage.candidateId, candidateId),
+        eq(applicationPackage.requestId, requestId),
+      ),
+    );
+  if (!row) return null;
+  const stored = parsePackage(row.package);
+  if (!stored.ok) throw new Error("stored application package does not parse");
+  const inputs = await readPackageInputs(db, candidateId, stored.value.applicationId);
+  const form = inputs?.form?.ats === stored.value.ats ? inputs.form : null;
+  const questions = new Map(form?.questions.map((q) => [q.fieldName, q]) ?? []);
+  return Object.entries(stored.value.fields).map(([fieldName, value]) => {
+    const question = questions.get(fieldName);
+    return {
+      fieldName,
+      label: question?.label ?? fieldName,
+      value: typeof value === "string" ? value : value.join(", "),
+      // The same rule editPackage applies: text the package already holds, not a choice field.
+      editable: typeof value === "string" && !CHOICE_KINDS.has(question?.kind ?? ""),
+    };
+  });
+}
