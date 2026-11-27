@@ -1114,7 +1114,7 @@ Exists now:
   every other entry is ignored and code matches the label itself. Each bank source carries
   `confirmedBy`, and a model's pick always counts as `new` for the Gate, never `bank_exact` or
   `bank_high_confidence`. The negation check runs on the normalized label (curly quotes, NFKC):
-  since NS-244 one `isNegatedQuestion` in `packages/profile` serves the matcher, `confirmQuestion`
+  since NS-244 one `isNegatedQuestion` (in `packages/domain` since NS-249, re-exported by `packages/profile`) serves the matcher, `confirmQuestion`
   and assembly.
   `filePackage` files the package with the Gate (`requestApproval`, actor `system`, key
   `package:<packageId>`); it never submits. Since NS-227 (slice 4) also `formQuestions`

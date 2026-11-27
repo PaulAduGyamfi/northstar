@@ -1,6 +1,6 @@
 # NS-249 slice 2: the question canon and its matcher move to `packages/domain`
 
-Status: in progress (autonomous lane, ADR-0016). Assigned by the orchestrator.
+Status: built (autonomous lane, ADR-0016). Assigned by the orchestrator.
 Issue: #297 item 2 (parent #195). Decision on #297 (2026-11-27, delegated by Paul): move the
 canon and its pure matcher to `packages/domain` with no behaviour change, keep re-exports from
 `packages/profile`, then add the Gate's check. Item 2 lands in two PRs: this move, then the check
@@ -24,9 +24,9 @@ it fills, by the form label's own match. The canon and matcher live in `packages
 - No behaviour, test assertion or threshold changes.
 
 ## Acceptance criteria
-- [ ] The moved tests pass in `packages/domain`, unchanged apart from import paths.
-- [ ] `packages/profile`'s exports are the same names, from the same module path.
-- [ ] lint, typecheck, test and build green for domain and every package that imports it; docs.
+- [x] The moved tests pass in `packages/domain`, unchanged apart from import paths.
+- [x] `packages/profile`'s exports are the same names, from the same module path.
+- [x] lint, typecheck, test and build green for domain and every package that imports it; docs.
 
 ## Out of scope
 - The Gate's per-answer canonical check (slice 3).
