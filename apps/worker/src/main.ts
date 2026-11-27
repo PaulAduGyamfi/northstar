@@ -34,15 +34,19 @@ export async function main(env: Record<string, string | undefined>): Promise<voi
   try {
     const activities = workerActivities(db, config);
     // The stale-claim sweep runs whenever the worker does: started once, kept when already
-    // running (NS-225 slice 2). Single tenant for now (Q-02): the one candidate.
-    const client = await Connection.connect({ address: config.temporalAddress });
+    // running (NS-225 slice 2). Single tenant for now (Q-02): the one candidate, which
+    // soleCandidate creates on an empty database, as the CLIs do.
+    const clientConnection = await Connection.connect({ address: config.temporalAddress });
     try {
       await ensureStaleSweep(
-        temporalPort(new Client({ connection: client, namespace: config.temporalNamespace })),
+        temporalPort(
+          new Client({ connection: clientConnection, namespace: config.temporalNamespace }),
+        ),
         { candidateIds: [await soleCandidate(db)] },
       );
     } finally {
-      await client.close();
+      // A close error never hides the sweep's own failure.
+      await clientConnection.close().catch(() => {});
     }
     const connection = await NativeConnection.connect({ address: config.temporalAddress });
     // Each Worker holds the connection until it has run and stopped, so the connection closes

@@ -14,8 +14,10 @@ would show becomes a dead letter (`src/workflows/ending.ts`, `src/activities/end
 code and type-only imports: the bundle test (`bundleWorkflowCode`) fails otherwise. Since NS-225 (slice 1) the worker process: `src/main.ts`
 (entry `src/bin.ts`, the only file that reads `process.env`), its settings in `src/config.ts`
 (`loadWorkerConfig`) and the bound activities in `src/wiring.ts` (`workerActivities`); since
-slice 2 the client helper `src/client.ts` (start a submission once per application, relay the
-Gate's decision as a signal, ensure the one sweep). No worker health or heartbeats yet (#230's
+slice 2 the client helper `src/client.ts` (start a submission once per package round, relay the
+Gate's decision as a signal, ensure the one sweep). The workflow id is not the double-submit
+guard (Temporal forgets closed runs after retention): the Apply Gateway's claim is, so never drop
+it trusting the id. No worker health or heartbeats yet (#230's
 later slices); other domains' workflows arrive
 with their tickets.
 

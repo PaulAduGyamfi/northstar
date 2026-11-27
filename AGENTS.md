@@ -1101,10 +1101,13 @@ Exists now:
   `pipeline` with the workflow bundle, `apply-browser` only when it is on. There is no worker
   health or heartbeat yet.
   Since slice 2 also the client helper (`src/client.ts`, over a narrow `TemporalPort`, bound by
-  `temporalPort`): `startSubmission` starts `submission:<applicationId>` (`REJECT_DUPLICATE`,
-  conflict `FAIL`: never a second run for an application, even after the first ended; the input
-  checked by `inputProblem`), `signalApproval` / `signalWithdrawn` relay the Gate's decision
-  (`NotRunning` when no workflow runs), and `ensureStaleSweep` starts the one `stale-claim-sweep`
+  `temporalPort`): `startSubmission` starts `submission:<applicationId>:<packageSha256>`, one run
+  per package round (`REJECT_DUPLICATE`, conflict `FAIL`: a repeated start for the round starts
+  nothing while Temporal keeps the closed run; a new round after a rejection gets its own; the
+  Apply Gateway's claim, not the workflow id, stops a second submission; the input checked by
+  `inputProblem`), `signalApproval` / `signalWithdrawn` relay the Gate's decision to that round's
+  run (`NotRunning` when none runs; a rejected round's caller sends `withdrawn`), and
+  `ensureStaleSweep` starts the one `stale-claim-sweep`
   (conflict `USE_EXISTING`), which `main.ts` does at every start for the one candidate. No caller
   starts submissions or sends the signals yet (the package step's caller and the Queue's decide
   path).

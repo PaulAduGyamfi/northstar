@@ -1,3 +1,8 @@
+import {
+  type Client,
+  WorkflowExecutionAlreadyStartedError,
+  WorkflowNotFoundError,
+} from "@temporalio/client";
 import { describe, expect, it } from "vitest";
 import {
   ensureStaleSweep,
@@ -6,17 +11,22 @@ import {
   signalWithdrawn,
   startSubmission,
   type TemporalPort,
+  temporalPort,
 } from "./client.js";
 
-// Starting and signalling the worker's workflows (NS-225 slice 2), on a fake Temporal.
+// Starting and signalling the worker's workflows (NS-225 slice 2), on a fake Temporal, and the
+// port's binding to Temporal's Client with its real error classes.
 
 const CANDIDATE = "00000000-0000-4000-8000-0000000000c1";
 const APP = "00000000-0000-4000-8000-0000000000a1";
 const DECISION = "00000000-0000-4000-8000-0000000000d1";
 const SHA = "b".repeat(64);
+const SHA2 = "c".repeat(64);
 const input = { candidateId: CANDIDATE, applicationId: APP, packageSha256: SHA };
+const round = { applicationId: APP, packageSha256: SHA };
+const ID = `submission:${APP}:${SHA}`;
 
-// A Temporal that remembers every workflow id it ever ran, like REJECT_DUPLICATE.
+// A Temporal that remembers every workflow id it ran, like REJECT_DUPLICATE within retention.
 function fakeTemporal() {
   const starts: unknown[] = [];
   const signals: unknown[] = [];
@@ -25,10 +35,11 @@ function fakeTemporal() {
   const port: TemporalPort = {
     async start(workflowType, options) {
       starts.push({ workflowType, ...options });
-      if (options.reuse === "existing" && running.has(options.workflowId)) {
-        return { started: false };
+      if (options.reuse === "existing") {
+        running.add(options.workflowId);
+        return { started: true };
       }
-      if (options.reuse === "reject" && ran.has(options.workflowId)) return { started: false };
+      if (ran.has(options.workflowId)) return { started: false };
       ran.add(options.workflowId);
       running.add(options.workflowId);
       return { started: true };
@@ -43,32 +54,34 @@ function fakeTemporal() {
 }
 
 describe("startSubmission", () => {
-  it("starts one submission workflow per application, with ids and the hash only", async () => {
+  it("starts the package round's workflow with ids and the hash only", async () => {
     const t = fakeTemporal();
-    expect(await startSubmission(t.port, input)).toEqual({
-      ok: true,
-      value: { workflowId: `submission:${APP}` },
-    });
+    expect(await startSubmission(t.port, input)).toEqual({ ok: true, value: { workflowId: ID } });
     expect(t.starts).toEqual([
-      {
-        workflowType: "submissionWorkflow",
-        workflowId: `submission:${APP}`,
-        args: [input],
-        reuse: "reject",
-      },
+      { workflowType: "submissionWorkflow", workflowId: ID, args: [input], reuse: "reject" },
     ]);
   });
 
-  it("starting twice runs one workflow, even after the first one ended", async () => {
+  it("starting the same round twice runs one workflow, even after the first one ended", async () => {
     const t = fakeTemporal();
     await startSubmission(t.port, input);
     const again = await startSubmission(t.port, input);
-    t.end(`submission:${APP}`);
+    t.end(ID);
     const later = await startSubmission(t.port, input);
     expect([again, later]).toEqual([
       { ok: false, error: { kind: "AlreadyStarted" } },
       { ok: false, error: { kind: "AlreadyStarted" } },
     ]);
+  });
+
+  it("gives a new package round (after a rejection) its own workflow", async () => {
+    const t = fakeTemporal();
+    await startSubmission(t.port, input);
+    t.end(ID);
+    expect(await startSubmission(t.port, { ...input, packageSha256: SHA2 })).toEqual({
+      ok: true,
+      value: { workflowId: `submission:${APP}:${SHA2}` },
+    });
   });
 
   it("refuses an input carrying a package field, starting nothing", async () => {
@@ -85,56 +98,56 @@ describe("startSubmission", () => {
 });
 
 describe("signals", () => {
-  it("sends the Gate's decision id to the application's running workflow", async () => {
+  it("sends the Gate's decision id to the round's running workflow", async () => {
     const t = fakeTemporal();
     await startSubmission(t.port, input);
-    expect(await signalApproval(t.port, APP, DECISION)).toEqual({
+    expect(await signalApproval(t.port, round, DECISION)).toEqual({
       ok: true,
-      value: { workflowId: `submission:${APP}` },
+      value: { workflowId: ID },
     });
     expect(t.signals).toEqual([
-      { workflowId: `submission:${APP}`, signal: "approval", args: [{ decisionId: DECISION }] },
+      { workflowId: ID, signal: "approval", args: [{ decisionId: DECISION }] },
     ]);
   });
 
   it("sends a withdrawal with no payload", async () => {
     const t = fakeTemporal();
     await startSubmission(t.port, input);
-    await signalWithdrawn(t.port, APP);
-    expect(t.signals).toEqual([{ workflowId: `submission:${APP}`, signal: "withdrawn", args: [] }]);
+    await signalWithdrawn(t.port, round);
+    expect(t.signals).toEqual([{ workflowId: ID, signal: "withdrawn", args: [] }]);
   });
 
-  it("says when no workflow is running for the application", async () => {
+  it("never sends a new round's approval to an older round's workflow", async () => {
     const t = fakeTemporal();
-    expect(await signalApproval(t.port, APP, DECISION)).toEqual({
-      ok: false,
-      error: { kind: "NotRunning" },
-    });
+    await startSubmission(t.port, input);
+    expect(
+      await signalApproval(t.port, { applicationId: APP, packageSha256: SHA2 }, DECISION),
+    ).toEqual({ ok: false, error: { kind: "NotRunning" } });
+    expect(t.signals).toEqual([]);
   });
 
-  it("refuses ids that aren't uuids, sending nothing", async () => {
+  it("refuses ids and hashes out of shape, sending nothing", async () => {
     const t = fakeTemporal();
     await startSubmission(t.port, input);
     expect([
-      await signalApproval(t.port, APP, "decision-1"),
-      await signalWithdrawn(t.port, "nope"),
+      await signalApproval(t.port, round, "decision-1"),
+      await signalWithdrawn(t.port, { ...round, applicationId: "nope" }),
+      await signalWithdrawn(t.port, { ...round, packageSha256: "B".repeat(64) }),
       t.signals,
     ]).toEqual([
       { ok: false, error: { kind: "InvalidInput", problem: "decisionId is not a uuid" } },
       { ok: false, error: { kind: "InvalidInput", problem: "applicationId is not a uuid" } },
+      { ok: false, error: { kind: "InvalidInput", problem: "packageSha256 is not a sha-256" } },
       [],
     ]);
   });
 });
 
 describe("ensureStaleSweep", () => {
-  it("starts the one sweep, and keeps the running one when asked again", async () => {
+  it("starts the one sweep, or keeps the running one, under its fixed id", async () => {
     const t = fakeTemporal();
-    const first = await ensureStaleSweep(t.port, { candidateIds: [CANDIDATE] });
-    const again = await ensureStaleSweep(t.port, { candidateIds: [CANDIDATE] });
-    expect([first, again, t.starts[0]]).toEqual([
-      { started: true },
-      { started: false },
+    await ensureStaleSweep(t.port, { candidateIds: [CANDIDATE] });
+    expect(t.starts).toEqual([
       {
         workflowType: "staleClaimSweepWorkflow",
         workflowId: SWEEP_WORKFLOW_ID,
@@ -149,5 +162,104 @@ describe("ensureStaleSweep", () => {
     await expect(ensureStaleSweep(t.port, { candidateIds: ["nope"] })).rejects.toThrow(
       "candidateIds: every id must be a uuid",
     );
+  });
+});
+
+// The binding to Temporal's Client: the policies, the queue, and which errors mean "not now".
+function fakeClient(behaviour: { start?: () => unknown; signal?: () => unknown }) {
+  const calls: unknown[] = [];
+  const client = {
+    workflow: {
+      start: async (type: string, options: unknown) => {
+        calls.push({ type, options });
+        behaviour.start?.();
+      },
+      getHandle: (id: string) => ({
+        signal: async (name: string, ...args: unknown[]) => {
+          calls.push({ id, name, args });
+          behaviour.signal?.();
+        },
+      }),
+    },
+  } as unknown as Client;
+  return { port: temporalPort(client), calls };
+}
+
+describe("temporalPort", () => {
+  it("starts a submission on the pipeline queue, refusing a reused id and any running one", async () => {
+    const c = fakeClient({});
+    expect(
+      await c.port.start("submissionWorkflow", { workflowId: ID, args: [], reuse: "reject" }),
+    ).toEqual({ started: true });
+    expect(c.calls).toEqual([
+      {
+        type: "submissionWorkflow",
+        options: {
+          taskQueue: "pipeline",
+          workflowId: ID,
+          args: [],
+          workflowIdReusePolicy: "REJECT_DUPLICATE",
+          workflowIdConflictPolicy: "FAIL",
+        },
+      },
+    ]);
+  });
+
+  it("keeps a running sweep instead of failing", async () => {
+    const c = fakeClient({});
+    await c.port.start("staleClaimSweepWorkflow", {
+      workflowId: SWEEP_WORKFLOW_ID,
+      args: [],
+      reuse: "existing",
+    });
+    expect(c.calls).toEqual([
+      {
+        type: "staleClaimSweepWorkflow",
+        options: {
+          taskQueue: "pipeline",
+          workflowId: SWEEP_WORKFLOW_ID,
+          args: [],
+          workflowIdConflictPolicy: "USE_EXISTING",
+        },
+      },
+    ]);
+  });
+
+  it("reads Temporal's already-started error as nothing started", async () => {
+    const c = fakeClient({
+      start: () => {
+        throw new WorkflowExecutionAlreadyStartedError("exists", ID, "submissionWorkflow");
+      },
+    });
+    expect(
+      await c.port.start("submissionWorkflow", { workflowId: ID, args: [], reuse: "reject" }),
+    ).toEqual({ started: false });
+  });
+
+  it("reads Temporal's not-found error as no running workflow", async () => {
+    const c = fakeClient({
+      signal: () => {
+        throw new WorkflowNotFoundError("gone", ID, undefined);
+      },
+    });
+    expect(await c.port.signal(ID, "approval", [{ decisionId: DECISION }])).toEqual({
+      delivered: false,
+    });
+  });
+
+  it("lets any other error through", async () => {
+    const boom = new Error("connection refused");
+    const c = fakeClient({
+      start: () => {
+        throw boom;
+      },
+      signal: () => {
+        throw boom;
+      },
+    });
+    await expect(
+      c.port.start("submissionWorkflow", { workflowId: ID, args: [], reuse: "reject" }),
+    ).rejects.toBe(boom);
+    await expect(c.port.signal(ID, "withdrawn", [])).rejects.toBe(boom);
   });
 });
