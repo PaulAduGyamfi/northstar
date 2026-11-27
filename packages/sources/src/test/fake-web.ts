@@ -12,11 +12,18 @@ export type Page = {
 
 export function fakeWeb(pages: Record<string, Page>, privateHosts: string[] = []) {
   const asked: string[] = [];
+  // Each request's method and body, for the board reads that POST (NS-260).
+  const sent: { url: string; method: string; body: string | null }[] = [];
   const deps: FetchDeps = {
     resolve: async (host) => (privateHosts.includes(host) ? ["10.0.0.5"] : ["93.184.216.34"]),
-    fetch: (async (input: string | URL | Request) => {
+    fetch: (async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
       asked.push(url);
+      sent.push({
+        url,
+        method: init?.method ?? "GET",
+        body: typeof init?.body === "string" ? init.body : null,
+      });
       const p = pages[url];
       if (!p) return new Response("not found", { status: 404 });
       const json = typeof p.body === "object";
@@ -29,5 +36,5 @@ export function fakeWeb(pages: Record<string, Page>, privateHosts: string[] = []
       return new Response(body ?? "", { status: p.status ?? 200, headers });
     }) as typeof fetch,
   };
-  return { deps, asked };
+  return { deps, asked, sent };
 }

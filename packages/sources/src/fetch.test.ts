@@ -141,6 +141,32 @@ describe("safeFetch", () => {
     const { deps } = web({});
     expect((await safeFetch(deps, "https://jobs.example.com/missing")).status).toBe(404);
   });
+
+  // NS-260: Workday's public job listing is a POST with a JSON search.
+  it("sends a JSON body as a POST with a JSON content type", async () => {
+    let seen: RequestInit | undefined;
+    const { deps } = web({ "https://jobs.example.com/search": { status: 200, body: "{}" } });
+    const inner = deps.fetch;
+    deps.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      seen = init;
+      return inner(input, init);
+    }) as typeof fetch;
+    await safeFetch(deps, "https://jobs.example.com/search", { json: { limit: 20 } });
+    expect([seen?.method, new Headers(seen?.headers).get("content-type"), seen?.body]).toEqual([
+      "POST",
+      "application/json",
+      '{"limit":20}',
+    ]);
+  });
+
+  it("a POST never follows a redirect: the 3xx comes back as the status", async () => {
+    const { deps, asked } = web({
+      "https://jobs.example.com/search": { status: 307, location: "https://careers.example.com/b" },
+      "https://careers.example.com/b": { status: 200, body: "{}" },
+    });
+    const r = await safeFetch(deps, "https://jobs.example.com/search", { json: {} });
+    expect([r.status, asked]).toEqual([307, ["https://jobs.example.com/search"]]);
+  });
 });
 
 describe("isPublicAddress", () => {

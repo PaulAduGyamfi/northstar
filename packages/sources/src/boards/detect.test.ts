@@ -65,4 +65,25 @@ describe("detectBoard", () => {
     expect(detectBoard("https://jobs.ashbyhq.com/")).toBeNull();
     expect(detectBoard("not a link")).toBeNull();
   });
+
+  // NS-260: a Workday career site is one board per tenant, data center and site.
+  it("reads a Workday career site, with or without a locale, as tenant.wdN/site", () => {
+    const want = {
+      ats: "workday",
+      board: "initech.wd5/Careers",
+      url: "https://initech.wd5.myworkdayjobs.com/Careers",
+    };
+    expect(detectBoard("https://initech.wd5.myworkdayjobs.com/Careers")).toEqual(want);
+    expect(detectBoard("https://Initech.wd5.myworkdayjobs.com/en-US/Careers/?q=x")).toEqual(want);
+  });
+
+  it("refuses a Workday posting link, a bare Workday host and an odd site name", () => {
+    expect(
+      detectBoard("https://initech.wd5.myworkdayjobs.com/Careers/job/Remote/Engineer_R-1001"),
+    ).toBeNull();
+    expect(detectBoard("https://initech.wd5.myworkdayjobs.com/")).toBeNull();
+    expect(detectBoard("https://initech.wd5.myworkdayjobs.com/en-US")).toBeNull();
+    expect(detectBoard("https://initech.wd5.myworkdayjobs.com/%2e%2e")).toBeNull();
+    expect(detectBoard("https://initech.myworkdayjobs.com/Careers")).toBeNull();
+  });
 });
