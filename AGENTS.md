@@ -695,10 +695,13 @@ Exists now:
     for that run, #400). The plans come from `readApprovedPrepPlans` (`packages/db`,
     `prep-plan-read.ts`: past the undo window, not undone, withdrawn or written; ids only, at
     most 50). Each goes through `writePrepPlan` behind the stored switch and breaker;
-  - prints counts only.
+  - prints counts, plus each newly filed plan's interview and block times in his zone (his terminal
+    only; the Queue card doesn't show them yet).
 
   A write that throws becomes a `calendar.prep_write` dead letter (`write_failed`,
-  `claims_exhausted`), passed over until Paul retries it. Google not answering stops the writing
+  `claims_exhausted`), and so does a refusal no later run clears (`plan_not_found`,
+  `plan_changed`, `approval_not_valid`, `rescheduled` when the Gate wouldn't close the old
+  approval); either is passed over until Paul retries it. Google not answering stops the writing
   with no letter.
 - Recruiter grading (NS-167, REC-001/002), slice 1:
   - The `recruiter-extract` route (`packages/inbox`, `src/recruiter/`) reads a recruiter email's

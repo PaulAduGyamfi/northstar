@@ -47,7 +47,6 @@ import {
   verifyApproval,
   withdrawApproval,
 } from "@northstar/db";
-import { authorizeCalendarWrite, writePrepPlan } from "@northstar/gateways";
 import {
   authorizeCalendar,
   authorizeGmail,
@@ -218,12 +217,20 @@ try {
         config,
         now: () => new Date(),
         interviews: () => listInterviews(db, candidateId),
-        proposalOf: async (detectionId) =>
-          (await readPrepProposal(db, candidateId, detectionId))?.proposalId ?? null,
+        proposalOf: async (detectionId) => {
+          const stored = await readPrepProposal(db, candidateId, detectionId);
+          return stored === null ? null : { proposalId: stored.proposalId, blocks: stored.blocks };
+        },
         propose: async (detectionId, request) => {
           const proposed = await proposeInterviewPrep(db, { candidateId, detectionId, request });
           return proposed.ok
-            ? { ok: true, value: { proposalId: proposed.value.proposal.proposalId } }
+            ? {
+                ok: true,
+                value: {
+                  proposalId: proposed.value.proposal.proposalId,
+                  blocks: proposed.value.proposal.blocks,
+                },
+              }
             : proposed;
         },
         file: (proposalId) => requestPrepPlanApproval(db, { candidateId, proposalId }),
@@ -242,6 +249,9 @@ try {
           if (!saved.ok) throw new Error(`dead letter refused: ${saved.error.field}`);
         },
         consent: async () => {
+          // Loaded only when an approved plan is waiting, so other funnel commands never load the
+          // Calendar writer (or its browser dependency).
+          const { authorizeCalendarWrite, writePrepPlan } = await import("@northstar/gateways");
           // ADR-0031: calendar.app.created only, on this run; the token lives in this closure
           // until the process ends and is never stored (#400).
           const access = await authorizeCalendarWrite({

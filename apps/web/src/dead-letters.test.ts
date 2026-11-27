@@ -168,6 +168,19 @@ describe("nextStep", () => {
     ]);
   });
 
+  it("words each prep plan refusal no later run can clear", () => {
+    const why = (reasonCode: string) =>
+      letterLine({ ...ITEM, kind: "calendar.prep_write", reasonCode, attempts: 1 }).why;
+    expect(
+      ["plan_not_found", "plan_changed", "approval_not_valid", "rescheduled"].map(why),
+    ).toEqual([
+      "Stopped after 1 attempt: its stored plan wasn't found",
+      "Stopped after 1 attempt: its stored plan changed after you approved it",
+      "Stopped after 1 attempt: its approval no longer stands",
+      "Stopped after 1 attempt: the interview moved and the old approval couldn't be closed",
+    ]);
+  });
+
   it("falls back to plain words for a kind it doesn't know", () => {
     expect(nextStep("other.kind", "retry")).toBe("Sent back to be tried again.");
   });

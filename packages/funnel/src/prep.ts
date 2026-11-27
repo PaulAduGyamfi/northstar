@@ -7,16 +7,36 @@ import { errorName, type LetterRow, letterKey, letterState } from "./inbox.js";
 // `funnel prep` (NS-241 slice 5, CAL-003, ADR-0031): the command Paul runs to plan prep for his
 // confirmed interviews, file each plan with the Approval Gate, and write the plans he approved
 // onto his Northstar calendar. Google consent is asked on this run only, and only when there is
-// something approved to write (#400: no stored token). Plain code over ports; output is counts.
+// something approved to write (#400: no stored token). Plain code over ports.
 
-export type PrepLetterReason = "write_failed" | "claims_exhausted";
+// Why a plan went to Stuck work: a write that threw, or a refusal that no later run can clear.
+export type PrepLetterReason =
+  | "write_failed"
+  | "claims_exhausted"
+  // The writer found no stored plan for the request, or the stored plan no longer hashes to what
+  // was approved.
+  | "plan_not_found"
+  | "plan_changed"
+  // The Gate refused the decision for a reason that doesn't pass with time.
+  | "approval_not_valid"
+  // The interview moved and the Gate wouldn't close the old approval.
+  | "rescheduled";
 
-// What the run did with each step's answers. Counts only: never a time, zone, title or id.
+export type PrepBlock = { kind: "prep" | "warm_up"; start: Date; end: Date };
+// A plan as Paul sees it in his own terminal: the Queue's card doesn't show block times yet.
+export type FiledPlanView = { interviewStart: Date; blocks: PrepBlock[] };
+export type PlannedProposal = { proposalId: string; blocks: PrepBlock[] };
+
+// What the run did with each step's answers. Printed only to Paul's own terminal.
 export type PrepRunReport = {
+  // The zone the times below are shown in.
+  timeZone: string;
   proposed: number;
   // Interviews whose proposal was refused (started, replaced by a reschedule, no longer confirmed).
   notProposed: number;
   filed: number;
+  // The plans sent to the Queue this run, so Paul knows what he is approving.
+  newPlans: FiledPlanView[];
   // Filed on an earlier run (waiting, decided or closed): nothing new to file.
   waiting: number;
   // Not filed: the interview was rescheduled, unconfirmed, or the planner placed nothing.
@@ -24,12 +44,12 @@ export type PrepRunReport = {
   // Approved plans this run tried to write.
   approved: number;
   written: number;
-  // Approved plans held back this run (switch, breaker, another run's claim, undo window,
-  // reschedule, or the approval no longer standing); a later run tries again.
+  // Approved plans held back this run (switch, breaker, another run's claim, undo window, or a
+  // reschedule whose approval was closed); a later run tries again.
   skipped: number;
   // Approved plans passed over because they are in Stuck work, waiting for Paul.
   passedOver: number;
-  // Plans that failed to write and went to Stuck work this run.
+  // Plans that went to Stuck work this run.
   stuck: number;
   // The grant lacks calendar.app.created: Paul enables it, then reruns.
   scopeMissing: boolean;
@@ -44,8 +64,8 @@ export type PrepRunDeps = {
   now: () => Date;
   // The candidate's current interview detections with Paul's decisions (listInterviews).
   interviews: () => Promise<readonly StoredInterview[]>;
-  // The stored proposal's id for a detection, or null (readPrepProposal).
-  proposalOf: (detectionId: string) => Promise<string | null>;
+  // The stored proposal for a detection, or null (readPrepProposal).
+  proposalOf: (detectionId: string) => Promise<PlannedProposal | null>;
   // proposeInterviewPrep, with no busy time in this slice.
   propose: (
     detectionId: string,
@@ -55,7 +75,7 @@ export type PrepRunDeps = {
       timeZone: string;
       now: Date;
     },
-  ) => Promise<Result<{ proposalId: string }, { kind: string }>>;
+  ) => Promise<Result<PlannedProposal, { kind: string }>>;
   // requestPrepPlanApproval.
   file: (proposalId: string) => Promise<Result<FiledPrepPlan, { kind: string }>>;
   // readApprovedPrepPlans.
@@ -69,9 +89,11 @@ export type PrepRunDeps = {
 
 export async function runPrep(deps: PrepRunDeps): Promise<PrepRunReport> {
   const r: PrepRunReport = {
+    timeZone: deps.config.timeZone,
     proposed: 0,
     notProposed: 0,
     filed: 0,
+    newPlans: [],
     waiting: 0,
     notFiled: 0,
     approved: 0,
@@ -88,8 +110,8 @@ export async function runPrep(deps: PrepRunDeps): Promise<PrepRunReport> {
     (i) => i.decision === "confirmed" && i.start.getTime() > now.getTime(),
   );
   for (const interview of upcoming) {
-    let proposalId = await deps.proposalOf(interview.detectionId);
-    if (proposalId === null) {
+    let proposal = await deps.proposalOf(interview.detectionId);
+    if (proposal === null) {
       const proposed = await deps.propose(interview.detectionId, {
         busy: [],
         workingHours: deps.config.workingHours,
@@ -101,16 +123,37 @@ export async function runPrep(deps: PrepRunDeps): Promise<PrepRunReport> {
         continue;
       }
       r.proposed++;
-      proposalId = proposed.value.proposalId;
+      proposal = proposed.value;
     }
     // Filing is idempotent: a plan already filed answers its first request.
-    const filed = await deps.file(proposalId);
+    const filed = await deps.file(proposal.proposalId);
     if (!filed.ok) r.notFiled++;
-    else if (filed.value.stored) r.filed++;
-    else r.waiting++;
+    else if (filed.value.stored) {
+      r.filed++;
+      r.newPlans.push({ interviewStart: interview.start, blocks: proposal.blocks });
+    } else r.waiting++;
   }
   await writeApproved(deps, r);
   return r;
+}
+
+// A refusal that no later run can clear goes to Stuck work; the others wait for a later run.
+function lasting(refusal: PrepRefusal): PrepLetterReason | null {
+  switch (refusal.kind) {
+    case "NotFound":
+      return "plan_not_found";
+    case "ContentMismatch":
+      return "plan_changed";
+    // The undo window passes; any other Gate refusal stays.
+    case "NotApproved":
+      return refusal.reason === "UndoWindowOpen" ? null : "approval_not_valid";
+    // A closed approval leaves the list; one the Gate wouldn't close stays on it for good.
+    case "Rescheduled":
+      return refusal.withdrawn ? null : "rescheduled";
+    case "InProgress":
+    case "HeldBack":
+      return null;
+  }
 }
 
 async function writeApproved(deps: PrepRunDeps, r: PrepRunReport): Promise<void> {
@@ -127,6 +170,14 @@ async function writeApproved(deps: PrepRunDeps, r: PrepRunReport): Promise<void>
     r.writeStoppedBy = errorName(e);
     return;
   }
+  const giveUp = async (plan: ApprovedPrepPlan, reason: PrepLetterReason) => {
+    await deps.recordLetter(
+      plan,
+      reason,
+      letterKey("calendar.prep_write", plan.decisionId, letters.count),
+    );
+    r.stuck++;
+  };
   for (const plan of plans) {
     r.approved++;
     let answer: Result<PrepWritten, PrepRefusal>;
@@ -140,18 +191,16 @@ async function writeApproved(deps: PrepRunDeps, r: PrepRunReport): Promise<void>
         return;
       }
       // The claim stays; the ledger's lease lets a later run continue. Paul sees it in Stuck work.
-      const reason: PrepLetterReason =
-        errorName(e) === "PrepClaimsExhausted" ? "claims_exhausted" : "write_failed";
-      await deps.recordLetter(
+      await giveUp(
         plan,
-        reason,
-        letterKey("calendar.prep_write", plan.decisionId, letters.count),
+        errorName(e) === "PrepClaimsExhausted" ? "claims_exhausted" : "write_failed",
       );
-      r.stuck++;
       continue;
     }
     if (!answer.ok) {
-      r.skipped++;
+      const reason = lasting(answer.error);
+      if (reason === null) r.skipped++;
+      else await giveUp(plan, reason);
       continue;
     }
     if (answer.value.kind === "needs_human") {
@@ -176,6 +225,33 @@ export type PrepDeps = {
   runPrep: () => Promise<PrepRunReport>;
 };
 
+const BLOCK_WORDS: Record<PrepBlock["kind"], string> = { prep: "prep", warm_up: "warm-up" };
+
+// One plan in Paul's own zone, e.g. "Interview Tue, Dec 1, 10:00: prep Mon, Nov 30, 09:00-09:45;
+// warm-up Tue, Dec 1, 09:00-09:15." Printed to his terminal only, never stored or logged.
+export function planLine(plan: FiledPlanView, timeZone: string): string {
+  const day = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  const time = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  const blocks = plan.blocks
+    .map((b) => `${BLOCK_WORDS[b.kind]} ${day.format(b.start)}-${time.format(b.end)}`)
+    .join("; ");
+  // The planner may place nothing (no free working time before the interview).
+  return `Interview ${day.format(plan.interviewStart)}: ${blocks === "" ? "no blocks fit" : blocks}.`;
+}
+
 export async function prepCommand(deps: PrepDeps): Promise<number> {
   let r: PrepRunReport;
   try {
@@ -191,21 +267,24 @@ export async function prepCommand(deps: PrepDeps): Promise<number> {
   deps.print(
     `Sent to your Queue for approval: ${r.filed}. Sent on an earlier run: ${r.waiting}. Not sent: ${r.notFiled}.`,
   );
+  for (const plan of r.newPlans) deps.print(planLine(plan, r.timeZone));
+  let code = 0;
   if (r.writeStoppedBy !== null) {
     deps.print(
       `Written to your Northstar calendar: ${r.written}. The rest wasn't: Google's consent didn't finish or Google didn't answer (${r.writeStoppedBy}). Run it again later; nothing is written twice.`,
     );
-    return 1;
-  }
-  if (r.scopeMissing) {
+    code = 1;
+  } else if (r.scopeMissing) {
     deps.print(
       "Approved plans weren't written: Google didn't grant calendar access for the Northstar calendar. Allow it on the consent page and run it again.",
     );
-    return 1;
+    code = 1;
+  } else {
+    deps.print(
+      `Approved plans written to your Northstar calendar: ${r.written} of ${r.approved}. Held back for later: ${r.skipped}.`,
+    );
   }
-  deps.print(
-    `Approved plans written to your Northstar calendar: ${r.written} of ${r.approved}. Held back for later: ${r.skipped}.`,
-  );
+  // Said whatever stopped the writing, so a letter written earlier in the run is never unmentioned.
   if (r.stuck + r.passedOver > 0) {
     deps.print(
       `In Stuck work on /health: ${r.stuck} new, ${r.passedOver} waiting for you. Retry one there and the next run writes it.`,
@@ -213,7 +292,7 @@ export async function prepCommand(deps: PrepDeps): Promise<number> {
   }
   if (r.filed > 0)
     deps.print("Approve or reject the new plans in your Queue, then run this again.");
-  return r.stuck > 0 ? 1 : 0;
+  return r.stuck > 0 ? 1 : code;
 }
 
 // Fixed words by the error's class: consent and database errors never echo a token or a value.

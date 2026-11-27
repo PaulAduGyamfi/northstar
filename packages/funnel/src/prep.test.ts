@@ -5,6 +5,7 @@ import {
   type PrepLetterReason,
   type PrepRunDeps,
   type PrepRunReport,
+  planLine,
   prepCommand,
   runPrep,
 } from "./prep.js";
@@ -51,7 +52,7 @@ function fake(over: Partial<PrepRunDeps> = {}) {
     proposalOf: async () => null,
     propose: async (detectionId) => {
       proposed.push(detectionId);
-      return { ok: true, value: { proposalId: `p-${detectionId}` } };
+      return { ok: true, value: { proposalId: `p-${detectionId}`, blocks: [] } };
     },
     file: async (proposalId) => {
       filed.push(proposalId);
@@ -84,7 +85,7 @@ describe("runPrep: proposing and filing", () => {
         interview(4, "confirmed", new Date("2026-11-27T11:00:00Z")),
         interview(5, "confirmed"),
       ],
-      proposalOf: async (id) => (id === uuid(5) ? "p-existing" : null),
+      proposalOf: async (id) => (id === uuid(5) ? { proposalId: "p-existing", blocks: [] } : null),
     });
     const r = await runPrep(f.deps);
     expect([f.proposed, f.filed, r.proposed, r.filed]).toEqual([
@@ -101,7 +102,7 @@ describe("runPrep: proposing and filing", () => {
       interviews: async () => [interview(1, "confirmed")],
       propose: async (_id, request) => {
         seen.push(request);
-        return { ok: true, value: { proposalId: "p1" } };
+        return { ok: true, value: { proposalId: "p1", blocks: [] } };
       },
     });
     await runPrep(f.deps);
@@ -117,7 +118,7 @@ describe("runPrep: proposing and filing", () => {
         interview(2, "confirmed"),
         interview(3, "confirmed"),
       ],
-      proposalOf: async (id) => (id === uuid(1) ? null : `p-${id}`),
+      proposalOf: async (id) => (id === uuid(1) ? null : { proposalId: `p-${id}`, blocks: [] }),
       propose: async () => ({ ok: false, error: { kind: "InterviewStarted" } }),
       file: async (proposalId) =>
         proposalId === `p-${uuid(2)}`
@@ -126,6 +127,29 @@ describe("runPrep: proposing and filing", () => {
     });
     const r = await runPrep(f.deps);
     expect([r.notProposed, r.waiting, r.notFiled, r.filed]).toEqual([1, 1, 1, 0]);
+  });
+
+  it("keeps each newly filed plan's interview time and blocks for Paul's terminal, not earlier ones", async () => {
+    const blocks = [
+      {
+        kind: "prep" as const,
+        start: new Date("2026-11-30T09:00:00Z"),
+        end: new Date("2026-11-30T09:45:00Z"),
+      },
+    ];
+    const f = fake({
+      interviews: async () => [interview(1, "confirmed"), interview(2, "confirmed")],
+      propose: async (id) => ({ ok: true, value: { proposalId: `p-${id}`, blocks } }),
+      file: async (proposalId) =>
+        proposalId === `p-${uuid(1)}`
+          ? { ok: true, value: { requestId: uuid(1), replayed: false, stored: true } }
+          : { ok: true, value: { requestId: uuid(2), replayed: true, stored: false } },
+    });
+    const r = await runPrep(f.deps);
+    expect([r.timeZone, r.newPlans]).toEqual([
+      "UTC",
+      [{ interviewStart: new Date("2026-12-01T15:00:00Z"), blocks }],
+    ]);
   });
 });
 
@@ -147,7 +171,7 @@ describe("runPrep: writing approved plans", () => {
     ]);
   });
 
-  it("counts already written as written and every refusal as held back, with no letter", async () => {
+  it("counts already written as written and each passing refusal as held back, with no letter", async () => {
     const answers: Answer[] = [
       { ok: true, value: { kind: "already_written", blockCount: 3 } },
       { ok: false, error: { kind: "Rescheduled", withdrawn: true } },
@@ -164,6 +188,27 @@ describe("runPrep: writing approved plans", () => {
     });
     const r = await runPrep(f.deps);
     expect([r.written, r.skipped, f.letters]).toEqual([1, 4, []]);
+  });
+
+  it("letters each refusal no later run can clear, by its reason, and carries on", async () => {
+    const answers: Answer[] = [
+      { ok: false, error: { kind: "NotFound" } },
+      { ok: false, error: { kind: "ContentMismatch" } },
+      { ok: false, error: { kind: "NotApproved", reason: "Rejected" } },
+      { ok: false, error: { kind: "Rescheduled", withdrawn: false } },
+      WRITTEN,
+    ];
+    const f = fake({
+      approved: async () => answers.map((_, i) => plan(i)),
+      consent: async () => async () => answers.shift() as Answer,
+    });
+    const r = await runPrep(f.deps);
+    expect([f.letters.map((l) => l.reason), r.stuck, r.skipped, r.written]).toEqual([
+      ["plan_not_found", "plan_changed", "approval_not_valid", "rescheduled"],
+      4,
+      0,
+      1,
+    ]);
   });
 
   it("stops writing when the grant lacks the Northstar calendar scope", async () => {
@@ -283,6 +328,8 @@ describe("runPrep: writing approved plans", () => {
 });
 
 const REPORT: PrepRunReport = {
+  timeZone: "UTC",
+  newPlans: [],
   proposed: 2,
   notProposed: 0,
   filed: 2,
@@ -322,6 +369,75 @@ describe("prepCommand", () => {
       1,
       "Approved plans weren't written: Google didn't grant calendar access for the Northstar calendar. Allow it on the consent page and run it again.",
     ]);
+  });
+
+  it("prints each new plan's interview and block times in Paul's zone", async () => {
+    const printed: string[] = [];
+    await prepCommand({
+      print: (l) => printed.push(l),
+      runPrep: async () => ({
+        ...REPORT,
+        timeZone: "America/New_York",
+        newPlans: [
+          {
+            interviewStart: new Date("2026-12-01T15:00:00Z"),
+            blocks: [
+              {
+                kind: "prep",
+                start: new Date("2026-11-30T14:00:00Z"),
+                end: new Date("2026-11-30T14:45:00Z"),
+              },
+              {
+                kind: "warm_up",
+                start: new Date("2026-12-01T14:00:00Z"),
+                end: new Date("2026-12-01T14:15:00Z"),
+              },
+            ],
+          },
+        ],
+      }),
+    });
+    expect(printed[2]).toBe(
+      "Interview Tue, Dec 1, 10:00: prep Mon, Nov 30, 09:00-09:45; warm-up Tue, Dec 1, 09:00-09:15.",
+    );
+  });
+
+  it("says a plan with no blocks has none", () => {
+    expect(planLine({ interviewStart: new Date("2026-12-01T15:00:00Z"), blocks: [] }, "UTC")).toBe(
+      "Interview Tue, Dec 1, 15:00: no blocks fit.",
+    );
+  });
+
+  it("says why writing stopped, and the Stuck work it left, and exits 1", async () => {
+    const printed: string[] = [];
+    const code = await prepCommand({
+      print: (l) => printed.push(l),
+      runPrep: async () => ({
+        ...REPORT,
+        filed: 0,
+        written: 0,
+        stuck: 1,
+        writeStoppedBy: "CalendarWriteError",
+      }),
+    });
+    expect([code, printed.slice(2)]).toEqual([
+      1,
+      [
+        "Written to your Northstar calendar: 0. The rest wasn't: Google's consent didn't finish or Google didn't answer (CalendarWriteError). Run it again later; nothing is written twice.",
+        "In Stuck work on /health: 1 new, 0 waiting for you. Retry one there and the next run writes it.",
+      ],
+    ]);
+  });
+
+  it("names the Stuck work even when the scope is missing", async () => {
+    const printed: string[] = [];
+    await prepCommand({
+      print: (l) => printed.push(l),
+      runPrep: async () => ({ ...REPORT, filed: 0, scopeMissing: true, passedOver: 2 }),
+    });
+    expect(printed.at(-1)).toBe(
+      "In Stuck work on /health: 0 new, 2 waiting for you. Retry one there and the next run writes it.",
+    );
   });
 
   it("prints only the error's name when the run throws, never its message", async () => {

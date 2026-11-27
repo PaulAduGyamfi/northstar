@@ -42,16 +42,21 @@ that run. This is that command.
      first, at most 50.
    - **Written:** `written` and `already_written` count as written.
    - **Needs Paul:** `scope_missing` counts as needing Paul and stops writing.
-   - **Skipped this run, no letter:** `Rescheduled`, `NotApproved`, `InProgress` and `HeldBack`
-     are counted. A later run tries again.
+   - **Skipped this run, no letter:** `Rescheduled` with the approval withdrawn, `NotApproved`
+     for `UndoWindowOpen`, `InProgress` and `HeldBack` are counted. A later run tries again.
+   - **Dead letter, lasting refusal:** `NotFound` (`plan_not_found`), `ContentMismatch`
+     (`plan_changed`), any other `NotApproved` (`approval_not_valid`) and `Rescheduled` the Gate
+     wouldn't withdraw (`rescheduled`) never clear on a later run, so they go to Stuck work too.
    - **Dead letter:** a thrown write failure is a `calendar.prep_write` dead letter (`write_failed`,
      or `claims_exhausted` for `PrepClaimsExhausted`).
      - Its subject is `approval_decision:<decisionId>` and its key is
        `calendar.prep_write:<decisionId>:<n>`.
      - Later runs pass over it unless Paul's newest resolution is Retry (the `funnel inbox` rule,
        `letterState`).
-5. **Report.** It prints counts only: proposed, filed, waiting, written, skipped, stuck. Never a
-   time, zone, title, calendar id or token.
+5. **Report.** It prints counts: proposed, filed, waiting, written, skipped, stuck, and the Stuck
+   work line whatever stopped the writing. For each plan filed this run it also prints the
+   interview's and each block's day and time in Paul's zone, to his terminal only, since the
+   Queue card doesn't show them yet. Never a title, calendar id or token.
 
 ## Acceptance criteria
 - [ ] `runPrep` (ports faked):
