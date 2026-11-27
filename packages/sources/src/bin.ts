@@ -46,7 +46,7 @@ import { sql } from "drizzle-orm";
 import {
   AlertSettingError,
   alertPass,
-  FRESH_MINUTES,
+  freshSince,
   loadAlertConfig,
   scoreThenAlert,
 } from "./alerts.js";
@@ -120,8 +120,7 @@ try {
     return alertPass(
       {
         // Only jobs that could still alert (NS-199): fresh ones and held ones.
-        candidates: () =>
-          readAlertCandidates(db, candidateId, new Date(now.getTime() - FRESH_MINUTES * 60_000)),
+        candidates: () => readAlertCandidates(db, candidateId, freshSince(now)),
         watches: () => listWatches(db, candidateId),
         alert: (input) => recordFreshAlert(db, { ...input, candidateId }),
         hold: (input) => recordAlertHeld(db, { ...input, candidateId }),

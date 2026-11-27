@@ -19,7 +19,7 @@ As the job count grows, each pass reads more than it needs.
   - jobs with a `job.fresh_alert_held` event and no `job.fresh_alert`.
 
   For those jobs it reads their scores, sources and alert events, exactly as before.
-- The caller (`packages/sources` bin) passes `now − FRESH_MINUTES`, using the same `now` it gives
+- The caller (`packages/sources` bin) passes `freshSince(now)` (`now − FRESH_MINUTES`, tested), using the same `now` it gives
   `alertPass`. The policy (60 minutes) stays in `packages/sources`.
 - The jobs it returns, and every alert decision, are unchanged for any job that could still
   alert. A job that is neither fresh nor held is no longer read; it could only ever give
@@ -44,3 +44,5 @@ Unchanged (`sources.fresh_alerts` span with sent, held and released counts).
 - The PWA push (item 1).
 - Quiet hours as an in-app setting (item 2, a schema change).
 - An index on the age time (none is needed at Paul's scale; a migration would wait for the lane).
+- A bound on held alerts: a held job that leaves the queue band, or closes, before quiet hours end
+  keeps its held event and is read on every pass. That is a few rows at Paul's scale.
