@@ -187,6 +187,20 @@ describe("errorFacts", () => {
       error: "TypeError",
     });
   });
+
+  it("logs a crafted name as Error, never its text", () => {
+    const crafted = Object.assign(new Error("x"), { name: "postgres://u:secret@host\nfake" });
+    expect(errorFacts(crafted)).toEqual({ error: "Error" });
+  });
+
+  it("finds the driver's code one level down when drizzle wraps the error", () => {
+    const pg = Object.assign(new Error("password authentication failed"), {
+      name: "DatabaseError",
+      code: "28P01",
+    });
+    const wrapped = new Error("Failed query: select ... params: secret", { cause: pg });
+    expect(errorFacts(wrapped)).toEqual({ error: "Error", cause: "DatabaseError", code: "28P01" });
+  });
 });
 
 describe("GET /feed", () => {
