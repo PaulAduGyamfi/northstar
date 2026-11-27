@@ -20,6 +20,7 @@ export * from "./mail-status.js";
 export * from "./mail-tag.js";
 export * from "./origin.js";
 export * from "./pipeline-metrics.js";
+export * from "./prep-plan.js";
 // The question canon and its matcher (NS-249, moved from packages/profile): plain code the Gate
 // uses too. Named exports only, so the matcher's internals stay internal.
 export {
@@ -43,6 +44,15 @@ export {
   questionConcepts,
   rankCanonical,
 } from "./question-match.js";
+// One rule for how a reused banked answer counts (NS-249 slice 3): producer and Gate share it.
+export {
+  isExactWording,
+  labelReuse,
+  REUSE_HIGH_CONFIDENCE,
+  type ReuseSource,
+  reuseStrength,
+  weakerReuse,
+} from "./question-reuse.js";
 export * from "./recruiter-grade.js";
 export * from "./recruiter-learn.js";
 export * from "./reply-draft.js";

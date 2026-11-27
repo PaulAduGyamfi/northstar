@@ -27,6 +27,8 @@ export const DEAD_LETTER_KINDS = [
   "calendar.interview_detection",
   // NS-213 slice 2: a pass of the package decision relay (apps/worker relay.ts).
   "apply.signal_relay",
+  // NS-241 slice 4: an approved prep plan the Calendar writer couldn't write after its tries.
+  "calendar.prep_write",
   // NS-238 item 1: a message that stopped `funnel inbox`'s mail poll three times in a run.
   "mail.poll",
   // NS-238 item 1: a linked message `funnel inbox` couldn't read or classify.

@@ -32,8 +32,13 @@ are creating the Northstar calendar, the marker lookup and `events.insert` with 
 and a body of exactly `id`, `summary` (a fixed title), `start.dateTime` and `end.dateTime`
 (`requestAllowed`, the boundary test). Never send attendees, conference data, a description,
 location or reminders on an event, never update, move or delete, and never widen the allowlist
-without amending ADR-0031. Other gateways (GitHub) don't exist yet: if you are about to create one
-outside its ticket, stop and ask Paul.
+without amending ADR-0031. Since slice 4 its one entry point is `writePrepPlan`
+(`gateway.ts`): it reads the plan only from `prep_plan_request` (`readPrepPlan`), re-hashes it, calls
+`verifyApproval` first, withdraws by `gateway` on a reschedule, and claims the decision before the
+first Google call. Event ids come only from `prepEventId`, and the calendar id only from the
+stored row, the marker lookup or `createCalendar`, never from a caller.
+Other gateways (GitHub) don't exist yet: if you are about to create one outside its ticket, stop
+and ask Paul.
 The Gmail label writer (NS-229, `packages/inbox/src/labels/`, ADR-0027 **Rejected**: no caller,
 no code may request `gmail.modify`) only adds
 Northstar's fixed labels: never widen it to send, trash, remove or draft (its boundary test),

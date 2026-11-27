@@ -45,6 +45,7 @@ export default defineConfig({
     "./src/mail-link-decision-schema.ts",
     "./src/recruiter-regrade-schema.ts",
     "./src/recruiter-weight-schema.ts",
+    "./src/prep-plan-schema.ts",
   ],
   out: "./migrations",
 });
