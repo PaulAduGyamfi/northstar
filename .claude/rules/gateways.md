@@ -11,7 +11,8 @@ paths:
 `terms.ts`). The Apply Gateway is `packages/gateways` (NS-120); its ATS adapters live in
 `src/apply/adapters/`, not a separate `packages/ats-adapters`. Other gateways (mail, calendar,
 GitHub) don't exist yet: if you are about to create one outside its ticket, stop and ask Paul.
-The Gmail label writer (NS-229, `packages/inbox/src/labels/`, ADR-0027 Proposed) only adds
+The Gmail label writer (NS-229, `packages/inbox/src/labels/`, ADR-0027 **Rejected**: no caller,
+no code may request `gmail.modify`) only adds
 Northstar's fixed labels: never widen it to send, trash, remove or draft (its boundary test),
 and never hand its `gmail.modify` token to code that reads mail.
 
@@ -34,8 +35,8 @@ and never hand its `gmail.modify` token to code that reads mail.
 - The handoff pre-fill (NS-192) reads the approved package only through `readHandoffPackage`
   (`packages/db`). It re-checks the handoff (open, the candidate's), the approval
   (`verifyApproval` for the stored package's subject and hash) and the package's own hash on every
-  read. No endpoint serves it until Paul accepts ADR-0029: it would change ADR-0019's "no reads"
-  for the extension token, which an agent must not do alone. Never hand a package to the browser
+  read. ADR-0029 (Accepted, option 2) allows serving it only with a one-time, 2-minute grant from
+  Paul's own session plus the extension token; never on the token alone, and never widen that. Never hand a package to the browser
   from anywhere else, never trust a package the caller sends, and never put a field value in a
   span, log, event or error. The extension fills; it never submits or touches the challenge
   (ADR-0003).

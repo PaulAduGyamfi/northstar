@@ -65,6 +65,12 @@ jobs:
       - name: Harness hook self-tests
         run: bash .claude/hooks/test-hooks.sh
 
+      # The Chromium build that matches the locked playwright-core (ADR-0028, NS-251), so the form
+      # driver's real-browser test runs in CI. Tests serve synthetic pages through context.route
+      # and touch no network themselves; only this install step downloads the browser.
+      - name: Install Chromium for the form driver
+        run: pnpm --filter @northstar/gateways exec playwright-core install --with-deps chromium
+
       # --force skips Turborepo's cache so CI always re-runs every check.
       - name: Lint, typecheck, test, build
         run: pnpm turbo run lint typecheck test build --force

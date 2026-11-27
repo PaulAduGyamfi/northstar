@@ -1,7 +1,12 @@
 # ADR-0027 — Gmail labels with `gmail.modify`, held only by a label writer that adds labels
 
-**Status:** Proposed · **Date:** 2026-11-26 · Amends ADR-0014 (scope only; its token model is
-unchanged)
+**Status:** Rejected (Paul, by delegation to the orchestrator on 2026-11-27) · **Date:** 2026-11-26
+
+> **Rejected.** `gmail.modify` also allows sending, trashing and archiving. The decision recorded
+> on #89 was "no `gmail.modify`", and labels are organisation only, so Northstar stays unable to
+> change Paul's mailbox. ADR-0014 stays as written (`gmail.readonly`). The label writer in
+> `packages/inbox/src/labels/` keeps no caller, and no code may request the scope. Labels can be
+> proposed again in a new ADR if Paul later wants them.
 
 ## Context
 INB-008 puts an origin label on every linked thread (`Northstar/Started-by-Northstar` or
