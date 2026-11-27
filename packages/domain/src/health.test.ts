@@ -161,3 +161,59 @@ describe("systemHealth: overall", () => {
     ]);
   });
 });
+
+describe("worker pools (NS-225 slice 3)", () => {
+  const pool = (queue: string, secondsSinceSeen: number, enabled = true) => ({
+    queue,
+    enabled,
+    secondsSinceSeen,
+  });
+
+  it("shows a pool that beat recently as running", () => {
+    expect(systemHealth({ ...NONE, workers: [pool("pipeline", 25)] }).subsystems).toEqual([
+      {
+        subsystem: "worker:pipeline",
+        kind: "worker",
+        health: "healthy",
+        reason: "Running",
+        retryAt: null,
+      },
+    ]);
+  });
+
+  it("shows a pool silent past three minutes as down, saying when it was last seen", () => {
+    const h = systemHealth({ ...NONE, workers: [pool("pipeline", 600)] });
+    expect([h.overall, h.subsystems[0]?.health, h.subsystems[0]?.reason]).toEqual([
+      "degraded",
+      "down",
+      "Not running: last seen 10 minutes ago",
+    ]);
+  });
+
+  it("keeps a pool at exactly three minutes running", () => {
+    expect(systemHealth({ ...NONE, workers: [pool("pipeline", 180)] }).subsystems[0]?.health).toBe(
+      "healthy",
+    );
+  });
+
+  it("shows a pool Paul turned off as off, not as a fault, however long ago it beat", () => {
+    expect(systemHealth({ ...NONE, workers: [pool("apply-browser", 99_999, false)] })).toEqual({
+      overall: "healthy",
+      subsystems: [
+        {
+          subsystem: "worker:apply-browser",
+          kind: "worker",
+          health: "healthy",
+          reason: "Turned off in the worker's settings",
+          retryAt: null,
+        },
+      ],
+    });
+  });
+
+  it("says hours for a pool silent a long time", () => {
+    expect(
+      systemHealth({ ...NONE, workers: [pool("pipeline", 3 * 3600)] }).subsystems[0]?.reason,
+    ).toBe("Not running: last seen 3 hours ago");
+  });
+});
