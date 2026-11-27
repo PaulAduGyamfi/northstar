@@ -54,9 +54,10 @@ function sameKeys(o: Record<string, unknown>, keys: string[]): boolean {
   return have.length === keys.length && have.every((k, i) => k === [...keys].sort()[i]);
 }
 
+// No fetch here (security review of NS-237 slice 5): requests carry the compose token in their
+// Authorization header, so they go through the global fetch, never one a caller hands in.
 export type DraftsClientDeps = {
   access: GmailComposeAccess;
-  fetch: typeof fetch;
   guard: DraftGuard;
 };
 
@@ -101,7 +102,7 @@ export function createDraftsClient(deps: DraftsClientDeps): DraftsClient {
     };
     let res: Response;
     try {
-      res = await deps.fetch(url, {
+      res = await fetch(url, {
         ...init,
         headers: { authorization: bearerOf(deps.access), "content-type": "application/json" },
         signal: AbortSignal.timeout(TIMEOUT_MS),

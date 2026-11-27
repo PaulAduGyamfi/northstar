@@ -19,6 +19,7 @@ ledger before `drafts.create`. Its token comes only from `authorizeCompose` (`co
 slice 5): `gmail.compose` alone, PKCE, no refresh token, scopes from Google's answer, and a grant
 with any other scope refused. It exchanges the code itself: never give it a caller-supplied
 exchange or export its test seam (`authorizeComposeWith`), since the raw answer holds the token.
+For the same reason no `src/mail/` function takes a `fetch` from its caller (the boundary test).
 Never add `include_granted_scopes` or a second scope. Other gateways (calendar, GitHub) don't exist yet: if you are
 about to create one outside its ticket, stop and ask Paul.
 The Gmail label writer (NS-229, `packages/inbox/src/labels/`, ADR-0027 **Rejected**: no caller,

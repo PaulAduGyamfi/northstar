@@ -45,7 +45,9 @@ export type MailPorts = {
   ) => Promise<void>;
   // The kill switch and breaker, scoped to the candidate.
   guard: (candidateId: CandidateId) => DraftGuard;
-  fetch: typeof fetch;
+  // No fetch port (security review of NS-237 slice 5): the Authorization header carries the compose
+  // token, so a caller-supplied fetch could keep it and call Gmail's send around the writer. The
+  // drafts client uses the global fetch.
 };
 
 export type WriteDraftInput = {
@@ -158,7 +160,6 @@ export async function writeReplyDraft(
       }
       const client = createDraftsClient({
         access,
-        fetch: ports.fetch,
         guard: ports.guard(candidateId),
       });
       if (claim.state === "unknown") {

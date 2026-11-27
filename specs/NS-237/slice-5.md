@@ -43,6 +43,13 @@ flow), because `packages/gateways` doesn't depend on `packages/inbox`. The packa
 `authorizeCompose`, `ComposeConsentError` and its deps type (client, browser opener, timeout). The boundary
 test's rules keep applying: no send, update or delete anywhere under `src/mail/`.
 
+Closing the same path in the writer (security re-review): `writeReplyDraft`'s `MailPorts` and
+`createDraftsClient` no longer take a `fetch`. Every request carries the token in its
+Authorization header, so a caller-supplied fetch could keep it and call Gmail's send around the
+writer's allowlist. The writer uses the global `fetch`, and its tests stand the fake Gmail in for
+it. The boundary test refuses any `fetch` port under `src/mail/`, any `export *` of a mail module
+from the package entry, and checks at run time that the entry doesn't export the consent seam.
+
 ## Acceptance criteria
 - [ ] The consent URL asks for `gmail.compose` only, with S256 PKCE, `access_type=online` and a 127.0.0.1 redirect (test).
 - [ ] The token exchange sends the code, the verifier that matches the challenge and the same redirect URI (test).
@@ -53,6 +60,7 @@ test's rules keep applying: no send, update or delete anywhere under `src/mail/`
 - [ ] A refused consent, a missing code, a missing token, a non-2xx or non-JSON exchange and a timeout each refuse, and no error message holds the code or token (tests).
 - [ ] `authorizeCompose` takes no token exchange from its caller; nothing outside `src/mail/` but the package entry imports `consent.ts` (tests, boundary test).
 - [ ] The listener accepts only one callback (test).
+- [ ] The draft writer takes no `fetch` from its caller, and the boundary test fails on any `fetch` port under `src/mail/` (tests).
 - [ ] `node_modules/.bin/turbo run lint typecheck test build --force` and `node evals/dist/bin.js --all` pass.
 
 ## Failure modes

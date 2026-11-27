@@ -7,6 +7,7 @@ import {
   type ReplyPackage,
   replyContentSha256,
 } from "@northstar/domain";
+import { vi } from "vitest";
 import { GMAIL_COMPOSE_SCOPE, GmailComposeAccess } from "../access.js";
 import type { DraftClaim, MailPorts } from "../gateway.js";
 
@@ -143,8 +144,10 @@ export function fakePorts(o: FakePortsOptions) {
         reports.push(outcome);
       },
     }),
-    fetch: o.fetch,
   };
+  // The writer uses the global fetch (it takes no fetch port), so the fake Gmail stands in for it.
+  // gateway.test.ts restores the real one after each test.
+  vi.stubGlobal("fetch", o.fetch);
   return { ports, reports, verified, ledger };
 }
 

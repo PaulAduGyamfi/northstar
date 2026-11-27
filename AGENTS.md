@@ -304,7 +304,9 @@ Exists now:
   holding any other scope is refused, and one without compose gives a token whose
   `hasComposeScope()` is false (`scope_missing`). The token exchange happens inside the module, so
   no caller ever sees the raw token, and nothing outside `src/mail/` but the package entry imports
-  `consent.ts` (the boundary test). No database ledger (it needs a migration) or caller yet.
+  `consent.ts` (the boundary test). The writer takes no `fetch` port either: its requests carry the
+  token, so they go through the global `fetch`, and the boundary test refuses a `fetch` port
+  anywhere under `src/mail/`. No database ledger (it needs a migration) or caller yet.
 - Factual answers (NS-141, ANS-001) from Paul's profile settings, plain code, no model:
   `profile_setting` in `packages/db` (`settings-write.ts`: `setProfileSetting`,
   `readProfileSettings`, `recordFactualAnswer`; append-only, newest wins, setting the same value

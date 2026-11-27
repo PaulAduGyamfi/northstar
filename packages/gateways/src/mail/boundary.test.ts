@@ -81,6 +81,21 @@ describe("the draft writer's boundary (ADR-0025 item 4)", () => {
   it("the package entry never exports the consent flow's test seam (authorizeComposeWith)", async () => {
     const entry = await readFile(join(repoRoot, "packages/gateways/src/index.ts"), "utf8");
     expect(entry).not.toMatch(/\bauthorizeComposeWith\b/);
+    // `export *` would re-export it without naming it: refuse it for every mail module, and check
+    // what the entry really exports at run time.
+    expect(entry).not.toMatch(/export\s*\*[^;]*mail\//);
+    expect(Object.keys(await import("../index.js"))).not.toContain("authorizeComposeWith");
+  });
+
+  it("no code under src/mail/ takes a fetch from its caller, which would see the compose token", async () => {
+    const found: string[] = [];
+    for (const file of await sources(join(repoRoot, MAIL_DIR))) {
+      const path = rel(file);
+      // Tests stand fakes in for the global fetch.
+      if (path.endsWith(".test.ts") || path.startsWith(`${MAIL_DIR}test/`)) continue;
+      if (/\bfetch\s*[?]?:/.test(await readFile(file, "utf8"))) found.push(path);
+    }
+    expect(found).toEqual([]);
   });
 
   it("only src/mail/drafts.ts reads the compose token back (bearerOf)", async () => {
