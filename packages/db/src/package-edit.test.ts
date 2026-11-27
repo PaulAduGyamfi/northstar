@@ -164,7 +164,7 @@ describe("editPackage", () => {
 
   it("refuses a choice field, whose value must be one of the form's options", async () => {
     const old = await filed({ question_1: "Yes" });
-    await saveJobForm(db, {
+    const saved = await saveJobForm(db, {
       candidateId,
       jobId: fixture.jobId,
       ats: "greenhouse",
@@ -174,11 +174,15 @@ describe("editPackage", () => {
           label: "Are you open to relocation?",
           required: true,
           kind: "select",
-          choices: ["Yes", "No"],
+          choices: [
+            { label: "Yes", value: "1" },
+            { label: "No", value: "0" },
+          ],
           group: 0,
         },
       ],
     });
+    if (saved.status !== "stored") throw new Error("form not saved");
     expect(await edit(old, { question_1: "Maybe later" })).toEqual({
       ok: false,
       error: { kind: "InvalidRequest", fields: ["fields.question_1"] },
