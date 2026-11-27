@@ -23,8 +23,9 @@ type Contact = PrefillPackage["contact"];
 
 // Each ATS's own hosts and standard contact fields. This mirrors the Apply Gateway's adapters
 // (packages/gateways/src/apply/adapters/), which the extension can't import (no bundler, and the
-// gateway pulls in Node and the database): keep the two in step.
-const ADAPTERS: Record<
+// gateway pulls in Node and the database): keep the two in step. Exported only for the parity test
+// in packages/gateways (apply/prefill-parity.test.ts), which compares it with the gateway's.
+export const ADAPTERS: Record<
   PrefillAts,
   { hosts: readonly string[]; standard: (c: Contact) => Record<string, string>; files: string[] }
 > = {
@@ -216,7 +217,15 @@ export function fillForm(
         done = true;
       } else if ((tag === "input" && !NEVER.includes(type)) || tag === "textarea") {
         if (values.length !== 1) continue;
-        el.value = values[0] ?? "";
+        // Through the prototype's own setter, a safety net: where a shadowed `value` is visible
+        // (a framework's tracker, as React installs, seen from the page's world) a plain
+        // assignment would only reach the tracker. The popup injects into Chrome's isolated world,
+        // where assignment already hits the native setter; the input event below is what tells
+        // the page's framework.
+        const proto = Object.getPrototypeOf(el) as object | null;
+        const setter = proto ? Object.getOwnPropertyDescriptor(proto, "value")?.set : undefined;
+        if (setter) setter.call(el, values[0] ?? "");
+        else el.value = values[0] ?? "";
         fire(el);
         done = true;
       }

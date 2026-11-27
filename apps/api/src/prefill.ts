@@ -19,6 +19,15 @@ const PACKAGE_MAX_BODY = 512;
 
 // The fixed outcome code on the api.request span: never a grant, id or value.
 const OUTCOME = "northstar.prefill.outcome";
+// When the event write throws: the error's class name only, never its message (NS-192 slice 5).
+const RECORD_ERROR = "northstar.prefill.record_error";
+
+// A plain class name ("DatabaseError"), or "Error" for anything else, so nothing the error carries
+// in its message or a crafted name reaches the span.
+export function errorClassOf(error: unknown): string {
+  const name = error instanceof Error ? error.name : "";
+  return /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(name) ? name : "Error";
+}
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -145,7 +154,10 @@ export function prefillEndpoints(ports: PrefillPorts): AnyEndpoint[] {
           fieldCount: Object.keys(p.fields).length,
           grantKey: sha256(given ?? "").slice(0, 16),
         })
-        .catch(() => false);
+        .catch((error: unknown) => {
+          span.setAttribute(RECORD_ERROR, errorClassOf(error));
+          return false;
+        });
       if (!recorded) {
         span.setAttribute(OUTCOME, "prefill_unrecorded");
         return { ok: false, status: 503, error: "prefill_unrecorded" };
