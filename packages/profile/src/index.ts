@@ -138,6 +138,16 @@ export { draftReply, type ReplyRequest, type ReplyResult } from "./reply/draft.j
 // A checked draft as the package the Gate files (NS-237).
 export { displayName, NUDGE_SENTENCES, nudgeBody, nudgePackage } from "./reply/nudge.js";
 export { replyPackage } from "./reply/package.js";
+// Replies by recruiter grade (NS-238 slice 2, REC-002): fixed text, filed like a nudge.
+export {
+  type ArchiveSuggested,
+  RECRUITER_REPLY_SENTENCES,
+  type RecruiterGradeLetter,
+  type RecruiterReplyKind,
+  recruiterReplyBody,
+  recruiterReplyKind,
+  recruiterReplyPackage,
+} from "./reply/recruiter.js";
 export {
   EMAIL_LIMIT,
   REPLY_DRAFT_VERSION,
