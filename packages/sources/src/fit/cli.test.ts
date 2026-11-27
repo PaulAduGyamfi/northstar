@@ -303,6 +303,7 @@ describe("jobs list with fit (SRC-013)", () => {
     location: "Remote",
     postedAt: ago(hoursAgo),
     firstSeenAt: ago(hoursAgo),
+    url: "https://jobs.example.com/1",
     sources: 1,
     missingFields: [],
     fit: { score, band: score >= 80 ? "queue" : "suggest", reason: "ok", stretch: false },

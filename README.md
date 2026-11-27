@@ -26,7 +26,7 @@ One system that **finds jobs, applies to them, runs your inbox, and keeps your p
 | [.claude/](.claude/) | Agent harness: settings, hooks (`bash .claude/hooks/test-hooks.sh`), reviewer subagents, `/ticket` `/verify` `/adr` skills, path rules |
 | [specs/](specs/) | Ticket specs (`NS-NNN`) and templates |
 | [apps/api/](apps/api/) | The local API the web app and extension talk to (127.0.0.1, Paul's sign-in and passkeys) |
-| [apps/web/](apps/web/) | The web app: Today, Queue, Pipeline, Inbox, Grow, Interviews, Career DNA, Health, Settings |
+| [apps/web/](apps/web/) | The web app: Today, Queue, Pipeline, Inbox, Grow, Jobs, Interviews, Career DNA, Health, Settings |
 | [apps/extension/](apps/extension/) | "Save to Northstar" Chrome extension: save a job page, pre-fill a handed-off form |
 | [apps/worker/](apps/worker/) | Temporal workflows: submission and the stale-claim sweep (no worker process yet) |
 | [packages/domain/](packages/domain/) | Pure rules: application states, approval policy, growth planner, interview prep, metrics |
