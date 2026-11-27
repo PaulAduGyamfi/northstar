@@ -370,8 +370,15 @@ Exists now:
   and `profile import-linkedin` and `profile import-site` rebuild the report after a new import.
   The report still needs a resume import.
 
-  No Profile Grade handoff, page or share card yet; the share card waits on a Publish gateway
-  ADR and Q-10.
+  Since slice 8 also a read-only page: the API's `GET /career-dna` (session only,
+  `apps/api/src/career-dna.ts`, wording in `career-dna-wording.ts`; `@northstar/api` depends on
+  `@northstar/profile` for `diffCareerDna`, `careerDnaChangeLines` and `CAREER_DNA_RUBRIC`) serves the newest stored
+  version's label and each dimension's band, points and evidence count, field by field (never an
+  atom or story id), and what changed since the version before it; the web app's `/career-dna`
+  (`src/career-dna.ts`) says it in words. No nav link (the five tabs are fixed) or chart yet.
+
+  No Profile Grade handoff, directions or gaps on the page, or share card yet; the share card waits
+  on a Publish gateway ADR and Q-10.
 - The voice profile (NS-136, ANS-007/008) in `packages/profile/src/voice/`, plain code, no model:
   - `measureVoice` turns 5–10 writing samples into a style guide (sentence length, contractions,
     "I"/"we", exclamation marks, phrases used in 3+ samples), rendered by `renderVoiceGuide` for
