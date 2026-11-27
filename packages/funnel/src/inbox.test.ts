@@ -488,7 +488,7 @@ describe("inboxCommand", () => {
       gradeLetters: 1,
       recruiterWaiting: 3,
     }));
-    expect([code, printed.filter((l) => l.includes("grade"))]).toEqual([
+    expect([code, printed.filter((l) => /grade/i.test(l))]).toEqual([
       0,
       [
         "Graded recruiter emails: 2.",

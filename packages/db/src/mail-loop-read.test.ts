@@ -104,6 +104,24 @@ describe("readUngradedRecruiterMail", () => {
     ).toEqual([M1]);
   });
 
+  it("leaves out another candidate's recruiter mail", async () => {
+    const [other] = await db.insert(candidate).values({ displayName: "Other" }).returning();
+    if (!other) throw new Error("no candidate");
+    const otherId = CandidateId.parse(other.id);
+    await recorded(M1, 1, false, otherId);
+    await recordMailClassification(db, {
+      candidateId: otherId,
+      gmailMessageId: M1,
+      result: {
+        outcome: "classified",
+        kind: "recruiter_inbound",
+        stageSignal: "none",
+        decidedBy: "rules",
+      },
+    });
+    expect(await readUngradedRecruiterMail(db, candidateId, 10)).toEqual([]);
+  });
+
   it("gives newest first up to the limit", async () => {
     await recorded(M1, 1, false);
     await recorded(M2, 2, false);

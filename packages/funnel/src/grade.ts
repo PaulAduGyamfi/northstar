@@ -104,13 +104,12 @@ export async function runGrading(deps: GradingDeps): Promise<GradingReport> {
       done++;
       continue;
     }
-    done++;
     if (result.kind === "off") {
       // The route was off after all (a config mismatch): stop rather than letter every message.
       r.gradeStoppedBy = "RecruiterExtractOff";
-      done--;
       break;
     }
+    done++;
     if (result.kind === "needs_human") {
       await giveUp(m, result.reason);
       continue;
