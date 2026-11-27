@@ -166,6 +166,8 @@ describe("assemblePackage", () => {
     "Why wouldn`t you want to work at Example Co?",
     "Why would you n0t want to work at Example Co?",
     "Why would you n\u00f8t want to work at Example Co?",
+    "Why would you n\u00f3t want to work at Example Co?",
+    "Why wouldnt you want to work at Example Co?",
   ])("never answers a negation behind an allowed lookalike from the bank (%s, NS-274)", (label) => {
     expect(assemblePackage(base({ questions: [q("question_2", label)] }))).toMatchObject({
       ok: false,

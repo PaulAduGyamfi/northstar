@@ -3,8 +3,8 @@ import { CANONICAL_QUESTIONS } from "./question-canon.js";
 import {
   classifyQuestion,
   isNegatedQuestion,
-  negationSkeleton,
   matchQuestion,
+  negationSkeleton,
   questionConcepts,
 } from "./question-match.js";
 
@@ -255,6 +255,17 @@ describe("isNegatedQuestion", () => {
     ["a t with a stroke", "Why would you no\u0167 join us?"],
     ["a one for the i", "Can you start w1thout notice?"],
     ["a three for the e", "Would you n3ver relocate?"],
+    ["a saltillo as the apostrophe", "Why don\ua78ct you join us?"],
+    ["a seven for the t", "Why would you no7 join us?"],
+    ["letters split by hyphens", "Why would you n-o-t join us?"],
+    ["letters split by an apostrophe", "Why would you n'ot join us?"],
+    ["a symbol for the o", "Why would you n@t join us?"],
+    ["a contraction with no apostrophe", "Why wouldnt you join us?"],
+    ["not glued to its verb", "Why wouldnot you join us?"],
+    ["another stand-in for the apostrophe", "Why don^t you join us?"],
+    ["a full-width grave accent as the apostrophe", "Why wouldn\uff40t you join us?"],
+    ["a stroked o with no decomposition", "Why would you n\u2c7at join us?"],
+    ["an eng for the n", "Why would you \u014bot join us?"],
   ])("reads through %s (NS-274)", (_name, label) => {
     expect(isNegatedQuestion(label)).toBe(true);
   });
@@ -265,6 +276,8 @@ describe("isNegatedQuestion", () => {
     "Do you have 10+ years of experience with Node.js?",
     "Rate yourself 0-10 on Python.",
     "What is your notice period?",
+    "Do you want to work on front-end events?",
+    "Which date/notice period suits you?",
   ])("leaves a label with accents or digits but no negation alone (%s)", (label) => {
     expect(isNegatedQuestion(label)).toBe(false);
   });
