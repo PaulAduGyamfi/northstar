@@ -101,8 +101,24 @@ describe("isDisguisedLabel", () => {
     "Why would you n\u20ddot want to work at Example Corp?",
     "Why would you n\u1d0ft want to work at Example Corp?",
     "Why would you n\u0275t want to work at Example Corp?",
+    "Why wouldn\u0384t you want to work at Example Corp?",
+    "Why wouldn\u1fbft you want to work at Example Corp?",
+    "Why wouldn\u00b4t you want to work at Example Corp?",
+    "Why would you n\ue000t want to work at Example Corp?",
   ])("flags another script's letter or a hidden mark or blank (%s, NS-273)", (label) => {
     expect(isDisguisedLabel(label)).toBe(true);
+  });
+
+  it("still flags every code point the NS-249 rule flagged (security review, NS-273)", () => {
+    // The rule before NS-273, verbatim: widening it must never let one of these through.
+    const before = /[\p{Cf}\u02B0-\u02FF\p{Script=Greek}\p{Script=Cyrillic}]/u;
+    const missed: number[] = [];
+    for (let cp = 0; cp <= 0x10ffff; cp++) {
+      if (cp >= 0xd800 && cp <= 0xdfff) continue;
+      const c = String.fromCodePoint(cp);
+      if (before.test(c) && !isDisguisedLabel(`a${c}b`)) missed.push(cp);
+    }
+    expect(missed).toEqual([]);
   });
 
   it("leaves accented Latin letters, dashes and symbols alone", () => {
@@ -130,6 +146,8 @@ describe("labelReuse against other-script lookalikes and hidden marks (NS-273)",
     "Why would you no\u0301t want to work at Example Corp?",
     "Why would you n\u2800ot want to work at Example Corp?",
     "Why would you n\u13a4t want to work at Example Corp?",
+    "Why wouldn\u0384t you want to work at Example Corp?",
+    "Why wouldn\u1fbft you want to work at Example Corp?",
   ])("never counts reuse for %s", (label) => {
     expect(labelReuse(label, "why-this-company", COMPANY)).toBe("new");
   });

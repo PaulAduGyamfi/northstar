@@ -154,6 +154,7 @@ describe("assemblePackage", () => {
     "Why would you n\u13a4t want to work at Example Co?",
     "Why would you n\u20ddot want to work at Example Co?",
     "Why would you n\u1d0ft want to work at Example Co?",
+    "Why wouldn\u0384t you want to work at Example Co?",
   ])("sends another script's lookalike or a hidden mark to Paul, never the bank (%s)", (label) => {
     expect(assemblePackage(base({ questions: [q("question_2", label)] }))).toMatchObject({
       ok: false,

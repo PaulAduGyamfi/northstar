@@ -48,15 +48,22 @@ export function isExactWording(
 // - modifier letters (U+02BC as an apostrophe in "wouldnʼt"), the braille blank U+2800, and the
 //   IPA and phonetic letters (U+0250–U+02AF, U+1D00–U+1DBF: "nᴏt" with a small capital O), Latin
 //   script but needed by no company name (NS-273);
-// - any letter outside the Latin, Common and Inherited scripts: Greek or Cyrillic lookalikes
-//   ("nоt" with a Cyrillic о), and since NS-273 Armenian "օ", Cherokee and Coptic letters and
-//   Hangul fillers. A label in another script is refused whole: conservative, it goes to Paul.
+// - any character outside the Latin, Common and Inherited scripts, letter or not: Greek or
+//   Cyrillic lookalikes ("nоt" with a Cyrillic о; the Greek tonos U+0384 as an apostrophe), and
+//   since NS-273 Armenian "օ", Cherokee and Coptic letters and Hangul fillers. A label in another
+//   script is refused whole: conservative, it goes to Paul;
+// - private-use and unassigned code points (\p{Co}, \p{Cn}), which an employer's web font may draw
+//   as any letter.
+// Both the label and its NFKC form are checked, since the matcher reads the NFKC form: the acute
+// accent U+00B4 is Common, but NFKC turns it into a space and a combining mark.
 // The producer (packages/pipeline) runs the same check, so it never answers one (NS-272, NS-273).
-const HIDING = /[\p{Cf}\p{M}\u0250-\u02FF\u1D00-\u1DBF\u2800]/u;
-const OTHER_SCRIPT = /(?![\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}])\p{L}/u;
+const HIDING = /[\p{Cf}\p{M}\p{Co}\p{Cn}\u0250-\u02FF\u1D00-\u1DBF\u2800]/u;
+const OTHER_SCRIPT = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/u;
+
+const hides = (text: string): boolean => HIDING.test(text) || OTHER_SCRIPT.test(text);
 
 export const isDisguisedLabel = (label: string): boolean =>
-  HIDING.test(label) || OTHER_SCRIPT.test(label);
+  hides(label) || hides(label.normalize("NFKC"));
 
 // The strength from a match code already made (the producer's path, which also takes a model's
 // pick only to fill, never to count as reuse).

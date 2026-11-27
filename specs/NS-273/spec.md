@@ -17,8 +17,9 @@ authorized to work in Canada?" got "Yes" from settings.
 ## Behavior
 - `isDisguisedLabel` also flags any combining mark (`\p{M}`: nonspacing, enclosing, spacing), the
   IPA and phonetic letters (U+0250–U+02AF, U+1D00–U+1DBF: "nᴏt"), the braille blank U+2800, and any
-  letter outside the Latin, Common and Inherited scripts (it already flagged `\p{Cf}`, modifier
-  letters, Greek and Cyrillic). Precomposed accented Latin letters (Vietnamese included), dashes
+  character (letter or not) outside the Latin, Common and Inherited scripts, and private-use and
+  unassigned code points (it already flagged `\p{Cf}`, modifier letters, and every Greek and
+  Cyrillic code point, which stays flagged). It checks the label and its NFKC form. Precomposed accented Latin letters (Vietnamese included), dashes
   and symbols stay allowed; a label sent decomposed (NFD), with an emoji variation selector, or in
   another script goes to Paul. The Gate
   (`labelReuse`) and the producer share it, so both change together.
@@ -38,3 +39,5 @@ authorized to work in Canada?" got "Yes" from settings.
   flagged; company names need such letters. Catching it would mean the negation check reading
   "not" through accents.
 - Relaxing the Greek and Cyrillic rule (Paul's open decision on #297): this only makes it wider.
+- A "negation skeleton" (backtick or "n0t" as stand-ins, precomposed or other Latin lookalikes such
+  as "ǫ"): needs the negation check to read through lookalikes, a follow-up issue.
