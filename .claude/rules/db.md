@@ -247,7 +247,7 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   address.
 - Detected interviews (NS-240 slice 2, CAL-002) are `interview_detection` (one row per candidate,
   calendar event id, application and version, 1–10 by a CHECK; the highest version is current;
-  writers lock the application row first; at most 50 new rows a day per candidate;
+  writers lock the candidate row first; at most 50 new rows a day per candidate;
   a composite foreign key keeps the application the candidate's own) and `interview_decision` (one
   `confirmed` or `dismissed` per detection, checked in the transaction, not a foreign key),
   append-only (triggers), written only through `interview-write.ts`. Times, the format and a count

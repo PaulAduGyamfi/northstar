@@ -32,6 +32,8 @@ it, and NS-241's prep blocks wait for a confirmed interview.
   with its decision or none, by start time.
 
 ## Out of scope
+- The caller must turn `TooManyChanges` and `DailyLimit` into a visible item (a dead letter), never
+  drop them: a flood that hides a real interview must reach Paul.
 - The consent flow (waits for Paul to accept ADR-0026), the caller that runs `listEvents` and
   `detectInterview`, and the API and page for confirming: later slices.
 

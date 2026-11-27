@@ -72,10 +72,10 @@ export async function recordInterviewDetection(
           and(eq(application.id, d.applicationId), eq(application.candidateId, input.candidateId)),
         );
       if (!app) return { ok: false as const, error: { kind: "UnknownApplication" as const } };
-      // One writer at a time per application, so two can't store the same version.
-      await tx.execute(
-        sql`select id from application where id = ${d.applicationId} and candidate_id = ${input.candidateId} for update`,
-      );
+      // One writer at a time per candidate: two can't store the same version, the daily limit is
+      // exact across applications, and a decision can't race a new version (decideInterview locks
+      // the same row).
+      await lockCandidate(tx, input.candidateId);
       const sameEvent = and(
         eq(interviewDetection.candidateId, input.candidateId),
         eq(interviewDetection.calendarEventId, d.calendarEventId),
@@ -164,6 +164,14 @@ export async function recordInterviewDetection(
   );
 }
 
+// The candidate's row lock that serializes this file's writers.
+async function lockCandidate(
+  tx: Parameters<Parameters<Db["transaction"]>[0]>[0],
+  candidateId: CandidateId,
+): Promise<void> {
+  await tx.execute(sql`select id from candidate where id = ${candidateId} for update`);
+}
+
 export type InterviewDecisionKind = "confirmed" | "dismissed";
 
 export type DecisionError =
@@ -183,6 +191,9 @@ export async function decideInterview(
   }
   return inSpan("db.interview.decide", { "northstar.interview.decision": input.decision }, (span) =>
     db.transaction(async (tx) => {
+      // The same lock as recordInterviewDetection, so a new version can't slip in between the
+      // Superseded check and the insert.
+      await lockCandidate(tx, input.candidateId);
       const [detection] = await tx
         .select({
           id: interviewDetection.id,
