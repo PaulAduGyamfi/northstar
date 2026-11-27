@@ -82,6 +82,8 @@ export { type ImportDeps, type ImportResult, importResume } from "./import.js";
 // answer, plain code over his own file.
 export {
   type AnswerSource,
+  // The invisible and blank-looking characters, shared with the API's postingText (NS-130 slice 12).
+  INVISIBLE_IN_WORK,
   independentWorkSection,
   MAX_ANSWER_WORDS,
   parseIndependentWork,

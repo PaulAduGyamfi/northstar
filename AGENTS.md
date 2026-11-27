@@ -214,7 +214,8 @@ Exists now:
   `twentySecondAnswer` (at most 55 words from the entries and the official record's last employer,
   with its sources). Stored in `packages/db` (`independent-work-schema.ts`,
   `independent-work-write.ts`: `setIndependentWork`, `readIndependentWork`; append-only, a
-  version per file). Since NS-231 (slice 1) every tailored resume carries it:
+  version per file). Since NS-130 slice 12 the package entry also exports `INVISIBLE_IN_WORK`,
+  which the API's `postingText` reuses. Since NS-231 (slice 1) every tailored resume carries it:
   - `tailorForJob` reads the newest version (`readWork`).
   - `tailorResume` adds every entry and line verbatim as `independentWork`, each citing its stored
     entry and line.
@@ -350,8 +351,9 @@ Exists now:
   append-only `profile_contact` in `packages/db` (`contact-schema.ts`, `contact-write.ts`:
   `setContact`, `readContact`; newest wins, the same details store nothing), checked with the
   package's own `ContactDetails` schema (`packages/domain`), and `profile contact set|show`
-  (`contact-cli.ts`). `profile.contact_set` carries a phone flag only. No caller reads it yet
-  (the package caller, slice 4).
+  (`contact-cli.ts`). `profile.contact_set` carries a phone flag only. It is read by
+  `preparePackage` (slice 6, through `readPackageInputs`; no caller yet, #230) and by the Gate's
+  `requestPackageApproval`, which checks a package's contact against it.
 - Career DNA (NS-130, DNA-001…003), slice 1, plain code in `packages/profile/src/career-dna/`, no
   model, database or caller yet:
   - `CAREER_DNA_RUBRIC` (version 1, software engineering): six dimensions (engineering,
@@ -406,7 +408,8 @@ Exists now:
   over ready, open jobs (dated by posting, else first seen) and the current resume import, then
   `evidenceGaps` over the newest report's dimensions, those directions and Paul's growth tracks.
   It answers counts, coverage and gap words only (never an atom or job id); posting text passes
-  `postingText` (hidden characters removed, at most 200 characters). The page's "Directions" and
+  `postingText` (control, formatting and blank-looking characters removed, at most 200
+  characters). The page's "Directions" and
   "Proof to build" sections word it (`src/career-directions.ts`).
   Since slice 10 also a jobs page: the API's `GET /jobs` (session only, `apps/api/src/jobs.ts`,
   read-only) answers ready jobs whose posting isn't known closed (`readScorableJobs`), in the
@@ -814,7 +817,7 @@ Exists now:
   nothing. Stored in `packages/db` (`job-form-schema.ts`, `job-form-write.ts`: append-only
   `job_form`, a new row whenever the form differs from the job's newest, which is current; `saveJobForm`, `readJobForm`,
   `readJobAtsSources`) by `jobs form <job-id>`. Lever's and Ashby's public APIs publish no
-  questions. No caller assembles a package from it yet.
+  questions. `preparePackage` (`packages/pipeline`, slice 6) builds a package from it (no caller yet, #230).
   Since NS-163 also fresh-job alerts (`alerts.ts`, SRC-015, plain code): after every scoring
   pass, a job whose latest score is in the queue band and that is under an hour old gets one
   `job.fresh_alert` event, its feed line "Posted 12 min ago · Fit 88 · ready to approve". Inside
@@ -1220,7 +1223,9 @@ Exists now:
   refuses every combining mark (so a decomposed label too), IPA and phonetic letters ("nᴏt"), the
   braille blank, private-use and unassigned code points and any character outside the Latin, Common
   and Inherited scripts (Armenian, Cherokee, Hangul fillers…), on the label and its NFKC form, and the producer checks it before the factual path,
-  so a disguised label is never answered from settings either. Since NS-249 (slice 1) `requestApproval` refuses
+  so a disguised label is never answered from settings either. Since NS-274 `isNegatedQuestion` also
+  reads the label's `negationSkeleton` (backtick and acute as apostrophes, marks stripped, 0/1/3 and
+  ø, ꝋ, ŧ… as letters), so "wouldn`t", "n0t" and "nót" count as negated everywhere it is used. Since NS-249 (slice 1) `requestApproval` refuses
   facts from every caller (`InvalidRequest` on `facts`; its input says `facts: null`): a package
   filed there waits for Paul and, with no stored package, can't be submitted. Only
   `requestPackageApproval` passes facts, through `requestApprovalWithFacts`, which
