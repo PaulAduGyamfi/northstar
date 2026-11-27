@@ -111,9 +111,9 @@ const RequestInput = z.object({
   kind: ApprovalKind,
   subject: Subject,
   contentSha256: Sha256,
-  // Only application packages carry facts; every other kind has none to give a policy. Facts
-  // come from the producer, so only plain-code workflow activities may call requestApproval with
-  // them, never an agent that read untrusted text (NFR-SEC-004, ADR-0017).
+  // Only application packages carry facts; every other kind has none to give a policy. Since
+  // NS-249 they come only through requestApprovalWithFacts, i.e. the facts requestPackageApproval
+  // derived from storage: requestApproval refuses any caller's facts (NFR-SEC-004, ADR-0017).
   facts: PackageFacts.nullable(),
   actor: z.string().regex(/^(agent:[a-z0-9-]+|system)$/),
   idempotencyKey: z.string().min(1).max(200),

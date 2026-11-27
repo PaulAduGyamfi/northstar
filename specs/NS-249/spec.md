@@ -1,6 +1,6 @@
 # NS-249 slice 1: `requestApproval` refuses caller facts for application packages
 
-Status: in progress (autonomous lane, ADR-0016). Assigned by the orchestrator.
+Status: built (autonomous lane, ADR-0016). Assigned by the orchestrator.
 Issue: #297 item 1 (parent #195). Decision on #297 (2026-11-27, delegated by Paul): yes; item 1
 first; no assertion loosened; every changed test listed in the PR.
 Requirements: APR-004, APPLY-003, APPLY-004 · ADR-0002, ADR-0017
@@ -25,11 +25,11 @@ or buggy producer could still pass facts that match one of Paul's auto-approve r
   and a banked answer. What each test checks stays the same.
 
 ## Acceptance criteria
-- [ ] `requestApproval` with non-null facts is refused for every kind, before anything is stored.
-- [ ] `requestPackageApproval` still auto-approves on facts it derived (its tests unchanged).
-- [ ] Every test that passed facts files through `requestPackageApproval`; no assertion loosened.
-- [ ] The index doesn't export `requestApprovalWithFacts`.
-- [ ] lint, typecheck, test and build green for db and every package that imports it; docs.
+- [x] `requestApproval` with non-null facts is refused for every kind, before anything is stored.
+- [x] `requestPackageApproval` still auto-approves on facts it derived (its tests unchanged).
+- [x] Every test that passed facts files through `requestPackageApproval`; no assertion loosened.
+- [x] The index doesn't export `requestApprovalWithFacts`.
+- [x] lint, typecheck, test and build green for db and every package that imports it; docs.
 
 ## Out of scope
 - Item 2 (the question canon move and the Gate's per-answer question check): its own slice.

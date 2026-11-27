@@ -82,6 +82,8 @@ export async function packageFixture(
     return j.id;
   };
   const jobId = await newJob("Backend Engineer");
+  // Rows straight in, as seedApplication does: the Gate reads only the row and its job, and
+  // createApplication's event would add to what the tests count.
   const [app] = await db
     .insert(application)
     .values({ candidateId, jobId, status: "awaiting_approval" })
