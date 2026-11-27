@@ -785,7 +785,7 @@ Exists now:
   adapter's contact fields, mirrored from the gateway's adapters, then the package's own fields),
   `fillForm` (in-page: visible, enabled fields of those names only; never a file, hidden field or
   button; never clicks or submits) and `packageRequest` (30 s limit).
-  Since slice 4 (ADR-0030, Proposed: a pasted one-time code, amending ADR-0029's deep link) Paul
+  Since slice 4 (ADR-0030, Accepted: a pasted one-time code, amending ADR-0029's deep link) Paul
   does it by hand: "Pre-fill" on the "Needs your hands" card (`apps/web/app/prefill-code.tsx`)
   gets a grant and shows `<handoffId>.<grant>` (`prefillCode`) with a Copy button and a countdown,
   cleared at expiry, in component state only. He pastes it into the popup's "Fill this form" on the
