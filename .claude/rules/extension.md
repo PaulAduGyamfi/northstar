@@ -19,7 +19,9 @@ no bundler or framework; `src/chrome.d.ts` types the few Chrome APIs it calls.
   `popup.ts` and `options.ts` only wire it to the browser.
 - The handoff pre-fill (NS-192) follows ADR-0029 option 2 (Accepted): the extension may read one
   open handoff's approved package only with a one-time, 2-minute grant from Paul's own session;
-  the extension token alone reads nothing. Never add an `auth: "extension"`
+  the extension token alone reads nothing. Since slice 2 that read is `POST /handoffs/package`
+  with a grant from `POST /handoffs/prefill-grant` (`apps/api/src/prefill.ts`): send the grant,
+  never store it, and never widen the read beyond that one handoff. Never add an `auth: "extension"`
   endpoint that reads Paul's data without an accepted ADR. Once decided, the fill sets only fields
   the ATS adapter maps, on Paul's click, on the adapter's own host, never submit, never the
   challenge.

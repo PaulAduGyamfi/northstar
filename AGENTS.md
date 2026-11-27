@@ -736,10 +736,16 @@ Exists now:
     hashes to the pinned content.
   - Otherwise it says why: `NotFound`, `Closed`, `NoPackage`, `NotApproved` or `Changed`.
 
-  Nothing calls it yet. Letting the extension read it would change ADR-0019's "no reads" for the
-  extension token, so ADR-0029 (Accepted, option 2) allows it only with a one-time, 2-minute grant
-  issued by Paul's own session; a token alone reads nothing. The extension's
-  fill and the `handoff.prefilled` event come after that.
+  Since slice 2 (ADR-0029, Accepted, option 2) the API serves it (`apps/api/src/prefill.ts`):
+  - `POST /handoffs/prefill-grant` (session only) checks that the read would serve the handoff,
+    then issues a random grant for that one handoff. The grant is kept in memory as its SHA-256
+    only (`createPrefillGrants`), single use, for 2 minutes, with at most 20 waiting.
+  - `POST /handoffs/package` (`auth: "extension"`, 512-byte body) consumes the grant first: a
+    missing, used, expired or other handoff's grant is `403 grant_invalid` with nothing read. Then
+    it answers `readHandoffPackage`'s fields as they are now, or its refusal as a fixed code.
+
+  A token alone reads nothing. The card's pre-fill link, the extension's fill and the
+  `handoff.prefilled` event come next (slice 3).
 - Verification windows (NS-151, VER-001…006) in `packages/db` (`verification-schema.ts`,
   `verification-write.ts`, append-only): `verification_window`, one `verification_window_restart`
   and one `verification_window_close` per window, and `verification_used_message` (one window per
