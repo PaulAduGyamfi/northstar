@@ -26,7 +26,7 @@ export type PrepBlock = { kind: "prep" | "warm_up"; start: Date; end: Date };
 export type BusyInterval = { start: Date; end: Date };
 // PrepRequest's own bound on busy intervals (packages/db).
 export const MAX_BUSY = 500;
-// A plan as Paul sees it in his own terminal: the Queue's card doesn't show block times yet.
+// A plan as Paul sees it in his terminal on the run that files it (the Queue shows it too).
 export type FiledPlanView = { interviewStart: Date; blocks: PrepBlock[] };
 export type PlannedProposal = { proposalId: string; blocks: PrepBlock[] };
 
