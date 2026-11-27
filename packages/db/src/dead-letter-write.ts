@@ -22,6 +22,9 @@ import {
 export const DEAD_LETTER_KINDS = [
   "apply.stale_sweep", // NS-220: the stale-claim sweep (apps/worker sweep.ts)
   "apply.submission", // NS-226: a submission that ended without a visible outcome (ending.ts)
+  // NS-240: a detected interview the store refused (too many changes, the daily limit;
+  // runInterviewDetection in @northstar/inbox).
+  "calendar.interview_detection",
 ] as const;
 export type DeadLetterKind = (typeof DEAD_LETTER_KINDS)[number];
 

@@ -33,6 +33,19 @@ export {
   interviewFromMail,
   type MailInterview,
 } from "./interview/detect.js";
+// The interview detection run (NS-240 slice 4): ports only, no caller yet (#230).
+export {
+  DETECTION_DEAD_LETTER_KIND,
+  DETECTION_WINDOW_DAYS,
+  type DetectionLetter,
+  type DetectionLetterResult,
+  type DetectionRecordResult,
+  type DetectionRunDeps,
+  type DetectionRunReport,
+  MAX_INTERVIEWERS,
+  runInterviewDetection,
+  type StoredDetection,
+} from "./interview/run.js";
 // Gmail labels (NS-229, ADR-0027 Rejected): fixed names and the add-only label writer. It keeps
 // no caller, and no code may request the gmail.modify scope.
 export { LABEL_NAMES, type LabelOrigin, threadLabels } from "./labels/names.js";
