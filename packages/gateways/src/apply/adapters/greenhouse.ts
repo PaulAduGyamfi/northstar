@@ -1,8 +1,10 @@
 import { type AtsAdapter, capture, pageText } from "./adapter.js";
 
 // Greenhouse hosted job boards. Standard field names are Greenhouse's own; custom questions
-// (`question_<id>`) come from the package's field map. Markers are hand-written from Greenhouse's
-// public board pages and must be checked against recorded pages (follow-up to NS-120).
+// (`question_<id>`) come from the package's field map. The field names were checked against a
+// recorded form (NS-142 slice 2, `test/recorded.ts`): the current board has them as ids, with no
+// name attribute, which the driver can't read yet (#353). The confirmation markers are still
+// hand-written: recording a confirmation page needs a submission.
 export const greenhouse: AtsAdapter = {
   ats: "greenhouse",
   hosts: ["boards.greenhouse.io", "job-boards.greenhouse.io"],

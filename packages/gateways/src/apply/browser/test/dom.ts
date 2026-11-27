@@ -74,7 +74,7 @@ export const LEVER_PAGE = (): DomDocument =>
     [
       el("input", { name: "name", required: "" }),
       el("input", { name: "email", type: "email", required: "" }),
-      el("input", { name: "phone", type: "tel" }),
+      el("input", { name: "phone", type: "text" }),
       el("input", { name: "resume", type: "file", required: "" }),
       el("input", { name: "urls[LinkedIn]", type: "url" }),
       el(

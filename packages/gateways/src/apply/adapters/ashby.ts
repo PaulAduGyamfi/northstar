@@ -1,7 +1,8 @@
 import { type AtsAdapter, capture, pageText } from "./adapter.js";
 
 // Ashby hosted job boards. Ashby's standard fields use `_systemfield_*` names; custom questions
-// are field ids from the package's field map. Markers are hand-written (follow-up: record pages).
+// are field ids from the package's field map. Field names and markers are hand-written: Ashby's
+// application page is built by JavaScript, so a plain GET has no form to record (NS-142 slice 2).
 export const ashby: AtsAdapter = {
   ats: "ashby",
   hosts: ["jobs.ashbyhq.com"],
