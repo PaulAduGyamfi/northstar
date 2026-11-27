@@ -214,7 +214,8 @@ Exists now:
   `twentySecondAnswer` (at most 55 words from the entries and the official record's last employer,
   with its sources). Stored in `packages/db` (`independent-work-schema.ts`,
   `independent-work-write.ts`: `setIndependentWork`, `readIndependentWork`; append-only, a
-  version per file). Since NS-231 (slice 1) every tailored resume carries it:
+  version per file). Since NS-130 slice 12 the package entry also exports `INVISIBLE_IN_WORK`,
+  which the API's `postingText` reuses. Since NS-231 (slice 1) every tailored resume carries it:
   - `tailorForJob` reads the newest version (`readWork`).
   - `tailorResume` adds every entry and line verbatim as `independentWork`, each citing its stored
     entry and line.
@@ -406,7 +407,8 @@ Exists now:
   over ready, open jobs (dated by posting, else first seen) and the current resume import, then
   `evidenceGaps` over the newest report's dimensions, those directions and Paul's growth tracks.
   It answers counts, coverage and gap words only (never an atom or job id); posting text passes
-  `postingText` (hidden characters removed, at most 200 characters). The page's "Directions" and
+  `postingText` (control, formatting and blank-looking characters removed, at most 200
+  characters). The page's "Directions" and
   "Proof to build" sections word it (`src/career-directions.ts`).
   Since slice 10 also a jobs page: the API's `GET /jobs` (session only, `apps/api/src/jobs.ts`,
   read-only) answers ready jobs whose posting isn't known closed (`readScorableJobs`), in the
