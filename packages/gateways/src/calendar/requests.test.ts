@@ -247,6 +247,78 @@ describe("createCalendarWriteClient", () => {
     });
   });
 
+  it("accepts Google's newer c_ calendar ids in create, find and insert", async () => {
+    const newer = calId("c_0a1b2c3d4e5f6a7b8c9d");
+    const calls = fakeGoogle((call) =>
+      call.url.endsWith("/calendars")
+        ? json(200, { id: newer })
+        : call.url.includes("calendarList")
+          ? json(200, { items: [{ id: newer, description: NORTHSTAR_CALENDAR_MARKER }] })
+          : json(200, {}),
+    );
+    const { c } = client();
+    expect([
+      await c.createCalendar(span),
+      await c.findMarkedCalendar(span),
+      await c.insertPrepEvent(newer, PREP, span),
+      calls[2]?.url,
+    ]).toEqual([
+      newer,
+      newer,
+      "created",
+      `${CALENDARS}/c_0a1b2c3d4e5f6a7b8c9d%40group.calendar.google.com/events?sendUpdates=none`,
+    ]);
+  });
+
+  it("counts a 429 against the breaker", async () => {
+    fakeGoogle(() => json(429, {}));
+    const { c, reports } = client();
+    const error = await c.insertPrepEvent(CAL_ID, PREP, span).catch((e) => e);
+    expect([error instanceof CalendarWriteError && error.status, reports]).toEqual([
+      429,
+      [{ ok: false, error: "CalendarWriteError" }],
+    ]);
+  });
+
+  it("counts no answer against the breaker and reports status 0", async () => {
+    vi.stubGlobal("fetch", async () => {
+      throw new TypeError("connection reset");
+    });
+    const { c, reports } = client();
+    const error = await c.insertPrepEvent(CAL_ID, PREP, span).catch((e) => e);
+    expect([error instanceof CalendarWriteError && error.status, error.message, reports]).toEqual([
+      0,
+      "Calendar didn't answer (TypeError)",
+      [{ ok: false, error: "CalendarWriteError" }],
+    ]);
+  });
+
+  it("doesn't count a 403 against the breaker, since Google answered, but still fails the call", async () => {
+    fakeGoogle(() => json(403, { error: { errors: [{ reason: "forbidden" }] } }));
+    const { c, reports } = client();
+    const error = await c.insertPrepEvent(CAL_ID, PREP, span).catch((e) => e);
+    expect([error.message, reports]).toEqual(["Calendar answered 403 (forbidden)", [{ ok: true }]]);
+  });
+
+  it("holds the request back when the guard itself fails, so nothing goes out unguarded", async () => {
+    const calls = fakeGoogle(() => json(200, {}));
+    const c = createCalendarWriteClient({
+      access: new CalendarWriteAccess("test-key", []),
+      guard: {
+        isOn: async () => {
+          throw new Error("database down");
+        },
+        acquire: async () => ALLOW,
+        report: async () => {},
+      },
+    });
+    const error = await c.insertPrepEvent(CAL_ID, PREP, span).catch((e) => e);
+    expect([error instanceof CalendarWriteHeldBack && error.by, calls.length]).toEqual([
+      "guard_error",
+      0,
+    ]);
+  });
+
   it("finds the calendar by its marker, never by its name", async () => {
     fakeGoogle(() =>
       json(200, {

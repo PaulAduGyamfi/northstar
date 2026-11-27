@@ -1,6 +1,6 @@
 # NS-241 slice 3: the Calendar Gateway's write module (no Gate wiring yet)
 
-Status: in progress
+Status: in review (PR)
 Requirements: CAL-001 (a dedicated Northstar calendar), CAL-003 (prep blocks)
 Rules that apply: ADR-0031 (Accepted), ADR-0002, ADR-0014, ADR-0025 (the model), ADR-0026,
 ADR-0007, `.claude/rules/gateways.md`, `.claude/rules/tests.md`
@@ -39,14 +39,14 @@ comes next.
   port; only `requests.ts` reads the token back; the package entry never exports the test seam.
 
 ## Acceptance criteria
-- [ ] The allowlist accepts the three requests and refuses an update, delete, move, another
+- [x] The allowlist accepts the three requests and refuses an update, delete, move, another
       calendar list query, an event body with any other key, `sendUpdates=all`, a lookalike host.
-- [ ] `insertPrepEvent` sends exactly the allowed body; 409 answers `exists`; a held-back request
+- [x] `insertPrepEvent` sends exactly the allowed body; 409 answers `exists`; a held-back request
       never reaches `fetch`.
-- [ ] The consent flow refuses a wider grant and never quotes the token in an error.
-- [ ] The token prints a mask and has no accessor.
-- [ ] The boundary tests pass.
-- [ ] `pnpm --filter @northstar/gateways lint typecheck test` pass.
+- [x] The consent flow refuses a wider grant and never quotes the token in an error.
+- [x] The token prints a mask and has no accessor.
+- [x] The boundary tests pass.
+- [x] `pnpm --filter @northstar/gateways lint typecheck test` pass.
 
 ## Out of scope
 The Gate check, the ledger, the calendar id's storage, the `prep_plan` entry point, the dead-letter

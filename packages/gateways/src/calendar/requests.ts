@@ -16,6 +16,8 @@ import {
 
 const API = "https://www.googleapis.com/calendar/v3";
 const CALENDARS_URL = `${API}/calendars`;
+// One page of up to 250 calendars, deliberately: Paul's own account holds far fewer, and the
+// marker lookup only runs after an unknown outcome (the stored id comes first, next slice).
 const LIST_URL = `${API}/users/me/calendarList?minAccessRole=owner&maxResults=250&fields=items(id%2Cdescription)`;
 
 // The calendar Northstar creates (CAL-001) and the fixed marker that finds it again after an
@@ -37,7 +39,8 @@ const EVENT_ID = /^[a-v0-9]{5,1024}$/;
 // A secondary calendar's id, as Google makes it for calendars.insert: `<letters and digits>@` and
 // this domain. Exported so tests build their invented ids from it.
 export const CALENDAR_ID_DOMAIN = "group.calendar.google.com";
-const CALENDAR_ID = /^[a-z0-9]{1,128}@group\.calendar\.google\.com$/;
+// Newer calendars get ids like `c_<hex>`, so `_` is allowed; encodeURIComponent leaves it as is.
+const CALENDAR_ID = /^[a-z0-9_]{1,128}@group\.calendar\.google\.com$/;
 // An ISO time in UTC as Date#toISOString writes it: no time zone needs sending (ADR-0031 item 6).
 const UTC_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
@@ -46,9 +49,12 @@ export const CALENDAR_WRITE_DEPENDENCY = "calendar";
 export const CALENDAR_WRITE_SUBSYSTEM = "calendar_writes";
 const TIMEOUT_MS = 30_000;
 
+// The fixed base URL with every special character escaped, so the pattern below matches only
+// Google's own host and path, a secondary calendar's encoded id (`@` as %40) and exactly
+// `sendUpdates=none` with no other query (no conferenceDataVersion, no guest emails).
 const literal = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const EVENTS_URL = new RegExp(
-  `^${literal(CALENDARS_URL)}/([a-z0-9]{1,128})%40group\\.calendar\\.google\\.com/events\\?sendUpdates=none$`,
+  `^${literal(CALENDARS_URL)}/([a-z0-9_]{1,128})%40group\\.calendar\\.google\\.com/events\\?sendUpdates=none$`,
 );
 
 // Whether a request is one the writer may send:

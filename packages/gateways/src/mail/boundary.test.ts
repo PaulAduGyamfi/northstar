@@ -46,8 +46,18 @@ const withoutComments = (code: string) =>
 
 // An import, re-export or require of a path ending in mail/drafts, mail/message, mail/access or
 // (NS-237 slice 5) mail/consent, whose test seam takes a token exchange that sees the raw token.
+// `from "…"`, `import("…")`, a bare `import "…"` (which still runs the module) and `require("…")`.
 const IMPORTS_PRIVATE =
-  /(from\s+|import\s*\(\s*|require\s*\(\s*)["'][^"']*mail\/(drafts|message|access|consent)(\.[a-z]+)?["']/;
+  /(from\s+|import\s*\(\s*|import\s+|require\s*\(\s*)["'][^"']*mail\/(drafts|message|access|consent)(\.[a-z]+)?["']/;
+const ENTRY = "packages/gateways/src/index.ts";
+
+// The private imports one file makes, other than the package entry's allowed exports (the token
+// type and the consent flow's public entry point).
+function privateImports(path: string, text: string): string[] {
+  const matches = text.match(new RegExp(IMPORTS_PRIVATE, "g")) ?? [];
+  if (path !== ENTRY) return matches;
+  return matches.filter((m) => !/mail\/(access|consent)(\.js)?["']$/.test(m));
+}
 
 // Gmail's send, update and delete calls on drafts and messages, as a URL path or a method name.
 const WRITES_BEYOND_CREATE = [
@@ -67,17 +77,30 @@ describe("the draft writer's boundary (ADR-0025 item 4)", () => {
         const path = rel(file);
         // The package entry exports the token type (from access.ts) for the coming consent flow.
         if (path.startsWith(MAIL_DIR)) continue;
-        const text = await readFile(file, "utf8");
-        const matches = text.match(new RegExp(IMPORTS_PRIVATE, "g")) ?? [];
-        // The package entry exports the token type and the consent flow's public entry point only.
-        const allowed = path === "packages/gateways/src/index.ts";
-        if (matches.some((m) => !(allowed && /mail\/(access|consent)(\.js)?["']$/.test(m))))
-          found.push(path);
+        if (privateImports(path, await readFile(file, "utf8")).length > 0) found.push(path);
       }
       expect(found).toEqual([]);
     },
     REPO_WALK_TIMEOUT_MS,
   );
+
+  it("catches every form of private import, bare imports included, and allows only the entry's exports", () => {
+    expect([
+      privateImports("apps/api/src/x.ts", 'import "../../../packages/gateways/src/mail/drafts.js";')
+        .length,
+      privateImports(
+        "apps/api/src/x.ts",
+        'const d = require("@northstar/gateways/src/mail/drafts");',
+      ).length,
+      privateImports("packages/gateways/src/apply/x.ts", 'import { x } from "../mail/message.js";')
+        .length,
+      privateImports("packages/gateways/src/apply/x.ts", 'await import("../mail/consent.js");')
+        .length,
+      privateImports(ENTRY, 'export { GmailComposeAccess } from "./mail/access.js";').length,
+      privateImports(ENTRY, 'export { authorizeCompose } from "./mail/consent.js";').length,
+      privateImports(ENTRY, 'import "./mail/drafts.js";').length,
+    ]).toEqual([1, 1, 1, 1, 0, 0, 1]);
+  });
 
   it("no code under src/mail/ names a send, update or delete on Gmail drafts or messages", async () => {
     const found: string[] = [];
