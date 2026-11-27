@@ -38,8 +38,10 @@ export {
   saveApprovedAnswer,
 } from "./answer-write.js";
 export {
+  type DecisionPackageError,
   type HandoffPackage,
   type HandoffPackageError,
+  readDecisionPackage,
   readHandoffPackage,
 } from "./application-package-read.js";
 // Stored application packages (NS-192): the package behind each application_package request.

@@ -166,7 +166,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   transaction as the request (a replay stores nothing). Its foreign key names the request's id,
   candidate, kind and content hash, as `reply_draft`'s does. The package holds Paul's contact
   details and answers: read it only through `readHandoffPackage`, which re-verifies the approval
-  and the hash, and never copy it into an event, span, log or error.
+  and the hash, or (NS-242) `readDecisionPackage`, the submission activity's reader, which checks
+  the hash and application it is given and leaves the approval to the Apply Gateway; never copy it
+  into an event, span, log or error.
 - Stored files (NS-227, slice 2) are `stored_file`, append-only (a trigger), one row per candidate
   and SHA-256, written only through `file-write.ts` (`storeFileIn`, inside the caller's
   transaction; today only `saveTailoredResume`). CHECKs make the hash the bytes' own

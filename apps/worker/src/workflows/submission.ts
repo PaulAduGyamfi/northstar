@@ -26,8 +26,11 @@ export const approvalSignal = defineSignal<[{ decisionId: string }]>("approval")
 // The request was withdrawn before approval (Paul, or a changed package).
 export const withdrawnSignal = defineSignal("withdrawn");
 
-// applicationId names the dead letter of an ending nobody else shows (NS-226).
-export type SubmissionInput = { candidateId: string; applicationId: string; package: unknown };
+// Ids only (NS-242): Temporal keeps workflow inputs and activity arguments as plain text in its
+// history, so the package itself (Paul's contact details and answers) never travels here; the
+// activity loads it from storage by the decision and this hash. applicationId also names the dead
+// letter of an ending nobody else shows (NS-226).
+export type SubmissionInput = { candidateId: string; applicationId: string; packageSha256: string };
 
 // Kept in step with the gateway: its browser steps take at most OPEN + SUBMIT + CLOSE = 6.5
 // minutes, and a claim older than 15 minutes is treated as dead, so 10 minutes sits between.
@@ -107,8 +110,9 @@ async function runSubmission(
     try {
       step = await submitApplication({
         candidateId: input.candidateId,
+        applicationId: input.applicationId,
         decisionId,
-        package: input.package,
+        packageSha256: input.packageSha256,
       });
     } catch (error) {
       const reason = error instanceof ActivityFailure ? notApprovedReason(error.cause) : null;
