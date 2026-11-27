@@ -109,6 +109,8 @@ function summarize(
   dropped: number,
 ): TailorSummary {
   const lines = [...resume.summary, ...resume.sections.flatMap((s) => s.lines)];
+  // The section the page budget kept (NS-231): 0 and 0 without one.
+  const work = resume.independentWork?.entries ?? [];
   return {
     lines: lines.length,
     atoms: new Set(lines.flatMap((l) => l.atomIds)).size,
@@ -121,5 +123,7 @@ function summarize(
     atsPass: score.ats.pass,
     valid: validation.ok,
     failures: validation.ok ? 0 : validation.failures.length,
+    workEntries: work.length,
+    workLines: work.reduce((n, e) => n + e.lines.length, 0),
   };
 }

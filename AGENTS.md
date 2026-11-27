@@ -211,6 +211,8 @@ Exists now:
   - The section renders under `PROJECTS` in the text, PDF and DOCX, and counts toward the page
     budget (atom lines give way first).
   - `validateTailoredResume` refuses any line that isn't the stored line it cites.
+  - Since slice 4 `resume.tailored` also counts the section's entries and lines (`workEntries`,
+    `workLines`; 0 and 0 without one), never its text.
 
   The `resume-tailor` route never sees or writes it: it is on the TypeScript type only, not the
   route's Zod schema. Since NS-231 slice 2 also LinkedIn "Projects" copy: `linkedinProjects`
