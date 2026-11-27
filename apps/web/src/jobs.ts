@@ -89,23 +89,25 @@ export function reasonWords(reason: string | null): string | null {
   return word === undefined ? null : `weakest on ${word}`;
 }
 
-// Each check's code in words (packages/sources, fit/score.ts). "unknown" says the posting didn't
-// say; an unknown code is left out, never shown raw.
+// Each check's code in words (packages/sources, fit/score.ts). The scorer answers "unknown" for
+// several reasons (no title on the job or no target titles; pay unstated, in another currency or
+// no floor set; no places set or none stated), so its words say only that it couldn't compare.
+// An unknown code is left out, never shown raw.
 const TITLE_WORDS: Record<string, string> = {
   exact: "Title: matches your target titles",
   partial: "Title: close to your target titles",
   none: "Title: not one of your target titles",
-  unknown: "Title: no target titles set",
+  unknown: "Title: can't check against your target titles",
 };
 const PAY_WORDS: Record<string, string> = {
   ok: "Pay: meets your floor",
   below: "Pay: below your floor",
-  unknown: "Pay: not stated",
+  unknown: "Pay: can't compare with your floor",
 };
 const PLACE_WORDS: Record<string, string> = {
   ok: "Place: fits your locations",
   mismatch: "Place: outside your locations",
-  unknown: "Place: not stated",
+  unknown: "Place: can't check against your places",
 };
 
 // A job's why (UX-014) as lines under its score: each check, how many must-haves Paul's

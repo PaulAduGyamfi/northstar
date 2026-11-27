@@ -5,17 +5,14 @@ import { fitScore } from "./fit-schema.js";
 import { inSpan } from "./resilience-event.js";
 
 // The "why" behind the jobs page's scores (NS-130 slice 11, UX-014), read-only: each job's newest
-// score's components and evidence, the same newest row listJobs shows (by scored time). The
+// score's evidence, the same newest row listJobs shows (by scored time). The
 // evidence holds atom ids and Paul's own dealbreaker words, so the caller (apps/api jobs.ts) picks
 // what leaves the API field by field.
 
 // The page lists at most 100 jobs (JOBS_PAGE_MAX); a larger ask is refused, never truncated.
 export const FIT_WHY_MAX = 100;
 
-export type FitWhy = {
-  components: Record<string, number | null>;
-  evidence: Record<string, unknown>;
-};
+export type FitWhy = { evidence: Record<string, unknown> };
 
 export async function readFitWhy(
   db: Db,
@@ -27,7 +24,6 @@ export async function readFitWhy(
     const rows = await db
       .selectDistinctOn([fitScore.jobId], {
         jobId: fitScore.jobId,
-        components: fitScore.components,
         evidence: fitScore.evidence,
       })
       .from(fitScore)
@@ -36,14 +32,6 @@ export async function readFitWhy(
       )
       // Newest first within each job, as listJobs picks the score it shows.
       .orderBy(fitScore.jobId, desc(fitScore.scoredAt));
-    return new Map(
-      rows.map((r) => [
-        r.jobId,
-        {
-          components: r.components as FitWhy["components"],
-          evidence: r.evidence as FitWhy["evidence"],
-        },
-      ]),
-    );
+    return new Map(rows.map((r) => [r.jobId, { evidence: r.evidence as FitWhy["evidence"] }]));
   });
 }

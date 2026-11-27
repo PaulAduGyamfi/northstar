@@ -417,7 +417,7 @@ Exists now:
   job (`jobRow`, the reason through `reasonWords`; an unknown code is left out) with the posting's
   link through `safeHref`, and each direction on `/career-dna` links to `/jobs?role=<role>`. No
   nav link. Since slice 11 each scored job also has a `why` (UX-014): `readFitWhy` (`packages/db`,
-  `fit-why-read.ts`, read-only) gives the listed jobs' newest components and evidence, and
+  `fit-why-read.ts`, read-only) gives the listed jobs' newest score evidence, and
   `jobWhy` (`apps/api/src/jobs.ts`) keeps the title, pay and place check codes, the must-haves
   matched of total, at most 5 unmatched must-haves (the posting's words, through `postingText`)
   and a dealbreaker flag, never an atom id or text, a matched requirement or Paul's dealbreaker

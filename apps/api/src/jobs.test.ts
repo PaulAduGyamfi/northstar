@@ -233,7 +233,6 @@ describe("postingLink", () => {
 // A stored evidence in the scorer's shape, with an atom id, a model stamp and a dealbreaker that
 // must never reach the answer.
 const evidence = (over: Record<string, unknown> = {}): FitWhy => ({
-  components: { title: 1, mustHave: 0.5, niceToHave: null, preference: 1 },
   evidence: {
     matched: [
       { requirement: "TypeScript", kind: "must", atomId: "atom-secret-1", term: "typescript" },
@@ -310,9 +309,6 @@ describe("jobWhy", () => {
   });
 
   it("answers null for evidence in another shape, never a guessed why", () => {
-    expect([jobWhy(undefined), jobWhy({ components: {}, evidence: { matched: [] } })]).toEqual([
-      null,
-      null,
-    ]);
+    expect([jobWhy(undefined), jobWhy({ evidence: { matched: [] } })]).toEqual([null, null]);
   });
 });

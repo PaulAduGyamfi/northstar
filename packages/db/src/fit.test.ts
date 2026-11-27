@@ -237,7 +237,7 @@ describe("fit scores", () => {
     expect(events.length).toBe(1);
   });
 
-  it("reads each job's newest score's components and evidence for the jobs page's why", async () => {
+  it("reads each job's newest score's evidence for the jobs page's why", async () => {
     const older = { matched: [], unmatched: [{ requirement: "Go", kind: "must" }] };
     const newer = { matched: [], unmatched: [{ requirement: "Rust", kind: "must" }] };
     await saveFitScore(db, {
@@ -251,15 +251,7 @@ describe("fit scores", () => {
       now: new Date(NOW.getTime() + 60_000),
     });
     const why = await readFitWhy(db, { candidateId, jobIds: [jobId] });
-    expect([...why.entries()]).toEqual([
-      [
-        jobId,
-        {
-          components: { title: 1, mustHave: 1, niceToHave: null, preference: 0.5 },
-          evidence: newer,
-        },
-      ],
-    ]);
+    expect([...why.entries()]).toEqual([[jobId, { evidence: newer }]]);
   });
 
   it("reads nothing for another candidate's job and refuses more than 100 ids", async () => {

@@ -35,7 +35,7 @@ export type JobsPorts = {
   >;
   // Ready jobs whose posting isn't known to be closed (readScorableJobs), with their remote kind.
   open: () => Promise<Pick<ScorableJob, "id" | "remote">[]>;
-  // Each listed job's newest score's components and evidence (readFitWhy), at most 100 ids.
+  // Each listed job's newest score's evidence (readFitWhy), at most 100 ids.
   why: (jobIds: string[]) => Promise<Map<string, FitWhy>>;
   now: () => Date;
 };
@@ -170,6 +170,8 @@ export function jobsEndpoints(ports: JobsPorts): AnyEndpoint[] {
         // Best first; equal scores keep the freshest first.
         .sort((a, b) => b.order - a.order || a.age - b.age);
       const shown = ranked.slice(0, JOBS_PAGE_MAX);
+      // A separate read from listJobs: a rescore in between can pair one score with the next
+      // score's why for that request only; the next load reads them together again.
       let whys = new Map<string, FitWhy>();
       try {
         whys = await ports.why(shown.filter(({ j }) => j.fit !== null).map(({ j }) => j.id));

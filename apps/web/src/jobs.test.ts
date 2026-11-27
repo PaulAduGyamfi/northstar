@@ -142,7 +142,19 @@ describe("whyLines (NS-130 slice 11, UX-014)", () => {
         missing: [],
         dealbreaker: false,
       }),
-    ).toEqual(["Pay: not stated"]);
+    ).toEqual(["Pay: can't compare with your floor"]);
+  });
+
+  it("never says a pay it couldn't compare (another currency, no floor) wasn't stated", () => {
+    const lines = whyLines({ ...why, title: "unknown", pay: "unknown", place: "unknown" });
+    expect([lines.slice(0, 3), lines.some((l) => l.includes("not stated"))]).toEqual([
+      [
+        "Title: can't check against your target titles, at a level you didn't list",
+        "Pay: can't compare with your floor",
+        "Place: can't check against your places",
+      ],
+      false,
+    ]);
   });
 
   it("gives no lines when the API sent no why, or none at all", () => {

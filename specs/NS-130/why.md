@@ -11,7 +11,7 @@ every score.
 
 ## Behavior
 - `packages/db`: `readFitWhy(db, { candidateId, jobIds })` (read-only) gives each job's newest
-  score's components and evidence (`fit_score.components`, `fit_score.evidence`), at most 100 ids.
+  score's evidence (`fit_score.evidence`), at most 100 ids.
 - `GET /jobs` (`apps/api/src/jobs.ts`): each scored job gains `why`, built field by field:
   - `title`, `pay`, `place`: the check's status code (`exact | partial | none | unknown`,
     `ok | below | unknown`, `ok | mismatch | unknown`), and `levelMismatch`;
@@ -28,7 +28,7 @@ every score.
   experience: Kubernetes, Terraform"). An unknown code is left out, never shown raw.
 
 ## Acceptance criteria
-- [x] `readFitWhy` returns the newest score's components and evidence per job and nothing for
+- [x] `readFitWhy` returns the newest score's evidence per job and nothing for
       another candidate's job.
 - [x] `GET /jobs` gives each job its `why` with counts, codes and at most 5 cleaned unmatched
       must-haves, and no atom id or text (a test checks the body).
