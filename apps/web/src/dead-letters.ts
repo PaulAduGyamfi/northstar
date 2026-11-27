@@ -40,10 +40,23 @@ const KINDS: Record<string, KindWords> = {
         "Nothing runs now: the sweep keeps trying on its own passes. There's no page for open claims yet, so check the Apply ledger in the database if this keeps happening.",
     },
   },
+  // NS-226: a submission run that ended without being sent (apps/worker ending.ts). Resolving a
+  // letter only records Paul's choice: nothing restarts a submission from here yet.
+  "apply.submission": {
+    what: "Submitting an application",
+    next: {
+      retry:
+        "Nothing runs now: a submission can't be restarted from here yet. The application stays where it is on the Pipeline.",
+      skip: "Nothing more is done about this run. The application stays where it is on the Pipeline.",
+      hand_off:
+        "Nothing runs now. Check the application on the Pipeline and your email first: the run may already have sent it, or the job may have closed. Only if it wasn't sent, apply on the job's own page yourself.",
+    },
+  },
 };
 
 const REASONS: Record<string, string> = {
   sweep_failed: "every attempt failed",
+  activity_failed: "every attempt to run it failed",
 };
 
 // Own keys only: a code such as "constructor" must not find Object's built-ins.
