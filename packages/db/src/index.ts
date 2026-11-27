@@ -352,6 +352,15 @@ export {
   recordPostingCheck,
   withdrawClosedApplications,
 } from "./liveness-write.js";
+// A linked message's stored classification (NS-261).
+export { CLASSIFICATION_REVIEW_REASONS } from "./mail-classification-schema.js";
+export {
+  type ClassificationError,
+  ClassificationResult,
+  readMailClassifications,
+  recordMailClassification,
+  type StoredClassification,
+} from "./mail-classification-write.js";
 export * as mailLinkSchema from "./mail-link-schema.js";
 export {
   assignTag,
