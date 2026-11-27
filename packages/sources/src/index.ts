@@ -17,6 +17,14 @@ export { type AtsTarget, detectAts } from "./ats/detect.js";
 export { findDuplicate, type Match, nameKey, SIMILARITY, similarity } from "./dedupe.js";
 export { type Extraction, emptyFields, htmlToText } from "./extraction.js";
 export * from "./fetch.js";
+// Career directions (NS-130 slice 2, DNA-004): role families ranked by evidence coverage.
+export {
+  type CareerDirection,
+  careerDirections,
+  type DirectionJob,
+  FRESH_DIRECTION_DAYS,
+  MIN_DIRECTION_JOBS,
+} from "./fit/directions.js";
 // Model-assisted requirement matching (NS-138): the job-match route, its provenance check and the
 // assist step scorePending can take. Off by default.
 export {
