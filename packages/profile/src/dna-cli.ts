@@ -32,3 +32,27 @@ export async function dnaCommand(deps: DnaCliDeps, args: string[]): Promise<numb
   for (const line of changes) deps.print(`  ${line}`);
   return 0;
 }
+
+// After a step that changed the report's inputs (a new resume import or an approved story; NS-130
+// slice 6, DNA-008): refresh the report and print what changed. The change is already stored, so a
+// failed refresh never fails that step (ADR-0007): it prints one retry line and returns.
+export async function refreshAfterChange(deps: DnaCliDeps): Promise<void> {
+  try {
+    const result = await refreshCareerDna(deps);
+    if (result.ok) {
+      const { stored, version, changes } = result.value;
+      deps.print(
+        stored
+          ? `Career DNA: saved as version ${version}.`
+          : `Career DNA: unchanged since version ${version}.`,
+      );
+      for (const line of changes) deps.print(`  ${line}`);
+      return;
+    }
+    // No resume import means no report to rebuild yet: nothing failed, so nothing to say.
+    if (result.error.kind === "NoProfile") return;
+  } catch {
+    // Falls through to the retry line: the error's text could name Paul's data, so it isn't printed.
+  }
+  deps.print("Career DNA not refreshed: run profile dna to try again.");
+}

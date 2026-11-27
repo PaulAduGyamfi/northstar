@@ -15,7 +15,7 @@ import {
 import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
 import { type AuditCliDeps, auditCommand } from "./audit-cli.js";
 import { type ContactCliDeps, contactCommand } from "./contact-cli.js";
-import { type DnaCliDeps, dnaCommand } from "./dna-cli.js";
+import { type DnaCliDeps, dnaCommand, refreshAfterChange } from "./dna-cli.js";
 import { type Claim, checkEmploymentFacts, type Mismatch, parseOfficialRecord } from "./facts.js";
 import { type GrowthCliDeps, growthCommand } from "./growth-cli.js";
 import type { ImportResult } from "./import.js";
@@ -273,6 +273,8 @@ async function importCommand(deps: CliDeps, path: string, reimport: boolean): Pr
         `Model ${r.modelServed}, prompt v${r.promptVersion}, ${r.inputTokens} in / ${r.outputTokens} out tokens, ${r.costUsd === null ? "cost unknown" : `$${r.costUsd}`}.`,
       );
       deps.print("Run `show` to read it back.");
+      // A new import changes the Career DNA report's atoms (DNA-008).
+      await refreshAfterChange(deps);
       return 0;
     }
     case "rejected":
@@ -361,6 +363,8 @@ async function interviewCommand(deps: CliDeps, atomId?: string): Promise<number>
       deps.print(
         "Run `profile interview` for the next atom, or `profile stories` to read them back.",
       );
+      // An approved story counts toward the Career DNA report (DNA-008).
+      await refreshAfterChange(deps);
       return 0;
     }
     case "skipped":
