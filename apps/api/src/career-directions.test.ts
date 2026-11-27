@@ -200,6 +200,19 @@ describe("GET /career-dna/directions", () => {
 });
 
 describe("postingText", () => {
+  it("removes the blank-looking characters a posting could pad a line with", () => {
+    // Hangul fillers, the halfwidth filler, the braille blank, the grapheme joiner and selectors.
+    expect(postingText("Go\u3164 \u115f\u1160and\u2800 Ru\u034fst\ufe0f \uffa0APIs\u{e0100}")).toBe(
+      "Go and Rust APIs",
+    );
+  });
+
+  it("leaves letters, digits and ordinary punctuation alone", () => {
+    expect(postingText("Café · C++ / Node.js (5+ years) — 한국어")).toBe(
+      "Café · C++ / Node.js (5+ years) — 한국어",
+    );
+  });
+
   it("removes control, format and separator characters and collapses spaces", () => {
     expect(postingText("  Go\u0007 and\u2028 \u200dRust\u00ad\t\tAPIs ")).toBe("Go and Rust APIs");
   });
