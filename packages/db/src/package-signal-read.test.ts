@@ -33,10 +33,10 @@ afterEach(() => close());
 
 // One filed package round: the Gate request and its stored package, as requestPackageApproval
 // leaves them. Returns the request id.
-async function fileRound(hash: string, kind = "application_package" as const): Promise<string> {
+async function fileRound(hash: string): Promise<string> {
   const filed = await requestApproval(db, {
     candidateId,
-    kind,
+    kind: "application_package",
     subject: `application_package:${hash.slice(0, 8)}-0000-4000-8000-000000000001`,
     contentSha256: hash,
     facts: null,
@@ -116,13 +116,41 @@ describe("readPackageSignals", () => {
     ]);
   });
 
-  it("leaves out pending requests, outcomes older than the window and another candidate's", async () => {
+  it("leaves out a request still waiting for a decision", async () => {
     await fileRound(sha("e"));
-    const old = await fileRound(sha("f"));
-    await decide(old, "approve");
+    await setGateClock(db, minutes(3));
+    expect(await readPackageSignals(db, candidateId)).toEqual([]);
+  });
+
+  it("leaves out an outcome older than the window", async () => {
+    await decide(await fileRound(sha("f")), "approve");
     await setGateClock(db, minutes(8 * 24 * 60));
     expect(await readPackageSignals(db, candidateId)).toEqual([]);
+  });
+
+  it("gives another candidate none of this candidate's outcomes", async () => {
+    const decisionId = await decide(await fileRound(sha("1")), "approve");
+    await setGateClock(db, minutes(3));
     const other = await seedApplication(db, "awaiting_approval");
-    expect(await readPackageSignals(db, CandidateId.parse(other.candidateId))).toEqual([]);
+    expect([
+      await readPackageSignals(db, CandidateId.parse(other.candidateId)),
+      await readPackageSignals(db, candidateId),
+    ]).toEqual([[], [{ kind: "approval", applicationId, packageSha256: sha("1"), decisionId }]]);
+  });
+
+  it("leaves out an approval of another kind of request", async () => {
+    const reply = await requestApproval(db, {
+      candidateId,
+      kind: "email_reply",
+      subject: "email:00000000-0000-4000-8000-0000000000e1",
+      contentSha256: sha("2"),
+      facts: null,
+      actor: "system",
+      idempotencyKey: "reply:0001",
+    });
+    if (!reply.ok) throw new Error(reply.error.kind);
+    await decide(reply.value.requestId, "approve");
+    await setGateClock(db, minutes(3));
+    expect(await readPackageSignals(db, candidateId)).toEqual([]);
   });
 });

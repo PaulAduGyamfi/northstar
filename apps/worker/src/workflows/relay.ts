@@ -63,7 +63,7 @@ export async function packageSignalRelayWorkflow(input: RelayInput): Promise<nev
         // Stopping the workflow is not a failed pass.
         if (isCancellation(error)) throw error;
         // Every attempt failed: a dead letter makes it visible, and the next pass reads again.
-        await recordRelayFailure({ candidateId, key: relayFailureKey(runId, pass) });
+        await recordRelayFailure({ candidateId, key: relayFailureKey(runId) });
       }
     }
     await sleep(`${plan.minutes} minutes`);

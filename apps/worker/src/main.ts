@@ -47,7 +47,7 @@ export async function main(env: Record<string, string | undefined>): Promise<voi
       await ensureStaleSweep(port, { candidateIds: [candidateId] });
       await ensureSignalRelay(port, { candidateIds: [candidateId] });
     } finally {
-      // A close error never hides the sweep's own failure.
+      // A close error never hides a start's own failure.
       await clientConnection.close().catch(() => {});
     }
     const connection = await NativeConnection.connect({ address: config.temporalAddress });

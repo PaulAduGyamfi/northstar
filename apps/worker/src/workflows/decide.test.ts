@@ -1,6 +1,6 @@
 import { ApplicationFailure } from "@temporalio/common";
 import { describe, expect, it } from "vitest";
-import { decide, MAX_WAITS, notApprovedReason } from "./decide.js";
+import { decide, MAX_WAITS, notApprovedReason, stillWaiting } from "./decide.js";
 import type { RefusalKind, SubmitStep } from "./types.js";
 
 const refused = (refusal: RefusalKind, waitMs: number | null = null): SubmitStep => ({
@@ -82,5 +82,17 @@ describe("notApprovedReason", () => {
     expect(notApprovedReason(ApplicationFailure.nonRetryable("x", "InvalidInput"))).toBeNull();
     expect(notApprovedReason(new Error("database down"))).toBeNull();
     expect(notApprovedReason(undefined)).toBeNull();
+  });
+});
+
+describe("stillWaiting", () => {
+  it("waits only while there is neither a decision nor a withdrawal", () => {
+    const id = "00000000-0000-4000-8000-0000000000d1";
+    expect([
+      stillWaiting(null, false),
+      stillWaiting(id, false),
+      stillWaiting(null, true),
+      stillWaiting(id, true),
+    ]).toEqual([true, false, false, false]);
   });
 });

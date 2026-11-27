@@ -46,9 +46,9 @@ describe("planSweep for the relay", () => {
 });
 
 describe("relayFailureKey", () => {
-  it("names a failed relay pass by its workflow run and pass number", () => {
-    expect(relayFailureKey("0f1e2d3c-4b5a-4968-8776-655443322110", 7)).toBe(
-      "signal_relay:0f1e2d3c-4b5a-4968-8776-655443322110:7",
+  it("names a failed relay pass by its workflow run only, so a lasting failure writes one letter a run", () => {
+    expect(relayFailureKey("0f1e2d3c-4b5a-4968-8776-655443322110")).toBe(
+      "signal_relay:0f1e2d3c-4b5a-4968-8776-655443322110",
     );
   });
 });

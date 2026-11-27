@@ -13,7 +13,7 @@ import {
 import type { ApplyActivities } from "../activities/apply.js";
 import type { EndingActivities } from "../activities/ending.js";
 import { APPLY_BROWSER_QUEUE, PIPELINE_QUEUE } from "../queues.js";
-import { decide, notApprovedReason } from "./decide.js";
+import { decide, notApprovedReason, stillWaiting } from "./decide.js";
 import { endingLetter, failedAttempts, inputProblem, type SubmissionEnding } from "./ending.js";
 import { NOT_APPROVED, SUBMIT_ATTEMPTS, type SubmissionResult } from "./types.js";
 
@@ -111,7 +111,7 @@ async function runSubmission(
   setHandler(withdrawnSignal, () => {
     withdrawn = true;
   });
-  setHandler(waitingQuery, () => decisionId === null && !withdrawn);
+  setHandler(waitingQuery, () => stillWaiting(decisionId, withdrawn));
 
   // A durable wait: costs nothing while Paul takes days to decide.
   await condition(() => decisionId !== null || withdrawn);

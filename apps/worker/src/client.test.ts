@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   ensureSignalRelay,
   ensureStaleSweep,
+  isNotFound,
   RELAY_WORKFLOW_ID,
   roundWaiting,
   SWEEP_WORKFLOW_ID,
@@ -345,5 +346,23 @@ describe("temporalPort", () => {
       },
     });
     await expect(c.port.waiting(ID)).rejects.toBe(boom);
+  });
+});
+
+describe("isNotFound", () => {
+  it("reads Temporal's not-found error and a raw or wrapped gRPC NOT_FOUND as no such workflow", () => {
+    expect([
+      isNotFound(new WorkflowNotFoundError("gone", ID, undefined)),
+      isNotFound(Object.assign(new Error("not found"), { code: 5 })),
+      isNotFound(new Error("wrapped", { cause: { code: 5 } })),
+    ]).toEqual([true, true, true]);
+  });
+
+  it("reads any other error, or another gRPC code, as a real failure", () => {
+    expect([
+      isNotFound(new Error("connection refused")),
+      isNotFound(Object.assign(new Error("unavailable"), { code: 14 })),
+      isNotFound(null),
+    ]).toEqual([false, false, false]);
   });
 });

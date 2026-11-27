@@ -16,6 +16,7 @@ export {
   createRelayActivities,
   type RelayActivities,
   type RelayCounts,
+  RelayRoundsFailed,
   relayPass,
 } from "./activities/relay.js";
 export {
@@ -27,6 +28,7 @@ export {
 export {
   ensureSignalRelay,
   ensureStaleSweep,
+  isNotFound,
   RELAY_WORKFLOW_ID,
   type Round,
   roundWaiting,

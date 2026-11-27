@@ -58,6 +58,7 @@ describe("the relayPackageDecisions activity", () => {
     expect(await activities.relayPackageDecisions({ candidateId })).toEqual({
       signalled: 2,
       skipped: 2,
+      failed: 0,
     });
     expect(t.signals).toEqual([
       { workflowId: id("a"), signal: "approval", args: [{ decisionId: DECISION }] },
@@ -75,6 +76,7 @@ describe("the relayPackageDecisions activity", () => {
     expect(await activities.relayPackageDecisions({ candidateId })).toEqual({
       signalled: 0,
       skipped: 1,
+      failed: 0,
     });
   });
 
@@ -137,6 +139,30 @@ describe("the relayPackageDecisions activity", () => {
   });
 });
 
+describe("a pass with a failing round", () => {
+  it("still signals every other round, then fails the pass with the counts", async () => {
+    const t = fakeTemporal({ [id("a")]: "waiting", [id("c")]: "waiting" });
+    const port: TemporalPort = {
+      ...t.port,
+      waiting: async (workflowId) => {
+        if (workflowId === id("b")) throw new Error("query failed");
+        return t.port.waiting(workflowId);
+      },
+    };
+    const read = async () => [approval("a"), approval("b"), withdrawn("c")];
+    const failure = await createRelayActivities(read, () => port, db)
+      .relayPackageDecisions({ candidateId })
+      .catch((error: unknown) => error);
+    expect([failure, (t.signals as { workflowId: string }[]).map((x) => x.workflowId)]).toEqual([
+      expect.objectContaining({
+        name: "RelayRoundsFailed",
+        counts: { signalled: 2, skipped: 0, failed: 1 },
+      }),
+      [id("a"), id("c")],
+    ]);
+  });
+});
+
 describe("the recordRelayFailure activity", () => {
   it("records a failed pass as one dead letter, even when called twice", async () => {
     const t = fakeTemporal({});
@@ -145,7 +171,7 @@ describe("the recordRelayFailure activity", () => {
       () => t.port,
       db,
     );
-    const key = "signal_relay:00000000-0000-4000-8000-0000000000c1:7";
+    const key = "signal_relay:00000000-0000-4000-8000-0000000000c1";
     await activities.recordRelayFailure({ candidateId, key });
     await activities.recordRelayFailure({ candidateId, key });
     expect(await listOpenDeadLetters(db, CandidateId.parse(candidateId))).toEqual([

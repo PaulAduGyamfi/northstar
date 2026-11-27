@@ -163,6 +163,21 @@ export function roundWaiting(port: TemporalPort, round: Round): Promise<boolean>
   return port.waiting(submissionWorkflowId(round.applicationId, round.packageSha256));
 }
 
+// gRPC's NOT_FOUND status code.
+const GRPC_NOT_FOUND = 5;
+
+// Temporal's "no such workflow". The worker's own client (Context.current().client, over its
+// NativeConnection) is marked experimental, with error handling that may differ: a raw gRPC
+// NOT_FOUND, or one wrapped as the cause, means the same.
+export function isNotFound(error: unknown): boolean {
+  if (error instanceof WorkflowNotFoundError) return true;
+  const codeOf = (e: unknown): unknown =>
+    typeof e === "object" && e !== null ? (e as { code?: unknown }).code : undefined;
+  const cause =
+    typeof error === "object" && error !== null ? (error as { cause?: unknown }).cause : undefined;
+  return codeOf(error) === GRPC_NOT_FOUND || codeOf(cause) === GRPC_NOT_FOUND;
+}
+
 // The port on Temporal's Client: every workflow on the `pipeline` queue (RES-001). Calls use
 // the client's own gRPC retries and the connection's timeout; no extra deadline (accepted for
 // a local Temporal).
@@ -193,7 +208,7 @@ export function temporalPort(client: Client): TemporalPort {
         await client.workflow.getHandle(workflowId).signal(name, ...args);
         return { delivered: true };
       } catch (error) {
-        if (error instanceof WorkflowNotFoundError) return { delivered: false };
+        if (isNotFound(error)) return { delivered: false };
         throw error;
       }
     },
@@ -205,7 +220,7 @@ export function temporalPort(client: Client): TemporalPort {
         if (described.status.name !== "RUNNING") return false;
         return (await handle.query<boolean>("waiting")) === true;
       } catch (error) {
-        if (error instanceof WorkflowNotFoundError) return false;
+        if (isNotFound(error)) return false;
         throw error;
       }
     },

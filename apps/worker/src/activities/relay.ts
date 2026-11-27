@@ -22,7 +22,16 @@ function candidate(raw: string): CandidateId {
   return parsed.data;
 }
 
-export type RelayCounts = { signalled: number; skipped: number };
+export type RelayCounts = { signalled: number; skipped: number; failed: number };
+
+// A pass in which some rounds failed (a Temporal call that errored): thrown after every other
+// round was tried, so one stuck run never holds back the rest.
+export class RelayRoundsFailed extends Error {
+  constructor(readonly counts: RelayCounts) {
+    super(`${counts.failed} of the pass's rounds failed`);
+    this.name = "RelayRoundsFailed";
+  }
+}
 
 // One pass over a candidate's settled outcomes. Counts only: ids stay out of Temporal's history.
 export async function relayPass(
@@ -30,32 +39,36 @@ export async function relayPass(
   port: TemporalPort,
   candidateId: CandidateId,
 ): Promise<RelayCounts> {
-  let signalled = 0;
-  let skipped = 0;
+  const counts: RelayCounts = { signalled: 0, skipped: 0, failed: 0 };
   for (const signal of await read(candidateId)) {
-    const round = { applicationId: signal.applicationId, packageSha256: signal.packageSha256 };
-    // Not started, already ended, or already decided: nothing to tell it.
-    if (!(await roundWaiting(port, round))) {
-      skipped++;
-      continue;
+    try {
+      counts[await relayRound(port, signal)]++;
+    } catch (error) {
+      // A bug, not a passing fault: stop at once, without retry.
+      if (error instanceof ApplicationFailure && error.nonRetryable) throw error;
+      counts.failed++;
     }
-    const sent =
-      signal.kind === "approval"
-        ? await signalApproval(port, round, signal.decisionId)
-        : await signalWithdrawn(port, round);
-    if (sent.ok) {
-      signalled++;
-      continue;
-    }
-    // The run ended between the check and the signal: nothing left to tell it.
-    if (sent.error.kind === "NotRunning") {
-      skipped++;
-      continue;
-    }
-    // Ids from the database that aren't ids are a bug, not a passing fault.
-    throw ApplicationFailure.nonRetryable(sent.error.problem, "InvalidInput");
   }
-  return { signalled, skipped };
+  if (counts.failed > 0) throw new RelayRoundsFailed(counts);
+  return counts;
+}
+
+async function relayRound(
+  port: TemporalPort,
+  signal: PackageSignal,
+): Promise<"signalled" | "skipped"> {
+  const round = { applicationId: signal.applicationId, packageSha256: signal.packageSha256 };
+  // Not started, already ended, or already decided: nothing to tell it.
+  if (!(await roundWaiting(port, round))) return "skipped";
+  const sent =
+    signal.kind === "approval"
+      ? await signalApproval(port, round, signal.decisionId)
+      : await signalWithdrawn(port, round);
+  if (sent.ok) return "signalled";
+  // The run ended between the check and the signal: nothing left to tell it.
+  if (sent.error.kind === "NotRunning") return "skipped";
+  // Ids from the database that aren't ids are a bug, not a passing fault.
+  throw ApplicationFailure.nonRetryable(sent.error.problem, "InvalidInput");
 }
 
 // `port` is called per pass: the worker binds it to its own client in the activity's context.
@@ -65,8 +78,8 @@ export function createRelayActivities(read: ReadSignals, port: () => TemporalPor
     async relayPackageDecisions(args: { candidateId: string }): Promise<RelayCounts> {
       return relayPass(read, port(), candidate(args.candidateId));
     },
-    // Records a pass that failed all its attempts. `key` names the workflow run and pass, so a
-    // retried call stores one letter.
+    // Records a pass that failed all its attempts. `key` names the workflow run, so a retried call,
+    // or every failing pass of one run (100 passes), stores one letter, not one a minute.
     async recordRelayFailure(args: { candidateId: string; key: string }): Promise<void> {
       const candidateId = candidate(args.candidateId);
       const result = await recordDeadLetter(db, {

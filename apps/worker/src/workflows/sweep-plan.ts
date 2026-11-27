@@ -33,6 +33,6 @@ export function planSweep(
 // retried write stores one letter, and no clock is read inside the workflow.
 export const failureKey = (runId: string, pass: number): string => `stale_sweep:${runId}:${pass}`;
 
-// The relay's dead letter for one failed pass, named the same way (NS-213 slice 2).
-export const relayFailureKey = (runId: string, pass: number): string =>
-  `signal_relay:${runId}:${pass}`;
+// The relay's dead letter (NS-213 slice 2): one per workflow run, so a failure that lasts writes
+// one letter per run of 100 passes, not one a minute.
+export const relayFailureKey = (runId: string): string => `signal_relay:${runId}`;

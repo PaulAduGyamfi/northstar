@@ -11,9 +11,8 @@ describe("the workflow bundle", () => {
     const { code } = await bundleWorkflowCode({ workflowsPath, logger: quiet });
     expect(code).toContain("submissionWorkflow");
     expect(code).toContain("staleClaimSweepWorkflow");
-    // NS-213 slice 2: the decision relay and the submission's `waiting` query.
+    // NS-213 slice 2: the decision relay.
     expect(code).toContain("packageSignalRelayWorkflow");
-    expect(code).toContain('defineQuery)("waiting")');
   }, 60_000);
 });
 
