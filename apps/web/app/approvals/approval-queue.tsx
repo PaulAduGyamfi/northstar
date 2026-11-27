@@ -21,6 +21,7 @@ import {
   waitedFor,
 } from "../../src/approvals";
 import { apiFetch, isTimeout, TIMED_OUT_MESSAGE } from "../../src/client-fetch";
+import { PrepPlanPreview } from "./prep-plan-preview";
 
 // One click's decisions: undone together, inside their shared window.
 type Batch = {
@@ -223,6 +224,7 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
             {item.kind === "email_reply" ? (
               <ReplyPreview requestId={item.requestId} isEdited={item.edited} />
             ) : null}
+            {item.kind === "prep_plan" ? <PrepPlanPreview requestId={item.requestId} /> : null}
           </li>
         ))}
       </ul>

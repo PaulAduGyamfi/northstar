@@ -5,7 +5,7 @@ import type { Db } from "./db.js";
 import { proposeInterviewPrep } from "./interview-prep-write.js";
 import { decideInterview, recordInterviewDetection } from "./interview-write.js";
 import { recordPrepWrite } from "./prep-ledger-write.js";
-import { readApprovedPrepPlans } from "./prep-plan-read.js";
+import { readApprovedPrepPlans, readPrepPlanView } from "./prep-plan-read.js";
 import { requestPrepPlanApproval } from "./prep-plan-write.js";
 import { createTestDb, seedApplication, setGateClock } from "./test/pglite.js";
 
@@ -150,5 +150,55 @@ describe("readApprovedPrepPlans", () => {
       await readApprovedPrepPlans(db, candidateId),
       (await readApprovedPrepPlans(db, otherId)).map((p) => p.requestId),
     ]).toEqual([[], [plan.requestId]]);
+  });
+});
+
+describe("readPrepPlanView", () => {
+  it("gives the interview it was filed for and its blocks in time order", async () => {
+    const plan = await filedPlan();
+    const view = await readPrepPlanView(db, candidateId, plan.requestId);
+    expect([
+      view?.interview,
+      view?.rescheduled,
+      view?.blocks.map((b) => b.kind),
+      view?.blocks.every((b, i, all) => i === 0 || all[i - 1].start.getTime() <= b.start.getTime()),
+    ]).toEqual([
+      { start: new Date("2026-12-01T15:00:00Z"), end: new Date("2026-12-01T16:00:00Z") },
+      false,
+      ["prep", "prep", "warm_up"],
+      true,
+    ]);
+  });
+
+  it("says rescheduled once a newer version of the interview is stored", async () => {
+    const plan = await filedPlan();
+    const moved = await recordInterviewDetection(db, {
+      candidateId,
+      detection: {
+        applicationId,
+        calendarEventId: `evt${String(events).padStart(8, "0")}`,
+        format: "technical",
+        start: new Date("2026-12-02T15:00:00Z"),
+        end: new Date("2026-12-02T16:00:00Z"),
+        interviewerCount: 1,
+      },
+    });
+    if (!moved.ok) throw new Error(moved.error.kind);
+    const view = await readPrepPlanView(db, candidateId, plan.requestId);
+    expect([view?.rescheduled, view?.interview.start]).toEqual([
+      true,
+      new Date("2026-12-01T15:00:00Z"),
+    ]);
+  });
+
+  it("answers null for another candidate's plan and for an id that names no plan", async () => {
+    const other = await seedApplication(db, "submitted");
+    const otherId = CandidateId.parse(other.candidateId);
+    const plan = await filedPlan(otherId, other.applicationId);
+    expect([
+      await readPrepPlanView(db, candidateId, plan.requestId),
+      await readPrepPlanView(db, candidateId, "00000000-0000-4000-8000-000000000999"),
+      await readPrepPlanView(db, candidateId, "not-a-uuid"),
+    ]).toEqual([null, null, null]);
   });
 });

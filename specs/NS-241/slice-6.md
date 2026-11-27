@@ -35,7 +35,8 @@ gaps remain on #275:
    - every other interview that isn't dismissed (start to end);
    - the blocks of every stored proposal, including ones planned earlier in the same run.
 
-   It stays within `PrepRequest`'s 500-interval bound (the newest 500 if there were ever more).
+   It stays within `PrepRequest`'s 500-interval bound (the 500 that start soonest if there were
+   ever more, since prep lands in the days just before an interview).
    It needs no new consent, no stored token and no Calendar read. Events on Paul's own calendar
    that Northstar didn't detect are still unknown to the planner.
 

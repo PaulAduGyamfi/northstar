@@ -103,6 +103,11 @@ are CSS variables in `apps/web/app/globals.css`.
   verified" (an invite isn't authenticated) with Confirm and Dismiss through
   `POST /interviews/decide`; neither choice moves a status, and the page says so in its intro and
   after a choice (`decidedMessage`, in one message area that stays mounted).
+- A prep plan in the Queue (NS-241 slice 6) shows only when Paul asks ("Show the plan",
+  `app/approvals/prep-plan-preview.tsx`, the API's `GET /approvals/prep-plan`), as plain text
+  through `prepPlanLines` (`src/prep-plan.ts`) in the browser's own time zone: the interview, then
+  each block in time order, and the reschedule line when the interview moved. It decides nothing:
+  approving stays the queue's own buttons.
 - The Inbox's confirm queue (NS-262) links or dismisses a thread only through
   `POST /inbox/decide`. The choice of application comes from `GET /inbox/link-targets`; when it
   can't be read there is no Link choice, never a guessed one. The answer is worded by

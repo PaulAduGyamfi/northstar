@@ -479,11 +479,14 @@ export {
   recordPrepWrite,
   saveNorthstarCalendar,
 } from "./prep-ledger-write.js";
-// The approved prep plans not yet written, for `funnel prep` (NS-241 slice 5).
+// The approved prep plans not yet written, for `funnel prep` (NS-241 slice 5), and one plan as
+// the Queue shows it (slice 6).
 export {
   APPROVED_PREP_LIMIT,
   type ApprovedPrepPlan,
+  type PrepPlanView,
   readApprovedPrepPlans,
+  readPrepPlanView,
 } from "./prep-plan-read.js";
 export * as prepPlanSchema from "./prep-plan-schema.js";
 export {
