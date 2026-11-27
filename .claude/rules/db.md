@@ -111,7 +111,8 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   Worker heartbeats (NS-225 slice 3, migration 0099) are `worker_heartbeat`: one row per candidate
   and queue (a CHECK lists the queues), overwritten every beat, state not history like
   `dependency_breaker` (no trigger), written only through `worker-health-write.ts`
-  (`recordWorkerHeartbeat`; `readWorkerHeartbeats`), times on the database's clock. Queue names
+  (`recordWorkerHeartbeat`; `readWorkerHeartbeats`), `last_seen_at` and its age on the database's
+  clock (`started_at` is the worker's own clock, read by nothing yet). Queue names
   and times only; no event (a beat every 30 s would flood the feed).
 - Dead letters (NS-175, RES-007) are `dead_letter` and `dead_letter_resolution`, append-only
   (triggers), written only through `dead-letter-write.ts`. They hold a kind, a subject id, a

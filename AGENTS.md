@@ -1116,8 +1116,8 @@ Exists now:
   `pipeline` with the workflow bundle, `apply-browser` only when it is on. Since slice 3 it
   beats for both queues every 30 s (`startHeartbeats`, `src/heartbeat.ts`; the browser pool as
   `enabled: false` while off) into `worker_heartbeat` (`packages/db`, migration 0099: one row per
-  candidate and queue, state not history; `recordWorkerHeartbeat`, `readWorkerHeartbeats`, both
-  on the database's clock), and `systemHealth` shows each pool as `worker:<queue>`: running, down
+  candidate and queue, state not history; `recordWorkerHeartbeat`, `readWorkerHeartbeats`; the
+  last-seen time and its age on the database's clock, `started_at` the worker's own), and `systemHealth` shows each pool as `worker:<queue>`: running, down
   after 180 s of silence ("Not running: last seen …"), or turned off. No heartbeat for the browser
   steps yet (slice 4).
   Since slice 2 also the client helper (`src/client.ts`, over a narrow `TemporalPort`, bound by

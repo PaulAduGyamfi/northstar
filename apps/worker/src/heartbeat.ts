@@ -25,7 +25,10 @@ export function startHeartbeats(beats: readonly Beat[], deps: HeartbeatDeps): { 
     void Promise.all(
       beats.map((b) =>
         deps.record(b).catch((error: unknown) => {
-          deps.onError(error instanceof Error ? error.name : "unknown");
+          // The class name only, kept to a plain identifier: a library that ever put free text
+          // in `name` still can't reach the log.
+          const name = error instanceof Error ? error.name : "";
+          deps.onError(/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(name) ? name : "unknown");
         }),
       ),
     ).finally(() => {

@@ -64,6 +64,21 @@ describe("startHeartbeats", () => {
     expect([calls, errors]).toEqual([2, ["DatabaseError"]]);
   });
 
+  it("logs an error whose name isn't a plain identifier as unknown", async () => {
+    const errors: string[] = [];
+    const hb = startHeartbeats(
+      [BEATS[0] as Beat],
+      deps(async () => {
+        const e = new Error("x");
+        e.name = "failed for user secret at host";
+        throw e;
+      }, errors),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    hb.stop();
+    expect(errors).toEqual(["unknown"]);
+  });
+
   it("skips a beat while the last one is still in flight", async () => {
     let calls = 0;
     let release = () => {};

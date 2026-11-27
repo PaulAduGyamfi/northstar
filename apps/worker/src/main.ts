@@ -105,7 +105,8 @@ export async function main(env: Record<string, string | undefined>): Promise<voi
         },
       );
       // Runs until a signal stops them. One failing stops the others and its error ends the
-      // process, so a pool is never silently down while another runs.
+      // process, so a pool is never silently down while another runs. While the others shut
+      // down the beats go on for a moment: Health reads a pool's process, not its poller.
       try {
         await runPools(workers);
       } finally {
