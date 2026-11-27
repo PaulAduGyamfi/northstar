@@ -274,7 +274,7 @@ Exists now:
     (`NUDGE_SENTENCES`, no claims; the greeting only from the From header's own name), refuses a
     no-reply recipient, and `fileReplyDraft` files it like any reply. A company that goes quiet
     after Paul's reply isn't nudged yet (one live reply per message).
-  No caller or Gmail draft writer yet. ADR-0025 (Proposed) decides the
+  No caller or Gmail draft writer yet. ADR-0025 (Accepted) decides the
   `gmail.compose` scope for drafts, which are never sent.
 - Factual answers (NS-141, ANS-001) from Paul's profile settings, plain code, no model:
   `profile_setting` in `packages/db` (`settings-write.ts`: `setProfileSetting`,
@@ -391,7 +391,7 @@ Exists now:
   route, with the provenance check. Verification mail from any sender (a verification subject
   or a code) is skipped before either; a refusal, invalid output, missing employer or failed
   provenance check goes to review, and a held-back call is thrown for a retry. No storage or caller yet (#224).
-  Since NS-229 (slice 1) also Gmail labels (`src/labels/`, ADR-0027, Proposed: `gmail.modify` held
+  Since NS-229 (slice 1) also Gmail labels (`src/labels/`, ADR-0027, **Rejected** 2026-11-27: `gmail.modify` held
   only by this writer, ADR-0014's per-run token, labels add-only and outside the Gate):
   `threadLabels(kind, origin)` gives a thread's fixed `Northstar/…` type label (INB-005) and
   origin label (`Started-by-Northstar` or `Outside`, INB-008), and `createLabelWriter` lists,
@@ -399,8 +399,8 @@ Exists now:
   the `gmail` breaker and the `gmail_labels` kill switch, refusing any other name or a non-Gmail
   id. Its token is its own type, `GmailLabelAccess` (never the reader's `GmailAccess`, a type
   test), and every request passes the runtime allowlist `requestAllowed`; a recursive boundary
-  scan is the tripwire. The caller (#224) writes the feed event. No scope request or caller until
-  Paul accepts ADR-0027 (its own OAuth client).
+  scan is the tripwire. The caller (#224) writes the feed event. ADR-0027 was rejected, so the writer
+  keeps no caller and no code may request `gmail.modify`.
   Since NS-250 the Gmail reader and the Calendar client share one GET (`src/google-get.ts`:
   `createGoogleGet`): retries of a dropped connection, 429, 5xx and rate-limit 403s (`Retry-After`
   up to 60 s), Google's reason code and the dependency's breaker. Each client keeps its own error
@@ -419,7 +419,7 @@ Exists now:
 
   Only bare `local@domain` addresses count (`bareAddress`).
 
-  ADR-0026 (Proposed) decides `calendar.events.readonly`, on its own consent, under ADR-0014's
+  ADR-0026 (Accepted) decides `calendar.events.readonly`, on its own consent, under ADR-0014's
   token model, with fields limited to what detection reads. Writes come later through the Gate.
   Since NS-240 (slice 1) also the read-only client (`src/calendar/`):
   - `createCalendarClient(...).listEvents({ timeMin, timeMax })` reads only the primary calendar's
@@ -432,7 +432,7 @@ Exists now:
     test). A boundary scan of `src/calendar/` refuses writes, other endpoints and calendars, and
     the excluded fields.
 
-  No consent flow until Paul accepts ADR-0026, and no storage or confirm step yet (#271).
+  ADR-0026 is accepted; the consent flow, storage or confirm step yet (#271).
 - Interview prep (NS-170, CAL-003/004), slice 1, plain code in `packages/domain`
   (`interview-prep.ts`): `planPrepBlocks` proposes CAL-003's default prep for one interview, two
   45-minute blocks in the 3 days before (one per day where it can, nearest days first, earliest
@@ -573,7 +573,7 @@ Exists now:
   `DNS_TIMEOUT_MS`), the Anthropic client's default (180 s, down from the SDK's 10 min; each route
   still passes its own), Postgres in `connectDb` (10 s connect, 60 s per statement; migrations use
   their own pool), the extension's capture request (5 min) and the web app's browser calls through
-  `apiFetch` (15 s). Since NS-176 slice 2 also an LLM spend cap (RES-009, ADR-0021, Proposed):
+  `apiFetch` (15 s). Since NS-176 slice 2 also an LLM spend cap (RES-009, ADR-0021, Accepted):
   each route has a priority (`fresh`: `job-extract`, `job-match`, `verification-extract`; `low`:
   `mail-classify`; else `normal`), and with `LLM_DAILY_CAP_USD` / `LLM_MONTHLY_CAP_USD` set
   (`loadLlmBudget`) the gateway holds a call back (`HeldBack` by `budget`, before the switch and
@@ -633,7 +633,7 @@ Exists now:
   (hand-written markers until NS-142 records real pages). The package schema and its hash
   are in `packages/domain` (`apply-package.ts`). Its tests run on fakes and, through `dbPorts`,
   on the real write paths: `@northstar/db/testing` exports `createTestDb` and friends for that.
-  Since NS-142 (slice 1, ADR-0028, Proposed) also the browser driver, `src/apply/browser/`:
+  Since NS-142 (slice 1, ADR-0028, Accepted) also the browser driver, `src/apply/browser/`:
   - `launchFormDriver({ hosts, executablePath? })` starts headless Chromium through
     `playwright-core@1.63.0` (it downloads no browser) in a fresh context: no downloads, no
     service workers, no stealth.
@@ -677,7 +677,8 @@ Exists now:
   - Otherwise it says why: `NotFound`, `Closed`, `NoPackage`, `NotApproved` or `Changed`.
 
   Nothing calls it yet. Letting the extension read it would change ADR-0019's "no reads" for the
-  extension token, so the endpoint waits on Paul's choice in ADR-0029 (Proposed). The extension's
+  extension token, so ADR-0029 (Accepted, option 2) allows it only with a one-time, 2-minute grant
+  issued by Paul's own session; a token alone reads nothing. The extension's
   fill and the `handoff.prefilled` event come after that.
 - Verification windows (NS-151, VER-001…006) in `packages/db` (`verification-schema.ts`,
   `verification-write.ts`, append-only): `verification_window`, one `verification_window_restart`
@@ -713,7 +714,7 @@ Exists now:
   never exported; a boundary test fails if anything outside `packages/gateways/src` imports it.
   Secrets come back as `VaultSecret`, which prints `[redacted]`. No caller yet (NS-124), and no
   password-manager mirror yet (CRD-004, Q-16).
-  Since NS-182 (slice 1, ADR-0024, Proposed) also Paul's own reveal: `revealSealedSecret`
+  Since NS-182 (slice 1, ADR-0024, Accepted) also Paul's own reveal: `revealSealedSecret`
   (`packages/db`) files a `vault_reveal` approval (effective at once, naming the tenant by
   `revealContentSha256`), approves it for Paul and uses it once, in one transaction; the Gate
   refuses that kind everywhere else. `revealTenantPassword` is the one opening
@@ -746,7 +747,7 @@ Exists now:
   SameSite=Strict cookie on the web app's own `northstar.localhost` name, 5 wrong keys a minute
   then 429, and `Host`, `x-forwarded-host`, `Origin` and content-type checks.
   Every endpoint that acts for Paul uses `auth: "session"`.
-  Since NS-178 also passkeys (ADR-0022, Proposed; `passkeys.ts`, the only importer of
+  Since NS-178 also passkeys (ADR-0022, Accepted; `passkeys.ts`, the only importer of
   `@simplewebauthn/server`): `POST /auth/passkey/register/options|verify` (session plus the
   sign-in key again, so the key bootstraps every passkey and stays as recovery) and `/auth/passkey/sign-in/options|verify`
   (no session; opens the same session, failures count toward the same throttle). Scoped to the
