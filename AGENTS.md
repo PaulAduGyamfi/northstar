@@ -660,8 +660,21 @@ Exists now:
   newest graded message the Inbox shows for that row, dismissed messages left out;
   `readRegrades`). `readInboxThreads` adds his letter as `recruiterGrade.paulGrade`, the API's
   `POST /inbox/regrade` (session only) records it, and the Inbox shows "You graded it D" with a
-  Regrade picker on each graded thread. A regrade drafts, sends and archives nothing; grading doesn't
-  learn from regrades yet (slice 2).
+  Regrade picker on each graded thread. A regrade drafts, sends and archives nothing.
+  Since slice 2 grading learns from regrades, in plain code: `learnRecruiterWeights`
+  (`packages/domain`, `recruiter-learn.ts`) counts letters A=4 … F=0 and gives each reason on the
+  messages Paul regraded the mean of (his letter − the grader's), rounded and held to ±2
+  (`MAX_ADJUSTMENT`), once 3 messages carry it (`MIN_REGRADES`); `dealbreaker` and `red_flag:*`
+  are never adjusted. It is recomputed from all his current letters, never added up.
+  `regradeRecruiterMessage` calls `refreshRecruiterWeights` (`packages/db`,
+  `recruiter-weight-write.ts`) in the same transaction, which stores a new version in append-only
+  `recruiter_weight` (migration 0103) only when the result changes, with `recruiter.weights_adjusted`
+  by `system` (the changed reasons and values; feed "Adjusted recruiter grading from your regrades:
+  N changes"); `readRecruiterWeights` gives the newest. `gradeRecruiterMessage` takes them as an
+  optional `weights` argument, summed and held to ±2 per grade (`MAX_TOTAL_ADJUSTMENT`) and added
+  before the letter is picked, so caps still apply. The caller must keep learning against the
+  unweighted grade (spec). No caller
+  grades mail with them yet (item 1).
 - `packages/funnel/` (NS-113): the 9-month backfill, funnel records derived by plain code from
   `funnel_message` and `funnel_manual_row` (`packages/db`, `funnel-schema.ts`), the tracker CSV
   import, the funnel report (Wilson intervals, rejection latency) and the hypothesis board.
