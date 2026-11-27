@@ -210,6 +210,7 @@ describe("fresh-first order (SRC-013)", () => {
       location: "Remote",
       postedAt: ago(postedMinAgo),
       firstSeenAt: ago(1),
+      url: "https://jobs.example.com/1",
       sources: 1,
       missingFields: [],
       fit: null,

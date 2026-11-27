@@ -84,6 +84,11 @@ are CSS variables in `apps/web/app/globals.css`.
   `directionRow`, `gapLine`) come from `GET /career-dna/directions`, read apart from the report so
   either can fail alone. Role and requirement text comes from job postings: shown as text only,
   already cleaned by the API's `postingText`.
+- Jobs (NS-130 slice 10, `/jobs`, `src/jobs.ts`) is read-only: each job through `jobRow`, its
+  posting link only through `safeHref` (new tab, `noopener noreferrer`), and its fit reason in
+  words through `reasonWords` (UX-014; an unknown code is left out, never shown raw). The order and
+  the role filter are the API's (`GET /jobs`), never the browser's. Titles, companies and places
+  come from postings: text only.
 - Interviews (NS-240 slice 5, `/interviews`, `src/interviews.ts`, linked from Today) shows each
   detection in words (`interviewRow`): the format, the job's own title and company, the time and
   an interviewer count, never an invite's title, an address or a name. A waiting one reads "Not

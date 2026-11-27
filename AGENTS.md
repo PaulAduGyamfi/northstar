@@ -287,8 +287,8 @@ Exists now:
     message is a `confirmation` or `info_other` (`NUDGE_AFTER_KINDS`: the company's turn), with no
     reply draft filed on it and no status move or such mail for the stage's days
     (`DEFAULT_NUDGE_DAYS` 7 and 5, `parseNudgeDays` 1–60).
-  - `readNudgeCandidates` (`packages/db`, `nudge-read.ts`) reads ids and times for it. Its `kind`
-    is null until #224 stores classifications, so nothing is due yet.
+  - `readNudgeCandidates` (`packages/db`, `nudge-read.ts`) reads ids and times for it, and since
+    NS-261 the newest message's stored kind (null until it is classified, or in review).
   - `nudgePackage` (`reply/nudge.ts`) builds a reply package with a fixed body per stage
     (`NUDGE_SENTENCES`, no claims; the greeting only from the From header's own name), refuses a
     no-reply recipient, and `fileReplyDraft` files it like any reply. A company that goes quiet
@@ -395,8 +395,16 @@ Exists now:
   `evidenceGaps` over the newest report's dimensions, those directions and Paul's growth tracks.
   It answers counts, coverage and gap words only (never an atom or job id); posting text passes
   `postingText` (hidden characters removed, at most 200 characters). The page's "Directions" and
-  "Proof to build" sections word it (`src/career-directions.ts`). Fresh jobs are a count: there's
-  no jobs page to link to yet.
+  "Proof to build" sections word it (`src/career-directions.ts`).
+  Since slice 10 also a jobs page: the API's `GET /jobs` (session only, `apps/api/src/jobs.ts`,
+  read-only) answers ready jobs whose posting isn't known closed (`readScorableJobs`), in the
+  queue's freshness × fit order (`queueScore`, at most 100), each with its title, company and place
+  through `postingText`, remote kind, age in hours, newest fit score, band, reason code and stretch
+  flag, and its link only when https (`listJobs` now gives `url`). `?role=` keeps one role family
+  (`roleFamily`, the directions' own grouping). The web app's `/jobs` (`src/jobs.ts`) words each
+  job (`jobRow`, the reason through `reasonWords`; an unknown code is left out) with the posting's
+  link through `safeHref`, and each direction on `/career-dna` links to `/jobs?role=<role>`. No
+  nav link.
 
   No Profile Grade handoff or share card yet; the share card waits
   on a Publish gateway ADR and Q-10.
@@ -495,7 +503,14 @@ Exists now:
   its classification by the backfill's rules (verified senders only) or the `mail-classify`
   route, with the provenance check. Verification mail from any sender (a verification subject
   or a code) is skipped before either; a refusal, invalid output, missing employer or failed
-  provenance check goes to review, and a held-back call is thrown for a retry. No storage or caller yet (#224).
+  provenance check goes to review, and a held-back call is thrown for a retry. Since NS-261 its
+  result is stored: append-only `mail_classification` (`packages/db`,
+  `mail-classification-write.ts`: `recordMailClassification`, one decision per recorded
+  `mail_link` message, the first standing; the kind and stage signal, or a review reason, with
+  `rules`/`model` and the prompt version, never a company, role, subject or address;
+  `mail.classified` / `mail.needs_review` with fixed-word feed lines; `readMailClassifications`).
+  `readInboxThreads` and `readNudgeCandidates` read the stored kind. No caller classifies new mail
+  yet (#230).
   Since NS-229 (slice 1) also Gmail labels (`src/labels/`, ADR-0027, **Rejected** 2026-11-27: `gmail.modify` held
   only by this writer, ADR-0014's per-run token, labels add-only and outside the Gate):
   `threadLabels(kind, origin)` gives a thread's fixed `Northstar/…` type label (INB-005) and
@@ -1004,7 +1019,7 @@ Exists now:
   (`/inbox`, INB-006): linked job-mail threads grouped by application with each one's origin badge
   (INB-008), how each thread was linked, "sender not verified" and an "Open in Gmail" link, plus
   a "Needs you to link it" group (`readInboxThreads` in `packages/db`, the API's `GET /inbox`,
-  `src/inbox.ts`). Classification shows "Not classified yet" until #224 stores it. `/api/*` is rewritten to the API, and pages that need Paul go
+  `src/inbox.ts`). Each thread shows its newest classified kind (NS-261), or "Not classified yet". `/api/*` is rewritten to the API, and pages that need Paul go
   through `readSession`/`todayView` or `readApi` (`src/session.ts`, `src/system.ts`), which forward
   his session cookie to the API. It holds no secret.
 - `packages/pipeline/` (NS-161, ADR-0023): plain-code pipeline steps, no model or network.
