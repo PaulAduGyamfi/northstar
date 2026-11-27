@@ -155,3 +155,35 @@ export function replyLines(reply: ReplyBody): string[] {
   );
   return lines;
 }
+
+// Editing a waiting reply's body before approving it (NS-203 slice 2, APR-002). The API's
+// POST /approvals/edit-reply files the edit with the Gate; these decide what the page sends and
+// says. The body limit mirrors the reply package schema's (packages/domain, reply-draft.ts), which
+// editReplyDraft checks; the endpoint's own 10,000 only bounds the request's size.
+export const MAX_REPLY_BODY = 5_000;
+
+// Why an edit can't be sent, or null when it can. Nothing goes out for these: the API would
+// refuse them anyway, and an unchanged body would only withdraw and re-file the same content.
+export function editProblem(original: string, edited: string): string | null {
+  if (edited.trim().length === 0) return "The reply can't be empty.";
+  if (edited.length > MAX_REPLY_BODY) {
+    return `The reply is too long: at most ${MAX_REPLY_BODY.toLocaleString("en-US")} characters.`;
+  }
+  if (edited === original) return "Nothing changed, so there's nothing to save.";
+  return null;
+}
+
+// The edit's answer in plain words. A 409 `not_pending` is usually a second click landing after
+// the first one's edit (or a decision) already went through, so it reads as done, not failed.
+export function editResultWords(status: number, code: unknown): string {
+  if (status === 200) return "Saved. Your edited version is waiting for your approval.";
+  if (status === 401) return "You've been signed out. Sign in again to edit.";
+  if (code === "not_pending") return "That reply isn't waiting any more, so nothing changed.";
+  if (code === "unchanged") return "Nothing changed, so there's nothing to save.";
+  if (code === "not_editable") return "Only email replies can be edited.";
+  if (code === "not_found") return "That reply is gone. Reload the page.";
+  if (code === "invalid_body")
+    return "Northstar couldn't accept that text. Check it and try again.";
+  if (status >= 500) return "That didn't save. Try again.";
+  return "That edit couldn't be saved.";
+}
