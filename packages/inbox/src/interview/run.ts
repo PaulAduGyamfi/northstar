@@ -56,7 +56,8 @@ export type DetectionLetterResult = { ok: true } | { ok: false };
 export type DetectionRunDeps = {
   calendar: Pick<CalendarClient, "listEvents">;
   candidateId: string;
-  // Open applications with their company domains. None are stored yet (#313).
+  // Open applications with their company domains: Paul enters those with `jobs domains`
+  // (NS-252); the caller (#230) reads them through readLinkCandidates.
   candidates: () => Promise<readonly InterviewCandidate[]>;
   record: (detection: StoredDetection) => Promise<DetectionRecordResult>;
   // The caller adds the candidate id and passes the rest to recordDeadLetter unchanged.
