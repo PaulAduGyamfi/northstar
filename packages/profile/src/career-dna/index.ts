@@ -1,4 +1,5 @@
-// Career DNA (NS-130): the report's core, plain code with no model, database or network.
+// Career DNA (NS-130): the report's core, plain code with no model or network (history.ts reads
+// only @northstar/db's snapshot type).
 export { type Archetype, archetypeOf } from "./archetype.js";
 export {
   type EvidenceGap,
@@ -7,6 +8,13 @@ export {
   GAP_MIN_SHARE,
   type GapDirection,
 } from "./gaps.js";
+export {
+  type CareerDnaDiff,
+  careerDnaSnapshot,
+  changeLines,
+  type DimensionChange,
+  diffCareerDna,
+} from "./history.js";
 export {
   buildCareerDna,
   type CareerDnaFailure,
