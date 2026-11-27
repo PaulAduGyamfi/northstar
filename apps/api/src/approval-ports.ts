@@ -1,6 +1,7 @@
 import {
   type Db,
   decideApprovals,
+  editReplyDraft,
   listPendingApprovals,
   missingReplyDrafts,
   otherDomainReplies,
@@ -34,5 +35,7 @@ export function dbApprovalPorts(db: Db, candidateId: () => Promise<CandidateId>)
     missingReplies: async (requestIds) => missingReplyDrafts(db, await candidateId(), requestIds),
     otherDomainReplies: async (requestIds) =>
       otherDomainReplies(db, await candidateId(), requestIds),
+    // The server's candidate comes last here too.
+    editReply: async (input) => editReplyDraft(db, { ...input, candidateId: await candidateId() }),
   };
 }

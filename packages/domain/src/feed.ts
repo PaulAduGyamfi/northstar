@@ -266,6 +266,9 @@ const TEMPLATES: Record<string, Template> = {
       return "An approval was withdrawn because its content changed; it can be asked for again";
     }
     if (by === "system") return "An approval request was closed because the job's posting closed";
+    // NS-203: Paul edited a waiting request, which withdraws it and files the edited version.
+    if (p.edited === true)
+      return "You edited a request; the edited version is waiting for your approval";
     return "You withdrew a request; it can be asked for again";
   },
   // The Apply Gateway (NS-120): the ATS and the reason code only, never a field value or URL.
