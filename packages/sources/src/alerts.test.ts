@@ -11,6 +11,8 @@ import {
   type AlertStore,
   alertPass,
   decideAlert,
+  FRESH_MINUTES,
+  freshSince,
   inQuietHours,
   jobTier,
   loadAlertConfig,
@@ -168,6 +170,14 @@ describe("alertPass", () => {
     await expect(alertPass(store, DAY, config)).rejects.toThrow(TypeError);
     const [span] = exporter.getFinishedSpans();
     expect(span?.status).toEqual({ code: 2, message: "TypeError" });
+  });
+});
+
+describe("freshSince", () => {
+  it("is exactly the freshness window before now, so the alert read keeps every job decideAlert finds fresh", () => {
+    const now = new Date("2026-11-25T12:00:00Z");
+    expect(freshSince(now)).toEqual(new Date("2026-11-25T11:00:00Z"));
+    expect(FRESH_MINUTES).toBe(60);
   });
 });
 

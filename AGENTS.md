@@ -284,8 +284,21 @@ Exists now:
     (`NUDGE_SENTENCES`, no claims; the greeting only from the From header's own name), refuses a
     no-reply recipient, and `fileReplyDraft` files it like any reply. A company that goes quiet
     after Paul's reply isn't nudged yet (one live reply per message).
-  No caller or Gmail draft writer yet. ADR-0025 (Accepted) decides the
-  `gmail.compose` scope for drafts, which are never sent.
+  Since slice 4 also the Gmail draft writer (ADR-0025, Accepted), a Mail Gateway module in
+  `packages/gateways/src/mail/`. `writeReplyDraft` works in this order:
+  - It reads the stored `reply_draft`, re-hashes it (`replyContentSha256`) and calls
+    `verifyApproval` (`email_reply`, `replySubject`).
+  - A grant without `gmail.compose` gives `needs_human` (`scope_missing`).
+  - It claims the decision in a ledger port. Another run's live claim is the `InProgress` refusal,
+    and an undo-window refusal carries `retryAt`. After an unknown outcome it looks for a `DRAFT` in
+    the thread carrying `X-Northstar-Approval: <decision id>` before calling `drafts.create`, the
+    one Gmail write, so one approval makes one draft.
+
+  Its token is its own type, `GmailComposeAccess`, with no public accessor: only `drafts.ts` reads
+  it back (`bearerOf`). Every request passes a runtime allowlist, the
+  `gmail_drafts` kill switch and the `gmail` breaker. `src/mail/drafts.ts` is never imported from
+  outside `src/mail/`, and nothing there names a send, update or delete (a boundary test). It
+  never sends. No database ledger (it needs a migration), consent flow or caller yet.
 - Factual answers (NS-141, ANS-001) from Paul's profile settings, plain code, no model:
   `profile_setting` in `packages/db` (`settings-write.ts`: `setProfileSetting`,
   `readProfileSettings`, `recordFactualAnswer`; append-only, newest wins, setting the same value
@@ -564,7 +577,10 @@ Exists now:
   quiet hours it is held (`job.fresh_alert_held`) and sent on the first pass after they end,
   unless it comes from a tier-1 watched board. Settings: `ALERT_QUIET_HOURS`, `ALERT_TIME_ZONE`,
   `ALERT_TIER1_IN_QUIET_HOURS` (`.env.example`). Events per job are stored once
-  (`packages/db`, `alert-write.ts`). No phone push yet: that needs the PWA.
+  (`packages/db`, `alert-write.ts`). Since NS-199 (#172, slice 1) `readAlertCandidates` takes a
+  `freshSince` (the caller passes now less `FRESH_MINUTES`) and reads only jobs that could still
+  alert: those whose posting date, or first-seen time when undated, is after it, and those with a
+  held alert not yet sent. No phone push yet: that needs the PWA.
 - The Approval Gate (NS-119, ADR-0002, ADR-0017): the auto-approve rules and their evaluator in
   `packages/domain` (`approval.ts`; only application packages can ever be auto-approved), and
   the append-only `approval_*` tables with the Gate's one write path in `packages/db`

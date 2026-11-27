@@ -69,7 +69,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
 - Fresh-job alerts (NS-163) have no table: each is one `domain_event` (`job.fresh_alert`,
   `job.fresh_alert_held`) keyed `<type>:<jobId>`, written only through `alert-write.ts`, so a job
   is alerted and held at most once. They carry the job id, score, age, tier and a held flag,
-  never a title, company or URL.
+  never a title, company or URL. `readAlertCandidates` (NS-199) reads only jobs that could still
+  alert, fresh after the caller's `freshSince` (`coalesce(posted_at, first_seen_at)`, the age
+  rule) or held and not yet sent; the window's length stays in `packages/sources`.
 - The Approval Gate's records (NS-119, ADR-0017) are `approval_request`, `approval_policy_set`,
   `approval_decision`, `approval_undo` and (NS-140) `approval_withdrawal`: append-only
   (triggers), written only through `approval-write.ts` (`requestOfDecision`, NS-211, is its read-only

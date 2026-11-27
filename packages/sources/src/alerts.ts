@@ -10,6 +10,12 @@ import { ageHours } from "./queue.js";
 
 export const FRESH_MINUTES = 60;
 
+// The start of the freshness window at `now`: only jobs whose age time is after it can still get
+// a first alert (NS-199). The alert read uses it, so it must match decideAlert's FRESH_MINUTES.
+export function freshSince(now: Date): Date {
+  return new Date(now.getTime() - FRESH_MINUTES * 60_000);
+}
+
 export type AlertConfig = {
   // Minutes after local midnight; null when quiet hours are off.
   quiet: { start: number; end: number } | null;

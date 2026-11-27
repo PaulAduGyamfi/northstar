@@ -9,8 +9,14 @@ paths:
 
 `packages/sources` exists since NS-114 (link ingest: `fetch.ts`, `ats/`, `jsonld.ts`,
 `terms.ts`). The Apply Gateway is `packages/gateways` (NS-120); its ATS adapters live in
-`src/apply/adapters/`, not a separate `packages/ats-adapters`. Other gateways (mail, calendar,
-GitHub) don't exist yet: if you are about to create one outside its ticket, stop and ask Paul.
+`src/apply/adapters/`, not a separate `packages/ats-adapters`. The Mail Gateway's draft writer
+(NS-237 slice 4, ADR-0025) is `src/mail/`: `writeReplyDraft` creates an approved reply as a
+Gmail draft and never sends. Only `src/mail/` imports `drafts.ts`, `message.ts` or `access.ts`
+(the package entry may export the token type), and nothing there names a send, update or delete
+on drafts or messages (its boundary test and the runtime `requestAllowed`). Never widen either,
+never hand its `GmailComposeAccess` to code that reads mail, and claim the decision in the
+ledger before `drafts.create`. Other gateways (calendar, GitHub) don't exist yet: if you are
+about to create one outside its ticket, stop and ask Paul.
 The Gmail label writer (NS-229, `packages/inbox/src/labels/`, ADR-0027 **Rejected**: no caller,
 no code may request `gmail.modify`) only adds
 Northstar's fixed labels: never widen it to send, trash, remove or draft (its boundary test),

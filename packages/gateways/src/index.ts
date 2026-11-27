@@ -34,6 +34,25 @@ export {
   type SubmitRefusal,
   submitApplication,
 } from "./apply/submit.js";
+// The Mail Gateway's draft writer (NS-237 slice 4, ADR-0025): an approved reply becomes a Gmail
+// draft, never sent. Only the entry point, its token type and its errors are exported; the Gmail
+// requests (src/mail/drafts.ts) stay inside src/mail/ (a boundary test).
+export { GMAIL_COMPOSE_SCOPE, GmailComposeAccess } from "./mail/access.js";
+export {
+  type DraftGuard,
+  DraftHeldBack,
+  DraftInputError,
+  DraftRequestError,
+  DraftWriteError,
+} from "./mail/errors.js";
+export {
+  type DraftClaim,
+  type DraftRefusal,
+  type DraftWritten,
+  type MailPorts,
+  type WriteDraftInput,
+  writeReplyDraft,
+} from "./mail/gateway.js";
 // The credential vault (NS-122, ADR-0010): loading the master key, generating and storing tenant
 // passwords. Opening (decrypting) is deliberately not exported: only code inside this package
 // may call src/vault/open.ts (CRD-002), and a test enforces it.
