@@ -10,7 +10,7 @@ import {
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { answerContentSha256, saveApprovedAnswer } from "./answer-write.js";
-import { readHandoffPackage } from "./application-package-read.js";
+import { readDecisionPackage, readHandoffPackage } from "./application-package-read.js";
 import { applicationPackage } from "./application-package-schema.js";
 import { applySubmission } from "./apply-schema.js";
 import { approvalRequest } from "./approval-schema.js";
@@ -751,5 +751,110 @@ describe("readHandoffPackage", () => {
       ok: false,
       error: { kind: "Changed" },
     });
+  });
+});
+
+describe("readDecisionPackage", () => {
+  // Paul approves the request (inside the undo window: this reader doesn't verify the approval).
+  async function approvedPackage(p = pkg({ question_1: "Synthetic answer." })) {
+    const filed = await request(p);
+    if (!filed.ok) throw new Error(filed.error.kind);
+    const decided = await decideApprovals(db, {
+      candidateId,
+      requestIds: [filed.value.requestId],
+      decision: "approve",
+    });
+    const result = decided.ok ? decided.value[0]?.result : undefined;
+    if (!result?.ok) throw new Error("not approved");
+    const parsed = parsePackage(p);
+    if (!parsed.ok) throw new Error("bad package");
+    return {
+      requestId: filed.value.requestId,
+      decisionId: result.value.decisionId,
+      parsed: parsed.value,
+      sha: packageSha256(parsed.value),
+    };
+  }
+
+  it("gives the package behind a decision when its hash and application are the ones named", async () => {
+    const { decisionId, parsed, sha } = await approvedPackage();
+    expect(
+      await readDecisionPackage(db, candidateId, { decisionId, applicationId, contentSha256: sha }),
+    ).toEqual({ ok: true, value: parsed });
+  });
+
+  it("refuses when the decision's package has another hash than the one named", async () => {
+    const { decisionId } = await approvedPackage();
+    expect(
+      await readDecisionPackage(db, candidateId, {
+        decisionId,
+        applicationId,
+        contentSha256: "a".repeat(64),
+      }),
+    ).toEqual({ ok: false, error: { kind: "Mismatch" } });
+  });
+
+  it("refuses when the package is for another application than the one named", async () => {
+    const { decisionId, sha } = await approvedPackage();
+    expect(
+      await readDecisionPackage(db, candidateId, {
+        decisionId,
+        applicationId: randomUUID(),
+        contentSha256: sha,
+      }),
+    ).toEqual({ ok: false, error: { kind: "Mismatch" } });
+  });
+
+  it("refuses a stored package that doesn't hash to what the Gate pinned", async () => {
+    const approved = parsePackage(pkg({}));
+    if (!approved.ok) throw new Error("bad package");
+    const sha = packageSha256(approved.value);
+    const filed = await requestApproval(db, {
+      candidateId,
+      kind: "application_package",
+      subject: packageSubject(approved.value),
+      contentSha256: sha,
+      facts: null,
+      actor: "system",
+      idempotencyKey: randomUUID(),
+    });
+    if (!filed.ok) throw new Error(filed.error.kind);
+    // A different package stored behind the same pinned hash.
+    await db.insert(applicationPackage).values({
+      candidateId,
+      requestId: filed.value.requestId,
+      applicationId,
+      contentSha256: sha,
+      package: { ...approved.value, fields: { question_1: "Not what was approved." } },
+    });
+    const decided = await decideApprovals(db, {
+      candidateId,
+      requestIds: [filed.value.requestId],
+      decision: "approve",
+    });
+    const result = decided.ok ? decided.value[0]?.result : undefined;
+    if (!result?.ok) throw new Error("not approved");
+    expect(
+      await readDecisionPackage(db, candidateId, {
+        decisionId: result.value.decisionId,
+        applicationId,
+        contentSha256: sha,
+      }),
+    ).toEqual({ ok: false, error: { kind: "Mismatch" } });
+  });
+
+  it("reads another candidate's decision, an unknown one or a malformed id as no package", async () => {
+    const { decisionId, sha } = await approvedPackage();
+    const other = await seedApplication(db, "awaiting_approval");
+    const named = (id: string) => ({ decisionId: id, applicationId, contentSha256: sha });
+    expect([
+      await readDecisionPackage(db, CandidateId.parse(other.candidateId), named(decisionId)),
+      await readDecisionPackage(db, candidateId, named(randomUUID())),
+      await readDecisionPackage(db, candidateId, named("not-a-uuid")),
+    ]).toEqual([
+      { ok: false, error: { kind: "NoPackage" } },
+      { ok: false, error: { kind: "NoPackage" } },
+      { ok: false, error: { kind: "NoPackage" } },
+    ]);
   });
 });

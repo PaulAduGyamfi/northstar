@@ -124,3 +124,57 @@ async function read(
     fields: pkg.fields,
   });
 }
+
+// The package behind one Gate decision (NS-242), for the submission workflow's activity: the
+// workflow carries only ids and the package's hash, so Paul's contact details and answers never
+// enter Temporal's history. Read-only. It checks the stored package is the one the caller names
+// (this hash, this application) and still hashes to what the Gate pinned. It does not verify the
+// approval: the Apply Gateway does that itself at the moment it acts (ADR-0002), and its refusals
+// (an open undo window, a withdrawal) must reach the workflow as the Gate's own.
+export type DecisionPackageError =
+  // No package stored behind that decision's request: another candidate's reads the same.
+  | { kind: "NoPackage" }
+  // The stored package isn't the one named, or no longer hashes to what the Gate pinned.
+  | { kind: "Mismatch" };
+
+export async function readDecisionPackage(
+  db: Db,
+  candidateId: CandidateId,
+  named: { decisionId: string; applicationId: string; contentSha256: string },
+): Promise<Result<ApplicationPackage, DecisionPackageError>> {
+  // inSpan records the outcome (the kind only), never a value.
+  return inSpan("db.apply.decision_package", {}, () => readForDecision(db, candidateId, named));
+}
+
+async function readForDecision(
+  db: Db,
+  candidateId: CandidateId,
+  named: { decisionId: string; applicationId: string; contentSha256: string },
+): Promise<Result<ApplicationPackage, DecisionPackageError>> {
+  // A decision id that isn't a uuid can't name a row (and would fail the query's cast).
+  if (!UUID.test(named.decisionId)) return err({ kind: "NoPackage" });
+  const [row] = await db
+    .select({
+      contentSha256: applicationPackage.contentSha256,
+      package: applicationPackage.package,
+    })
+    .from(approvalDecision)
+    .innerJoin(applicationPackage, eq(applicationPackage.requestId, approvalDecision.requestId))
+    .where(
+      and(
+        eq(approvalDecision.id, named.decisionId),
+        eq(approvalDecision.candidateId, candidateId),
+        eq(applicationPackage.candidateId, candidateId),
+      ),
+    );
+  if (!row) return err({ kind: "NoPackage" });
+  // The decision approved other content than the workflow was started for.
+  if (row.contentSha256 !== named.contentSha256) return err({ kind: "Mismatch" });
+  const parsed = parsePackage(row.package);
+  if (!parsed.ok || packageSha256(parsed.value) !== row.contentSha256) {
+    return err({ kind: "Mismatch" });
+  }
+  // The package must be for the application the workflow runs for.
+  if (parsed.value.applicationId !== named.applicationId) return err({ kind: "Mismatch" });
+  return ok(parsed.value);
+}

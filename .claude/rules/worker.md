@@ -30,3 +30,8 @@ Rules:
 - Changing a running workflow's code needs versioning (`patched`), or in-flight workflows break.
 - A workflow ending that leaves no `needs_human` item or feed line records a dead letter through
   an activity (never from workflow code), keyed so a retry stores one, and still fails visibly.
+- Workflow inputs and activity arguments are kept in plain text in Temporal's history: pass ids
+  and hashes, never personal data (NS-242). The submission's input is `candidateId`,
+  `applicationId` and `packageSha256` only, and its activity loads the package from storage.
+- A Temporal reset gives the run a new run id, so an ending already recorded files a second dead
+  letter (`endingKey`): a visible duplicate, not handled.

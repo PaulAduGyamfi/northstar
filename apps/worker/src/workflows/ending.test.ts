@@ -49,6 +49,15 @@ describe("endingReason", () => {
     expect(endingReason({ kind: "not_approved", reason: "!!" })).toBe("not_approved_unknown");
   });
 
+  it("names a package the activity couldn't load by its own two reasons (NS-242)", () => {
+    expect(endingReason({ kind: "not_approved", reason: "NoPackage" })).toBe(
+      "not_approved_no_package",
+    );
+    expect(endingReason({ kind: "not_approved", reason: "PackageMismatch" })).toBe(
+      "not_approved_package_mismatch",
+    );
+  });
+
   it("names a run whose activity failed every attempt", () => {
     expect(endingReason({ kind: "activity_failed" })).toBe("activity_failed");
   });
@@ -80,22 +89,36 @@ describe("endingKey", () => {
 });
 
 describe("inputProblem", () => {
-  it("accepts an application id that is the package's own", () => {
-    expect(inputProblem({ applicationId: APP, package: { applicationId: APP } })).toBeNull();
+  const CANDIDATE = "00000000-0000-4000-8000-0000000000c1";
+  const SHA = "b".repeat(64);
+  const input = { candidateId: CANDIDATE, applicationId: APP, packageSha256: SHA };
+
+  it("accepts ids and the package's hash, and nothing else", () => {
+    expect(inputProblem(input)).toBeNull();
+  });
+
+  // NS-242: Temporal keeps the input in plain text in its history, so the package (Paul's contact
+  // details and answers) or any of its fields must never come back into it.
+  it.each([
+    ["package", { applicationId: APP }],
+    ["contact", { email: "test@example.com" }],
+    ["fields", { question_1: "Synthetic answer." }],
+  ])("refuses an input that carries a package field (%s)", (key, value) => {
+    expect(inputProblem({ ...input, [key]: value })).toBe(`unexpected input field: ${key}`);
+  });
+
+  it("refuses a candidate id that isn't a uuid, before the run waits for the Gate", () => {
+    expect(inputProblem({ ...input, candidateId: "nope" })).toBe("candidateId is not a uuid");
   });
 
   it("refuses an application id that isn't a uuid", () => {
-    expect(inputProblem({ applicationId: "nope", package: { applicationId: "nope" } })).toBe(
-      "applicationId is not a uuid",
-    );
+    expect(inputProblem({ ...input, applicationId: "nope" })).toBe("applicationId is not a uuid");
   });
 
-  it.each([{ applicationId: RUN }, {}, null, "text"])(
-    "refuses an id that isn't the package's own (%o)",
-    (pkg) => {
-      expect(inputProblem({ applicationId: APP, package: pkg })).toBe(
-        "applicationId is not the package's",
-      );
+  it.each([SHA.toUpperCase(), "b".repeat(63), 64, undefined])(
+    "refuses a package hash that isn't a lowercase sha-256 (%o)",
+    (packageSha256) => {
+      expect(inputProblem({ ...input, packageSha256 })).toBe("packageSha256 is not a sha-256");
     },
   );
 });

@@ -1058,8 +1058,13 @@ Exists now:
   `application:<id>:submit:<runId>`), whose
   `dead_letter.recorded` event is its feed line; the failure is still rethrown. An
   `applicationId` that isn't the package's own is refused at the start. Submitted,
-  needs-human and withdrawn endings are already visible and record nothing. The package still
-  travels in the workflow's input (#231's item 2).
+  needs-human and withdrawn endings are already visible and record nothing. Since NS-242 the workflow carries ids only
+  (`candidateId`, `applicationId`, `packageSha256`; `inputProblem` refuses any other key, so the
+  package never enters Temporal's history), and the activity loads the package with
+  `readDecisionPackage` (`packages/db`: the package behind the decision's request, refused as
+  `NoPackage` or `Mismatch` unless it is the named hash and application), bound by the worker
+  process through the `LoadPackage` port; a refusal ends the run as `not_approved`
+  (`NoPackage`, `PackageMismatch`), recorded as a dead letter.
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 

@@ -1,4 +1,4 @@
-import { CandidateId, type Result } from "@northstar/domain";
+import { type ApplicationPackage, CandidateId, type Result } from "@northstar/domain";
 import {
   NotApprovedError,
   type SubmitInput,
@@ -6,6 +6,7 @@ import {
   type SubmitRefusal,
 } from "@northstar/gateways";
 import { ApplicationFailure } from "@temporalio/common";
+import { extraKeyProblem, inputProblem } from "../workflows/ending.js";
 import { NOT_APPROVED, type SubmitStep, UNDO_WINDOW_OPEN } from "../workflows/types.js";
 
 // The apply-browser pool's activity (NS-157): one call to the Apply Gateway, which checks the
@@ -15,27 +16,59 @@ import { NOT_APPROVED, type SubmitStep, UNDO_WINDOW_OPEN } from "../workflows/ty
 // Extra wait past the undo window's end (NS-234), for clock skew between worker and database.
 const CLOCK_MARGIN_MS = 1_000;
 
-// What the workflow passes in. Activity arguments cross Temporal as JSON, so the candidate id is
-// checked again here rather than trusted as branded.
-export type SubmitArgs = { candidateId: string; decisionId: string; package: unknown };
+// What the workflow passes in: ids and the package's hash only (NS-242), since Temporal keeps
+// activity arguments as plain text in its history. They cross Temporal as JSON, so they are
+// checked again here rather than trusted.
+export type SubmitArgs = {
+  candidateId: string;
+  applicationId: string;
+  decisionId: string;
+  packageSha256: string;
+};
+
+const ARG_KEYS = ["applicationId", "candidateId", "decisionId", "packageSha256"] as const;
 
 type Submit = (input: SubmitInput) => Promise<Result<SubmitOutcome, SubmitRefusal>>;
 
-// `submit` is the gateway bound to its ports (submitApplication with dbPorts); `now` is the
-// activity's clock, used only to turn a refusal's retryAt into a wait.
-export function createApplyActivities(submit: Submit, now: () => Date = () => new Date()) {
+// Loads the package stored behind the decision, refusing one that isn't the package named
+// (readDecisionPackage in packages/db, bound by the worker process).
+export type LoadPackage = (
+  candidateId: CandidateId,
+  named: { decisionId: string; applicationId: string; contentSha256: string },
+) => Promise<Result<ApplicationPackage, { kind: "NoPackage" | "Mismatch" }>>;
+
+// The not_approved reason for each load refusal: the run ends without retry and NS-226 records
+// it as a dead letter. Not the Gate's kinds, so nobody reads one as Paul's decision.
+const LOAD_REASONS = { NoPackage: "NoPackage", Mismatch: "PackageMismatch" } as const;
+
+// `submit` is the gateway bound to its ports (submitApplication with dbPorts); `load` reads the
+// approved package; `now` is the activity's clock, used only to turn a refusal's retryAt into a
+// wait.
+export function createApplyActivities(
+  submit: Submit,
+  load: LoadPackage,
+  now: () => Date = () => new Date(),
+) {
   return {
     async submitApplication(args: SubmitArgs): Promise<SubmitStep> {
-      const candidateId = CandidateId.safeParse(args.candidateId);
-      // Bad input never gets better on a retry.
-      if (!candidateId.success) {
-        throw ApplicationFailure.nonRetryable("candidateId is not a uuid", "InvalidInput");
+      // Bad input never gets better on a retry: the same checks as the workflow's input, plus
+      // the decision id (the database reader reads a malformed one as no package).
+      const { decisionId, ...rest } = args;
+      const problem =
+        extraKeyProblem(args, ARG_KEYS) ??
+        (typeof decisionId === "string" ? inputProblem(rest) : "decisionId is not a string");
+      if (problem !== null) throw ApplicationFailure.nonRetryable(problem, "InvalidInput");
+      const candidateId = CandidateId.parse(args.candidateId);
+      // A database error here is thrown and retried by the activity's retry policy.
+      const loaded = await load(candidateId, {
+        decisionId,
+        applicationId: args.applicationId,
+        contentSha256: args.packageSha256,
+      });
+      if (!loaded.ok) {
+        throw ApplicationFailure.nonRetryable(LOAD_REASONS[loaded.error.kind], NOT_APPROVED);
       }
-      const input: SubmitInput = {
-        candidateId: candidateId.data,
-        decisionId: args.decisionId,
-        package: args.package,
-      };
+      const input: SubmitInput = { candidateId, decisionId, package: loaded.value };
       let result: Result<SubmitOutcome, SubmitRefusal>;
       try {
         result = await submit(input);

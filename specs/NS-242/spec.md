@@ -1,6 +1,6 @@
 # NS-242: Keep the application package out of the submission workflow's Temporal history
 
-Status: in progress (autonomous lane, ADR-0016). Assigned by the orchestrator.
+Status: built (autonomous lane, ADR-0016). Assigned by the orchestrator.
 Issue: #277 (parent #231)
 Requirements: RES-001, RES-005 · ADR-0001, ADR-0002
 Rules that apply: `.claude/rules/worker.md`, `.claude/rules/gateways.md`, `.claude/rules/tests.md`,
@@ -41,12 +41,12 @@ activity can load it there. A codec would add a key to manage for no gain.
   `endingKey`'s comment and `.claude/rules/worker.md`, not handled here.
 
 ## Acceptance criteria
-- [ ] The workflow's input and the activity's arguments hold no package fields, with tests that
+- [x] The workflow's input and the activity's arguments hold no package fields, with tests that
       fail if one comes back (`inputProblem` and the activity refuse a `package` key).
-- [ ] The activity refuses a package whose hash doesn't match (`readDecisionPackage` on PGlite,
+- [x] The activity refuses a package whose hash doesn't match (`readDecisionPackage` on PGlite,
       and the activity on a fake port).
-- [ ] `inputProblem` refuses a bad `candidateId`.
-- [ ] lint, typecheck, test and build green for `@northstar/worker` and `@northstar/db`.
+- [x] `inputProblem` refuses a bad `candidateId`.
+- [x] lint, typecheck, test and build green for `@northstar/worker` and `@northstar/db`.
 
 ## Out of scope
 - The worker process, the client helper and the activity's real port binding (#230).
