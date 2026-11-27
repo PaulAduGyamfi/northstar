@@ -239,3 +239,21 @@ describe("feedSubject", () => {
     expect(feedSubject({ jobTitle: null, company: null })).toBeNull();
   });
 });
+
+describe("HealthBody", () => {
+  it("accepts a worker pool's health (NS-225 slice 3)", () => {
+    const body = {
+      overall: "degraded",
+      subsystems: [
+        {
+          subsystem: "worker:pipeline",
+          kind: "worker",
+          health: "down",
+          reason: "Not running: last seen 10 minutes ago",
+          retryAt: null,
+        },
+      ],
+    };
+    expect(HealthBody.safeParse(body).success).toBe(true);
+  });
+});

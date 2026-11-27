@@ -20,6 +20,7 @@
     "@northstar/db": "workspace:*",
     "@northstar/domain": "workspace:*",
     "@northstar/gateways": "workspace:*",
+    "@temporalio/activity": "1.25.0",
     "@temporalio/client": "1.25.0",
     "@temporalio/common": "1.25.0",
     "@temporalio/worker": "1.25.0",

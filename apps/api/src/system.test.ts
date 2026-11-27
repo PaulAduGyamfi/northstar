@@ -134,6 +134,23 @@ describe("GET /system/health", () => {
     });
   });
 
+  it("passes a worker pool's health through (NS-225 slice 3)", async () => {
+    health = async () => ({
+      overall: "degraded",
+      subsystems: [
+        {
+          subsystem: "worker:pipeline",
+          kind: "worker",
+          health: "down",
+          reason: "Not running: last seen 10 minutes ago",
+          retryAt: null,
+        },
+      ],
+    });
+    const res = await get("/system/health");
+    expect([res.status, JSON.parse(res.body).subsystems[0].kind]).toEqual([200, "worker"]);
+  });
+
   it("answers 503 when the state can't be read", async () => {
     health = async () => {
       throw new Error("database down");

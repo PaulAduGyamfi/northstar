@@ -3,7 +3,7 @@ import { untrustedBlock } from "@northstar/llm";
 import { loadPrompt } from "@northstar/prompts";
 import { TailoredResume, type TailorJob } from "./types.js";
 
-export const RESUME_TAILOR_VERSION = 1;
+export const RESUME_TAILOR_VERSION = 2;
 
 export type ResumeTailorInput = {
   // The deterministic tailor's resume (tailorResume): the model rewords it, never restructures it.

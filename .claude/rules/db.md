@@ -108,6 +108,12 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `kill-switch-write.ts`; the newest row per subsystem is its state, no row means on). Breaker
   events are written only on a change of state and carry the dependency, counts and an error name,
   never a message or URL.
+  Worker heartbeats (NS-225 slice 3, migration 0099) are `worker_heartbeat`: one row per candidate
+  and queue (a CHECK lists the queues), overwritten every beat, state not history like
+  `dependency_breaker` (no trigger), written only through `worker-health-write.ts`
+  (`recordWorkerHeartbeat`; `readWorkerHeartbeats`), `last_seen_at` and its age on the database's
+  clock (`started_at` is the worker's own clock, read by nothing yet). Queue names
+  and times only; no event (a beat every 30 s would flood the feed).
 - Dead letters (NS-175, RES-007) are `dead_letter` and `dead_letter_resolution`, append-only
   (triggers), written only through `dead-letter-write.ts`. They hold a kind, a subject id, a
   reason code and an attempt count: never a payload, error message, URL or text (CHECKs enforce
@@ -304,6 +310,13 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   append-only (triggers), written only through `interview-write.ts`. Times, the format and a count
   only: never a title, description, address or name in a row, event or span. A decision never
   moves an application's status.
+  Proposed prep (NS-241 slice 1, CAL-003) is `interview_prep_proposal` (one per detection, only
+  for a current one Paul confirmed, checked under the same candidate lock) and
+  `interview_prep_block` (its blocks, `prep` or `warm_up`, times only; a composite foreign key keeps
+  the proposal the candidate's own), append-only (triggers), written only through
+  `interview-prep-write.ts`. Code plans the times from the stored interview; the caller passes busy
+  time, working hours, time zone and the clock. Never a time zone in a row, event or span:
+  `interview.prep_proposed` carries ids and counts only.
 - Career DNA reports (NS-130 slice 4, DNA-008) are `career_dna_report`, one row per version per
   candidate (the highest is current), append-only (a trigger), written only through
   `career-dna-write.ts` (`saveCareerDnaReport` locks the candidate row and stores a version only

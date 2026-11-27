@@ -298,6 +298,16 @@ export {
   type SetIndependentWorkResult,
   setIndependentWork,
 } from "./independent-work-write.js";
+// Proposed interview prep (NS-241).
+export {
+  type PrepBlockKind,
+  type PrepError,
+  PrepRequest,
+  prepReason,
+  proposeInterviewPrep,
+  readPrepProposal,
+  type StoredPrepProposal,
+} from "./interview-prep-write.js";
 export * as interviewSchema from "./interview-schema.js";
 export {
   type DecisionError,
@@ -625,3 +635,11 @@ export {
   type WatchInput,
   type WatchStatus,
 } from "./watch-write.js";
+// The worker process's heartbeats (NS-225 slice 3), shown on Health.
+export * as workerHealthSchema from "./worker-health-schema.js";
+export {
+  readWorkerHeartbeats,
+  recordWorkerHeartbeat,
+  WORKER_QUEUES,
+  type WorkerQueue,
+} from "./worker-health-write.js";

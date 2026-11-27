@@ -1,6 +1,7 @@
 import { INTERVIEW_FORMATS } from "@northstar/domain";
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   foreignKey,
   integer,
@@ -82,5 +83,58 @@ export const interviewDecision = pgTable(
   (t) => [
     unique("interview_decision_once").on(t.detectionId),
     check("interview_decision_valid", sql`${t.decision} in ('confirmed', 'dismissed')`),
+  ],
+);
+
+// The prep Northstar proposes for one confirmed interview (NS-241 slice 1, CAL-003): one row per
+// detection, with what the planner couldn't place. Proposals only: nothing reaches the calendar
+// without Paul's approval (ADR-0002, a later slice). The detection is checked in the transaction,
+// not by a foreign key, as interview_decision does. Append-only (migration trigger), written only
+// through interview-prep-write.ts.
+export const interviewPrepProposal = pgTable(
+  "interview_prep_proposal",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    candidateId: uuid("candidate_id")
+      .notNull()
+      .references(() => candidate.id),
+    detectionId: uuid("detection_id").notNull(),
+    // How many of the default prep blocks couldn't be placed (0–2), and whether the warm-up couldn't.
+    missingPrep: integer("missing_prep").notNull(),
+    warmUpMissing: boolean("warm_up_missing").notNull(),
+    proposedAt: timestamp("proposed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("interview_prep_proposal_once").on(t.detectionId),
+    // The composite target for the blocks' same-candidate foreign key.
+    unique("interview_prep_proposal_id_candidate_unique").on(t.id, t.candidateId),
+    check("interview_prep_proposal_missing_range", sql`${t.missingPrep} between 0 and 2`),
+  ],
+);
+
+// One proposed block of a proposal: a prep block or the warm-up, by time only. Append-only.
+export const interviewPrepBlock = pgTable(
+  "interview_prep_block",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    candidateId: uuid("candidate_id")
+      .notNull()
+      .references(() => candidate.id),
+    proposalId: uuid("proposal_id").notNull(),
+    kind: text("kind").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    // The proposal must be the candidate's own.
+    foreignKey({
+      name: "interview_prep_block_proposal_same_candidate_fk",
+      columns: [t.proposalId, t.candidateId],
+      foreignColumns: [interviewPrepProposal.id, interviewPrepProposal.candidateId],
+    }),
+    // A block starts once per proposal: a replayed insert can't double a block.
+    unique("interview_prep_block_once").on(t.proposalId, t.startsAt),
+    check("interview_prep_block_kind_listed", sql`${t.kind} in ('prep', 'warm_up')`),
+    check("interview_prep_block_ends_after_start", sql`${t.endsAt} > ${t.startsAt}`),
   ],
 );

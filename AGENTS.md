@@ -134,7 +134,7 @@ Exists now:
   `question-confirm` route picks one of up to three close narrative or company-specific catalog
   questions by index, or none, and code checks the index. Never for factual or negated questions.
   Its matches carry `confirmedBy: "model"` and must never count as reuse for the Gate's policy.
-  Off by default (hand-written fixtures); no caller yet.
+  Off by default (real recordings since NS-266); no caller yet.
   Since GH-59 also answer reuse (ANS-003): `adaptAnswer` fills a banked answer's `{company}`
   slot and picks the variant that fits the form's limit (never cuts it), `reuseNote` and
   `narrativeKindOf`.
@@ -153,7 +153,7 @@ Exists now:
   - in the model's text, every capitalised word and number word comes from the cited atoms,
     their roles or the skills, never from the job.
 
-  Otherwise it falls back to the deterministic resume. Off by default (hand-written fixtures).
+  Otherwise it falls back to the deterministic resume. Off by default (prompt v2 from real recordings since NS-268).
   Since NS-145 also PDF and DOCX resumes from the same lines as the text render
   (`renderResumePdf` with pdf-lib, `renderResumeDocx` with docx; ADR-0020). `tailorToPages`
   keeps the most lines that fit the page budget, measured on the PDF (1 page by default), and
@@ -196,7 +196,7 @@ Exists now:
   `readThesisProfile` (`packages/db`) and `thesis-draft.ts` (`packages/profile`): the
   `positioning-thesis` route drafts up to three theses citing atoms, and `draftTheses` keeps only
   those `thesisProblems` passes (`checkThesis` plus unknown atom ids). Off by default
-  (hand-written fixtures); nothing is saved until Paul runs `profile thesis set`.
+  (real recordings since NS-266); nothing is saved until Paul runs `profile thesis set`.
 - Gap-to-proof (NS-196, DX-010), plain code, no model: Paul's independent work since his last role
   from his own file (`independent-work.ts`: `parseIndependentWork`, one `Title | YYYY-MM | YYYY-MM
   or present [| https link]` header and 1–6 `- ` lines per entry; any bad line stores nothing,
@@ -247,7 +247,7 @@ Exists now:
     fixed sentences in `framingSentences`: a greeting, a thank-you or a next step. The only name
     is the sender's first name, from `greetingName`, which is parsed by code and never a word
     that answers or commits.
-  - `draftReply` is off by default (hand-written fixtures). A failing draft becomes
+  - `draftReply` is off by default (real recordings since NS-266). A failing draft becomes
     `needs_human`.
 
   Since NS-237 (slice 1) a checked draft can be filed with the Gate (RPL-002):
@@ -598,8 +598,15 @@ Exists now:
   free quarter hour inside working hours in Paul's time zone, ending at least an hour before) and a
   15-minute warm-up an hour before. It only uses free time after now, never shortens a block, and
   reports what it couldn't place (`missingPrep`, `warmUpMissing`). `reminderTimes` gives the
-  day-before and hour-before reminders, dropping any already past. It proposes only: no caller,
-  storage, calendar write (that goes through the Gate) or briefs yet.
+  day-before and hour-before reminders, dropping any already past.
+  Since NS-241 (slice 1) proposals are stored: `proposeInterviewPrep` (`packages/db`,
+  `interview-prep-write.ts`) checks that the detection is the candidate's, current and confirmed
+  by Paul, runs `planPrepBlocks` over the stored interview's times with the caller's busy time,
+  working hours, time zone and clock, and stores one append-only `interview_prep_proposal` per
+  detection with its `interview_prep_block` rows (`prep` or `warm_up`, times only) and one
+  `interview.prep_proposed` event (ids and counts; a fixed-word feed line). A second call stores
+  nothing and answers the first proposal. `readPrepProposal` reads it back. No caller, approval
+  card, calendar write (that goes through the Gate) or briefs yet.
 - Recruiter grading (NS-167, REC-001/002), slice 1:
   - The `recruiter-extract` route (`packages/inbox`, `src/recruiter/`) reads a recruiter email's
     stated facts: title, seniority, company, place, remote kind, pay range, agency or in-house,
@@ -613,7 +620,7 @@ Exists now:
 
     It adds the red flags code finds itself (gift cards, a fee to pay, bank or ID numbers). It
     can't tell whether the email's statements are true.
-  - `extractRecruiterFacts` is off by default (hand-written fixtures).
+  - `extractRecruiterFacts` is off by default (real recordings since NS-266).
   - `gradeRecruiterMessage` (`packages/sources`, `src/recruiter/grade.ts`) is plain code that
     grades A–F. It uses the Fit Score's own title, pay, place and dealbreaker checks, with
     points per factor. A dealbreaker, an upfront fee or a request for sensitive data makes it F;
@@ -659,8 +666,8 @@ Exists now:
   checks, the MAT-003 bands, and the evidence behind each number. A score is keyed by the job's
   fields, the preference version and the resume import, so any change re-scores. The queue
   orders by freshness × fit.
-  Since NS-138 also the `job-match` route (`fit/model-match.ts`), off by default (hand-written
-  fixtures): for the requirements the rules left unmatched it proposes an atom and a verbatim
+  Since NS-138 also the `job-match` route (`fit/model-match.ts`), off by default (real recordings
+  since NS-266): for the requirements the rules left unmatched it proposes an atom and a verbatim
   quote, `checkJobMatches` keeps only those whose atom and quote check out, and `scorePending`
   takes them through an optional `assist` step (a score that used one is stored as
   `method: "rules_model"`; a failed assist keeps the rules score). No caller turns it on yet.
@@ -1132,8 +1139,19 @@ Exists now:
   (`workerActivities`, `wiring.ts`: `pipeline` gets the ending and sweep activities, the browser
   pool only `submitApplication`, its gateway ports bound per call so a file read is the
   submission's own candidate's), and runs one Temporal `Worker` per queue with `workerOptions`:
-  `pipeline` with the workflow bundle, `apply-browser` only when it is on. There is no worker
-  health or heartbeat yet.
+  `pipeline` with the workflow bundle, `apply-browser` only when it is on. Since slice 3 it
+  beats for both queues every 30 s (`startHeartbeats`, `src/heartbeat.ts`; the browser pool as
+  `enabled: false` while off) into `worker_heartbeat` (`packages/db`, migration 0099: one row per
+  candidate and queue, state not history; `recordWorkerHeartbeat`, `readWorkerHeartbeats`; the
+  last-seen time and its age on the database's clock, `started_at` the worker's own), and `systemHealth` shows each pool as `worker:<queue>`: running, down
+  after 180 s of silence ("Not running: last seen …"), or turned off. Since slice 4 the
+  `submitApplication` activity also heartbeats Temporal (`beat`, bound to
+  `Context.current().heartbeat`; the step name only) at once, on each browser step the gateway
+  reports through its optional, side-effect-free `onStep` port (`open`, `submit`, `close`; a
+  throwing hook is ignored) and every 20 s (`BEAT_MS`; the SDK sends at most one per 96 s), and the
+  workflow gives it a 2-minute `heartbeatTimeout`, so a worker that dies mid-step is retried in
+  about two minutes and the retry finds the gateway's live claim. A failed beat logs its error
+  class once per call.
   Since slice 2 also the client helper (`src/client.ts`, over a narrow `TemporalPort`, bound by
   `temporalPort`): `startSubmission` starts `submission:<applicationId>:<packageSha256>`, one run
   per package round (`REJECT_DUPLICATE`, conflict `FAIL`: a repeated start for the round starts

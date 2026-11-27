@@ -11,11 +11,14 @@ export type HealthInput = {
   switches: { subsystem: string; enabled: boolean; actor: string; reason: string }[];
   // Board watches by id and ATS only: a board's name never goes into a status line.
   watches: { id: string; ats: string; status: string; consecutiveFailures: number }[];
+  // The worker process's pools (NS-225 slice 3): each queue's last heartbeat, as seconds before
+  // the database's now, and whether the pool was turned on. Absent before any worker ran.
+  workers?: { queue: string; enabled: boolean; secondsSinceSeen: number }[];
 };
 
 export type SubsystemHealth = {
   subsystem: string;
-  kind: "dependency" | "switch" | "board";
+  kind: "dependency" | "switch" | "board" | "worker";
   health: Health;
   reason: string;
   // When a paused dependency will be tried again; null otherwise.
@@ -71,6 +74,28 @@ function fromWatch(w: HealthInput["watches"][number]): SubsystemHealth {
   return { ...base, health: "healthy", reason: "Reading" };
 }
 
+// A pool beats every 30 s (apps/worker); three minutes of silence means it isn't running.
+export const WORKER_STALE_SECONDS = 180;
+
+// Plain words for how long ago, in whole minutes once past one.
+function ago(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 1) return "under a minute ago";
+  if (minutes < 120) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  return `${Math.floor(minutes / 60)} hours ago`;
+}
+
+function fromWorker(w: NonNullable<HealthInput["workers"]>[number]): SubsystemHealth {
+  const base = { subsystem: `worker:${w.queue}`, kind: "worker" as const, retryAt: null };
+  // Turned off by Paul's setting (WORKER_APPLY_BROWSER): not a fault, so not a red mark.
+  if (!w.enabled)
+    return { ...base, health: "healthy", reason: "Turned off in the worker's settings" };
+  if (w.secondsSinceSeen > WORKER_STALE_SECONDS) {
+    return { ...base, health: "down", reason: `Not running: last seen ${ago(w.secondsSinceSeen)}` };
+  }
+  return { ...base, health: "healthy", reason: "Running" };
+}
+
 const RANK: Record<Health, number> = { down: 0, degraded: 1, healthy: 2 };
 
 export function systemHealth(input: HealthInput): SystemHealth {
@@ -78,6 +103,7 @@ export function systemHealth(input: HealthInput): SystemHealth {
     ...input.breakers.map(fromBreaker),
     ...input.switches.map(fromSwitch),
     ...input.watches.map(fromWatch),
+    ...(input.workers ?? []).map(fromWorker),
   ].sort((a, b) => RANK[a.health] - RANK[b.health] || a.subsystem.localeCompare(b.subsystem));
   // One subsystem down never makes the whole system "down" (ADR-0007: the rest keeps working).
   // Overall "down" means the state can't be read at all, which the reader reports by throwing.

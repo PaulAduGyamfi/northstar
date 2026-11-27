@@ -24,6 +24,9 @@ import type { StorePorts } from "../vault/store.js";
 import type { FormDriver } from "./driver.js";
 import type { SweepPorts } from "./stale.js";
 
+// The browser steps the gateway reports to `onStep`.
+export type ApplyStep = "open" | "submit" | "close";
+
 // Everything the Apply Gateway touches, so tests can pass fakes and production passes the
 // database (dbPorts). The database functions are the real write paths: the Gate's
 // verifyApproval, requestOfDecision and withdrawApproval, the submission ledger and
@@ -66,6 +69,10 @@ export type ApplyPorts = {
   // A fresh browser session for one submission, bound to the adapter's own hosts (NS-225): the
   // ones the apply URL was already checked against.
   openDriver: (hosts: readonly string[]) => FormDriver;
+  // Told which browser step starts (NS-225 slice 4), so the worker can heartbeat while a long
+  // step runs. Optional and side-effect free: it may only report, never decide, and a hook that
+  // throws is ignored. Never passed a field value, URL or page.
+  onStep?: (step: ApplyStep) => void;
   // The stored kill switches and breakers (NS-206, RES-002/008), asked at the moment it acts.
   isSubsystemOn: (candidateId: CandidateId, subsystem: string) => Promise<boolean>;
   acquireCall: (candidateId: CandidateId, dependency: string) => Promise<CallDecision>;
@@ -81,7 +88,7 @@ export type ApplyPorts = {
 // `limits` come from loadApplyLimits at the entry point (NS-143), never from a caller per call.
 export function dbPorts(
   db: Db,
-  deps: Pick<ApplyPorts, "readFile" | "openDriver">,
+  deps: Pick<ApplyPorts, "readFile" | "openDriver" | "onStep">,
   limits: ApplyLimits = DEFAULT_APPLY_LIMITS,
 ): ApplyPorts {
   return {
