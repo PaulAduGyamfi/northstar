@@ -153,7 +153,7 @@ Exists now:
   - in the model's text, every capitalised word and number word comes from the cited atoms,
     their roles or the skills, never from the job.
 
-  Otherwise it falls back to the deterministic resume. Off by default (hand-written fixtures).
+  Otherwise it falls back to the deterministic resume. Off by default (prompt v2 from real recordings since NS-268).
   Since NS-145 also PDF and DOCX resumes from the same lines as the text render
   (`renderResumePdf` with pdf-lib, `renderResumeDocx` with docx; ADR-0020). `tailorToPages`
   keeps the most lines that fit the page budget, measured on the PDF (1 page by default), and
