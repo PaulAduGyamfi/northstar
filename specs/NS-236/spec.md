@@ -21,10 +21,10 @@ constants today; the write path should hold them to it.
 - No migration: the database's own CHECK stays the name pattern (the list lives in code).
 
 ## Acceptance criteria
-- [ ] Both producers' kinds record.
-- [ ] A well-formed but unlisted kind (`apply.submit`) is refused with field `kind`, nothing stored.
-- [ ] Existing tests pass on listed kinds with unchanged behavior.
-- [ ] `pnpm turbo run lint typecheck test build` passes in `packages/db` and its dependents.
+- [x] Both producers' kinds record.
+- [x] A well-formed but unlisted kind (`apply.submit`) is refused with field `kind`, nothing stored.
+- [x] Existing tests pass on listed kinds with unchanged behavior.
+- [x] `pnpm turbo run lint typecheck test build` passes in `packages/db` and its dependents.
 
 ## Out of scope
 - A database CHECK on the list (needs a migration).
