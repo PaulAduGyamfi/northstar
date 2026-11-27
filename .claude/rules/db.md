@@ -178,8 +178,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   Greek/Cyrillic characters is `new`. Its contact email may be Paul's stored address or that address tagged with the
   application's own `mail_tag` (`readApplicationTag`, NS-248), never another application's tag.
 - Stored packages (NS-192) are `application_package`, one per `application_package` Gate
-  request, append-only (a trigger), written only by `requestPackageApproval` in the same
-  transaction as the request (a replay stores nothing). Its foreign key names the request's id,
+  request, append-only (a trigger), written only through `storePackage`, by `requestPackageApproval`
+  or (NS-203 slice 4) `editPackage`, in the same transaction as the request (a replay stores
+  nothing). Its foreign key names the request's id,
   candidate, kind and content hash, as `reply_draft`'s does. The package holds Paul's contact
   details and answers: read it only through `readHandoffPackage`, which re-verifies the approval
   and the hash, or (NS-242) `readDecisionPackage`, the submission activity's reader, which checks
@@ -273,6 +274,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   request `editRequest` files. `approval_edit` (append-only, one row per old and per new request,
   both the candidate's) links an edited request to the one it replaced; a trigger checks Paul
   withdrew the old one and that both share kind and subject. Write it only through `editRequest`.
+  Since NS-203 slice 4 (migration 0106) an `application_package` is editable too, only through
+  `editPackage` (`package-edit.ts`): its facts are derived again by `derivePackage` with no bank
+  claims, and the edited package is stored behind the new request with `storePackage`.
+  `editRequest` refuses a package without those facts and a reply with any.
   The Gmail draft writer's ledger (NS-237 slice 6) is `reply_draft_claim` (one row per attempt,
   candidate and decision) and `reply_draft_record` (one per decision), append-only (triggers),
   written only through `reply-ledger-write.ts` (`claimDraft` under a per-decision advisory lock;

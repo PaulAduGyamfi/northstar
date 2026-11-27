@@ -1045,8 +1045,19 @@ async function withdrawOnce(
   });
 }
 
-// The kinds editRequest accepts (NS-203 slice 1). The approval_edit trigger names the same list.
-const EDITABLE_KINDS = new Set<string>(["email_reply"]);
+// The kinds editRequest accepts (NS-203). The approval_edit trigger names the same list. A reply
+// is edited with no facts (editReplyDraft); a package only with the facts the Gate derived for the
+// edited package (editPackage, slice 4), so no other caller can edit one.
+const EDITABLE_KINDS = new Set<string>(["email_reply", "application_package"]);
+
+type EditInput = {
+  candidateId: CandidateId;
+  requestId: string;
+  newContentSha256: string;
+  // Only editPackage passes these (NS-203 slice 4): the edited package's facts, derived from
+  // storage with no bank claims, so every field counts as `new`.
+  packageFacts?: PackageFacts;
+};
 
 export type EditResult = { requestId: string; previousRequestId: string; replayed: boolean };
 
@@ -1060,13 +1071,13 @@ class EditRollback extends Error {
 // Paul edits a waiting request (NS-203, APR-002). An edit is a new request (ADR-0017: one
 // request is one send), so in one transaction the old request is withdrawn by Paul, a new one
 // with the same kind and subject pins the edited content, and approval_edit links the two. Only
-// a pending request of an allowlisted kind (email_reply) can be edited: a package's facts would
-// have to be derived again (a later slice), and a reveal never waits in the queue. Not exported
-// from the package: editReplyDraft is its only caller and stores the edited content in the same
-// transaction. Repeating a committed edit returns its new request.
+// a pending request of an allowlisted kind (a reply, or a package with its facts derived again)
+// can be edited; a reveal never waits in the queue. Not exported from the package: editReplyDraft
+// and editPackage are its only callers and store the edited content in the same transaction.
+// Repeating a committed edit returns its new request.
 export async function editRequest(
   db: Db,
-  input: { candidateId: CandidateId; requestId: string; newContentSha256: string },
+  input: EditInput,
 ): Promise<Result<EditResult, EditError>> {
   return inSpan("approval.edit", {}, async (span) => {
     if (!Uuid.safeParse(input.requestId).success) return err({ kind: "NotFound" });
@@ -1092,7 +1103,7 @@ export async function editRequest(
 async function editOnce(
   tx: Tx,
   span: Span,
-  input: { candidateId: CandidateId; requestId: string; newContentSha256: string },
+  input: EditInput,
 ): Promise<Result<EditResult, EditError>> {
   const scoped = tx as unknown as Db;
   const [request] = await tx
@@ -1110,6 +1121,11 @@ async function editOnce(
   // content behind the new request (today reply drafts, editReplyDraft). Any other kind could
   // otherwise get a new hash with nothing behind it, recorded as Paul's.
   if (!EDITABLE_KINDS.has(request.kind)) return err({ kind: "NotEditable" });
+  // A package edit carries the facts derived for the edited package, and only a package edit
+  // does: a package filed again without them would have no facts, and a reply has none.
+  if ((request.kind === "application_package") !== (input.packageFacts !== undefined)) {
+    return err({ kind: "NotEditable" });
+  }
   // A retried edit that already committed: the same edited content returns its new request.
   const [done] = await tx
     .select({ requestId: approvalEdit.requestId, sha: approvalRequest.contentSha256 })
@@ -1138,12 +1154,13 @@ async function editOnce(
     throw new EditRollback({ kind: "NotPending" });
   }
   // The same kind and subject, so the edit replaces exactly what the old request would have let
-  // out; no facts, so no policy can approve it (only packages carry facts).
+  // out. A reply has no facts; a package has the facts derived for it, in which every answer is
+  // `new`, so no policy can approve it, and one that did would roll the edit back below.
   const filed = await requestOnce(scoped, span, input.candidateId, {
     kind: request.kind as ApprovalKind,
     subject: request.subject,
     contentSha256: input.newContentSha256,
-    facts: null,
+    facts: input.packageFacts ?? null,
     // Paul's own edit: deliberately outside RequestInput's agent/system actors, which describe
     // producers. Only this path files a request as `user`.
     actor: "user",

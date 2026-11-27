@@ -743,6 +743,13 @@
       "when": 1795819739038,
       "tag": "0105_mail_classification_skipped",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1795821980141,
+      "tag": "0106_approval_edit_packages",
+      "breakpoints": true
     }
   ]
 }

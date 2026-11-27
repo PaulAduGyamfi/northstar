@@ -283,7 +283,8 @@ Exists now:
   edited version is waiting for your approval"), files a new one with the same kind and subject
   pinning the edited content, and links them in append-only `approval_edit`. Only a pending
   `email_reply` can be edited (an allowlist in code and in the table's trigger; `editRequest` isn't
-  exported, so `editReplyDraft` is the only way in);
+  exported, so `editReplyDraft` is the only way in; since slice 4 also a package, through
+  `editPackage`, below);
   a decision that lands meanwhile rolls the edit back. The API's `POST /approvals/edit-reply`
   (session only) serves it. Since slice 2 the Queue's "Show the reply" has an Edit button
   (`approval-queue.tsx`): Paul edits the body, and Save sends it there after `editProblem`
@@ -294,6 +295,14 @@ Exists now:
   passes it on, and the Queue shows "Edited by you" next to it and, in its reply view, in place of
   the cites line (`replyLines(reply, edited)`), since the first draft's cites may no longer back
   Paul's text.
+  Since slice 4 Paul can edit a waiting application package's answers too: `editPackage`
+  (`packages/db`, `package-edit.ts`) changes only fields the package already fills with text,
+  derives the edited package's facts again (`derivePackage`, split out of
+  `requestPackageApproval`) with no bank claims, so every field counts as `new` and no policy can
+  approve the edit, and files it through `editRequest` (which takes a package only with those
+  facts) under the same subject, storing the edited package behind the new request. Migration 0106
+  adds `application_package` to `approval_edit`'s trigger allowlist. No API route or Queue view
+  for it yet.
   Since slice 3 also follow-up nudges (RPL-004), plain code:
   - `nudgesDue` (`packages/domain`, `follow-up.ts`) picks the applications in `applied`
     (`submitted`, `confirmed`) or `interview` (`in_process`) whose newest verified-sender linked

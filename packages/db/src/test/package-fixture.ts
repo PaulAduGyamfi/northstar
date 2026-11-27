@@ -49,10 +49,14 @@ export type FileOptions = {
   variant?: PackageVariant;
   idempotencyKey?: string;
   actor?: string;
+  // The package's filled fields (NS-203 slice 4); none by default.
+  fields?: Record<string, string>;
 };
 
 export type PackageFixture = {
   applicationId: string;
+  // The application's job, for a test that stores another form for it (NS-203 slice 4).
+  jobId: string;
   // The subject and content hash a package with these options is filed under.
   subjectOf: (packageId: string) => string;
   hashOf: (packageId: string, variant?: PackageVariant) => string;
@@ -204,7 +208,11 @@ export async function packageFixture(
     finishedAt: now,
   });
 
-  const pkg = (packageId: string, variant: PackageVariant = "a") => ({
+  const pkg = (
+    packageId: string,
+    variant: PackageVariant = "a",
+    fields: Record<string, string> = {},
+  ) => ({
     packageId,
     applicationId,
     ats: "greenhouse",
@@ -216,7 +224,7 @@ export async function packageFixture(
       sha256: resumeSha,
     },
     coverLetter: null,
-    fields: {},
+    fields,
   });
   const hashOf = (packageId: string, variant: PackageVariant = "a"): string => {
     const parsed = parsePackage(pkg(packageId, variant));
@@ -225,6 +233,7 @@ export async function packageFixture(
   };
   return {
     applicationId,
+    jobId,
     subjectOf: (packageId) => {
       const parsed = parsePackage(pkg(packageId));
       if (!parsed.ok) throw new Error("fixture: package doesn't parse");
@@ -234,7 +243,7 @@ export async function packageFixture(
     file: (o = {}) =>
       requestPackageApproval(db, {
         candidateId,
-        package: pkg(o.packageId ?? randomUUID(), o.variant),
+        package: pkg(o.packageId ?? randomUUID(), o.variant, o.fields),
         claims: [],
         actor: o.actor ?? "agent:apply",
         idempotencyKey: o.idempotencyKey ?? randomUUID(),
