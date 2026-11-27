@@ -6,7 +6,7 @@ import { claimSubmission, recordNeedsHuman } from "./apply-write.js";
 import { decideApprovals, requestApproval } from "./approval-write.js";
 import type { Db } from "./db.js";
 import { applyHandoff, applyHandoffDone } from "./handoff-schema.js";
-import { listOpenHandoffs, resolveHandoff } from "./handoff-write.js";
+import { listOpenHandoffs, recordHandoffPrefill, resolveHandoff } from "./handoff-write.js";
 import { application, domainEvent, job } from "./schema.js";
 import { createTestDb, seedApplication, sqlState } from "./test/pglite.js";
 
@@ -245,5 +245,92 @@ describe("the handoff tables", () => {
     );
     expect(await sqlState(db.delete(applyHandoffDone))).toBe(RESTRICT_VIOLATION);
     expect(await sqlState(db.execute(sql`truncate apply_handoff_done`))).toBe(RESTRICT_VIOLATION);
+  });
+});
+
+// NS-192 slice 3: the extension was handed a package to pre-fill.
+describe("recordHandoffPrefill", () => {
+  // An open handoff for a synthetic submission stopped at a CAPTCHA.
+  async function openOne(): Promise<{ handoffId: string; applicationId: string }> {
+    const { submissionId, applicationId } = await inProgress();
+    await recordNeedsHuman(db, candidateId, submissionId, "captcha", APPLY_URL);
+    const [h] = await listOpenHandoffs(db, candidateId);
+    if (!h) throw new Error("no handoff");
+    return { handoffId: h.handoffId, applicationId };
+  }
+  const prefilledEvents = () =>
+    db
+      .select({
+        actor: domainEvent.actor,
+        reason: domainEvent.reason,
+        payload: domainEvent.payload,
+      })
+      .from(domainEvent)
+      .where(eq(domainEvent.type, "handoff.prefilled"));
+
+  it("writes handoff.prefilled by Paul with ids, the ATS and a count, and no value", async () => {
+    const { handoffId, applicationId } = await openOne();
+    const r = await recordHandoffPrefill(db, {
+      candidateId,
+      handoffId,
+      applicationId,
+      ats: "greenhouse",
+      fieldCount: 3,
+      grantKey: "0123456789abcdef",
+    });
+    expect(r).toEqual({ ok: true, value: { recorded: true } });
+    expect(await prefilledEvents()).toEqual([
+      {
+        actor: "user",
+        reason: "Pre-filled a Greenhouse form for you to finish",
+        payload: { applicationId, ats: "greenhouse", fieldCount: 3 },
+      },
+    ]);
+  });
+
+  it("stores one event for the same grant, and another for a new grant", async () => {
+    const { handoffId, applicationId } = await openOne();
+    const record = (grantKey: string) =>
+      recordHandoffPrefill(db, {
+        candidateId,
+        handoffId,
+        applicationId,
+        ats: "greenhouse",
+        fieldCount: 3,
+        grantKey,
+      });
+    await record("0123456789abcdef");
+    await record("0123456789abcdef");
+    await record("fedcba9876543210");
+    expect(await prefilledEvents()).toHaveLength(2);
+  });
+
+  it("refuses another candidate's handoff as not found, and stores nothing", async () => {
+    const { handoffId, applicationId } = await openOne();
+    const r = await recordHandoffPrefill(db, {
+      candidateId: CandidateId.parse(randomUUID()),
+      handoffId,
+      applicationId,
+      ats: "greenhouse",
+      fieldCount: 3,
+      grantKey: "0123456789abcdef",
+    });
+    expect([r, await prefilledEvents()]).toEqual([{ ok: false, error: { kind: "NotFound" } }, []]);
+  });
+
+  it("refuses a grant key that isn't 16 hex characters, and stores nothing", async () => {
+    const { handoffId, applicationId } = await openOne();
+    const r = await recordHandoffPrefill(db, {
+      candidateId,
+      handoffId,
+      applicationId,
+      ats: "greenhouse",
+      fieldCount: 3,
+      grantKey: "not-a-grant-key!",
+    });
+    expect([r, await prefilledEvents()]).toEqual([
+      { ok: false, error: { kind: "InvalidInput" } },
+      [],
+    ]);
   });
 });

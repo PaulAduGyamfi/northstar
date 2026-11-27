@@ -37,6 +37,7 @@ import {
   readWeekReview,
   recordCallOutcome,
   recordCheckIn,
+  recordHandoffPrefill,
   recordPasskeyUse,
   resolveDeadLetter,
   resolveHandoff,
@@ -198,6 +199,9 @@ try {
   // then the extension's read of that one handoff's package, re-checked by readHandoffPackage.
   const prefill = prefillEndpoints({
     readPackage: async (handoffId) => readHandoffPackage(db, await candidateId(), handoffId),
+    // handoff.prefilled before the package is served (NS-192 slice 3).
+    recordPrefill: async (input) =>
+      (await recordHandoffPrefill(db, { candidateId: await candidateId(), ...input })).ok,
     grants: createPrefillGrants(Date.now),
   });
   // Employer accounts (NS-124), read-only from the tenant registry.

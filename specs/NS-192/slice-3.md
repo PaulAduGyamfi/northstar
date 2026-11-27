@@ -21,13 +21,15 @@ call (a `needs:paul` issue). This slice builds what every option shares.
 - **`handoff.prefilled`.** `POST /handoffs/package` writes it after the read passes and before it
   answers, through `recordHandoffPrefill` (`packages/db`, `handoff-write.ts`):
   - aggregate `apply_handoff:<id>`, actor `user` (Paul's click issued the grant);
-  - payload: `handoffId`, `applicationId`, `ats` and `fieldCount` (the package's own fields);
+  - payload: `applicationId`, `ats` and `fieldCount` (the package's own fields); the handoff id is
+    in the aggregate;
   - key `apply_handoff:<id>:prefilled:<grant key>`, where the grant key is the first 16 hex
     characters of the grant's SHA-256. Each grant is used once, so a retry of the same serve stores
     one event.
   - If the event can't be written, nothing is served (`503 prefill_unrecorded`). The grant is
     already used, so Paul clicks again.
-  - Feed: "Pre-filled a Greenhouse form for you to finish".
+  - Feed: "Pre-filled a Greenhouse form for you to finish", as the event's fixed-word `reason`
+    (`prefillReason`), so `feed.ts`'s pinned template list stays as it is.
 - **`prefillPlan(pkg, tabUrl)`** (`apps/extension/src/prefill.ts`, plain code) gives the fills, or
   a refusal code:
   - `not_https`: the tab isn't https, or has a port or credentials;
