@@ -253,6 +253,28 @@ export function createPlaywrightDriver(options: DriverOptions): FormDriver {
             },
           ]);
       }
+      // The page's own script may have changed the form since `open` (NS-256): read it again just
+      // before the one step that can't be taken back, and refuse a challenge, a different number
+      // of forms, or a form that now has a problem. Nothing has been pressed yet.
+      guard();
+      if (!onHosts(hosts, page.url())) throw new DriverError("the page left the adapter's hosts");
+      const again = checkCollected(await page.evaluate(collectPage, null));
+      // A challenge is reported as one, like `open` does: the gateway hands it to Paul with its
+      // deep link, and it is clear nothing was pressed (a DriverError would read "may have gone").
+      const challenge = challengeOf(again.signals);
+      if (challenge !== null) {
+        form = null;
+        return { kind: "challenge", challenge };
+      }
+      if (again.forms.length !== count) {
+        throw new DriverError(`the page now has ${again.forms.length} forms, not ${count}`);
+      }
+      const nowFacts = again.facts[index];
+      const nowProblem = nowFacts === undefined ? "no_submit" : formProblem(nowFacts);
+      if (nowProblem !== null) {
+        trace.getActiveSpan()?.setAttribute(FORM_PROBLEM, nowProblem);
+        throw new DriverError(`the form changed before submit: ${nowProblem}`);
+      }
       const submit = page.locator(FORMS).nth(index).locator(SUBMIT_SELECTOR);
       guard();
       const buttons = await submit.count();

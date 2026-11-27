@@ -61,7 +61,9 @@ and never hand its `gmail.modify` token to code that reads mail.
   one's path. The driver only reports what it sees: a challenge is never solved, and there is no
   stealth or fingerprint change. A form it can't fill or submit safely (`formProblem`, NS-255:
   name-less fields, comboboxes, no single visible submit, a hidden or CAPTCHA-tied submit) is no
-  form: refuse, never type into or press around it. Handling one of those needs its own spec. It stays on the adapter's hosts, and after `close()` it takes no
+  form: refuse, never type into or press around it. Handling one of those needs its own spec.
+  The form is read again right before the click (NS-256); any check added to `open` must hold
+  there too, since a page's script can change the form in between. It stays on the adapter's hosts, and after `close()` it takes no
   further browser action. Its tests run on the fake page and stand-in DOM in
   `src/apply/browser/test/`, never a live site.
 

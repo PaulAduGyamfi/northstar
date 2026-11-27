@@ -162,6 +162,8 @@ describe("fillAndSubmit", () => {
           { name: "ada-lovelace-resume.pdf", mimeType: "application/pdf", bytes: RESUME.length },
         ],
       },
+      // NS-256: the form is read again just before the submit (approved on #359).
+      { action: "evaluate", value: "collectPage" },
       {
         action: "count",
         selector: `${FORM} >> button[type="submit"], input[type="submit"], button:not([type])`,
@@ -190,6 +192,8 @@ describe("fillAndSubmit", () => {
     expect(page.actions.filter((a) => a.action === "evaluate").map((a) => a.value)).toEqual([
       "collectPage",
       "chooseOptions",
+      // NS-256: the form is read again just before the submit (approved on #359).
+      "collectPage",
       "collectPage",
     ]);
   });

@@ -1,11 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import {
-  type Context,
-  type ContextManager,
-  context,
-  ROOT_CONTEXT,
-  trace,
-} from "@opentelemetry/api";
+import { type Context, type ContextManager, context, ROOT_CONTEXT } from "@opentelemetry/api";
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
@@ -242,5 +236,53 @@ describe("the refusal on the span", () => {
     } finally {
       context.disable();
     }
+  });
+});
+
+describe("fillAndSubmit re-reads the form just before submit (NS-256)", () => {
+  // A form that opens clean; each test changes it after open, as a page's own script could.
+  const changing = () => {
+    const submit = el("button", { type: "submit" });
+    // The stand-in DOM holds this array itself, so pushing to it changes the open form.
+    const controls: FakeElement[] = [
+      el("input", { name: "first_name", type: "text", required: "" }),
+      el("input", { name: "email", type: "email", required: "" }),
+      submit,
+    ];
+    const page = doc([controls]);
+    const fake = fakePage({ pages: { [URL_GH]: () => page } });
+    const driver = createPlaywrightDriver({ page: fake, hosts: greenhouse.hosts });
+    return { page, controls, submit, fake, driver };
+  };
+  const clicked = (fake: ReturnType<typeof fakePage>) =>
+    fake.actions.some((a) => a.action === "click");
+
+  it("refuses a form that gained a combobox after open, and presses nothing", async () => {
+    const { controls, fake, driver } = changing();
+    expect((await driver.open(URL_GH)).kind).toBe("form");
+    controls.push(el("input", { name: "country", role: "combobox" }));
+    await expect(
+      driver.fillAndSubmit([{ field: "email", value: "ada@example.com" }], []),
+    ).rejects.toThrow(new DriverError("the form changed before submit: combobox"));
+    expect(clicked(fake)).toBe(false);
+  });
+
+  it("refuses a submit that became tied to a CAPTCHA after open, and presses nothing", async () => {
+    const { submit, fake, driver } = changing();
+    await driver.open(URL_GH);
+    submit.attrs["data-callback"] = "onCaptchaDone";
+    await expect(driver.fillAndSubmit([], [])).rejects.toThrow(
+      new DriverError("the form changed before submit: captcha_submit"),
+    );
+    expect(clicked(fake)).toBe(false);
+  });
+
+  it("reports a CAPTCHA that appears after open as a challenge, and presses nothing", async () => {
+    const { page, fake, driver } = changing();
+    await driver.open(URL_GH);
+    const before = Array.from(page.getElementsByTagName("*"));
+    page.getElementsByTagName = () => [...before, el("div", { class: "h-captcha" })];
+    expect(await driver.fillAndSubmit([], [])).toEqual({ kind: "challenge", challenge: "captcha" });
+    expect(clicked(fake)).toBe(false);
   });
 });
