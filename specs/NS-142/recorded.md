@@ -1,7 +1,7 @@
 # NS-142 slice 2: recorded ATS form pages confirm the adapters' field names
 
-Status: in progress (autonomous lane, ADR-0016). Assigned by the orchestrator. Fetching waits for
-#350 (Paul's sandbox allowlist for the ATS hosts) to merge.
+Status: built (autonomous lane, ADR-0016). Assigned by the orchestrator. Fetched 2026-11-27 after
+#350 (Paul's sandbox allowlist for the ATS hosts) merged.
 Issue: #76 (parent #19)
 Requirements: APPLY-002 (deterministic adapters), APPLY-008 · ADR-0002, ADR-0003, ADR-0028
 Rules that apply: `.claude/rules/gateways.md`, `.claude/rules/tests.md`, AGENTS.md ("Untrusted
@@ -45,7 +45,10 @@ recorded copies can check the names offline.
   "recorded" instead of "hand-written".
 - `recordedPage` turns a recording into the stand-in DOM, so the driver's own in-page reader
   (`collectPage`) runs on it.
-- `test/fixtures.ts`' form snapshots are aligned with the recordings where they differ.
+- `test/fixtures.ts`' form snapshots are aligned with the recordings where they differ: Lever's
+  phone is `type="text"`. Lever's resume stays required on purpose (a comment says why). The
+  synthetic Greenhouse snapshot keeps the older name-based form until #353, because the driver
+  can't read the current board; a test pins that it reads no fields from the recording.
 - Tests stay offline: nothing in a test fetches.
 
 ## Acceptance criteria

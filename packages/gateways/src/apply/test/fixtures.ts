@@ -27,6 +27,8 @@ export const FORMS: Record<ApplyAts, FormField[]> = {
     { name: "email", type: "email", required: true },
     // Lever's phone input is type=text on the recorded form (`recorded.ts`).
     { name: "phone", type: "text", required: false },
+    // Required here on purpose: the recorded form leaves it to Lever's script, but the resume is
+    // always sent, so the synthetic form keeps the stricter flag.
     { name: "resume", type: "file", required: true },
     { name: "urls[LinkedIn]", type: "text", required: false },
     { name: "cards[aaaa][field0]", type: "radio", required: true, options: ["Yes", "No"] },

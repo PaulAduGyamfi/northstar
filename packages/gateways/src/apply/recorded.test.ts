@@ -31,9 +31,12 @@ describe("each adapter's fields are on its recorded form", () => {
     },
   );
 
-  it("finds Greenhouse's fields by id, because its recorded form names none of them", () => {
+  // The adapter's names are there as ids only. The driver reads and fills by name, so on the real
+  // board it finds no form at all and refuses: a known gap, and the safe outcome, until #353.
+  it("reads no fields from the recorded Greenhouse form, because it names none of its controls", () => {
     const named = RECORDED.greenhouse.controls.filter((c) => c.name !== undefined);
-    expect(named).toEqual([]);
+    const picked = pickForm(collectPage(null, recordedPage(RECORDED.greenhouse)).forms);
+    expect([named, picked]).toEqual([[], null]);
   });
 });
 
