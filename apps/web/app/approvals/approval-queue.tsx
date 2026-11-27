@@ -213,7 +213,12 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
               <span className="muted">
                 {item.subject}, waiting {waitedFor(item.requestedAt, now)}
               </span>
-              {item.edited ? <span className="status-label"> {EDITED_MARK}</span> : null}
+              {item.edited ? (
+                <>
+                  {" "}
+                  <span className="status-label">{EDITED_MARK}</span>
+                </>
+              ) : null}
             </label>
             {item.kind === "email_reply" ? (
               <ReplyPreview requestId={item.requestId} isEdited={item.edited} />
