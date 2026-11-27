@@ -363,7 +363,7 @@ describe("prepCommand", () => {
     const printed: string[] = [];
     const code = await prepCommand({
       print: (l) => printed.push(l),
-      runPrep: async () => ({ ...REPORT, scopeMissing: true }),
+      runPrep: async () => ({ ...REPORT, filed: 0, scopeMissing: true }),
     });
     expect([code, printed.at(-1)]).toEqual([
       1,
