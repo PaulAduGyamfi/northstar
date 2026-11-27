@@ -59,6 +59,32 @@ run guard-bash.sh block "$(bash_cmd 'git push https://github.com/example/other.g
 run guard-bash.sh block "$(bash_cmd 'git push origin ns-104 $(id)')"
 run guard-bash.sh block "$(bash_cmd 'git push origin ns-104 && python3 x.py')"
 
+# NS-132: gh pr|issue|run and git push are found by the tokenizer in any command position, so
+# a prefix, wrapper, quote, escape, chain or substitution can't hide them from the shape checks.
+run guard-bash.sh block "$(bash_cmd 'X=1 "gh" pr view 1 -q env.GH_TOKEN')"
+run guard-bash.sh block "$(bash_cmd 'LANG=C \gh pr view 1 --jq .x')"
+run guard-bash.sh block "$(bash_cmd 'true && g\it push origin ns-104')"
+run guard-bash.sh block "$(bash_cmd 'env gh pr view 1')"
+run guard-bash.sh block "$(bash_cmd 'command git push origin ns-104')"
+run guard-bash.sh block "$(bash_cmd 'timeout 5s gh issue list')"
+run guard-bash.sh block "$(bash_cmd '/usr/bin/gh pr view 1')"
+run guard-bash.sh block "$(bash_cmd 'git -C /tmp/other push origin ns-104')"
+run guard-bash.sh block "$(bash_cmd 'git --attr-source HEAD push origin main')"
+run guard-bash.sh block "$(bash_cmd "bash -c 'gh pr view 1 -q .x'")"
+run guard-bash.sh block "$(bash_cmd 'eval gh run view 3')"
+run guard-bash.sh block "$(bash_cmd 'echo "$(gh pr view 1)"')"
+run guard-bash.sh block "$(bash_cmd 'echo `git push origin ns-104`')"
+run guard-bash.sh block "$(bash_cmd "$(printf 'true\ngh pr view 1 -q .x')")"
+run guard-bash.sh block "$(bash_cmd "$(printf 'bash <<%s\ngh pr view 1 -q .x\n%s' "'EOF'" 'EOF')")"
+run guard-bash.sh block "$(bash_cmd 'g=gh; $g pr view 1')"
+run guard-bash.sh block "$(bash_cmd '>/dev/null gh pr view 1 -q .x')"
+# ...while the words gh, push or "gh pr" anywhere else are just words.
+run guard-bash.sh pass  "$(bash_cmd 'git commit -m "NS-132: guard git push and gh pr spellings"')"
+run guard-bash.sh pass  "$(bash_cmd 'grep -rn "gh pr view" .claude/hooks')"
+run guard-bash.sh pass  "$(bash_cmd 'git log --oneline --grep push')"
+run guard-bash.sh pass  "$(bash_cmd "$(printf 'python3 - <<%s\nprint("git push and gh pr view")\n%s' "'EOF'" 'EOF')")"
+run guard-bash.sh pass  "$(bash_cmd 'git status && git log --oneline -3')"
+
 # Other commands that run outside the sandbox with Paul's login: only plain characters, because
 # zsh can run code through =(...) and glob qualifiers without any $ ` ; & | < >.
 run guard-bash.sh pass "$(bash_cmd 'gh pr create --base main --head ns-104 --title "NS-104: local stack" --body-file /tmp/claude-1000/s/b.md')"
