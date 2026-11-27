@@ -331,7 +331,9 @@ describe("assemblePackage with matches confirmed beforehand (NS-233)", () => {
   });
 
   it("ignores a model's pick on a disguised label, so it never reaches the bank (NS-272)", () => {
-    const label = "Why would you n\u043et want to work at Example Co?";
+    // CLOSE with a zero-width space: code still leaves it new, and the confirm step still offers
+    // why-this-company, so only the disguise check stops the model's pick.
+    const label = "What drew you to us\u200b?";
     expect(assembleWith(label, modelPick(0.9))).toMatchObject({
       ok: false,
       error: { unanswered: [{ fieldName: "question_2", reason: "not_matched" }] },

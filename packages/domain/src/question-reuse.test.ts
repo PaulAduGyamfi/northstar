@@ -81,14 +81,13 @@ describe("labelReuse against disguised labels and companies (security review)", 
 });
 
 describe("isDisguisedLabel", () => {
-  it("flags the invisible, modifier, Greek and Cyrillic characters labelReuse refuses", () => {
-    const labels = [
-      "Why would you n\u043et want to work at Example Corp?",
-      "Why would you n\u200bot want to work at Example Corp?",
-      "Why wouldn\u02bct you want to work at Example Corp?",
-      "Why would you n\u03bft want to work at Example Corp?",
-    ];
-    expect(labels.map(isDisguisedLabel)).toEqual([true, true, true, true]);
+  it.each([
+    "Why would you n\u043et want to work at Example Corp?",
+    "Why would you n\u200bot want to work at Example Corp?",
+    "Why wouldn\u02bct you want to work at Example Corp?",
+    "Why would you n\u03bft want to work at Example Corp?",
+  ])("flags a Cyrillic, invisible, modifier or Greek character (%s)", (label) => {
+    expect(isDisguisedLabel(label)).toBe(true);
   });
 
   it("leaves a plain label, curly apostrophe included, alone", () => {
