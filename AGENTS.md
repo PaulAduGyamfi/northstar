@@ -1071,7 +1071,8 @@ Exists now:
   `sweepStaleClaims` activity per candidate (the gateway's sweep with `dbSweepPorts`; 1 minute,
   3 attempts), continuing as new after 100 passes. A pass that fails all its attempts becomes a
   dead letter (`recordSweepFailure`: kind `apply.stale_sweep`, reason `sweep_failed`, keyed by
-  run and pass) and the next pass tries again. Nothing starts it yet (#230's client helper).
+  run and pass) and the next pass tries again. Since NS-225 slice 2 the worker process starts it
+  (`ensureStaleSweep`) whenever it runs.
   Since NS-226 (slice 1) `submissionWorkflow` takes an `applicationId` and ends visibly: a
   `refused`, `gave_up` or `not_approved` result, or the activity failing all 5 attempts, records
   one dead letter through the `recordSubmissionEnding` activity on `pipeline` (kind
@@ -1097,9 +1098,16 @@ Exists now:
   (`workerActivities`, `wiring.ts`: `pipeline` gets the ending and sweep activities, the browser
   pool only `submitApplication`, its gateway ports bound per call so a file read is the
   submission's own candidate's), and runs one Temporal `Worker` per queue with `workerOptions`:
-  `pipeline` with the workflow bundle, `apply-browser` only when it is on. Nothing starts the
-  workflows yet (the client helper, #230's next slice), and there is no worker health or
-  heartbeat yet.
+  `pipeline` with the workflow bundle, `apply-browser` only when it is on. There is no worker
+  health or heartbeat yet.
+  Since slice 2 also the client helper (`src/client.ts`, over a narrow `TemporalPort`, bound by
+  `temporalPort`): `startSubmission` starts `submission:<applicationId>` (`REJECT_DUPLICATE`,
+  conflict `FAIL`: never a second run for an application, even after the first ended; the input
+  checked by `inputProblem`), `signalApproval` / `signalWithdrawn` relay the Gate's decision
+  (`NotRunning` when no workflow runs), and `ensureStaleSweep` starts the one `stale-claim-sweep`
+  (conflict `USE_EXISTING`), which `main.ts` does at every start for the one candidate. No caller
+  starts submissions or sends the signals yet (the package step's caller and the Queue's decide
+  path).
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 
@@ -1172,7 +1180,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/db db:generate` | new migration from `packages/db/src/schema.ts` (no database needed); prints "No schema changes" when migrations match |
 | repo root | `pnpm --filter @northstar/db db:migrate` | apply pending migrations as the tables' owner, `DATABASE_MIGRATION_URL`, which Node loads from the root `.env` (Paul, outside the sandbox, stack up). Builds `domain` and `db` first. The apps use `DATABASE_URL`, the `northstar_app` role (NS-212) |
 | repo root | `pnpm --filter @northstar/api start` | build and run the API on 127.0.0.1:`NORTHSTAR_API_PORT` (8787), reading the root `.env.app`; refuses to start until `NORTHSTAR_SIGNIN_KEY_SHA256` and `DATABASE_URL` are set (Paul) |
-| repo root | `pnpm --filter @northstar/worker start` | build and run the worker process (NS-225): connects to Temporal on this machine (`TEMPORAL_ADDRESS`, default 127.0.0.1:7233; stack up) and runs the `pipeline` pool, plus the `apply-browser` pool only with `WORKER_APPLY_BROWSER=on` and `WORKER_CHROMIUM_PATH`; reads the root `.env.app` like the API and needs `DATABASE_URL`. Nothing starts its workflows yet. Paul only: real database and Temporal; agents never run it |
+| repo root | `pnpm --filter @northstar/worker start` | build and run the worker process (NS-225): connects to Temporal on this machine (`TEMPORAL_ADDRESS`, default 127.0.0.1:7233; stack up) and runs the `pipeline` pool, plus the `apply-browser` pool only with `WORKER_APPLY_BROWSER=on` and `WORKER_CHROMIUM_PATH`; reads the root `.env.app` like the API and needs `DATABASE_URL`. At start it ensures the stale-claim sweep runs; nothing starts submission workflows yet. Paul only: real database and Temporal; agents never run it |
 | repo root | `pnpm --filter @northstar/web build` / `pnpm --filter @northstar/web start` | build and serve the web app on 127.0.0.1:3100; open it at `http://northstar.localhost:3100` (`NORTHSTAR_WEB_ORIGIN`, ADR-0018). It doesn't read the root `.env` or `.env.app`: export `NORTHSTAR_API_ORIGIN` (default `http://127.0.0.1:8787`) in the shell before build and start if the API's port changed. `pnpm --filter @northstar/web dev` while developing |
 | repo root | `pnpm --filter @northstar/extension build` | build the browser extension into `apps/extension/dist`; load that folder in `chrome://extensions` ("Load unpacked"), then paste the extension token in its options (Paul). The API needs `NORTHSTAR_EXTENSION_TOKEN_SHA256` and `DATABASE_URL` for captures |
 

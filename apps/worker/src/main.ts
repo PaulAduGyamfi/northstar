@@ -1,8 +1,10 @@
 import { constants } from "node:fs";
 import { access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { connectDb, loadDbConfig } from "@northstar/db";
+import { connectDb, loadDbConfig, soleCandidate } from "@northstar/db";
+import { Client, Connection } from "@temporalio/client";
 import { NativeConnection, Worker } from "@temporalio/worker";
+import { ensureStaleSweep, temporalPort } from "./client.js";
 import { loadWorkerConfig } from "./config.js";
 import { workerOptions } from "./pools.js";
 import { APPLY_BROWSER_QUEUE, PIPELINE_QUEUE } from "./queues.js";
@@ -31,6 +33,17 @@ export async function main(env: Record<string, string | undefined>): Promise<voi
   const { db, close } = connectDb(loadDbConfig(env));
   try {
     const activities = workerActivities(db, config);
+    // The stale-claim sweep runs whenever the worker does: started once, kept when already
+    // running (NS-225 slice 2). Single tenant for now (Q-02): the one candidate.
+    const client = await Connection.connect({ address: config.temporalAddress });
+    try {
+      await ensureStaleSweep(
+        temporalPort(new Client({ connection: client, namespace: config.temporalNamespace })),
+        { candidateIds: [await soleCandidate(db)] },
+      );
+    } finally {
+      await client.close();
+    }
     const connection = await NativeConnection.connect({ address: config.temporalAddress });
     // Each Worker holds the connection until it has run and stopped, so the connection closes
     // only after every pool is down; a close error never hides the pools' own failure.

@@ -16,6 +16,20 @@ export {
   createSweepActivities,
   type SweepActivities,
 } from "./activities/sweep.js";
+// Starting and signalling the workflows (NS-225 slice 2), for the callers that file packages and
+// relay the Gate's decisions.
+export {
+  ensureStaleSweep,
+  type SignalError,
+  type StartError,
+  SWEEP_WORKFLOW_ID,
+  signalApproval,
+  signalWithdrawn,
+  startSubmission,
+  submissionWorkflowId,
+  type TemporalPort,
+  temporalPort,
+} from "./client.js";
 // Bounded concurrency per pool (NS-219), for the worker process (#230).
 export { loadPoolLimits, type PoolLimits, type PoolQueue, workerOptions } from "./pools.js";
 export { APPLY_BROWSER_QUEUE, PIPELINE_QUEUE } from "./queues.js";
