@@ -230,7 +230,8 @@ Exists now:
     and its numbers and names (`names.ts`, NS-202) to come from what it cites. A story's title is
     shown to the model but is no evidence: quotes and names come from its four parts
     (`checkText`).
-  - `draftAnswer` is off by default: its fixtures are hand-written until Paul records real ones.
+  - `draftAnswer` is off by default. Since NS-263 its prompt is v2 (follow-ups only when the
+    evidence lacks what Paul did or how it turned out), recorded from the real model at 8/8.
     When on, a failing draft becomes `needs_human`.
 
   It has no caller, CLI or storage yet.
