@@ -1,4 +1,4 @@
-import type { Inbox } from "@northstar/db";
+import type { Inbox, LinkTarget, QueueDecision, QueueDecisionError } from "@northstar/db";
 import {
   APPLICATION_STATUSES,
   RECRUITER_GRADE_REASONS,
@@ -9,10 +9,21 @@ import { z } from "zod";
 import { type AnyEndpoint, endpoint } from "./endpoint.js";
 
 // The unified job inbox (NS-165, INB-006): Paul's linked job-mail threads grouped by application,
-// and the threads waiting for him to link them. Read-only, session only. Gmail ids, steps, flags,
-// counts and times: no subject, sender or body exists to show. bin.ts wires packages/db's read.
+// and the threads waiting for him to link them. Session only. Gmail ids, steps, flags, counts and
+// times: no subject, sender or body exists to show. Since NS-262 Paul links a queued thread to one
+// of his open applications, or dismisses it (POST /inbox/decide). bin.ts wires packages/db.
 
-export type InboxPorts = { read: () => Promise<Inbox> };
+export type InboxPorts = {
+  read: () => Promise<Inbox>;
+  // The open applications a queued thread can be linked to (readLinkTargets).
+  targets: () => Promise<LinkTarget[]>;
+  decide: (input: {
+    gmailThreadId: string;
+    decision: QueueDecision;
+  }) => Promise<
+    { ok: true; value: { recorded: number } } | { ok: false; error: QueueDecisionError }
+  >;
+};
 
 // Gmail thread ids are hex (mail_link's CHECK). Only such an id goes into a link: anything else
 // is dropped, so a bad row can never put another URL or markup on the page.
@@ -43,7 +54,8 @@ const Thread = z.object({
   gmailUrl: z.url({ protocol: /^https$/ }),
   messages: z.number().int().positive(),
   lastReceivedAt: z.string(),
-  step: z.enum(["tag", "thread", "sender"]),
+  // `paul`: he linked it from the confirm queue (NS-262).
+  step: z.enum(["tag", "thread", "sender", "paul"]),
   senderVerified: z.boolean(),
   kind: z.string().nullable(),
   recruiterGrade: Grade.optional(),
@@ -68,6 +80,24 @@ const Queued = z.object({
   reason: z.enum(["unknown_tag", "ambiguous", "no_match"]),
   recruiterGrade: Grade.optional(),
 });
+
+const Target = z.object({
+  // A database id, checked because the page sends it back as the link's application.
+  applicationId: z.uuid(),
+  jobTitle: z.string().nullable(),
+  company: z.string().nullable(),
+});
+
+const Decide = z
+  .object({
+    gmailThreadId: z.string().regex(GMAIL_ID),
+    decision: z.enum(["link", "dismiss"]),
+    applicationId: z.uuid().optional(),
+  })
+  // A link names its application; a dismiss names none.
+  .refine((d) => (d.decision === "link") === (d.applicationId !== undefined), {
+    path: ["applicationId"],
+  });
 
 export function inboxEndpoints(ports: InboxPorts): AnyEndpoint[] {
   const read = endpoint({
@@ -118,5 +148,60 @@ export function inboxEndpoints(ports: InboxPorts): AnyEndpoint[] {
       return { ok: true, body: { applications, queued } };
     },
   });
-  return [read];
+
+  // The open applications a queued thread can be linked to (NS-262), for the queue's choice.
+  const targets = endpoint({
+    method: "GET",
+    path: "/inbox/link-targets",
+    auth: "session",
+    input: z.object({}),
+    output: z.object({ items: z.array(Target) }),
+    handler: async () => {
+      let rows: LinkTarget[];
+      try {
+        rows = await ports.targets();
+      } catch {
+        return { ok: false, status: 503, error: "unavailable" };
+      }
+      // Field by field, so nothing the read adds later leaks out.
+      const items = rows.map((t) => ({
+        applicationId: t.applicationId,
+        jobTitle: t.jobTitle,
+        company: t.company,
+      }));
+      return { ok: true, body: { items } };
+    },
+  });
+
+  const decide = endpoint({
+    method: "POST",
+    path: "/inbox/decide",
+    auth: "session",
+    input: Decide,
+    output: z.object({ decision: z.enum(["link", "dismiss"]), recorded: z.number().int() }),
+    handler: async ({ gmailThreadId, decision, applicationId }) => {
+      try {
+        // Only Paul's signed-in path reaches this; the write records it as his.
+        const r = await ports.decide({
+          gmailThreadId,
+          decision:
+            decision === "link" && applicationId !== undefined
+              ? { kind: "link", applicationId }
+              : { kind: "dismiss" },
+        });
+        if (r.ok) return { ok: true, body: { decision, recorded: r.value.recorded } };
+        if (r.error.kind === "NotFound") return { ok: false, status: 404, error: "not_found" };
+        if (r.error.kind === "UnknownApplication") {
+          return { ok: false, status: 404, error: "unknown_application" };
+        }
+        if (r.error.kind === "ApplicationClosed") {
+          return { ok: false, status: 409, error: "application_closed" };
+        }
+        return { ok: false, status: 400, error: "invalid_input" };
+      } catch {
+        return { ok: false, status: 503, error: "unavailable" };
+      }
+    },
+  });
+  return [read, targets, decide];
 }

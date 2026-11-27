@@ -19,7 +19,7 @@ const Thread = z.object({
   gmailUrl: z.string(),
   messages: z.number(),
   lastReceivedAt: z.string(),
-  step: z.enum(["tag", "thread", "sender"]),
+  step: z.enum(["tag", "thread", "sender", "paul"]),
   senderVerified: z.boolean(),
   kind: z.string().nullable(),
   recruiterGrade: Grade.optional(),
@@ -65,6 +65,8 @@ const STEP_WORDS = {
   tag: "by its tagged address",
   thread: "by its thread",
   sender: "by the company's domain",
+  // He linked it from the confirm queue (NS-262).
+  paul: "by you",
 } as const;
 
 // Why a thread waits for Paul (the confirm queue's reasons), in words.
@@ -179,3 +181,37 @@ export function applicationTitle(a: Pick<InboxApplicationView, "jobTitle" | "com
 }
 
 export const statusWord = (a: Pick<InboxApplicationView, "status">) => STATUS_WORDS[a.status];
+
+// The open applications a queued thread can be linked to (NS-262), as GET /inbox/link-targets
+// answers them.
+export const LinkTargetsBody = z.object({
+  items: z.array(
+    z.object({
+      applicationId: z.uuid(),
+      jobTitle: z.string().nullable(),
+      company: z.string().nullable(),
+    }),
+  ),
+});
+export type LinkTargetView = z.infer<typeof LinkTargetsBody>["items"][number];
+
+export type QueueChoice = "link" | "dismiss";
+
+// What Paul's choice did, in words: a repeat (nothing left to decide) says so.
+export function decidedMessage(choice: QueueChoice, recorded: number): string {
+  if (recorded === 0) return "Already decided: nothing in that thread was waiting.";
+  const what = recorded === 1 ? "1 email" : `${recorded} emails`;
+  return choice === "link"
+    ? `Linked ${what} to the application. It stays as it is: linking never changes a status.`
+    : `Dismissed ${what}. They leave the queue.`;
+}
+
+// Why the choice didn't go through, from the API's error code.
+export function decideProblem(code: unknown): string {
+  if (code === "not_found") return "That thread isn't waiting anymore. The list is reloaded.";
+  if (code === "unknown_application") return "That application isn't one of yours anymore.";
+  if (code === "application_closed")
+    return "That application is closed (rejected or withdrawn): pick another.";
+  if (code === "unavailable") return "Northstar couldn't save that right now. Try again.";
+  return "That didn't go through. Try again.";
+}

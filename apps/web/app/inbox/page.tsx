@@ -5,6 +5,7 @@ import { webConfig } from "../../src/config";
 import {
   applicationTitle,
   InboxBody,
+  LinkTargetsBody,
   originBadge,
   queuedRows,
   statusWord,
@@ -13,20 +14,25 @@ import {
 import { PillNav } from "../../src/pill-nav";
 import { SESSION_COOKIE } from "../../src/session";
 import { dotStatus, HealthBody, readApi } from "../../src/system";
+import { QueueActions } from "./queue-actions";
 
 // Asked for on every request: mail is linked as it arrives, and it depends on Paul's session.
 export const dynamic = "force-dynamic";
 
 // The unified job inbox (NS-165, INB-006): Paul's linked job-mail threads by application, and the
-// threads waiting for him to link. Read-only. Signed out redirects to sign-in; nothing renders
-// without his session. Each thread opens in Gmail; its text never comes through Northstar.
+// threads waiting for him to link, each with Link and Dismiss (NS-262). Signed out redirects to
+// sign-in; nothing renders without his session. Each thread opens in Gmail; its text never comes
+// through Northstar.
 export default async function InboxPage() {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   const deps = { apiOrigin: webConfig().apiOrigin, token, fetch };
-  const [inbox, health] = await Promise.all([
+  const [inbox, health, targets] = await Promise.all([
     readApi(deps, "/inbox", InboxBody),
     readApi(deps, "/system/health", HealthBody),
+    readApi(deps, "/inbox/link-targets", LinkTargetsBody),
   ]);
+  // No targets read means no Link choice, never a guess: Dismiss still works.
+  const linkTargets = targets.kind === "ok" ? targets.body.items : [];
   if (inbox.kind === "signed_out") redirect("/sign-in");
   const now = Date.now();
   return (
@@ -48,7 +54,10 @@ export default async function InboxPage() {
         {inbox.kind === "ok" && inbox.body.queued.length > 0 ? (
           <section className="card" aria-labelledby="needs-link">
             <h2 id="needs-link">Needs you to link it</h2>
-            <p className="muted">Linking these from the app comes later. For now they wait here.</p>
+            <p className="muted">
+              Link each to the application it belongs to, or dismiss it. Linking never changes a
+              status.
+            </p>
             <ul>
               {queuedRows(inbox.body.queued, now).map((q) => (
                 <li key={q.key}>
@@ -61,7 +70,8 @@ export default async function InboxPage() {
                         Open in Gmail
                       </a>
                     </>
-                  ) : null}
+                  ) : null}{" "}
+                  <QueueActions gmailThreadId={q.key} targets={linkTargets} label={q.why} />
                 </li>
               ))}
             </ul>

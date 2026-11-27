@@ -275,6 +275,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   append-only, written only through `mail-link-write.ts`. They hold Gmail ids, tags, steps and
   reasons: never an address, subject, sender or body. A link never changes an application's
   status; `sender_verified` is what a later automatic change must require (INB-011).
+  Paul's choice on a queued message (NS-262) is `mail_link_decision` (`linked` with one of his
+  applications, or `dismissed`), one per message, append-only, written only through
+  `decideQueuedThread`. Reads that ask where a message belongs take
+  `coalesce(mail_link.application_id, mail_link_decision.application_id)`, and the queue leaves out
+  decided messages. A decided link is never sender-verified.
   Recruiter grades (NS-238) are `recruiter_grade`, append-only (a trigger), one per candidate and
   Gmail message (`recordRecruiterGrade` checks the message's `mail_link` first), written only through
   `recruiter-grade-write.ts` (`recordRecruiterGrade`, `readRecruiterGrades`). A CHECK keeps the

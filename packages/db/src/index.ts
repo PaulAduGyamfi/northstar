@@ -361,6 +361,16 @@ export {
   recordMailClassification,
   type StoredClassification,
 } from "./mail-classification-write.js";
+// Paul's link or dismiss on a confirm-queue thread (NS-262).
+export * as mailLinkDecisionSchema from "./mail-link-decision-schema.js";
+export {
+  decideQueuedThread,
+  type LinkTarget,
+  MAX_LINK_TARGETS,
+  type QueueDecision,
+  type QueueDecisionError,
+  readLinkTargets,
+} from "./mail-link-decision-write.js";
 export * as mailLinkSchema from "./mail-link-schema.js";
 export {
   assignTag,

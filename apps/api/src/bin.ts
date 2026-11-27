@@ -6,6 +6,7 @@ import {
   connectDb,
   dbSpendMeter,
   decideInterview,
+  decideQueuedThread,
   isSubsystemOn,
   listApplications,
   listConsentRecords,
@@ -31,6 +32,7 @@ import {
   readGrowthTracks,
   readHandoffPackage,
   readInboxThreads,
+  readLinkTargets,
   readPasskey,
   readPreferences,
   readRun,
@@ -247,8 +249,12 @@ try {
     // The funnel and breakdowns (NS-208): plain code over the status histories.
     metrics: async () => pipelineMetrics(await readApplicationHistories(db, await candidateId())),
   });
-  // The unified job inbox (NS-165), read-only.
-  const inbox = inboxEndpoints({ read: async () => readInboxThreads(db, await candidateId()) });
+  // The unified job inbox (NS-165), and Paul's link or dismiss on a queued thread (NS-262).
+  const inbox = inboxEndpoints({
+    read: async () => readInboxThreads(db, await candidateId()),
+    targets: async () => readLinkTargets(db, await candidateId()),
+    decide: async (input) => decideQueuedThread(db, { candidateId: await candidateId(), ...input }),
+  });
   // Dead letters (NS-215, RES-007): stuck work, and Paul's retry, skip or hand-off.
   const deadLetters = deadLetterEndpoints({
     list: async () => listOpenDeadLetters(db, await candidateId()),

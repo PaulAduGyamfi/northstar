@@ -41,6 +41,7 @@ export default defineConfig({
     "./src/company-domain-schema.ts",
     "./src/mail-poll-schema.ts",
     "./src/mail-classification-schema.ts",
+    "./src/mail-link-decision-schema.ts",
   ],
   out: "./migrations",
 });

@@ -95,3 +95,7 @@ are CSS variables in `apps/web/app/globals.css`.
   verified" (an invite isn't authenticated) with Confirm and Dismiss through
   `POST /interviews/decide`; neither choice moves a status, and the page says so in its intro and
   after a choice (`decidedMessage`, in one message area that stays mounted).
+- The Inbox's confirm queue (NS-262) links or dismisses a thread only through
+  `POST /inbox/decide`. The choice of application comes from `GET /inbox/link-targets`; when it
+  can't be read there is no Link choice, never a guessed one. The answer is worded by
+  `decidedMessage` and `decideProblem` (`src/inbox.ts`), and a linked thread reads "Linked by you".

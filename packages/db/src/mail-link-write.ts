@@ -2,6 +2,7 @@ import { APPLICATION_STATUSES, type CandidateId, isTerminal } from "@northstar/d
 import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { readCompanyDomains } from "./company-domain-write.js";
 import type { Db } from "./db.js";
+import { mailLinkDecision } from "./mail-link-decision-schema.js";
 import { type MATCH_STEPS, mailLink, mailTag, type QUEUE_REASONS } from "./mail-link-schema.js";
 import { appendEvent, inSpan } from "./resilience-event.js";
 import { type ATS_KINDS, application, job, jobSource } from "./schema.js";
@@ -126,10 +127,22 @@ export async function readLinkedThreads(
   db: Db,
   candidateId: CandidateId,
 ): Promise<Map<string, string[]>> {
+  // A thread Paul linked from the confirm queue (NS-262) counts too, so its later mail links by
+  // thread.
+  const linkedTo = sql<
+    string | null
+  >`coalesce(${mailLink.applicationId}, ${mailLinkDecision.applicationId})`;
   const rows = await db
-    .selectDistinct({ applicationId: mailLink.applicationId, threadId: mailLink.gmailThreadId })
+    .selectDistinct({ applicationId: linkedTo, threadId: mailLink.gmailThreadId })
     .from(mailLink)
-    .where(and(eq(mailLink.candidateId, candidateId), isNotNull(mailLink.applicationId)));
+    .leftJoin(
+      mailLinkDecision,
+      and(
+        eq(mailLinkDecision.candidateId, mailLink.candidateId),
+        eq(mailLinkDecision.gmailMessageId, mailLink.gmailMessageId),
+      ),
+    )
+    .where(and(eq(mailLink.candidateId, candidateId), isNotNull(linkedTo)));
   const out = new Map<string, string[]>();
   for (const r of rows) {
     if (r.applicationId === null) continue;
@@ -293,7 +306,21 @@ export async function listConfirmQueue(db: Db, candidateId: CandidateId): Promis
       receivedAt: mailLink.receivedAt,
     })
     .from(mailLink)
-    .where(and(eq(mailLink.candidateId, candidateId), isNull(mailLink.applicationId)))
+    // A message Paul decided (NS-262) has left the queue.
+    .leftJoin(
+      mailLinkDecision,
+      and(
+        eq(mailLinkDecision.candidateId, mailLink.candidateId),
+        eq(mailLinkDecision.gmailMessageId, mailLink.gmailMessageId),
+      ),
+    )
+    .where(
+      and(
+        eq(mailLink.candidateId, candidateId),
+        isNull(mailLink.applicationId),
+        isNull(mailLinkDecision.id),
+      ),
+    )
     .orderBy(asc(mailLink.receivedAt));
   return rows.map((r) => ({ ...r, reason: r.reason as QueuedMail["reason"] }));
 }
