@@ -385,7 +385,7 @@ Exists now:
   "Proof to build" sections word it (`src/career-directions.ts`). Fresh jobs are a count: there's
   no jobs page to link to yet.
 
-  No Profile Grade handoff, directions or gaps on the page, or share card yet; the share card waits
+  No Profile Grade handoff or share card yet; the share card waits
   on a Publish gateway ADR and Q-10.
 - The voice profile (NS-136, ANS-007/008) in `packages/profile/src/voice/`, plain code, no model:
   - `measureVoice` turns 5–10 writing samples into a style guide (sentence length, contractions,
