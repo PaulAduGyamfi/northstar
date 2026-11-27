@@ -38,7 +38,10 @@ export type LoadPackage = (
 ) => Promise<Result<ApplicationPackage, { kind: "NoPackage" | "Mismatch" }>>;
 
 // The not_approved reason for each load refusal: the run ends without retry and NS-226 records
-// it as a dead letter. Not the Gate's kinds, so nobody reads one as Paul's decision.
+// it as a dead letter. Not the Gate's kinds, so nobody reads one as Paul's decision. The reader
+// hands out only the package the Gate pinned, so the gateway's ContentChanged path (NS-211's
+// withdrawal, NS-234's wait) can't happen through this activity any more: a hash mismatch ends
+// here as PackageMismatch and leaves the approval live, which covers only the stored package.
 const LOAD_REASONS = { NoPackage: "NoPackage", Mismatch: "PackageMismatch" } as const;
 
 // `submit` is the gateway bound to its ports (submitApplication with dbPorts); `load` reads the
@@ -53,6 +56,10 @@ export function createApplyActivities(
     async submitApplication(args: SubmitArgs): Promise<SubmitStep> {
       // Bad input never gets better on a retry: the same checks as the workflow's input, plus
       // the decision id (the database reader reads a malformed one as no package).
+      // Not an object at all: refused here rather than thrown as a TypeError and retried.
+      if (typeof args !== "object" || args === null) {
+        throw ApplicationFailure.nonRetryable("arguments are not an object", "InvalidInput");
+      }
       const { decisionId, ...rest } = args;
       const problem =
         extraKeyProblem(args, ARG_KEYS) ??

@@ -250,4 +250,16 @@ describe("the submitApplication activity", () => {
       .catch((error: unknown) => error);
     expect(failure).toMatchObject({ type: "InvalidInput", nonRetryable: true, message });
   });
+
+  it("refuses arguments that aren't an object, without retry", async () => {
+    const activities = createApplyActivities(async () => err({ kind: "AtsBusy" }), loaded, now);
+    const failure = await activities
+      .submitApplication(null as never)
+      .catch((error: unknown) => error);
+    expect(failure).toMatchObject({
+      type: "InvalidInput",
+      nonRetryable: true,
+      message: "arguments are not an object",
+    });
+  });
 });

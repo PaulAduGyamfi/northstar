@@ -36,6 +36,13 @@ activity can load it there. A codec would add a key to manage for no gain.
   `PackageMismatch`, recorded by NS-226's dead letter as `not_approved_no_package` /
   `not_approved_package_mismatch`. Both join the reason allowlist (renamed `NOT_APPROVED_REASONS`:
   the Gate's kinds plus these two). A database error is thrown and retried.
+- Because the reader hands out only the package the Gate pinned, the gateway's `ContentChanged`
+  handling (NS-211's withdrawal, NS-234's wait) can't happen through this workflow any more. A
+  workflow started with another hash ends as `PackageMismatch` and the approval stays live; that
+  is safe, since it covers only the stored package. The wrapper's mapping for it stays for other
+  callers.
+- No `patched` versioning: no worker process runs this workflow yet (#230), so nothing is in
+  flight with the old input.
 - A Temporal reset: the reset run has a new run id, so an ending already recorded files a second
   dead letter. That letter is visible, never hidden, but it is a duplicate; noted in
   `endingKey`'s comment and `.claude/rules/worker.md`, not handled here.
