@@ -18,6 +18,9 @@ export const ADJUSTABLE_REASONS: readonly RecruiterGradeReason[] = RECRUITER_GRA
 export const MIN_REGRADES = 3;
 // No reason moves a grade by more than this many points either way.
 export const MAX_ADJUSTMENT = 2;
+// Nor do all of a grade's adjustments together: a message carries about six adjustable reasons, so
+// without this a learned lean could swing a grade across the whole A–F scale.
+export const MAX_TOTAL_ADJUSTMENT = 2;
 
 export type RegradeSample = {
   // The stored grade's reasons and letter, and Paul's current letter for the same message.

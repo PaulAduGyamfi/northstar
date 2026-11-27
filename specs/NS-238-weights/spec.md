@@ -19,6 +19,10 @@ stores each change so he can see it, and lets the grader apply them. Plain code,
 - A reason's adjustment is the mean of its deltas, rounded to the nearest whole point and held to
   −2…+2, and only once 3 or more regraded messages carry the reason (`MIN_REGRADES`). Fewer than
   that, or a mean that rounds to 0, gives no adjustment.
+- All of a grade's adjustments together are held to −2…+2 too (`MAX_TOTAL_ADJUSTMENT`): a message
+  carries about six adjustable reasons, so without it three B emails moved to D would teach −12
+  and the next one would land on F. Learning nudges a grade by at most two points; it never
+  rewrites it.
 - It is recomputed from all of his current regrades each time, never added up on top of the last
   result, so it can't run away. It only ever changes points, and so the letter. It never drafts,
   sends, archives or moves a status.
@@ -27,14 +31,14 @@ stores each change so he can see it, and lets the grader apply them. Plain code,
 - **`packages/domain`** (`recruiter-learn.ts`): `ADJUSTABLE_REASONS`, `MIN_REGRADES`,
   `MAX_ADJUSTMENT`, and `learnRecruiterWeights(samples)`, which turns `{ reasons, systemGrade,
   paulGrade }[]` into `{ reason → adjustment }` by the rule above.
-- **`packages/sources`** (`gradeRecruiterMessage`): an optional `weights` argument adds each
-  matching reason's adjustment to the points before the letter is picked. Without weights, every
+- **`packages/sources`** (`gradeRecruiterMessage`): an optional `weights` argument adds the
+  matching reasons' adjustments, summed and held to ±2, to the points before the letter is picked. Without weights, every
   grade is exactly as before.
 - **Storage** (`packages/db`, migration 0103, `recruiter-weight-schema.ts`): append-only
   `recruiter_weight`, one version per change: an identity `position`, the adjustments as two
   parallel arrays (`reasons`, `adjustments`) so CHECKs can hold each reason to the adjustable list
   and each adjustment to −2, −1, 1 or 2, and how many regraded messages it came from.
-- **Write** (`recruiter-weight-write.ts`): `refreshRecruiterWeights(tx, candidateId)` reads the
+- **Write** (`recruiter-weight-write.ts`): `refreshRecruiterWeights(tx, span, candidateId)` reads the
   stored grades of Paul's regraded messages and his current letters, runs
   `learnRecruiterWeights`, and stores a new version only when the result differs from the newest.
   A new version writes `recruiter.weights_adjusted` (the changed reasons and their new values, by
@@ -49,6 +53,13 @@ stores each change so he can see it, and lets the grader apply them. Plain code,
 - [ ] A regrade that changes the result stores one new version and one event; one that doesn't
       stores nothing; the table refuses UPDATE, DELETE, TRUNCATE and an out-of-bound value (PGlite).
 - [ ] lint, typecheck, test, build green (CI `checks`).
+
+## For item 1 (the caller that grades new mail)
+Deltas are taken against `recruiter_grade.grade`, so they must stay against the grader's own,
+unweighted letter: if a stored grade already included the weights, agreeing with a corrected grade
+would pull a weight back toward 0 and let the old error return. Item 1 must therefore store the
+unweighted grade (and show the weighted one beside it), or record the weights version on the grade
+and learn only from unweighted ones. Until then nothing grades with weights.
 
 ## Out of scope
 - Replies and archives as signals, a settings page for the weights, the agreement measure (item 4)

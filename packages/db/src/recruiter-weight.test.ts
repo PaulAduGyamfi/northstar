@@ -19,6 +19,8 @@ const M1 = "18c3f0a2b4d6e801";
 const M2 = "18c3f0a2b4d6e802";
 const M3 = "18c3f0a2b4d6e803";
 const M4 = "18c3f0a2b4d6e804";
+const M5 = "18c3f0a2b4d6e805";
+const M6 = "18c3f0a2b4d6e806";
 
 let db: Db;
 let close: () => Promise<void>;
@@ -105,14 +107,34 @@ describe("learning from regrades", () => {
   });
 
   it("never adjusts a cap, and keeps each candidate's weights apart", async () => {
-    await gradedMail(M4, ["dealbreaker"]);
-    for (const id of [M1, M2, M3, M4]) await regrade(id, "A");
+    // Three messages carry the dealbreaker, so it would be learned if caps weren't left out.
+    for (const id of [M4, M5, M6]) await gradedMail(id, ["dealbreaker"]);
+    // B to A is +1 on each message.
+    for (const id of [M1, M2, M3, M4, M5, M6]) await regrade(id, "A");
     const [o] = await db.insert(candidate).values({ displayName: "Other" }).returning();
     if (!o) throw new Error("no candidate");
     expect([
       await readRecruiterWeights(db, candidateId),
       await readRecruiterWeights(db, CandidateId.parse(o.id)),
-    ]).toEqual([{ "title:exact": 2, "sender:agency": 2 }, {}]);
+    ]).toEqual([{ "title:exact": 1, "sender:agency": 1 }, {}]);
+  });
+
+  it("stores an empty version when Paul's letters take every adjustment back to none", async () => {
+    for (const id of [M1, M2, M3]) await regrade(id, "D");
+    for (const id of [M1, M2, M3]) await regrade(id, "B");
+    expect([
+      await versions(),
+      await readRecruiterWeights(db, candidateId),
+      (await weightEvents()).at(-1),
+    ]).toEqual([
+      2,
+      {},
+      {
+        actor: "system",
+        reason: "Adjusted recruiter grading from your regrades: 2 changes",
+        payload: { changes: { "title:exact": 0, "sender:agency": 0 }, regrades: 3 },
+      },
+    ]);
   });
 });
 

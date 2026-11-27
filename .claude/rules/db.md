@@ -308,7 +308,7 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   What grading learned from them (NS-238 item 3 slice 2) is `recruiter_weight`, append-only, one
   version per change (the highest `position` is current), written only through
   `refreshRecruiterWeights` inside the regrade's transaction. Reason codes and whole numbers only
-  (CHECKs: the adjustable reasons, −2…2 and never 0, one adjustment per reason).
+  (CHECKs: the adjustable reasons, −2…2 and never 0, one adjustment per entry).
 - Detected interviews (NS-240 slice 2, CAL-002) are `interview_detection` (one row per candidate,
   calendar event id, application and version, 1–10 by a CHECK; the highest version is current;
   writers lock the candidate row first; at most 50 new rows a day per candidate;

@@ -58,7 +58,10 @@ describe("learnRecruiterWeights", () => {
       sample(["dealbreaker", "red_flag:vague_role", "made:up"], "F", "A"),
     );
     expect([
-      learnRecruiterWeights([...capped, sample(["pay:ok"], "Z", "A")]),
+      learnRecruiterWeights([
+        ...capped,
+        ...Array.from({ length: 3 }, () => sample(["pay:ok"], "Z", "A")),
+      ]),
       ADJUSTABLE_REASONS.some((r) => r === "dealbreaker" || r.startsWith("red_flag:")),
     ]).toEqual([{}, false]);
   });

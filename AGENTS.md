@@ -664,7 +664,9 @@ Exists now:
   `recruiter_weight` (migration 0103) only when the result changes, with `recruiter.weights_adjusted`
   by `system` (the changed reasons and values; feed "Adjusted recruiter grading from your regrades:
   N changes"); `readRecruiterWeights` gives the newest. `gradeRecruiterMessage` takes them as an
-  optional `weights` argument, added before the letter is picked, so caps still apply. No caller
+  optional `weights` argument, summed and held to ±2 per grade (`MAX_TOTAL_ADJUSTMENT`) and added
+  before the letter is picked, so caps still apply. The caller must keep learning against the
+  unweighted grade (spec). No caller
   grades mail with them yet (item 1).
 - `packages/funnel/` (NS-113): the 9-month backfill, funnel records derived by plain code from
   `funnel_message` and `funnel_manual_row` (`packages/db`, `funnel-schema.ts`), the tracker CSV

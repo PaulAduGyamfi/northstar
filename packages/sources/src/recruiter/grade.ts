@@ -1,5 +1,9 @@
 import type { PreferenceValues, ScorableJob } from "@northstar/db";
-import type { RecruiterGradeReason, RecruiterWeights } from "@northstar/domain";
+import {
+  MAX_TOTAL_ADJUSTMENT,
+  type RecruiterGradeReason,
+  type RecruiterWeights,
+} from "@northstar/domain";
 import { dealbreakerIn, payCheck, placeCheck, titleFit } from "../fit/score.js";
 
 // Grading a recruiter's message A–F (REC-001, REC-002, NS-167). Plain code: the model only read
@@ -105,8 +109,11 @@ export function gradeRecruiterMessage(
   reasons.push(facts.company === null ? "company:unnamed" : "company:named");
   if (facts.company === null) points -= 1;
 
-  // Each reason's learned adjustment, once per reason.
-  for (const r of new Set(reasons)) points += weights[r] ?? 0;
+  // Each reason's learned adjustment, once per reason, and never more than MAX_TOTAL_ADJUSTMENT
+  // points in all, so learning nudges a grade rather than rewriting it.
+  let learned = 0;
+  for (const r of new Set(reasons)) learned += weights[r] ?? 0;
+  points += Math.max(-MAX_TOTAL_ADJUSTMENT, Math.min(MAX_TOTAL_ADJUSTMENT, learned));
 
   let grade = gradeFor(points);
   if (dealbreakerIn(job, prefs) !== null) {

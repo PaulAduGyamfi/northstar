@@ -44,7 +44,7 @@ export const recruiterWeight = pgTable(
       "recruiter_weight_reasons_listed",
       sql`array_position(${t.reasons}, null) is null and ${t.reasons} <@ array[${REASON_LIST}]::text[]`,
     ),
-    // One adjustment per reason, each a whole number from -2 to 2 and never 0 (no entry instead).
+    // One adjustment per entry, each a whole number from -2 to 2 and never 0 (no entry instead).
     check(
       "recruiter_weight_adjustments_bounded",
       sql`cardinality(${t.adjustments}) = cardinality(${t.reasons}) and array_position(${t.adjustments}, null) is null and ${t.adjustments} <@ array[-2, -1, 1, 2]`,
