@@ -166,10 +166,10 @@ describe("the reads after a decision", () => {
     ]).toEqual([[M3], ["18c3f0a2b4d6e8cc"], [[applicationId, [[THREAD, "paul", false, 1]]]]]);
   });
 
-  it("counts a thread Paul linked for later mail's thread step", async () => {
+  it("never counts a thread Paul linked for later mail's thread step", async () => {
     await queue(M1, 1);
     await link();
-    expect(await readLinkedThreads(db, candidateId)).toEqual(new Map([[applicationId, [THREAD]]]));
+    expect(await readLinkedThreads(db, candidateId)).toEqual(new Map());
   });
 
   it("offers only the candidate's open applications as link targets", async () => {

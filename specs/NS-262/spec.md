@@ -34,7 +34,9 @@ belongs to none, so the queue only grows.
 - **Reads:**
   - `listConfirmQueue` and the Inbox's queued group leave out decided messages.
   - `readInboxThreads` shows a linked message under its application, with step `paul`.
-  - `readLinkedThreads` counts a linked thread, so later mail in it links by thread.
+  - `readLinkedThreads` doesn't count a thread Paul linked (security review): its first sender
+    is unknown, and a reply through a shared ATS would pass the thread step as verified. Later mail
+    in it waits in the queue again.
   - `readLinkTargets(db, candidateId)` gives the open applications Paul can link to (id, job
     title, company), newest first, at most 200.
 - **API** (`apps/api/src/inbox.ts`, session only): `GET /inbox` also answers `linkTargets`, and
@@ -49,7 +51,7 @@ belongs to none, so the queue only grows.
 - [ ] Link and dismiss store once per message; a repeat stores nothing; a closed, unknown or other
       candidate's application and a thread with nothing queued are refused (PGlite).
 - [ ] The queue leaves out decided messages; a linked thread shows under its application with step
-      `paul`; `readLinkedThreads` includes it (PGlite).
+      `paul`; `readLinkedThreads` leaves it out (PGlite).
 - [ ] The table refuses UPDATE, DELETE, TRUNCATE and bad shapes written directly.
 - [ ] The API route's answers (API tests); the web words (unit tests).
 - [ ] lint, typecheck, test, build green (CI `checks`).

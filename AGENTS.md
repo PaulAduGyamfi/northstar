@@ -1027,8 +1027,8 @@ Exists now:
   stores nothing; a closed or other candidate's application is refused), with `mail.link_confirmed`
   on the application or `mail.link_dismissed`, by `user`, ids and counts only. A link never moves a
   status and is never sender-verified. Decided messages leave the queue (`listConfirmQueue`, the
-  Inbox), a linked thread shows under its application as "Linked by you" (step `paul`) and counts
-  for later mail's thread step (`readLinkedThreads`). The API's `GET /inbox/link-targets`
+  Inbox), a linked thread shows under its application as "Linked by you" (step `paul`), but never
+  counts for later mail's thread step (`readLinkedThreads`): its first sender is unknown. The API's `GET /inbox/link-targets`
   (`readLinkTargets`: open applications) and `POST /inbox/decide` (session only), and Link and
   Dismiss on each queued thread (`app/inbox/queue-actions.tsx`). `/api/*` is rewritten to the API, and pages that need Paul go
   through `readSession`/`todayView` or `readApi` (`src/session.ts`, `src/system.ts`), which forward

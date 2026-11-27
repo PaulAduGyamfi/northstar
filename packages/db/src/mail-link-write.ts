@@ -127,22 +127,12 @@ export async function readLinkedThreads(
   db: Db,
   candidateId: CandidateId,
 ): Promise<Map<string, string[]>> {
-  // A thread Paul linked from the confirm queue (NS-262) counts too, so its later mail links by
-  // thread.
-  const linkedTo = sql<
-    string | null
-  >`coalesce(${mailLink.applicationId}, ${mailLinkDecision.applicationId})`;
+  // Only matching's own links: a thread Paul linked from the confirm queue (NS-262) doesn't count,
+  // since its unknown first sender could then reply through a shared ATS and pass as verified.
   const rows = await db
-    .selectDistinct({ applicationId: linkedTo, threadId: mailLink.gmailThreadId })
+    .selectDistinct({ applicationId: mailLink.applicationId, threadId: mailLink.gmailThreadId })
     .from(mailLink)
-    .leftJoin(
-      mailLinkDecision,
-      and(
-        eq(mailLinkDecision.candidateId, mailLink.candidateId),
-        eq(mailLinkDecision.gmailMessageId, mailLink.gmailMessageId),
-      ),
-    )
-    .where(and(eq(mailLink.candidateId, candidateId), isNotNull(linkedTo)));
+    .where(and(eq(mailLink.candidateId, candidateId), isNotNull(mailLink.applicationId)));
   const out = new Map<string, string[]>();
   for (const r of rows) {
     if (r.applicationId === null) continue;

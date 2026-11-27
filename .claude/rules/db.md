@@ -279,7 +279,8 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   applications, or `dismissed`), one per message, append-only, written only through
   `decideQueuedThread`. Reads that ask where a message belongs take
   `coalesce(mail_link.application_id, mail_link_decision.application_id)`, and the queue leaves out
-  decided messages. A decided link is never sender-verified.
+  decided messages. A decided link is never sender-verified, and `readLinkedThreads` (matchMail's
+  thread step) never counts it.
   Recruiter grades (NS-238) are `recruiter_grade`, append-only (a trigger), one per candidate and
   Gmail message (`recordRecruiterGrade` checks the message's `mail_link` first), written only through
   `recruiter-grade-write.ts` (`recordRecruiterGrade`, `readRecruiterGrades`). A CHECK keeps the
