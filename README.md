@@ -36,7 +36,7 @@ One system that **finds jobs, applies to them, runs your inbox, and keeps your p
 | [packages/profile/](packages/profile/) | Resume import, stories, tailoring, audit, answers, replies, voice, Career DNA |
 | [packages/inbox/](packages/inbox/) | Read-only Gmail and Calendar, mail linking, verification codes, interview detection |
 | [packages/pipeline/](packages/pipeline/) | Assembling an application package for the Approval Gate |
-| [packages/gateways/](packages/gateways/) | The only code that acts outward: Apply Gateway, browser form driver, Gmail drafts, vault |
+| [packages/gateways/](packages/gateways/) | The only code that acts outward: Apply Gateway, browser form driver, Gmail drafts, Calendar prep blocks (not wired yet), vault |
 | [packages/funnel/](packages/funnel/) | The 9-month backfill and funnel report, and the one-shot calendar interview check (`funnel interviews`) and job-mail check (`funnel inbox`) |
 | [evals/](evals/) | Eval sets per LLM route, replayed in CI |
 

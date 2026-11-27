@@ -22,8 +22,18 @@ exchange or export its test seam (`authorizeComposeWith`), since the raw answer 
 For the same reason no `src/mail/` function takes a `fetch`-shaped port, and no code outside tests
 replaces the global `fetch` (the boundary test). That stops the API handing out the token; it is
 not process isolation, so review any new code that touches the global `fetch`.
-Never add `include_granted_scopes` or a second scope. Other gateways (calendar, GitHub) don't exist yet: if you are
-about to create one outside its ticket, stop and ask Paul.
+Never add `include_granted_scopes` or a second scope.
+The Calendar Gateway's writer (NS-241 slice 3, ADR-0031) is `src/calendar/`, built the same way:
+its token `CalendarWriteAccess` comes only from `authorizeCalendarWrite` (`calendar.app.created`
+alone, PKCE, no refresh token, a wider grant refused), only `requests.ts` reads it back
+(`calendarBearer`), and only `src/calendar/` imports `requests.ts`, `access.ts` or `consent.ts`
+(the package entry may export the token type and the consent entry point). Its only Google calls
+are creating the Northstar calendar, the marker lookup and `events.insert` with `sendUpdates=none`
+and a body of exactly `id`, `summary` (a fixed title), `start.dateTime` and `end.dateTime`
+(`requestAllowed`, the boundary test). Never send attendees, conference data, a description,
+location or reminders on an event, never update, move or delete, and never widen the allowlist
+without amending ADR-0031. Other gateways (GitHub) don't exist yet: if you are about to create one
+outside its ticket, stop and ask Paul.
 The Gmail label writer (NS-229, `packages/inbox/src/labels/`, ADR-0027 **Rejected**: no caller,
 no code may request `gmail.modify`) only adds
 Northstar's fixed labels: never widen it to send, trash, remove or draft (its boundary test),
