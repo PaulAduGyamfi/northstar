@@ -7827,6 +7827,23 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
+        "position": {
+          "name": "position",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "recruiter_regrade_position_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
         "candidate_id": {
           "name": "candidate_id",
           "type": "uuid",
@@ -7870,7 +7887,7 @@
               "nulls": "last"
             },
             {
-              "expression": "regraded_at",
+              "expression": "position",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -7898,7 +7915,15 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "recruiter_regrade_position_unique": {
+          "name": "recruiter_regrade_position_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "position"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {
         "recruiter_regrade_gmail_id_shape": {

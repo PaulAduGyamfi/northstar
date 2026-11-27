@@ -14,10 +14,13 @@ import {
 // nothing else happens: no draft, send or archive. The words show here, then the page reloads.
 export function RegradeControl({
   gmailThreadId,
+  applicationId,
   current,
   label,
 }: {
   gmailThreadId: string;
+  // The row's application; absent for the confirm queue's row.
+  applicationId?: string;
   // His current letter, else the system's: the picker starts there.
   current: RegradeLetter;
   label: string;
@@ -36,7 +39,11 @@ export function RegradeControl({
       const res = await apiFetch("/api/inbox/regrade", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ gmailThreadId, grade }),
+        body: JSON.stringify(
+          applicationId === undefined
+            ? { gmailThreadId, grade }
+            : { gmailThreadId, applicationId, grade },
+        ),
       });
       const reply: unknown = await res.json().catch(() => null);
       if (!res.ok) {

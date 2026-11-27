@@ -644,7 +644,8 @@ Exists now:
   `recruiter_regrade` (`packages/db`, `recruiter-regrade-write.ts`: `regradeRecruiterMessage`, one
   row per change of his letter, the newest current; the same letter again stores nothing; an
   ungraded message is refused; `recruiter.regraded` by `user` with both letters, feed "You regraded
-  a recruiter email: B to D"; `regradeThread` regrades a thread's newest graded message;
+  a recruiter email: B to D"; the newest by an identity `position`; `regradeThread` regrades the
+  newest graded message the Inbox shows for that row, dismissed messages left out;
   `readRegrades`). `readInboxThreads` adds his letter as `recruiterGrade.paulGrade`, the API's
   `POST /inbox/regrade` (session only) records it, and the Inbox shows "You graded it D" with a
   Regrade picker on each graded thread. A regrade drafts, sends and archives nothing; grading doesn't

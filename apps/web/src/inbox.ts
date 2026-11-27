@@ -235,7 +235,7 @@ export type RegradeLetter = (typeof REGRADE_LETTERS)[number];
 
 export function regradedMessage(grade: RegradeLetter, recorded: boolean): string {
   return recorded
-    ? `Saved your grade: ${grade}. Northstar learns from it; nothing is sent.`
+    ? `Saved your grade: ${grade}. Nothing is sent.`
     : `Your grade was already ${grade}.`;
 }
 

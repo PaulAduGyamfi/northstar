@@ -1,6 +1,7 @@
 import type { CandidateId, Result } from "@northstar/domain";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "./db.js";
+import { mailLinkDecision } from "./mail-link-decision-schema.js";
 import { mailLink } from "./mail-link-schema.js";
 import { recruiterGrade } from "./recruiter-grade-schema.js";
 import { recruiterRegrade } from "./recruiter-regrade-schema.js";
@@ -14,6 +15,7 @@ export const LETTERS = ["A", "B", "C", "D", "F"] as const;
 export type Letter = (typeof LETTERS)[number];
 
 const GMAIL_ID = /^[0-9a-f]{1,32}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export type RegradeError =
   | { kind: "InvalidRegrade"; fields: string[] }
@@ -52,7 +54,7 @@ export async function regradeRecruiterMessage(
             eq(recruiterRegrade.gmailMessageId, input.gmailMessageId),
           ),
         )
-        .orderBy(desc(recruiterRegrade.regradedAt), desc(recruiterRegrade.id))
+        .orderBy(desc(recruiterRegrade.position))
         .limit(1);
       // The same letter as his current one: a repeat stores nothing.
       if (current?.grade === grade) return { ok: true as const, value: { recorded: false } };
@@ -98,7 +100,7 @@ export async function readRegrades(
         inArray(recruiterRegrade.gmailMessageId, [...gmailMessageIds]),
       ),
     )
-    .orderBy(desc(recruiterRegrade.regradedAt), desc(recruiterRegrade.id));
+    .orderBy(desc(recruiterRegrade.position));
   const out = new Map<string, Letter>();
   // Newest first: the first row per message is current.
   for (const r of rows)
@@ -106,14 +108,27 @@ export async function readRegrades(
   return out;
 }
 
-// The Inbox shows threads, so Paul regrades a thread: its newest graded message gets his letter.
+// The Inbox shows threads, so Paul regrades a thread: the newest graded message the Inbox shows for
+// that row gets his letter. The rules are the Inbox read's: a message counts under the application
+// matching or Paul linked it to (null: still queued), and a message he dismissed counts nowhere.
 export async function regradeThread(
   db: Db,
-  input: { candidateId: CandidateId; gmailThreadId: string; grade: string },
+  input: {
+    candidateId: CandidateId;
+    gmailThreadId: string;
+    // The row's application; null or absent for the confirm queue's row.
+    applicationId?: string | null;
+    grade: string;
+  },
 ): Promise<Result<{ recorded: boolean }, RegradeError>> {
-  if (!GMAIL_ID.test(input.gmailThreadId)) {
-    return { ok: false, error: { kind: "InvalidRegrade", fields: ["gmailThreadId"] } };
-  }
+  const applicationId = input.applicationId ?? null;
+  const fields: string[] = [];
+  if (!GMAIL_ID.test(input.gmailThreadId)) fields.push("gmailThreadId");
+  if (applicationId !== null && !UUID.test(applicationId)) fields.push("applicationId");
+  if (fields.length > 0) return { ok: false, error: { kind: "InvalidRegrade", fields } };
+  const linkedTo = sql<
+    string | null
+  >`coalesce(${mailLink.applicationId}, ${mailLinkDecision.applicationId})`;
   const [newest] = await db
     .select({ gmailMessageId: recruiterGrade.gmailMessageId })
     .from(recruiterGrade)
@@ -124,10 +139,20 @@ export async function regradeThread(
         eq(mailLink.gmailMessageId, recruiterGrade.gmailMessageId),
       ),
     )
+    .leftJoin(
+      mailLinkDecision,
+      and(
+        eq(mailLinkDecision.candidateId, mailLink.candidateId),
+        eq(mailLinkDecision.gmailMessageId, mailLink.gmailMessageId),
+      ),
+    )
     .where(
       and(
         eq(recruiterGrade.candidateId, input.candidateId),
         eq(mailLink.gmailThreadId, input.gmailThreadId),
+        // A dismissed message has left the Inbox.
+        sql`${mailLinkDecision.decision} is distinct from 'dismissed'`,
+        applicationId === null ? isNull(linkedTo) : eq(linkedTo, applicationId),
       ),
     )
     .orderBy(desc(mailLink.receivedAt), desc(mailLink.gmailMessageId))

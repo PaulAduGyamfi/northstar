@@ -3,12 +3,13 @@ import { sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "./db.js";
 import { readInboxThreads } from "./inbox-read.js";
+import { decideQueuedThread } from "./mail-link-decision-write.js";
 import { recordMailLink } from "./mail-link-write.js";
 import { recordRecruiterGrade } from "./recruiter-grade-write.js";
 import { recruiterRegrade } from "./recruiter-regrade-schema.js";
 import { readRegrades, regradeRecruiterMessage, regradeThread } from "./recruiter-regrade-write.js";
 import { candidate, domainEvent } from "./schema.js";
-import { createTestDb, sqlState } from "./test/pglite.js";
+import { createTestDb, seedApplication, sqlState } from "./test/pglite.js";
 
 // Paul's regrade of a recruiter email (NS-238 item 3, REC-003) on PGlite. Invented Gmail ids only.
 
@@ -119,6 +120,55 @@ describe("regradeThread", () => {
       { ok: false, error: { kind: "NotGraded" } },
       { ok: false, error: { kind: "InvalidRegrade", fields: ["gmailThreadId"] } },
       new Map([[M2, "A"]]),
+    ]);
+  });
+});
+
+describe("regradeThread follows the Inbox read's rules", () => {
+  it("leaves out a dismissed message and regrades the row's own application's message", async () => {
+    const seeded = await seedApplication(db, "submitted");
+    candidateId = CandidateId.parse(seeded.candidateId);
+    // M1 is linked to the application by Paul; M2, newer, is dismissed.
+    await gradedMail(candidateId, M1, 1);
+    await decideQueuedThread(db, {
+      candidateId,
+      gmailThreadId: THREAD,
+      decision: { kind: "link", applicationId: seeded.applicationId },
+    });
+    await gradedMail(candidateId, M2, 2);
+    await decideQueuedThread(db, {
+      candidateId,
+      gmailThreadId: THREAD,
+      decision: { kind: "dismiss" },
+    });
+    expect([
+      await regradeThread(db, { candidateId, gmailThreadId: THREAD, grade: "A" }),
+      await regradeThread(db, {
+        candidateId,
+        gmailThreadId: THREAD,
+        applicationId: seeded.applicationId,
+        grade: "A",
+      }),
+      await readRegrades(db, candidateId, [M1, M2]),
+    ]).toEqual([
+      { ok: false, error: { kind: "NotGraded" } },
+      { ok: true, value: { recorded: true } },
+      new Map([[M1, "A"]]),
+    ]);
+  });
+});
+
+describe("the newest regrade", () => {
+  it("is the one inserted last, even when two share a timestamp", async () => {
+    await gradedMail(candidateId, M1, 1);
+    // Two rows in one transaction get the same now(): only position orders them.
+    await db.transaction(async (tx) => {
+      await tx.insert(recruiterRegrade).values({ candidateId, gmailMessageId: M1, grade: "D" });
+      await tx.insert(recruiterRegrade).values({ candidateId, gmailMessageId: M1, grade: "A" });
+    });
+    expect([await readRegrades(db, candidateId, [M1]), await regrade("A")]).toEqual([
+      new Map([[M1, "A"]]),
+      { ok: true, value: { recorded: false } },
     ]);
   });
 });

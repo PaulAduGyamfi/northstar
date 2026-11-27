@@ -32,6 +32,8 @@ export type InboxPorts = {
   // Paul's own letter for a graded thread's newest graded message (NS-238 item 3, regradeThread).
   regrade?: (input: {
     gmailThreadId: string;
+    // The row's application; absent for the confirm queue's row.
+    applicationId?: string;
     grade: string;
   }) => Promise<{ ok: true; value: { recorded: boolean } } | { ok: false; error: RegradeError }>;
 };
@@ -227,14 +229,20 @@ export function inboxEndpoints(ports: InboxPorts): AnyEndpoint[] {
     auth: "session",
     input: z.object({
       gmailThreadId: z.string().regex(GMAIL_ID),
+      // The Inbox row's application; absent for a thread in the confirm queue.
+      applicationId: z.uuid().optional(),
       grade: z.enum(["A", "B", "C", "D", "F"]),
     }),
     output: z.object({ grade: z.enum(["A", "B", "C", "D", "F"]), recorded: z.boolean() }),
-    handler: async ({ gmailThreadId, grade }) => {
+    handler: async ({ gmailThreadId, applicationId, grade }) => {
       if (!ports.regrade) return { ok: false, status: 503, error: "unavailable" };
       try {
         // Only Paul's signed-in path reaches this; the write records it as his.
-        const r = await ports.regrade({ gmailThreadId, grade });
+        const r = await ports.regrade({
+          gmailThreadId,
+          grade,
+          ...(applicationId === undefined ? {} : { applicationId }),
+        });
         if (r.ok) return { ok: true, body: { grade, recorded: r.value.recorded } };
         if (r.error.kind === "NotGraded") return { ok: false, status: 404, error: "not_graded" };
         return { ok: false, status: 400, error: "invalid_input" };

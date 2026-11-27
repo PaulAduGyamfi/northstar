@@ -111,6 +111,7 @@ export default async function InboxPage() {
                       ) : null}{" "}
                       <Regrade
                         gmailThreadId={t.key}
+                        applicationId={a.applicationId}
                         grade={a.threads[i]?.recruiterGrade}
                         label={t.kind}
                       />
@@ -129,10 +130,12 @@ export default async function InboxPage() {
 // the system's.
 function Regrade({
   gmailThreadId,
+  applicationId,
   grade,
   label,
 }: {
   gmailThreadId: string;
+  applicationId?: string;
   grade: GradeView | undefined;
   label: string;
 }) {
@@ -140,6 +143,7 @@ function Regrade({
   return (
     <RegradeControl
       gmailThreadId={gmailThreadId}
+      {...(applicationId === undefined ? {} : { applicationId })}
       current={grade.paulGrade ?? grade.grade}
       label={label}
     />

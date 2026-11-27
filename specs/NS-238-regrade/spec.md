@@ -14,7 +14,8 @@ turns those regrades into bounded weight adjustments; this slice only records th
 ## Behavior
 - **Storage** (`packages/db`, migration 0102, `recruiter-regrade-schema.ts`): append-only
   `recruiter_regrade`, one row per change of Paul's letter for a graded message (`A`–`F`). The
-  newest row per message is his current grade. Letters and ids only: never email text.
+  newest row per message (by an identity `position`, which follows commit order under the
+  candidate's lock) is his current grade. Letters and ids only: never email text.
 - **Write** (`recruiter-regrade-write.ts`): `regradeRecruiterMessage(db, { candidateId,
   gmailMessageId, grade })`.
   - It refuses a message with no stored `recruiter_grade` (`NotGraded`), and a bad letter or id.
@@ -24,10 +25,12 @@ turns those regrades into bounded weight adjustments; this slice only records th
   - It never drafts, files, sends or archives anything.
 - **Reads:** `readInboxThreads` gives a graded thread Paul's newest letter beside the system's
   (`recruiterGrade.paulGrade`, absent when he hasn't regraded).
-- **API** (session only): `POST /inbox/regrade` `{ gmailThreadId, grade }` regrades the thread's
-  newest graded message: `{ recorded }`, `404 not_graded`, `400`, `503 unavailable`. `GET /inbox`
+- **API** (session only): `POST /inbox/regrade` `{ gmailThreadId, applicationId?, grade }`
+  regrades the newest graded message the Inbox shows for that row (`regradeThread`: the read's own
+  rules, dismissed messages left out; no `applicationId` is the confirm queue's row):
+  `{ grade, recorded }`, `404 not_graded`, `400`, `503 unavailable`. `GET /inbox`
   passes `paulGrade` on.
-- **Web** (`/inbox`): a graded thread shows "You: D" when he regraded it, and a letter picker with
+- **Web** (`/inbox`): a graded thread shows "You graded it D" when he regraded it, and a letter picker with
   Regrade.
 
 ## Acceptance criteria
@@ -36,7 +39,7 @@ turns those regrades into bounded weight adjustments; this slice only records th
 - [x] One event per stored regrade, by Paul, codes only; the table refuses UPDATE, DELETE,
       TRUNCATE and bad rows.
 - [x] The Inbox read shows Paul's newest letter; the API and web words (tests).
-- [x] lint, typecheck, test, build green (CI `checks`).
+- [ ] lint, typecheck, test, build green (CI `checks`).
 
 ## Out of scope
 - Weight adjustments from regrades (slice 2), replies and archives as signals, the agreement

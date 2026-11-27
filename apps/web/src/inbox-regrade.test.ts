@@ -12,7 +12,7 @@ describe("regradedMessage and regradeProblem", () => {
       regradeProblem("unavailable"),
       regradeProblem("odd"),
     ]).toEqual([
-      "Saved your grade: D. Northstar learns from it; nothing is sent.",
+      "Saved your grade: D. Nothing is sent.",
       "Your grade was already D.",
       "That thread has no graded email to regrade.",
       "Northstar couldn't save that right now. Try again.",
