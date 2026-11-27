@@ -111,9 +111,9 @@ const RequestInput = z.object({
   kind: ApprovalKind,
   subject: Subject,
   contentSha256: Sha256,
-  // Only application packages carry facts; every other kind has none to give a policy. Facts
-  // come from the producer, so only plain-code workflow activities may call requestApproval with
-  // them, never an agent that read untrusted text (NFR-SEC-004, ADR-0017).
+  // Only application packages carry facts; every other kind has none to give a policy. Since
+  // NS-249 they come only through requestApprovalWithFacts, i.e. the facts requestPackageApproval
+  // derived from storage: requestApproval refuses any caller's facts (NFR-SEC-004, ADR-0017).
   facts: PackageFacts.nullable(),
   actor: z.string().regex(/^(agent:[a-z0-9-]+|system)$/),
   idempotencyKey: z.string().min(1).max(200),
@@ -356,7 +356,9 @@ type RequestInputs = {
   kind: ApprovalKind;
   subject: string;
   contentSha256: string;
-  facts: PackageFacts | null;
+  // Always null from callers (NS-249): an application package's policy facts come only from
+  // what the Gate reads itself (requestPackageApproval), never from a producer.
+  facts: null;
   actor: string;
   idempotencyKey: string;
 };
@@ -364,10 +366,33 @@ type RequestInputs = {
 // Puts something in Paul's queue (APR-001) and runs his policies on it (ADR-0002 item 2). The
 // same idempotency key twice returns the first request and writes nothing. A subject already
 // pending or approved can't be requested again; one Paul rejected may be, and then always waits
-// for him.
+// for him. Facts are refused for every kind (NS-249): a package filed here has none, so it always
+// waits for Paul, and with no stored package it can never be submitted. Packages go through
+// requestPackageApproval.
 export async function requestApproval(
   db: Db,
   input: RequestInputs,
+): Promise<Result<RequestResult, RequestError>> {
+  return fileRequest(db, input, false);
+}
+
+// requestPackageApproval's way in (NS-213, NS-249): the facts it derived from storage. Exported
+// from this module for package-approval.ts only, never from the package's index, so no code
+// outside packages/db can hand the Gate facts.
+export function requestApprovalWithFacts(
+  db: Db,
+  input: Omit<RequestInputs, "facts"> & { kind: "application_package"; facts: PackageFacts },
+): Promise<Result<RequestResult, RequestError>> {
+  return fileRequest(db, input, true);
+}
+
+// `allowFacts` is true only for requestApprovalWithFacts. The check runs on the parsed copy, the
+// one stored and evaluated: a caller outside TypeScript, a cast, or an object whose `facts` reads
+// differently the second time can't get facts past it.
+async function fileRequest(
+  db: Db,
+  input: Omit<RequestInputs, "facts"> & { facts: PackageFacts | null },
+  allowFacts: boolean,
 ): Promise<Result<RequestResult, RequestError>> {
   return inSpan("approval.request", { "northstar.approval.kind": input.kind }, async (span) => {
     const parsed = RequestInput.safeParse(input);
@@ -375,7 +400,7 @@ export async function requestApproval(
       const fields = [...new Set(parsed.error.issues.map((i) => i.path.join(".")))];
       return err({ kind: "InvalidRequest", fields });
     }
-    if (parsed.data.kind !== "application_package" && parsed.data.facts !== null) {
+    if (parsed.data.facts !== null && (!allowFacts || parsed.data.kind !== "application_package")) {
       return err({ kind: "InvalidRequest", fields: ["facts"] });
     }
     // A reveal is filed, decided and used in one transaction by revealSealedSecret (NS-182,

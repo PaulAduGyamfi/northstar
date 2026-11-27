@@ -9,7 +9,11 @@ import {
   taggedAddress,
 } from "@northstar/domain";
 import { applicationPackage } from "./application-package-schema.js";
-import { type RequestError, type RequestResult, requestApproval } from "./approval-write.js";
+import {
+  type RequestError,
+  type RequestResult,
+  requestApprovalWithFacts,
+} from "./approval-write.js";
 import type { Db } from "./db.js";
 import { readApplicationTag } from "./mail-link-write.js";
 import { readPackageInputs } from "./package-read.js";
@@ -142,7 +146,7 @@ export async function requestPackageApproval(
     formSeenBefore: form !== null && inputs.formSeenBefore,
     answers,
   };
-  // These reads run before requestApproval's own transaction: a fit or form stored in between
+  // These reads run before the Gate's own transaction: a fit or form stored in between
   // only shows on the next package, and the request still pins this package's content.
   const sha = packageSha256(pkg);
   // One transaction (NS-192): the request and the package behind it commit together, so an
@@ -150,7 +154,7 @@ export async function requestPackageApproval(
   // as a savepoint).
   return db.transaction(async (tx) => {
     const scoped = tx as unknown as Db;
-    const filed = await requestApproval(scoped, {
+    const filed = await requestApprovalWithFacts(scoped, {
       candidateId: input.candidateId,
       kind: "application_package",
       subject: packageSubject(pkg),

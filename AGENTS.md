@@ -1148,8 +1148,12 @@ Exists now:
   answer, with only `{company}` filled by a plain short name, `isSafeCompany` in
   `packages/domain`). A package must name the job's own posting, Paul's stored contact and the
   newest tailored PDF, or it is refused. Which question a verified answer belongs to, and its
-  exact/high split, are still the producer's. `requestApproval` still accepts facts for packages
-  from other callers (#195).
+  exact/high split, are still the producer's. Since NS-249 (slice 1) `requestApproval` refuses
+  facts from every caller (`InvalidRequest` on `facts`; its input says `facts: null`): a package
+  filed there waits for Paul and, with no stored package, can't be submitted. Only
+  `requestPackageApproval` passes facts, through `requestApprovalWithFacts`, which
+  `approval-write.ts` exports for it but the package's index doesn't. The Gate's own tests file
+  packages through a test-only fixture (`src/test/package-fixture.ts`).
   Since NS-248 (item 1) the package's email is the application's tagged address (VER-007):
   `preparePackage` assigns the application's tag once its inputs are complete (`assignTag`, kept for
   good, so a rerun builds the same package) and puts `taggedAddress(email, tag)` in the contact;

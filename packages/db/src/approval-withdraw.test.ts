@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { CandidateId, type PackageFacts, type PolicyRule, UNDO_WINDOW_MS } from "@northstar/domain";
+import { CandidateId, type PolicyRule, UNDO_WINDOW_MS } from "@northstar/domain";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { approvalPolicySet, approvalWithdrawal } from "./approval-schema.js";
@@ -15,6 +15,7 @@ import {
 } from "./approval-write.js";
 import type { Db } from "./db.js";
 import { candidate, domainEvent } from "./schema.js";
+import { type PackageFixture, packageFixture } from "./test/package-fixture.js";
 import { createTestDb, sqlState } from "./test/pglite.js";
 
 // The withdraw record (NS-140, APR-004). Synthetic subjects, facts and content hashes only.
@@ -25,12 +26,6 @@ const NOW = new Date("2026-11-25T12:00:00Z");
 const PAST_UNDO = new Date(NOW.getTime() + UNDO_WINDOW_MS + 1000);
 const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
-const goodFacts: PackageFacts = {
-  fit: 92,
-  adapter: "known",
-  formSeenBefore: true,
-  answers: [{ source: "bank_exact", freeTextWords: 30 }],
-};
 const rule: PolicyRule = {
   name: "strong fit",
   kind: "application_package",
@@ -56,17 +51,33 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  fixture = null;
   await close();
 });
 
-async function request(subject: string, over: { kind?: "application_package" } = {}) {
+// A real package round (NS-249: no caller facts), whose facts match the strong-fit rule. Built on
+// first use.
+let fixture: PackageFixture | null = null;
+async function packages(): Promise<PackageFixture> {
+  fixture ??= await packageFixture(db, candidateId, { now: NOW });
+  return fixture;
+}
+
+// Files one package round through requestPackageApproval.
+async function filePackage(packageId: string, variant: "a" | "b" = "a") {
+  const r = await (await packages()).file({ packageId, variant });
+  if (!r.ok) throw new Error(r.error.kind);
+  return r.value;
+}
+
+async function request(subject: string) {
   const r = await requestApproval(db, {
     candidateId,
-    kind: over.kind ?? "email_reply",
+    kind: "email_reply",
     subject,
     contentSha256: HASH_A,
-    facts: over.kind ? goodFacts : null,
-    actor: over.kind ? "agent:apply" : "agent:inbox",
+    facts: null,
+    actor: "agent:inbox",
     idempotencyKey: randomUUID(),
   });
   if (!r.ok) throw new Error(r.error.kind);
@@ -116,11 +127,11 @@ describe("withdrawApproval by Paul", () => {
 
   it("makes a new request for the subject wait for Paul, even when a rule matches", async () => {
     await setApprovalPolicies(db, { candidateId, rules: [rule] });
-    const subject = `application:${randomUUID()}`;
-    const first = await request(subject, { kind: "application_package" });
+    const packageId = randomUUID();
+    const first = await filePackage(packageId);
     expect(first.decision?.decidedBy).toBe("policy");
     await withdrawApproval(db, { candidateId, requestId: first.requestId, by: "user" });
-    const again = await request(subject, { kind: "application_package" });
+    const again = await filePackage(packageId);
     expect([again.decision, again.outcome]).toEqual([
       null,
       { auto: false, why: "declined_before" },
@@ -249,16 +260,16 @@ describe("withdrawApproval by a gateway", () => {
 
   it("closes an approval whose content changed, and a policy may approve the new request", async () => {
     await setApprovalPolicies(db, { candidateId, rules: [rule] });
-    const subject = `application:${randomUUID()}`;
-    const first = await request(subject, { kind: "application_package" });
+    const packageId = randomUUID();
+    const first = await filePackage(packageId);
     await setClock(PAST_UNDO);
     const withdrawn = await withdrawApproval(db, {
       candidateId,
       requestId: first.requestId,
       by: "gateway",
-      newContentSha256: HASH_B,
+      newContentSha256: (await packages()).hashOf(packageId, "b"),
     });
-    const again = await request(subject, { kind: "application_package" });
+    const again = await filePackage(packageId, "b");
     expect([withdrawn.ok, again.decision?.decidedBy]).toEqual([true, "policy"]);
   });
 });
@@ -377,10 +388,10 @@ describe("approval_withdrawal in the database", () => {
 
   it("refuses a policy decision on a subject Paul withdrew, even written directly", async () => {
     await setApprovalPolicies(db, { candidateId, rules: [rule] });
-    const subject = `application:${randomUUID()}`;
-    const first = await request(subject, { kind: "application_package" });
+    const packageId = randomUUID();
+    const first = await filePackage(packageId);
     await withdrawApproval(db, { candidateId, requestId: first.requestId, by: "user" });
-    const again = await request(subject, { kind: "application_package" });
+    const again = await filePackage(packageId);
     const [policySet] = await db.select({ id: approvalPolicySet.id }).from(approvalPolicySet);
     expect(
       await sqlState(
