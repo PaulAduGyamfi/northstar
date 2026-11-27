@@ -79,6 +79,12 @@ are CSS variables in `apps/web/app/globals.css`.
   dimension's band in words with its evidence count (`dimensionRow`) and what changed
   (`changeSummary`). The report holds scores and counts only: never fetch or show atom or story
   text or ids on it.
+- Interviews (NS-240 slice 5, `/interviews`, `src/interviews.ts`, linked from Today) shows each
+  detection in words (`interviewRow`): the format, the job's own title and company, the time and
+  an interviewer count, never an invite's title, an address or a name. A waiting one reads "Not
+  verified" (an invite isn't authenticated) with Confirm and Dismiss through
+  `POST /interviews/decide`; neither choice moves a status, and the words after it say so
+  (`decidedMessage`).
   Since slice 9 its "Directions" and "Proof to build" sections (`src/career-directions.ts`:
   `directionRow`, `gapLine`) come from `GET /career-dna/directions`, read apart from the report so
   either can fail alone. Role and requirement text comes from job postings: shown as text only,

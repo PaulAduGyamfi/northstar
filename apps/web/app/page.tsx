@@ -57,6 +57,10 @@ export default async function TodayPage() {
           <p>
             <Link href="/settings/accounts">Settings → Accounts</Link>
           </p>
+          {/* Interviews found on the calendar (NS-240 slice 5): Paul confirms or dismisses each. */}
+          <p>
+            <Link href="/interviews">Interviews</Link>
+          </p>
         </div>
         <div className="card">
           <h2>What needs you</h2>

@@ -546,7 +546,14 @@ Exists now:
   returns counts on a `calendar.detect` span; a failed read, store or letter stops it
   (`stoppedBy`). No company domains are stored yet (#313), so it matches nothing until they are.
 
-  No caller, API or page yet.
+  Since slice 5 also Paul's confirm step in the app: the API's `GET /interviews` (each current
+  detection's format, times, interviewer count, decision and the job's own title and company from
+  `readFeedNames`; never the calendar event id, an invite's title, an address or a name) and
+  `POST /interviews/decide` (one `confirmed` or `dismissed` per detection through
+  `decideInterview`; `not_found`, `superseded`, `already_decided`), session only
+  (`apps/api/src/interviews.ts`), and the web app's `/interviews` (`src/interviews.ts`, linked
+  from Today): waiting detections marked "Not verified" with Confirm and Dismiss, then decided
+  ones. Neither choice moves a status. The run has no caller yet (#230).
 - Interview prep (NS-170, CAL-003/004), slice 1, plain code in `packages/domain`
   (`interview-prep.ts`): `planPrepBlocks` proposes CAL-003's default prep for one interview, two
   45-minute blocks in the 3 days before (one per day where it can, nearest days first, earliest

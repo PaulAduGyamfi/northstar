@@ -5,9 +5,11 @@ import {
   acquireCall,
   connectDb,
   dbSpendMeter,
+  decideInterview,
   isSubsystemOn,
   listApplications,
   listConsentRecords,
+  listInterviews,
   listJobs,
   listOpenDeadLetters,
   listOpenHandoffs,
@@ -82,6 +84,7 @@ import { growthEndpoints } from "./growth.js";
 import { markHandoffSubmitted } from "./handoff-ports.js";
 import { handoffEndpoints } from "./handoffs.js";
 import { inboxEndpoints } from "./inbox.js";
+import { interviewEndpoints } from "./interviews.js";
 import { type PasskeyStore, passkeyAssertion, passkeyEndpoints } from "./passkeys.js";
 import { pipelineEndpoints } from "./pipeline.js";
 import { createPrefillGrants, prefillEndpoints } from "./prefill.js";
@@ -239,6 +242,12 @@ try {
     list: async () => listOpenDeadLetters(db, await candidateId()),
     resolve: async (input) => resolveDeadLetter(db, { candidateId: await candidateId(), ...input }),
   });
+  // Detected interviews and Paul's confirm step (NS-240 slice 5): never moves a status.
+  const interviews = interviewEndpoints({
+    list: async () => listInterviews(db, await candidateId()),
+    names: async (aggregates) => readFeedNames(db, await candidateId(), aggregates),
+    decide: async (input) => decideInterview(db, { candidateId: await candidateId(), ...input }),
+  });
   // The Grow tab (NS-214): check-ins, the dashboard and the weekly review, on packages/db's
   // growth write path.
   const growth = growthEndpoints({
@@ -326,6 +335,7 @@ try {
       ...careerDna,
       ...careerDirections,
       ...deadLetters,
+      ...interviews,
       ...spend,
       ...passkeys,
       ...vaultReveal,
