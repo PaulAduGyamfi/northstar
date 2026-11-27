@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { type HandoffItem, handoffCards, safeHref } from "./handoffs";
+import {
+  countdown,
+  grantMessage,
+  type HandoffItem,
+  handoffCards,
+  prefillCode,
+  safeHref,
+  secondsLeft,
+} from "./handoffs";
 
 // The "Needs your hands" card's plain logic (NS-121). Synthetic ids and example links only.
 const item = (over: Partial<HandoffItem> = {}): HandoffItem => ({
@@ -56,5 +64,55 @@ describe("handoffCards", () => {
     expect(handoffCards([item({ ats: "", reason: "odd" })])[0]?.title).toBe(
       "Application form: a check only you can pass",
     );
+  });
+});
+
+describe("prefillCode", () => {
+  const HANDOFF = "0b6f3f8e-6a55-4c7e-9a52-5d6b2f8a1c01";
+  const GRANT = "g".repeat(43);
+
+  it("joins the handoff id and grant with a dot, the shape the extension reads", () => {
+    expect(prefillCode(HANDOFF, GRANT)).toBe(`${HANDOFF}.${GRANT}`);
+  });
+
+  it("refuses an id or grant of any other shape", () => {
+    expect([
+      prefillCode("not-a-uuid", GRANT),
+      prefillCode(HANDOFF, "g".repeat(42)),
+      prefillCode(HANDOFF, `${"g".repeat(42)}.`),
+    ]).toEqual([null, null, null]);
+  });
+});
+
+describe("the pre-fill countdown", () => {
+  const now = Date.parse("2026-11-27T04:00:00.000Z");
+
+  it("counts whole seconds down to the grant's expiry and stops at zero", () => {
+    expect([
+      secondsLeft("2026-11-27T04:02:00.000Z", now),
+      secondsLeft("2026-11-27T04:00:00.400Z", now),
+      secondsLeft("2026-11-27T03:59:00.000Z", now),
+      secondsLeft("not a time", now),
+    ]).toEqual([120, 1, 0, 0]);
+  });
+
+  it("shows minutes and seconds", () => {
+    expect([countdown(120), countdown(65), countdown(9)]).toEqual(["2:00", "1:05", "0:09"]);
+  });
+});
+
+describe("grantMessage", () => {
+  it("says why no code was given, in plain words", () => {
+    expect([
+      grantMessage(401, null),
+      grantMessage(409, "closed"),
+      grantMessage(409, "changed"),
+      grantMessage(500, null),
+    ]).toEqual([
+      "You've been signed out. Sign in again.",
+      "That handoff is already closed.",
+      "The package changed after you approved it, so it can't be pre-filled.",
+      "Couldn't get a pre-fill code. Try again.",
+    ]);
   });
 });
