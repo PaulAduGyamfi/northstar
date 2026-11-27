@@ -62,3 +62,8 @@ export function notApprovedReason(cause: unknown): string | null {
   const { type, message } = cause as { type?: unknown; message?: unknown };
   return type === NOT_APPROVED && typeof message === "string" ? message : null;
 }
+
+// Whether a submission run still waits for the Gate (its `waiting` query, NS-213 slice 2): no
+// decision and no withdrawal yet.
+export const stillWaiting = (decisionId: string | null, withdrawn: boolean): boolean =>
+  decisionId === null && !withdrawn;

@@ -13,14 +13,25 @@ export {
   type EndingArgs,
 } from "./activities/ending.js";
 export {
+  createRelayActivities,
+  type RelayActivities,
+  type RelayCounts,
+  RelayRoundsFailed,
+  relayPass,
+} from "./activities/relay.js";
+export {
   createSweepActivities,
   type SweepActivities,
 } from "./activities/sweep.js";
 // Starting and signalling the workflows (NS-225 slice 2), for the callers that file packages and
 // relay the Gate's decisions.
 export {
+  ensureSignalRelay,
   ensureStaleSweep,
+  isNotFound,
+  RELAY_WORKFLOW_ID,
   type Round,
+  roundWaiting,
   type SignalError,
   type StartError,
   SWEEP_WORKFLOW_ID,
@@ -36,9 +47,15 @@ export { loadPoolLimits, type PoolLimits, type PoolQueue, workerOptions } from "
 export { APPLY_BROWSER_QUEUE, PIPELINE_QUEUE } from "./queues.js";
 export { type Decision, decide, MAX_WAITS, WAIT_REFUSALS } from "./workflows/decide.js";
 export { endingKey, endingReason, type SubmissionEnding } from "./workflows/ending.js";
+export type { RelayInput } from "./workflows/relay.js";
 export type { SubmissionInput } from "./workflows/submission.js";
 export type { SweepInput } from "./workflows/sweep.js";
-export { failureKey, planSweep, type SweepPlan } from "./workflows/sweep-plan.js";
+export {
+  failureKey,
+  planSweep,
+  relayFailureKey,
+  type SweepPlan,
+} from "./workflows/sweep-plan.js";
 export {
   NOT_APPROVED,
   SUBMIT_ATTEMPTS,

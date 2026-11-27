@@ -11,6 +11,8 @@ describe("the workflow bundle", () => {
     const { code } = await bundleWorkflowCode({ workflowsPath, logger: quiet });
     expect(code).toContain("submissionWorkflow");
     expect(code).toContain("staleClaimSweepWorkflow");
+    // NS-213 slice 2: the decision relay.
+    expect(code).toContain("packageSignalRelayWorkflow");
   }, 60_000);
 });
 

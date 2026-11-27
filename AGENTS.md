@@ -808,7 +808,8 @@ Exists now:
   as Paul; `apps/api/src/dead-letters.ts`), and "Stuck work" on `/health` with Retry, Skip and
   Hand off buttons that say what happens next (`src/dead-letters.ts`). Since NS-236
   `recordDeadLetter` takes only a kind on `DEAD_LETTER_KINDS` (`apply.stale_sweep`,
-  `apply.submission`, `calendar.interview_detection`); a new producer adds its own.
+  `apply.submission`, `calendar.interview_detection`, and since NS-213 slice 2
+  `apply.signal_relay`); a new producer adds its own.
 - Health and feed (NS-125, RES-013, OBS-002): `systemHealth` (`packages/domain`, `health.ts`)
   turns breakers, kill switches and board watches into `healthy / degraded / down` per subsystem
   with a plain reason, and `feedLine` (`feed.ts`) turns an event into one plain sentence from
@@ -1183,8 +1184,23 @@ Exists now:
   run (`NotRunning` when none runs; a rejected round's caller sends `withdrawn`), and
   `ensureStaleSweep` starts the one `stale-claim-sweep`
   (conflict `USE_EXISTING`), which `main.ts` does at every start for the one candidate. No caller
-  starts submissions or sends the signals yet (the package step's caller and the Queue's decide
-  path).
+  starts submissions yet (the package step's caller).
+  Since NS-213 slice 2 (#195 item 2) the Gate's decisions reach the waiting runs:
+  `readPackageSignals` (`packages/db`, `package-signal-read.ts`, read-only) lists the
+  `application_package` rounds whose outcome took effect by the Gate's clock in the last 7 days
+  (at most 200): an approval past its undo window and not undone (with its decision id), or
+  `withdrawn` for a withdrawal or an effective rejection. A decision still in its undo window is
+  never relayed: a run keeps its first decision, so an undo after the signal would end the round
+  as `not_approved` for good. `packageSignalRelayWorkflow` (`src/workflows/relay.ts`, on
+  `pipeline`, every minute, continuing as new after 100 passes) runs the `relayPackageDecisions`
+  activity (`src/activities/relay.ts`), which signals only a round whose run is running and still
+  waiting (the submission's `waiting` query, through `TemporalPort.waiting`, which describes the
+  run first so a closed one is never queried), so repeated passes add nothing to a run's history.
+  It reaches Temporal through the worker's own client (`Context.current().client`; "no such
+  workflow" is read from the error class or a gRPC NOT_FOUND, `isNotFound`). A round whose call
+  fails doesn't stop the others: the pass fails after trying them all (`RelayRoundsFailed`), and
+  one that fails its 3 attempts is a dead letter (`apply.signal_relay`, `relay_failed`, one per
+  workflow run). `main.ts` ensures the one `package-signal-relay` (`ensureSignalRelay`) beside the sweep.
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 
@@ -1258,7 +1274,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/db db:generate` | new migration from `packages/db/src/schema.ts` (no database needed); prints "No schema changes" when migrations match |
 | repo root | `pnpm --filter @northstar/db db:migrate` | apply pending migrations as the tables' owner, `DATABASE_MIGRATION_URL`, which Node loads from the root `.env` (Paul, outside the sandbox, stack up). Builds `domain` and `db` first. The apps use `DATABASE_URL`, the `northstar_app` role (NS-212) |
 | repo root | `pnpm --filter @northstar/api start` | build and run the API on 127.0.0.1:`NORTHSTAR_API_PORT` (8787), reading the root `.env.app`; refuses to start until `NORTHSTAR_SIGNIN_KEY_SHA256` and `DATABASE_URL` are set (Paul) |
-| repo root | `pnpm --filter @northstar/worker start` | build and run the worker process (NS-225): connects to Temporal on this machine (`TEMPORAL_ADDRESS`, default 127.0.0.1:7233; stack up) and runs the `pipeline` pool, plus the `apply-browser` pool only with `WORKER_APPLY_BROWSER=on` and `WORKER_CHROMIUM_PATH`; reads the root `.env.app` like the API and needs `DATABASE_URL`. At start it ensures the stale-claim sweep runs; nothing starts submission workflows yet. Paul only: real database and Temporal; agents never run it |
+| repo root | `pnpm --filter @northstar/worker start` | build and run the worker process (NS-225): connects to Temporal on this machine (`TEMPORAL_ADDRESS`, default 127.0.0.1:7233; stack up) and runs the `pipeline` pool, plus the `apply-browser` pool only with `WORKER_APPLY_BROWSER=on` and `WORKER_CHROMIUM_PATH`; reads the root `.env.app` like the API and needs `DATABASE_URL`. At start it ensures the stale-claim sweep and the package decision relay run; nothing starts submission workflows yet. Paul only: real database and Temporal; agents never run it |
 | repo root | `pnpm --filter @northstar/web build` / `pnpm --filter @northstar/web start` | build and serve the web app on 127.0.0.1:3100; open it at `http://northstar.localhost:3100` (`NORTHSTAR_WEB_ORIGIN`, ADR-0018). It doesn't read the root `.env` or `.env.app`: export `NORTHSTAR_API_ORIGIN` (default `http://127.0.0.1:8787`) in the shell before build and start if the API's port changed. `pnpm --filter @northstar/web dev` while developing |
 | repo root | `pnpm --filter @northstar/extension build` | build the browser extension into `apps/extension/dist`; load that folder in `chrome://extensions` ("Load unpacked"), then paste the extension token in its options (Paul). The API needs `NORTHSTAR_EXTENSION_TOKEN_SHA256` and `DATABASE_URL` for captures |
 

@@ -88,6 +88,19 @@ describe("nextStep", () => {
     ]);
   });
 
+  it("names a failed relay pass and says every action only records the choice", () => {
+    const relay = { ...ITEM, kind: "apply.signal_relay", reasonCode: "relay_failed", attempts: 3 };
+    expect(letterLine(relay)).toEqual({
+      what: "Passing your approval decisions to waiting submissions",
+      why: "Stopped after 3 attempts: every attempt failed",
+    });
+    expect(DEAD_LETTER_ACTIONS.map((a) => nextStep("apply.signal_relay", a))).toEqual([
+      "Nothing runs now: the relay already tries again every minute. If it keeps failing, a new item shows here.",
+      "Nothing more is done about this pass. Later passes still run.",
+      "Nothing runs now: the relay keeps trying on its own. If items keep showing here, an approved application may be waiting; check the worker on this page.",
+    ]);
+  });
+
   it("falls back to plain words for a kind it doesn't know", () => {
     expect(nextStep("other.kind", "retry")).toBe("Sent back to be tried again.");
   });

@@ -14,7 +14,9 @@ import {
 import { Context } from "@temporalio/activity";
 import { type BeatStep, createApplyActivities } from "./activities/apply.js";
 import { createEndingActivities } from "./activities/ending.js";
+import { createRelayActivities, dbReadSignals } from "./activities/relay.js";
 import { createSweepActivities } from "./activities/sweep.js";
+import { type TemporalPort, temporalPort } from "./client.js";
 import type { WorkerConfig } from "./config.js";
 
 // The activities each pool runs, bound to the real write paths (NS-225). Plain code with no
@@ -23,22 +25,28 @@ import type { WorkerConfig } from "./config.js";
 // browser, and the browser pool exists only while Paul has turned it on.
 
 export type PoolActivities = {
-  pipeline: ReturnType<typeof createEndingActivities> & ReturnType<typeof createSweepActivities>;
+  pipeline: ReturnType<typeof createEndingActivities> &
+    ReturnType<typeof createSweepActivities> &
+    ReturnType<typeof createRelayActivities>;
   // Null while WORKER_APPLY_BROWSER is off: nothing can be submitted.
   applyBrowser: ReturnType<typeof createApplyActivities> | null;
 };
 
 // `launch` is launchFormDriver and `beat` Temporal's activity heartbeat (the step name is its
-// only detail, never a value); a test passes fakes so no browser starts.
+// only detail, never a value); a test passes fakes so no browser starts. `temporal` is the
+// relay's way to Temporal: the worker's own client, from the running activity's context (NS-213
+// slice 2), so no second connection.
 export function workerActivities(
   db: Db,
   config: Pick<WorkerConfig, "applyBrowser" | "applyLimits">,
   launch: typeof launchFormDriver = launchFormDriver,
   beat: (step: BeatStep) => void = (step) => Context.current().heartbeat(step),
+  temporal: () => TemporalPort = () => temporalPort(Context.current().client),
 ): PoolActivities {
   const pipeline = {
     ...createEndingActivities(db),
     ...createSweepActivities((candidateId) => sweepStaleClaims(dbSweepPorts(db), candidateId), db),
+    ...createRelayActivities(dbReadSignals(db), temporal, db),
   };
   const browser = config.applyBrowser;
   if (!browser.on) return { pipeline, applyBrowser: null };

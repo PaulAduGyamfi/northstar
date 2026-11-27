@@ -5,7 +5,11 @@ import {
 } from "@temporalio/client";
 import { describe, expect, it } from "vitest";
 import {
+  ensureSignalRelay,
   ensureStaleSweep,
+  isNotFound,
+  RELAY_WORKFLOW_ID,
+  roundWaiting,
   SWEEP_WORKFLOW_ID,
   signalApproval,
   signalWithdrawn,
@@ -48,6 +52,9 @@ function fakeTemporal() {
       if (!running.has(workflowId)) return { delivered: false };
       signals.push({ workflowId, signal, args });
       return { delivered: true };
+    },
+    async waiting(workflowId) {
+      return running.has(workflowId);
     },
   };
   return { port, starts, signals, end: (id: string) => running.delete(id) };
@@ -165,8 +172,47 @@ describe("ensureStaleSweep", () => {
   });
 });
 
+describe("ensureSignalRelay", () => {
+  it("starts the one relay with the candidate ids, keeping a running one", async () => {
+    const t = fakeTemporal();
+    await ensureSignalRelay(t.port, { candidateIds: [CANDIDATE] });
+    expect(t.starts).toEqual([
+      {
+        workflowType: "packageSignalRelayWorkflow",
+        workflowId: RELAY_WORKFLOW_ID,
+        args: [{ candidateIds: [CANDIDATE] }],
+        reuse: "existing",
+      },
+    ]);
+  });
+
+  it("refuses a candidate id that isn't a uuid", async () => {
+    const t = fakeTemporal();
+    await expect(ensureSignalRelay(t.port, { candidateIds: ["nope"] })).rejects.toThrow(
+      "candidateIds: every id must be a uuid",
+    );
+  });
+});
+
+describe("roundWaiting", () => {
+  it("asks about the round's own workflow id", async () => {
+    const t = fakeTemporal();
+    await startSubmission(t.port, input);
+    expect([
+      await roundWaiting(t.port, round),
+      await roundWaiting(t.port, { ...round, packageSha256: SHA2 }),
+    ]).toEqual([true, false]);
+  });
+});
+
 // The binding to Temporal's Client: the policies, the queue, and which errors mean "not now".
-function fakeClient(behaviour: { start?: () => unknown; signal?: () => unknown }) {
+function fakeClient(behaviour: {
+  start?: () => unknown;
+  signal?: () => unknown;
+  describe?: () => unknown;
+  status?: string;
+  waiting?: boolean;
+}) {
   const calls: unknown[] = [];
   const client = {
     workflow: {
@@ -178,6 +224,15 @@ function fakeClient(behaviour: { start?: () => unknown; signal?: () => unknown }
         signal: async (name: string, ...args: unknown[]) => {
           calls.push({ id, name, args });
           behaviour.signal?.();
+        },
+        describe: async () => {
+          calls.push({ id, describe: true });
+          behaviour.describe?.();
+          return { status: { name: behaviour.status ?? "RUNNING" } };
+        },
+        query: async (name: string) => {
+          calls.push({ id, query: name });
+          return behaviour.waiting ?? true;
         },
       }),
     },
@@ -261,5 +316,53 @@ describe("temporalPort", () => {
       c.port.start("submissionWorkflow", { workflowId: ID, args: [], reuse: "reject" }),
     ).rejects.toBe(boom);
     await expect(c.port.signal(ID, "withdrawn", [])).rejects.toBe(boom);
+  });
+
+  it("asks a running workflow's waiting query", async () => {
+    const c = fakeClient({ waiting: false });
+    expect(await c.port.waiting(ID)).toBe(false);
+    expect(c.calls).toEqual([
+      { id: ID, describe: true },
+      { id: ID, query: "waiting" },
+    ]);
+  });
+
+  it("never queries a closed workflow, and reads not found as not waiting", async () => {
+    const closed = fakeClient({ status: "COMPLETED" });
+    const missing = fakeClient({
+      describe: () => {
+        throw new WorkflowNotFoundError("gone", ID, undefined);
+      },
+    });
+    expect([await closed.port.waiting(ID), await missing.port.waiting(ID)]).toEqual([false, false]);
+    expect(closed.calls).toEqual([{ id: ID, describe: true }]);
+  });
+
+  it("lets any other describe error through", async () => {
+    const boom = new Error("connection refused");
+    const c = fakeClient({
+      describe: () => {
+        throw boom;
+      },
+    });
+    await expect(c.port.waiting(ID)).rejects.toBe(boom);
+  });
+});
+
+describe("isNotFound", () => {
+  it("reads Temporal's not-found error and a raw or wrapped gRPC NOT_FOUND as no such workflow", () => {
+    expect([
+      isNotFound(new WorkflowNotFoundError("gone", ID, undefined)),
+      isNotFound(Object.assign(new Error("not found"), { code: 5 })),
+      isNotFound(new Error("wrapped", { cause: { code: 5 } })),
+    ]).toEqual([true, true, true]);
+  });
+
+  it("reads any other error, or another gRPC code, as a real failure", () => {
+    expect([
+      isNotFound(new Error("connection refused")),
+      isNotFound(Object.assign(new Error("unavailable"), { code: 14 })),
+      isNotFound(null),
+    ]).toEqual([false, false, false]);
   });
 });
