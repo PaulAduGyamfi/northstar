@@ -3,7 +3,8 @@
 Status: draft
 Requirements: CAL-003 (default prep before an interview), CAL-002 (confirmed interviews)
 Rules that apply: ADR-0002 (nothing is written to the calendar here), ADR-0012 (append-only),
-ADR-0016 (autonomous lane; waiver on #275 for this slice), ADR-0026, `.claude/rules/db.md`,
+ADR-0016 (autonomous lane; waiver on #275 for this slice), ADR-0026, ADR-0031 (Proposed: the
+Calendar writes that follow), `.claude/rules/db.md`,
 `.claude/rules/tests.md`
 
 ## Why
