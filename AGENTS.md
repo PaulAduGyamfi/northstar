@@ -214,7 +214,8 @@ Exists now:
   `twentySecondAnswer` (at most 55 words from the entries and the official record's last employer,
   with its sources). Stored in `packages/db` (`independent-work-schema.ts`,
   `independent-work-write.ts`: `setIndependentWork`, `readIndependentWork`; append-only, a
-  version per file). Since NS-231 (slice 1) every tailored resume carries it:
+  version per file). Since NS-130 slice 12 the package entry also exports `INVISIBLE_IN_WORK`,
+  which the API's `postingText` reuses. Since NS-231 (slice 1) every tailored resume carries it:
   - `tailorForJob` reads the newest version (`readWork`).
   - `tailorResume` adds every entry and line verbatim as `independentWork`, each citing its stored
     entry and line.
