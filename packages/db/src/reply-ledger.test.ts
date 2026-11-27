@@ -132,8 +132,13 @@ describe("recordDraft", () => {
     await expect(recordAt(2, DECISION, "18c0ffef")).rejects.toBeInstanceOf(DraftRecordConflict);
   });
 
-  it("refuses a draft id that isn't Gmail's hex", async () => {
-    await expect(recordAt(1, DECISION, "r-123")).rejects.toThrow("invalid draft message id");
+  it("records any id the gateway accepts, not only hex", async () => {
+    await recordAt(1, DECISION, "Ab_9-z");
+    expect(await claimAt(2, DECISION)).toEqual({ state: "done", draftMessageId: "Ab_9-z" });
+  });
+
+  it("refuses a draft id outside the gateway's rule", async () => {
+    await expect(recordAt(1, DECISION, "18c0 ffee")).rejects.toThrow("invalid draft message id");
   });
 });
 

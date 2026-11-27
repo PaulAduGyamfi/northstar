@@ -9515,7 +9515,7 @@
       "checkConstraints": {
         "reply_draft_record_message_id_shape": {
           "name": "reply_draft_record_message_id_shape",
-          "value": "\"reply_draft_record\".\"draft_message_id\" ~ '^[0-9a-f]{1,32}$'"
+          "value": "\"reply_draft_record\".\"draft_message_id\" ~ '^[A-Za-z0-9_-]{1,64}$'"
         }
       },
       "isRLSEnabled": false

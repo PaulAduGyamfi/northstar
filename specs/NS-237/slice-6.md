@@ -8,7 +8,7 @@ Issue #263. Slice 4 (#325) built `writeReplyDraft` against `claimDraft` / `recor
 ## Behavior
 - **`reply_draft_claim`** (append-only): one row per attempt, per candidate and decision
   (`attempt` 1–100, unique). **`reply_draft_record`** (append-only): at most one per candidate and
-  decision, with Gmail's hex message id (CHECK).
+  decision, with Gmail's message id, checked by the gateway's own rule (`[A-Za-z0-9_-]{1,64}`, CHECK) so a draft it created is always recordable.
 - **`claimDraft(db, candidateId, decisionId)`**, in one transaction under a per-decision
   advisory lock:
   - a recorded draft → `done` with its id;
@@ -22,8 +22,8 @@ Issue #263. Slice 4 (#325) built `writeReplyDraft` against `claimDraft` / `recor
     workers whose clocks disagree still agree on a lease.
 - **`recordDraft(db, candidateId, decisionId, draftMessageId)`**: inserts the record and a
   `reply.draft_created` event (payload: decision and message ids; fixed-word `reason`) in one
-  transaction. The same id again stores nothing; a different id throws `DraftRecordConflict`; a
-  non-hex id is refused before insert.
+  transaction. The same id again stores nothing; a different id throws `DraftRecordConflict`; an id
+  outside that rule is refused before insert.
 - **`dbMailLedger(db)`** binds both to `MailPorts`; `DraftClaim` is exported from here and the
   gateway imports it.
 - No caller yet (the worker, #230).

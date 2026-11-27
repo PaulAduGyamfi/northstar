@@ -15,7 +15,7 @@ CREATE TABLE "reply_draft_record" (
 	"draft_message_id" text NOT NULL,
 	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "reply_draft_record_one_per_decision" UNIQUE("candidate_id","decision_id"),
-	CONSTRAINT "reply_draft_record_message_id_shape" CHECK ("reply_draft_record"."draft_message_id" ~ '^[0-9a-f]{1,32}$')
+	CONSTRAINT "reply_draft_record_message_id_shape" CHECK ("reply_draft_record"."draft_message_id" ~ '^[A-Za-z0-9_-]{1,64}$')
 );
 --> statement-breakpoint
 ALTER TABLE "reply_draft_claim" ADD CONSTRAINT "reply_draft_claim_candidate_id_candidate_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidate"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint

@@ -24,8 +24,9 @@ export type DraftClaim =
 // The schema's attempt bound: a claim past it is refused by name, never as a raw CHECK error.
 export const MAX_DRAFT_CLAIMS = 100;
 
-// Gmail message ids are hex; anything else is refused before it reaches the table's CHECK.
-const DRAFT_ID = /^[0-9a-f]{1,32}$/;
+// The gateway's own id rule (drafts.ts GMAIL_ID): a draft it created must always be recordable, or a
+// lapsed claim would retry it forever. Anything else is refused before the table's CHECK.
+const DRAFT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 // A decision whose runs have lapsed MAX_DRAFT_CLAIMS times (hours of crashes): the caller stops
 // and hands it to Paul (a dead letter) instead of trying forever.

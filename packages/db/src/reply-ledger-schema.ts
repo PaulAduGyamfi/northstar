@@ -42,6 +42,9 @@ export const replyDraftRecord = pgTable(
   },
   (t) => [
     unique("reply_draft_record_one_per_decision").on(t.candidateId, t.decisionId),
-    check("reply_draft_record_message_id_shape", sql`${t.draftMessageId} ~ '^[0-9a-f]{1,32}$'`),
+    check(
+      "reply_draft_record_message_id_shape",
+      sql`${t.draftMessageId} ~ '^[A-Za-z0-9_-]{1,64}$'`,
+    ),
   ],
 );
