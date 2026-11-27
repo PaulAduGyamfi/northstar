@@ -163,7 +163,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   verifies each bank claim against the newest banked text (a `{company}` slot only with an
   `isSafeCompany` name); the package must name the job's own posting, contact and newest tailored
   PDF. New package producers use it, never `requestApproval` with their own facts. The question a
-  verified answer belongs to is still the producer's claim.
+  verified answer belongs to is still the producer's claim. Its contact email may be Paul's stored
+  address or that address tagged with the application's own `mail_tag` (`readApplicationTag`,
+  NS-248), never another application's tag.
 - Stored packages (NS-192) are `application_package`, one per `application_package` Gate
   request, append-only (a trigger), written only by `requestPackageApproval` in the same
   transaction as the request (a replay stores nothing). Its foreign key names the request's id,

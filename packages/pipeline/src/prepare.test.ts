@@ -1,9 +1,11 @@
 import {
+  applicationPackageSchema,
   type Db,
   decideApprovals,
   type JobFormQuestion,
   listPendingApprovals,
   profileSchema,
+  readApplicationTag,
   readEventsAfter,
   readPackageInputs,
   saveJobForm,
@@ -193,6 +195,23 @@ describe("preparePackage", () => {
       await status(),
       pending.map((p) => [p.kind, p.subject.startsWith("application_package:")]),
     ]).toEqual(["filed", "awaiting_approval", [["application_package", true]]]);
+  });
+
+  it("puts the application's tagged address on the package, and a crashed round's rerun keeps it", async () => {
+    await complete();
+    await crashBeforeAwaitingApproval();
+    const tag = await readApplicationTag(db, candidateId, applicationId);
+    await prepare();
+    const emails = (
+      await db
+        .select({ pkg: applicationPackageSchema.applicationPackage.package })
+        .from(applicationPackageSchema.applicationPackage)
+    ).map((r) => r.pkg.contact.email);
+    expect([
+      typeof tag === "string" && /^[a-z2-7]{6}$/.test(tag),
+      emails,
+      await readApplicationTag(db, candidateId, applicationId),
+    ]).toEqual([true, [`test+ns-${tag}@example.com`], tag]);
   });
 
   it("files nothing new on a rerun: the application is no longer queued", async () => {

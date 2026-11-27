@@ -1,14 +1,17 @@
 import {
   type CandidateId,
   isSafeCompany,
+  isTaggableAddress,
   type PackageFacts,
   packageSha256,
   packageSubject,
   parsePackage,
+  taggedAddress,
 } from "@northstar/domain";
 import { applicationPackage } from "./application-package-schema.js";
 import { type RequestError, type RequestResult, requestApproval } from "./approval-write.js";
 import type { Db } from "./db.js";
+import { readApplicationTag } from "./mail-link-write.js";
 import { readPackageInputs } from "./package-read.js";
 
 // The Gate's entry point for an application package (NS-213 slice 1, APR-004, ADR-0002): it
@@ -70,7 +73,9 @@ export async function requestPackageApproval(
     return { ok: false, error: { kind: "InvalidRequest", fields: ["package.applicationId"] } };
   }
   // The package must be for this application's own job, contact details and resume file: fit and
-  // form-seen-before are read for that job, and an auto-approved package goes out unseen.
+  // form-seen-before are read for that job, and an auto-approved package goes out unseen. Its
+  // email may carry this application's own tag (VER-007, NS-248), never another one's.
+  const tag = await readApplicationTag(db, input.candidateId, pkg.applicationId);
   const mismatched = [
     // The posting is one of the job's stored sources, compared as the Apply Gateway does.
     inputs.sources.some(
@@ -78,7 +83,7 @@ export async function requestPackageApproval(
     )
       ? null
       : "package.postingId",
-    sameContact(inputs.contact, pkg.contact) ? null : "package.contact",
+    sameContact(inputs.contact, pkg.contact, tag) ? null : "package.contact",
     inputs.resume?.pdfSha256 === pkg.resume.sha256 ? null : "package.resume",
   ].filter((f): f is string => f !== null);
   if (mismatched.length > 0) {
@@ -176,15 +181,21 @@ export async function requestPackageApproval(
   });
 }
 
+// Paul's stored details exactly, except that the email may be his stored address tagged with
+// the application's own tag (the package caller puts it there; a plain address still counts).
 function sameContact(
   stored: { firstName: string; lastName: string; email: string; phone: string | null } | null,
   given: { firstName: string; lastName: string; email: string; phone: string | null },
+  tag: string | null,
 ): boolean {
+  if (stored === null) return false;
+  const emails = [stored.email];
+  if (tag !== null && isTaggableAddress(stored.email))
+    emails.push(taggedAddress(stored.email, tag));
   return (
-    stored !== null &&
     stored.firstName === given.firstName &&
     stored.lastName === given.lastName &&
-    stored.email === given.email &&
+    emails.includes(given.email) &&
     stored.phone === given.phone
   );
 }

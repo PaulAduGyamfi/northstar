@@ -1074,6 +1074,14 @@ Exists now:
   newest tailored PDF, or it is refused. Which question a verified answer belongs to, and its
   exact/high split, are still the producer's. `requestApproval` still accepts facts for packages
   from other callers (#195).
+  Since NS-248 (item 1) the package's email is the application's tagged address (VER-007):
+  `preparePackage` assigns the application's tag once its inputs are complete (`assignTag`, kept for
+  good, so a rerun builds the same package) and puts `taggedAddress(email, tag)` in the contact;
+  an address with its own `+` part goes out as it is. The Gate accepts Paul's stored address or
+  that address with this application's own tag (`readApplicationTag`), never another one's.
+  `MAIL_TAG_PATTERN`, `generateMailTag`, `isTaggableAddress` and `taggedAddress` live in
+  `packages/domain` (`mail-tag.ts`), a copy of `packages/inbox`'s rules held equal by a parity test
+  in `packages/funnel`. No per-tenant tags yet (no account creation).
 - `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
   (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
   decision as an `approval` signal (or `withdrawn`), then runs the `submitApplication` activity

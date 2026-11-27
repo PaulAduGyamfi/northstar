@@ -369,6 +369,7 @@ export {
   listConfirmQueue,
   type QueuedMail,
   type RecordLinkInput,
+  readApplicationTag,
   readLinkCandidates,
   readLinkedThreads,
   readTags,

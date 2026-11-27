@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  assignTag,
   type Db,
   type PackageInputs,
   readPackageInputs,
@@ -7,7 +8,15 @@ import {
   recordPackageNeedsHuman,
   transitionApplication,
 } from "@northstar/db";
-import { ApplicationId, type ApplicationStatus, type CandidateId } from "@northstar/domain";
+import {
+  ApplicationId,
+  type ApplicationStatus,
+  type CandidateId,
+  type ContactDetails,
+  generateMailTag,
+  isTaggableAddress,
+  taggedAddress,
+} from "@northstar/domain";
 import { type AssemblyInput, assemblePackage, type BankEntry } from "./assemble.js";
 import { filePackage } from "./file.js";
 import { formQuestions } from "./form.js";
@@ -100,8 +109,22 @@ export async function preparePackage(
   if (fields?.phoneRequired && contact && contact.phone === null) add("no_phone");
   if (fields && fields.unsupported.length > 0) add("file_upload", fields.unsupported.length);
 
+  // The form gets the application's tagged address (VER-007), so its mail links by tag first. The
+  // tag is assigned once the package's inputs are complete (even if assembly then stops for
+  // Paul) and kept for good, so a rerun builds the same package; a stored address with its own
+  // `+` part goes out as it is (tags never stack).
+  const buildable = Boolean(source?.postingId && form && contact && pdf && fields);
+  const formContact =
+    buildable && contact
+      ? await withTag(
+          db,
+          { candidateId: input.candidateId, applicationId: inputs.application.id },
+          contact,
+        )
+      : contact;
+
   const build = (packageId: string): AssemblyInput | null =>
-    source?.postingId && form && contact && pdf && fields
+    source?.postingId && form && formContact && pdf && fields
       ? {
           packageId,
           applicationId: inputs.application.id,
@@ -109,8 +132,8 @@ export async function preparePackage(
           postingId: source.postingId,
           applyUrl: source.url,
           company: inputs.companyName,
-          contact,
-          resume: { fileName: resumeFileName(contact), sha256: pdf },
+          contact: formContact,
+          resume: { fileName: resumeFileName(formContact), sha256: pdf },
           coverLetter: null,
           coverLetterRequired: fields.coverLetterRequired,
           questions: fields.questions,
@@ -198,6 +221,21 @@ export async function preparePackage(
     decision: decision?.decision ?? null,
     replayed: filed.value.replayed,
   };
+}
+
+// Paul's contact details with the application's own tag on his address.
+async function withTag(
+  db: Db,
+  input: { candidateId: CandidateId; applicationId: string },
+  contact: ContactDetails,
+): Promise<ContactDetails> {
+  if (!isTaggableAddress(contact.email)) return contact;
+  const { tag } = await assignTag(db, {
+    candidateId: input.candidateId,
+    target: { applicationId: input.applicationId },
+    newTag: generateMailTag,
+  });
+  return { ...contact, email: taggedAddress(contact.email, tag) };
 }
 
 // The newest approved answer per canonical question, as assemblePackage takes it.
