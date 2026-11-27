@@ -5,11 +5,12 @@ import { mailLinkDecision } from "./mail-link-decision-schema.js";
 import { mailLink } from "./mail-link-schema.js";
 import { recruiterGrade } from "./recruiter-grade-schema.js";
 import { recruiterRegrade } from "./recruiter-regrade-schema.js";
+import { refreshRecruiterWeights } from "./recruiter-weight-write.js";
 import { appendEvent, inSpan } from "./resilience-event.js";
 
 // Paul's own letter for a graded recruiter message (NS-238 item 3, REC-003). It records what he
 // thinks the grade should be, and nothing else: no draft, filing, send or archive follows from it.
-// Slice 2 learns bounded weight adjustments from these rows.
+// Each stored regrade relearns bounded weight adjustments (recruiter-weight-write.ts, slice 2).
 
 export const LETTERS = ["A", "B", "C", "D", "F"] as const;
 export type Letter = (typeof LETTERS)[number];
@@ -79,6 +80,9 @@ export async function regradeRecruiterMessage(
         idempotencyKey: `recruiter_regrade:${row.id}`,
         at: row.regradedAt,
       });
+      // Grading learns from the new letter in the same transaction (slice 2): a version only when
+      // the learned adjustments change.
+      await refreshRecruiterWeights(tx, span, input.candidateId);
       return { ok: true as const, value: { recorded: true } };
     }),
   );

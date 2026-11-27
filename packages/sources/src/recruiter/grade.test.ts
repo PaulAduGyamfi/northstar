@@ -170,3 +170,43 @@ describe("gradeRecruiterMessage", () => {
     expect(gradeRecruiterMessage(oneUnknown, PREFS).confidence).toBe("normal");
   });
 });
+
+describe("gradeRecruiterMessage with weights learned from Paul's regrades (NS-238 item 3)", () => {
+  it("adds each matching reason's adjustment to the points before picking the letter", () => {
+    // The agency email scores 2 (C); +2 for an agency sender lifts it to 4 (B).
+    const agency: RecruiterFactsInput = {
+      ...GOOD,
+      roleTitle: "Platform Engineer",
+      seniority: null,
+      salaryMin: null,
+      salaryMax: null,
+      salaryCurrency: null,
+      salaryPeriod: null,
+      agency: true,
+    };
+    const weighted = gradeRecruiterMessage(agency, PREFS, "", { "sender:agency": 2 });
+    expect([weighted.points, weighted.grade]).toEqual([4, "B"]);
+  });
+
+  it("moves a grade by at most two points in all, however many reasons lean", () => {
+    // GOOD scores 7; -2 for in-house and -2 for a personal note sum to -4, held to -2.
+    const weighted = gradeRecruiterMessage(GOOD, PREFS, "", {
+      "sender:in_house": -2,
+      "personal:yes": -2,
+      "sender:agency": 2,
+    });
+    expect([weighted.points, weighted.grade]).toEqual([5, "A"]);
+  });
+
+  it("leaves a grade as before with no weights", () => {
+    expect(gradeRecruiterMessage(GOOD, PREFS, "", {})).toEqual(gradeRecruiterMessage(GOOD, PREFS));
+  });
+
+  it("still caps the letter for a dealbreaker, however the weights lean", () => {
+    const crypto = gradeRecruiterMessage(GOOD, PREFS, "a crypto exchange", {
+      "title:exact": 2,
+      "pay:ok": 2,
+    });
+    expect(crypto.grade).toBe("F");
+  });
+});
