@@ -25,9 +25,9 @@ import { readPackageInputs } from "./package-read.js";
 // confused producer can't make a package match one of Paul's auto-approve rules.
 
 // A producer's claim that one filled field reuses a banked answer, with its own reading of how
-// closely the form's question matched. Since NS-249 slice 3 the Gate checks both itself: the
-// answer must be banked for the question code's match of the stored form label names, and the
-// claim counts no more than the Gate's own reading of that label (labelReuse, packages/domain).
+// closely the form's question matched. Since NS-249 slice 3 the Gate checks both itself: code's
+// match of the stored form label must be the banked answer's own question, and the claim counts
+// no more than the Gate's own reading of that label (labelReuse, packages/domain).
 export type BankClaim = {
   fieldName: string;
   answerId: string;

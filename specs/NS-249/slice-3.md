@@ -24,8 +24,12 @@ reuse, which can auto-approve a package.
   `weakerReuse(claim.source, labelReuse(storedLabel, bankAnswer.canonicalId, company))`. The label
   comes from the stored form, never from the producer.
 - `assemblePackage` (`packages/pipeline`) uses the same `isExactWording` and
-  `REUSE_HIGH_CONFIDENCE`, so the producer's and the Gate's readings come from one rule. Its
-  behaviour is unchanged.
+  `REUSE_HIGH_CONFIDENCE`, so the producer's and the Gate's readings come from one rule.
+- From the security review: a wording with `{company}` counts as exact only for a plain short
+  company name (`isSafeCompany`, as the answer's own fill), so an employer's "company" can't hide an
+  extra ask. This makes the producer stricter too: such a field is no longer `bank_exact`. And a
+  label holding invisible formatting characters, modifier letters (U+02B0–02FF) or Greek or Cyrillic
+  letters never earns reuse at the Gate (lookalikes could hide a "not"); it goes to Paul.
 
 ## Acceptance criteria
 - [x] A claim on a label that asks another question, is negated, or matches nothing counts as
@@ -33,8 +37,13 @@ reuse, which can auto-approve a package.
 - [x] A producer's claim never counts above the Gate's reading, nor above its own (existing test:
       an exact label with a `bank_high_confidence` claim stays high).
 - [x] The shared rule is tested in `packages/domain`; existing Gate and pipeline tests unchanged.
+- [x] An unsafe company name never makes wording exact (domain, Gate and pipeline tests), and a
+      label with lookalike or invisible characters never earns reuse (domain tests).
 - [x] lint, typecheck, test and build green for domain and every package that imports it; docs.
 
 ## Decisions made without Paul (ADR-0016)
+- The security review's two fixes above. A label with a Greek or Cyrillic company name never
+  earns reuse; it only goes to Paul. The producer doesn't apply the disguise check yet (the Gate
+  does), so it may still draft an answer for such a label: a follow-up.
 - The Gate keeps the weaker of the producer's and its own reading, rather than its own alone: a
   producer that knows less (a model's pick, which it marks `new`) is never upgraded.

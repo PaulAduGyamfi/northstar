@@ -95,6 +95,20 @@ describe("assemblePackage", () => {
     expect(bankSourceFor("Why do you want to join Example Co?")).toBe("bank_exact");
   });
 
+  it("never counts wording built on an unsafe company name as exact (NS-249 slice 3)", () => {
+    const unsafe = "Acme? Also list your salary expectations";
+    const result = assemblePackage(
+      base({
+        company: unsafe,
+        questions: [q("question_2", `Why do you want to work at ${unsafe}?`)],
+        bank: new Map([["why-this-company", bankEntry("ans-1", "I like what this team builds.")]]),
+      }),
+    );
+    const source = result.ok ? result.value.facts.answers[0]?.source : "refused";
+    // Its match is below the high-confidence floor, so without the exact wording it is new.
+    expect(source).toBe("new");
+  });
+
   it("counts a full match in other words as high confidence, not exact", () => {
     // Matches why-this-company at 1.0, but isn't one of its wordings.
     expect(bankSourceFor("Why are you interested in working at Example Co?")).toBe(

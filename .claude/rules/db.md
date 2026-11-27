@@ -174,7 +174,8 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   package use `src/test/package-fixture.ts`. Since NS-249 slice 3 the Gate also derives which
   question a verified answer belongs to and its exact/high split from the stored form label
   (`labelReuse` and `weakerReuse` in `packages/domain`): a claim counts no more than that
-  reading. Its contact email may be Paul's stored address or that address tagged with the
+  reading; exact wording needs an `isSafeCompany` name, and a label with invisible, modifier or
+  Greek/Cyrillic characters is `new`. Its contact email may be Paul's stored address or that address tagged with the
   application's own `mail_tag` (`readApplicationTag`, NS-248), never another application's tag.
 - Stored packages (NS-192) are `application_package`, one per `application_package` Gate
   request, append-only (a trigger), written only by `requestPackageApproval` in the same
