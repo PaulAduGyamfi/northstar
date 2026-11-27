@@ -297,4 +297,35 @@ describe("tailorForJob with independent work", () => {
     expect(run.kind === "tailored" && run.validation).toEqual({ ok: true });
     expect((saved[0]?.independentWork as { version: number } | undefined)?.version).toBe(3);
   });
+
+  // NS-231 slice 4: the event says how much of the section the version carries, in counts only.
+  it("counts the section's entries and lines in the saved summary, and 0 without one", async () => {
+    const summaries: Record<string, unknown>[] = [];
+    const deps = (work: MasterWork | null): TailorRunDeps => ({
+      readInput: async () => ({
+        ok: true,
+        value: {
+          profileSourceId: "source-1",
+          master: sampleMaster(),
+          job: { id: "00000000-0000-4000-8000-000000000001", ...job },
+        },
+      }),
+      save: async (input) => {
+        summaries.push(input.summary);
+        return { version: 1, saved: true };
+      },
+      readWork: async () => work,
+    });
+    await tailorForJob(deps(WORK), "00000000-0000-4000-8000-000000000001", []);
+    await tailorForJob(deps(null), "00000000-0000-4000-8000-000000000001", []);
+    expect(summaries.map((s) => [s.workEntries, s.workLines])).toEqual([
+      [2, 3],
+      [0, 0],
+    ]);
+    // Counts only: no title, line or link from the entries reaches the summary.
+    const text = JSON.stringify(summaries);
+    expect(["rate limiter", "reconciliation", "example.com"].some((t) => text.includes(t))).toBe(
+      false,
+    );
+  });
 });

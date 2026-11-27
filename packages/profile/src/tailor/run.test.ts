@@ -120,6 +120,8 @@ describe("tailorForJob", () => {
       atsPass: "boolean",
       valid: "boolean",
       failures: "number",
+      workEntries: "number",
+      workLines: "number",
     });
   });
 });

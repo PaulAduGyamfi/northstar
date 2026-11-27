@@ -1,4 +1,4 @@
-import type { AlertCandidate } from "@northstar/db";
+import type { AlertCandidate, StoredAlertSettings } from "@northstar/db";
 import { trace } from "@opentelemetry/api";
 import {
   BasicTracerProvider,
@@ -160,6 +160,29 @@ describe("alertPass", () => {
       "sources.fresh_alerts",
       { "alerts.sent": 1, "alerts.held": 0, "alerts.released": 0 },
     ]);
+  });
+
+  it("reads Paul's stored settings on each pass and sends at night once he turns quiet hours off (NS-199)", async () => {
+    const { store } = memoryStore([candidate({}, 5, NIGHT)]);
+    let stored: StoredAlertSettings | null = null;
+    store.settings = async () => stored;
+    // The env default holds it for quiet hours...
+    expect(await alertPass(store, NIGHT, config)).toEqual({ sent: 0, held: 1, released: 0 });
+    // ...and the next pass, with no restart, releases it under Paul's stored setting.
+    stored = { quiet: "off", timeZone: null, tier1InQuietHours: null };
+    expect(await alertPass(store, NIGHT, config)).toEqual({ sent: 0, held: 0, released: 1 });
+    const spans = exporter.getFinishedSpans();
+    expect(spans.map((s) => s.attributes["alerts.settings_source"])).toEqual(["default", "mixed"]);
+  });
+
+  it("marks the span as an error, by name only, when the settings read fails (NS-199)", async () => {
+    const { store } = memoryStore([candidate()]);
+    store.settings = async () => {
+      throw new TypeError("row (secret) failed");
+    };
+    await expect(alertPass(store, DAY, config)).rejects.toThrow(TypeError);
+    const [span] = exporter.getFinishedSpans();
+    expect(span?.status).toEqual({ code: 2, message: "TypeError" });
   });
 
   it("marks the span as an error, by name only, when the store fails", async () => {
