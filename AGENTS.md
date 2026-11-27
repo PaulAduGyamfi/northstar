@@ -483,8 +483,12 @@ Exists now:
     hold the cursor in place, and `nextSince` never passes the run's start.
   - A failed read or step stops the run at that message (`stoppedAt`, in the report only). The
     caller dead-letters a message that stops it tick after tick and passes its id back in `skip`.
-  - The cursor is in memory for now (a stored one needs a migration). No caller runs it on a
-    schedule yet (#230), and no gateway uses it.
+  - Since NS-247 slice 2 the cursor is stored: append-only `mail_poll_cursor` (`packages/db`,
+    `mail-poll-write.ts`: `readMailCursor`, `saveMailCursor`; an unchanged cursor stores nothing,
+    `since` never moves backwards, no domain event, a `mail.cursor_save` span), and
+    `pollFromCursor` (`src/link/cursor.ts`) reads it, polls from it (`firstSince` on the very first
+    run) and saves the report's `nextSince` and `nextOverlap`, even after a stop. No caller runs it
+    on a schedule yet (#230 calls `pollFromCursor` once per tick), and no gateway uses it.
   Since NS-164 also `classifyLinkedMail` (`src/triage.ts`, INB-003/012): one linked message to
   its classification by the backfill's rules (verified senders only) or the `mail-classify`
   route, with the provenance check. Verification mail from any sender (a verification subject

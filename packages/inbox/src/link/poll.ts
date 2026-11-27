@@ -10,8 +10,8 @@ import { tagFromDeliveredTo } from "./tag.js";
 // its in-memory token (ADR-0014). The step records each decision once, so the overlap and a rerun
 // never record twice.
 //
-// The cursor is the caller's: a running process keeps `nextSince` between ticks. A stored cursor
-// needs a migration and comes later.
+// The cursor is the caller's: pollFromCursor (`cursor.ts`, NS-247 slice 2) stores `nextSince` and
+// `nextOverlap` between ticks.
 
 // At most this many messages a run, so one run's Gmail reads stay bounded.
 export const MAX_PER_POLL = 200;

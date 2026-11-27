@@ -39,6 +39,7 @@ export default defineConfig({
     "./src/application-package-schema.ts",
     "./src/alert-setting-schema.ts",
     "./src/company-domain-schema.ts",
+    "./src/mail-poll-schema.ts",
   ],
   out: "./migrations",
 });
