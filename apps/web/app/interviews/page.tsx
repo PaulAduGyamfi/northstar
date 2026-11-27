@@ -1,11 +1,11 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { webConfig } from "../../src/config";
-import { InterviewsBody, NO_INTERVIEWS, waitingFirst } from "../../src/interviews";
+import { InterviewsBody, NO_INTERVIEWS } from "../../src/interviews";
 import { PillNav } from "../../src/pill-nav";
 import { SESSION_COOKIE } from "../../src/session";
 import { dotStatus, HealthBody, readApi } from "../../src/system";
-import { InterviewList } from "./interview-list";
+import { Interviews } from "./interview-list";
 
 // Asked for on every request: a new detection or decision shows at once, behind Paul's session.
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export default async function InterviewsPage() {
     readApi(deps, "/system/health", HealthBody),
   ]);
   if (interviews.kind === "signed_out") redirect("/sign-in");
-  const lists = interviews.kind === "ok" ? waitingFirst(interviews.body.items) : null;
+  const items = interviews.kind === "ok" ? interviews.body.items : [];
   return (
     <>
       <PillNav current="/interviews" health={dotStatus(health)} />
@@ -31,7 +31,7 @@ export default async function InterviewsPage() {
           <h1>Interviews</h1>
           <p className="muted">
             Found on your calendar. An invite can come from anyone, so each one waits for you to
-            confirm it.
+            confirm it. Confirming doesn't change an application's status.
           </p>
           {interviews.kind !== "ok" ? (
             <p className="muted">
@@ -43,18 +43,7 @@ export default async function InterviewsPage() {
             <p className="muted">{NO_INTERVIEWS}</p>
           ) : null}
         </div>
-        {lists === null || lists.waiting.length === 0 ? null : (
-          <section className="card" aria-labelledby="waiting">
-            <h2 id="waiting">Waiting for you</h2>
-            <InterviewList items={lists.waiting} />
-          </section>
-        )}
-        {lists === null || lists.decided.length === 0 ? null : (
-          <section className="card" aria-labelledby="decided">
-            <h2 id="decided">Decided</h2>
-            <InterviewList items={lists.decided} />
-          </section>
-        )}
+        {items.length === 0 ? null : <Interviews items={items} />}
       </main>
     </>
   );

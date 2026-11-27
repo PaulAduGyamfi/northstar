@@ -4,6 +4,7 @@ import { z } from "zod";
 // page shows. A detection comes from a calendar invite, which isn't authenticated, so it waits for
 // Paul's confirm or dismiss and never changes an application's status.
 
+// INTERVIEW_FORMATS in @northstar/domain, copied: the web app holds only its API's shapes.
 const FORMATS = [
   "phone_screen",
   "technical",
@@ -97,7 +98,7 @@ export function decideProblem(code: unknown): string {
   return "That didn't work. Try again.";
 }
 
-// Waiting detections first, soonest first; decided ones after.
+// Waiting detections, then decided ones, each in the API's order (soonest first).
 export function waitingFirst(items: readonly InterviewItem[]): {
   waiting: InterviewItem[];
   decided: InterviewItem[];

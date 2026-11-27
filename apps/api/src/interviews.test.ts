@@ -15,6 +15,7 @@ const WEB = "http://northstar.localhost:3100";
 const D1 = "7a1e2a10-6b2c-4f0e-8a51-7c2b9d0e1f01";
 const OLD = "7a1e2a10-6b2c-4f0e-8a51-7c2b9d0e1f02";
 const DONE = "7a1e2a10-6b2c-4f0e-8a51-7c2b9d0e1f03";
+const REPEAT = "7a1e2a10-6b2c-4f0e-8a51-7c2b9d0e1f04";
 const APP = "3f0c7a52-1d4e-4c8b-9a61-2b7e5d9c0a11";
 
 const STORED: StoredInterview = {
@@ -33,10 +34,13 @@ let cookie: string;
 let calls: unknown[];
 // When true, the fake store throws, as Postgres down would.
 let failing: boolean;
+// When true, only the job-name read throws.
+let namesFailing: boolean;
 
 beforeEach(async () => {
   calls = [];
   failing = false;
+  namesFailing = false;
   const ports: InterviewPorts = {
     list: async () => {
       calls.push("list");
@@ -45,6 +49,7 @@ beforeEach(async () => {
     },
     names: async (aggregates) => {
       calls.push(["names", aggregates]);
+      if (namesFailing) throw new Error("database down");
       return new Map<string, FeedNames>([
         [`application:${APP}`, { jobTitle: "Platform Engineer", company: "Initech" }],
       ]);
@@ -56,6 +61,7 @@ beforeEach(async () => {
       if (input.detectionId === DONE) {
         return { ok: false, error: { kind: "AlreadyDecided", decision: "dismissed" } };
       }
+      if (input.detectionId === REPEAT) return { ok: true, value: { recorded: false } };
       if (input.detectionId !== D1) return { ok: false, error: { kind: "UnknownDetection" } };
       return { ok: true, value: { recorded: true } };
     },
@@ -133,6 +139,12 @@ describe("GET /interviews", () => {
     const res = await get();
     expect([res.status, JSON.parse(res.body)]).toEqual([503, { error: "unavailable" }]);
   });
+
+  it("answers 503 when only the job names can't be read", async () => {
+    namesFailing = true;
+    const res = await get();
+    expect([res.status, JSON.parse(res.body)]).toEqual([503, { error: "unavailable" }]);
+  });
 });
 
 describe("POST /interviews/decide", () => {
@@ -142,6 +154,14 @@ describe("POST /interviews/decide", () => {
       200,
       { decision: "confirmed", recorded: true },
       [["decide", { detectionId: D1, decision: "confirmed" }]],
+    ]);
+  });
+
+  it("answers 200 with recorded false for the same decision made again", async () => {
+    const res = await decide({ detectionId: REPEAT, decision: "confirmed" });
+    expect([res.status, JSON.parse(res.body)]).toEqual([
+      200,
+      { decision: "confirmed", recorded: false },
     ]);
   });
 
