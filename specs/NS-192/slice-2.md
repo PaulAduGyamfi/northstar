@@ -45,7 +45,8 @@ extension token alone still reads nothing. This slice adds the two endpoints.
 - [ ] The extension token without a grant, or with a wrong, used, expired or other handoff's grant,
       gets `403 grant_invalid` and the package is never read.
 - [ ] A grant works once: a second read with it is refused.
-- [ ] A grant is 2 minutes long: at 2 minutes and 1 ms it is refused (fake clock).
+- [ ] A grant is 2 minutes long: 1 ms before it is served, at 2 minutes it is refused (fake clock).
+- [ ] A body with no grant is `403 grant_invalid` too, with nothing read.
 - [ ] The package endpoint refuses a session cookie without the extension token (401), and the grant
       endpoint refuses the extension token (401).
 - [ ] The grant endpoint refuses a closed, packageless, unapproved or changed handoff with its code,
@@ -58,7 +59,8 @@ extension token alone still reads nothing. This slice adds the two endpoints.
 - A restart loses the waiting grants, so Paul clicks again.
 
 ## Observability
-`api.request` spans with the outcome code. No event: `handoff.prefilled` comes with the extension's
+`api.request` spans carry `northstar.prefill.outcome`: `issued`, `served`, `grant_invalid` or the
+read's refusal code. No event: `handoff.prefilled` comes with the extension's
 fill in slice 3.
 
 ## Out of scope
@@ -71,3 +73,7 @@ fill in slice 3.
   as the cost, but its decision only asks that the grant be random, stored hashed, single use and
   2 minutes long. The API already keeps sessions and passkey challenges in memory, the migration
   lane is held by another agent, and a 2-minute grant has nothing to survive a restart for.
+- The diff is a little over ~300 lines: about 150 lines of code, with the rest tests and docs.
+- A refused grant (`403`) doesn't count toward the wrong-token throttle: a grant is 256 random bits,
+  and the token check before it still counts. Grants assume one API process, as sessions do. More
+  than one instance would need shared storage.

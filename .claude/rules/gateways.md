@@ -36,7 +36,8 @@ and never hand its `gmail.modify` token to code that reads mail.
   (`packages/db`). It re-checks the handoff (open, the candidate's), the approval
   (`verifyApproval` for the stored package's subject and hash) and the package's own hash on every
   read. ADR-0029 (Accepted, option 2) allows serving it only with a one-time, 2-minute grant from
-  Paul's own session plus the extension token; never on the token alone, and never widen that. Never hand a package to the browser
+  Paul's own session plus the extension token; never on the token alone, and never widen that.
+  Since slice 2 the API's `prefill.ts` is that one place: it consumes the grant before any read. Never hand a package to the browser
   from anywhere else, never trust a package the caller sends, and never put a field value in a
   span, log, event or error. The extension fills; it never submits or touches the challenge
   (ADR-0003).
