@@ -213,10 +213,14 @@ const post = (body: unknown, withCookie = true): Promise<Sent> =>
 
 describe("GET /inbox/link-targets (NS-262)", () => {
   it("lists the open applications field by field, behind the session", async () => {
-    targets = async () =>
-      [
-        { applicationId: A1, jobTitle: "Backend Engineer", company: null, extra: "x" },
-      ] as LinkTarget[];
+    // A field the read might add later must never reach the response.
+    const withExtra = {
+      applicationId: A1,
+      jobTitle: "Backend Engineer",
+      company: null,
+      extra: "x",
+    };
+    targets = async () => [withExtra];
     const signedOut = await send(server, { method: "GET", path: "/inbox/link-targets" });
     const res = await send(server, {
       method: "GET",
