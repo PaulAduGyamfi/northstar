@@ -126,6 +126,16 @@ describe("runPrefill", () => {
     expect(p.inject).not.toHaveBeenCalled();
   });
 
+  it("says there is no form to fill, and injects nothing, when Chrome can't report the tab", async () => {
+    const p = ports({
+      activeTab: async () => {
+        throw new Error("tabs unavailable");
+      },
+    });
+    expect(await runPrefill(CODE, p)).toBe("There is no form open to fill.");
+    expect(p.inject).not.toHaveBeenCalled();
+  });
+
   it("refuses a tab whose URL Chrome didn't give", async () => {
     const p = ports({ activeTab: async () => ({ id: 7 }) });
     expect(await runPrefill(CODE, p)).toBe("There is no form open to fill.");
@@ -197,12 +207,14 @@ describe("fillForm's page check", () => {
       page("https://boards.greenhouse.io/example/jobs/999"),
       page("https://evil.example.com/example/jobs/123"),
       page("http://boards.greenhouse.io/example/jobs/123"),
+      page("https://boards.greenhouse.io:8443/example/jobs/123"),
     ];
     expect(moved.map((doc) => fillForm([{ name: "first_name", value: "Jo" }], doc, at))).toEqual([
       { filled: 0, skipped: 1, moved: true },
       { filled: 0, skipped: 1, moved: true },
       { filled: 0, skipped: 1, moved: true },
+      { filled: 0, skipped: 1, moved: true },
     ]);
-    expect(moved.map((doc) => doc.el.value)).toEqual(["", "", ""]);
+    expect(moved.map((doc) => doc.el.value)).toEqual(["", "", "", ""]);
   });
 });

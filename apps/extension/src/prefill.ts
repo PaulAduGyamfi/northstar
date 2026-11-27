@@ -166,6 +166,7 @@ export function fillForm(
     if (
       here === null ||
       here.protocol !== "https:" ||
+      here.port !== "" ||
       here.hostname !== at.hostname ||
       herePath !== at.path
     ) {

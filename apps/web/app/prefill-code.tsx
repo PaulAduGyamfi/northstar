@@ -52,6 +52,7 @@ export function PrefillCode({ handoffId }: { handoffId: string }) {
         setNote(grantMessage(res.status, null));
         return;
       }
+      setLeft(secondsLeft(parsed.data.expiresAt, Date.now()));
       setCode({ value, expiresAt: parsed.data.expiresAt });
     } catch (error) {
       setNote(

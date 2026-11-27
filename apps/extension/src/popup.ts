@@ -90,6 +90,10 @@ fillButton.addEventListener("click", () => {
     .then((message) => {
       fillStatus.textContent = message;
     })
+    // runPrefill answers every refusal itself; this is the last word if Chrome throws anyway.
+    .catch(() => {
+      fillStatus.textContent = "Northstar couldn't pre-fill this form.";
+    })
     .finally(() => {
       fillButton.disabled = false;
     });

@@ -66,7 +66,8 @@ export async function runPrefill(rawCode: string, ports: PrefillPorts): Promise<
   // A bad code sends nothing, so a typo never uses up a grant.
   const code = parsePrefillCode(rawCode);
   if (code === null) return BAD_CODE_MESSAGE;
-  const checked = await ports.settings();
+  const checked = await ports.settings().catch(() => null);
+  if (checked === null) return prefillMessage("");
   if (!checked.ok) return `${checked.message} Open the extension's options.`;
 
   const { url, init } = packageRequest(checked.settings, code.handoffId, code.grant);
@@ -87,7 +88,7 @@ export async function runPrefill(rawCode: string, ports: PrefillPorts): Promise<
 
   // The tab is read again here, after the network wait, so a tab Paul switched to meanwhile is
   // the one checked, and the fill goes to that same tab id.
-  const tab = await ports.activeTab();
+  const tab = await ports.activeTab().catch(() => undefined);
   if (tab?.id === undefined || tab.url === undefined) return NO_TAB_MESSAGE;
   const plan = prefillPlan(pkg, tab.url);
   if (!plan.ok) return prefillMessage(plan.refusal);
