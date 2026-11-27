@@ -39,12 +39,18 @@ writer itself, as a Mail Gateway module.
   2. It checks the draft with `parseReplyPackage` and re-hashes it with `replyContentSha256`. A
      hash that differs from the stored one is refused (`ContentMismatch`).
   3. It calls `verifyApproval` with kind `email_reply`, the subject from `replySubject(gmail id)`
-     and that hash. Without a live approval it refuses `NotApproved` with the Gate's reason.
+     and that hash. Without a live approval it refuses `NotApproved` with the Gate's reason. An
+     `UndoWindowOpen` refusal carries the window's end as `retryAt`. An approval of another
+     request than the one asked for is refused (`RequestMismatch`).
   4. If the grant lacks exactly `https://www.googleapis.com/auth/gmail.compose`, the result is
      `needs_human` (`scope_missing`) and nothing goes to Gmail (ADR-0025 item 6).
-  5. It claims the decision in the ledger port: `new`, `done` (with the draft's message id) or
-     `unknown` (claimed earlier with no outcome recorded).
+  5. It claims the decision in the ledger port: `new`, `done` (with the draft's message id),
+     `in_progress` (another run's claim is still within its lease) or `unknown` (an earlier claim
+     past its lease with no outcome recorded). The message is built before the claim, so a refused
+     build can't leave a claim behind.
      - `done`: the earlier draft is returned and nothing is created.
+     - `in_progress`: the `InProgress` refusal with the lease's end. Nothing is created beside the
+       other run.
      - `unknown`: it reads the thread, and a `DRAFT` message carrying the marker counts as the
        draft. It records it and returns.
   6. It calls `drafts.create`, then records the message id in the ledger.
@@ -58,16 +64,19 @@ writer itself, as a Mail Gateway module.
       Gmail, and the result names the Gate's reason.
 - [ ] A stored draft whose re-hash differs from its stored hash is refused before the Gate.
 - [ ] A grant without `gmail.compose` gives `needs_human` (`scope_missing`) and no request.
-- [ ] Two runs for one approval make one draft. After an unknown outcome, a marked draft in the
-      thread is found and no second draft is made.
+- [ ] Two runs for one approval make one draft. A run that finds another run's claim still live
+      creates nothing (`InProgress`). After an unknown outcome, a marked draft in the thread is
+      found and no second draft is made.
+- [ ] An undo-window refusal says when to come back (`retryAt`).
 - [ ] The message holds exactly the approved To, Subject, thread headers and body, plus the marker.
       A header value with a line break is refused.
 - [ ] The allowlist refuses every other method, URL and body shape.
 - [ ] The kill switch and the breaker hold a call back, and Gmail's 429/5xx counts against the
       breaker while a 4xx doesn't.
 - [ ] Boundary test: no file under `src/mail/` names a send, update or delete call on drafts or
-      messages. No file outside `src/mail/` imports `drafts.ts`, `message.ts` or `access.ts`
-      directly.
+      messages. No file outside `src/mail/` imports `drafts.ts`, `message.ts` or `access.ts` (the
+      package entry may export the token type from `access.ts`), and only `drafts.ts` reads the
+      token back (`bearerOf`). The token has no public accessor.
 - [ ] `pnpm turbo run lint typecheck test build` is green.
 
 ## Failure modes
@@ -93,4 +102,8 @@ writer itself, as a Mail Gateway module.
   ids, and the thread read after an unknown outcome gives the message id, so one id works for both
   paths.
 - The gateway takes its ports as an interface (`MailPorts`). The database adapter comes with the
-  ledger.
+  ledger, which must give `in_progress` for a claim younger than its lease (longer than the 30 s
+  request timeout) and `unknown` after it.
+- The diff is over ~300 lines: about 500 lines of code plus tests. It stays one slice because
+  the token type, allowlist, message builder and entry point only make sense together, and the
+  boundary test covers them as one unit.

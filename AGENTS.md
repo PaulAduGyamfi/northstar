@@ -274,8 +274,21 @@ Exists now:
     (`NUDGE_SENTENCES`, no claims; the greeting only from the From header's own name), refuses a
     no-reply recipient, and `fileReplyDraft` files it like any reply. A company that goes quiet
     after Paul's reply isn't nudged yet (one live reply per message).
-  No caller or Gmail draft writer yet. ADR-0025 (Accepted) decides the
-  `gmail.compose` scope for drafts, which are never sent.
+  Since slice 4 also the Gmail draft writer (ADR-0025, Accepted), a Mail Gateway module in
+  `packages/gateways/src/mail/`. `writeReplyDraft` works in this order:
+  - It reads the stored `reply_draft`, re-hashes it (`replyContentSha256`) and calls
+    `verifyApproval` (`email_reply`, `replySubject`).
+  - A grant without `gmail.compose` gives `needs_human` (`scope_missing`).
+  - It claims the decision in a ledger port. Another run's live claim is the `InProgress` refusal,
+    and an undo-window refusal carries `retryAt`. After an unknown outcome it looks for a `DRAFT` in
+    the thread carrying `X-Northstar-Approval: <decision id>` before calling `drafts.create`, the
+    one Gmail write, so one approval makes one draft.
+
+  Its token is its own type, `GmailComposeAccess`, with no public accessor: only `drafts.ts` reads
+  it back (`bearerOf`). Every request passes a runtime allowlist, the
+  `gmail_drafts` kill switch and the `gmail` breaker. `src/mail/drafts.ts` is never imported from
+  outside `src/mail/`, and nothing there names a send, update or delete (a boundary test). It
+  never sends. No database ledger (it needs a migration), consent flow or caller yet.
 - Factual answers (NS-141, ANS-001) from Paul's profile settings, plain code, no model:
   `profile_setting` in `packages/db` (`settings-write.ts`: `setProfileSetting`,
   `readProfileSettings`, `recordFactualAnswer`; append-only, newest wins, setting the same value
