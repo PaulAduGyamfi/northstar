@@ -8,6 +8,7 @@ import {
   isSubsystemOn,
   listApplications,
   listConsentRecords,
+  listJobs,
   listOpenDeadLetters,
   listOpenHandoffs,
   listPasskeys,
@@ -71,6 +72,7 @@ import { accountsEndpoints } from "./accounts.js";
 import { dbApprovalPorts } from "./approval-ports.js";
 import { approvalEndpoints } from "./approvals.js";
 import { captureEndpoint } from "./capture.js";
+import { careerDirectionsEndpoints, directionJobs } from "./career-directions.js";
 import { careerDnaEndpoints } from "./career-dna.js";
 import { careerDnaWording } from "./career-dna-wording.js";
 import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
@@ -257,9 +259,29 @@ try {
   });
   // The Career DNA page (NS-130 slice 8): the stored history, read-only, and the report's own
   // diff wording and dimension names from packages/profile (career-dna-wording.ts).
+  const wording = careerDnaWording();
   const careerDna = careerDnaEndpoints({
     history: async () => readCareerDnaHistory(db, await candidateId()),
-    ...careerDnaWording(),
+    ...wording,
+  });
+  // Directions and evidence gaps on the same page (NS-130 slice 9): the Fit Score's readers, the
+  // newest report's dimensions the rubric still names, and Paul's growth tracks. Read-only.
+  const careerDirections = careerDirectionsEndpoints({
+    profile: async () => readScoringProfile(db, await candidateId()),
+    jobs: async () => {
+      const id = await candidateId();
+      const [scorable, listed] = await Promise.all([readScorableJobs(db, id), listJobs(db, id)]);
+      return directionJobs(scorable, listed);
+    },
+    dimensions: async () => {
+      const [newest] = await readCareerDnaHistory(db, await candidateId());
+      return (newest?.dimensions ?? []).flatMap((d) => {
+        const label = wording.labelOf(d.key);
+        return label === null ? [] : [{ ...d, label }];
+      });
+    },
+    tracks: async () => (await readGrowthTracks(db, await candidateId()))?.tracks ?? [],
+    now: () => new Date(),
   });
   // One set of sessions for the sign-in key and passkeys, so both open the same kind of session
   // and their failures count toward one throttle (ADR-0022).
@@ -302,6 +324,7 @@ try {
       ...inbox,
       ...growth,
       ...careerDna,
+      ...careerDirections,
       ...deadLetters,
       ...spend,
       ...passkeys,

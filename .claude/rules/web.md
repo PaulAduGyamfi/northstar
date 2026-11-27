@@ -79,3 +79,7 @@ are CSS variables in `apps/web/app/globals.css`.
   dimension's band in words with its evidence count (`dimensionRow`) and what changed
   (`changeSummary`). The report holds scores and counts only: never fetch or show atom or story
   text or ids on it.
+  Since slice 9 its "Directions" and "Proof to build" sections (`src/career-directions.ts`:
+  `directionRow`, `gapLine`) come from `GET /career-dna/directions`, read apart from the report so
+  either can fail alone. Role and requirement text comes from job postings: shown as text only,
+  already cleaned by the API's `postingText`.
