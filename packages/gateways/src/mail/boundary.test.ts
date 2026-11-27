@@ -12,6 +12,11 @@ const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 const MAIL_DIR = "packages/gateways/src/mail/";
 const LOCAL_ONLY = ["data", "private", "exports", "build", "coverage"];
 
+// The tests below that read every source file in the repository get their own time limit
+// (NS-258): alone they take well under a second, but CI runs every package's tests at once and
+// one walk took 5,025 ms against vitest's 5,000 ms default. A slow disk, not a slow check.
+const REPO_WALK_TIMEOUT_MS = 30_000;
+
 // Every TypeScript and JavaScript source in the repo, skipping builds, dependencies, dot folders
 // and Paul's gitignored local folders.
 async function sources(dir: string): Promise<string[]> {
@@ -54,21 +59,25 @@ const WRITES_BEYOND_CREATE = [
 ];
 
 describe("the draft writer's boundary (ADR-0025 item 4)", () => {
-  it("no file outside src/mail/ imports its Gmail requests, message builder or token module", async () => {
-    const found: string[] = [];
-    for (const file of await sources(repoRoot)) {
-      const path = rel(file);
-      // The package entry exports the token type (from access.ts) for the coming consent flow.
-      if (path.startsWith(MAIL_DIR)) continue;
-      const text = await readFile(file, "utf8");
-      const matches = text.match(new RegExp(IMPORTS_PRIVATE, "g")) ?? [];
-      // The package entry exports the token type and the consent flow's public entry point only.
-      const allowed = path === "packages/gateways/src/index.ts";
-      if (matches.some((m) => !(allowed && /mail\/(access|consent)(\.js)?["']$/.test(m))))
-        found.push(path);
-    }
-    expect(found).toEqual([]);
-  });
+  it(
+    "no file outside src/mail/ imports its Gmail requests, message builder or token module",
+    async () => {
+      const found: string[] = [];
+      for (const file of await sources(repoRoot)) {
+        const path = rel(file);
+        // The package entry exports the token type (from access.ts) for the coming consent flow.
+        if (path.startsWith(MAIL_DIR)) continue;
+        const text = await readFile(file, "utf8");
+        const matches = text.match(new RegExp(IMPORTS_PRIVATE, "g")) ?? [];
+        // The package entry exports the token type and the consent flow's public entry point only.
+        const allowed = path === "packages/gateways/src/index.ts";
+        if (matches.some((m) => !(allowed && /mail\/(access|consent)(\.js)?["']$/.test(m))))
+          found.push(path);
+      }
+      expect(found).toEqual([]);
+    },
+    REPO_WALK_TIMEOUT_MS,
+  );
 
   it("no code under src/mail/ names a send, update or delete on Gmail drafts or messages", async () => {
     const found: string[] = [];
@@ -111,32 +120,40 @@ describe("the draft writer's boundary (ADR-0025 item 4)", () => {
     expect(found).toEqual([]);
   });
 
-  it("no code outside tests replaces the global fetch, which sees the compose token's requests", async () => {
-    // The writer's requests go through the global fetch, so code in the same process that swaps it
-    // could read the token (review of NS-237 slice 5). Only tests may stand a fake in for it.
-    const PATCHES = [
-      /globalThis\.fetch\s*=(?!=)/,
-      /stubGlobal\(\s*["'`]fetch["'`]/,
-      /defineProperty\(\s*globalThis\s*,\s*["'`]fetch["'`]/,
-    ];
-    const found: string[] = [];
-    for (const file of await sources(repoRoot)) {
-      const path = rel(file);
-      if (/\.test\.[a-z]+$/.test(path) || path.includes("/test/")) continue;
-      const code = withoutComments(await readFile(file, "utf8"));
-      for (const pattern of PATCHES) if (pattern.test(code)) found.push(`${path}: ${pattern}`);
-    }
-    expect(found).toEqual([]);
-  });
+  it(
+    "no code outside tests replaces the global fetch, which sees the compose token's requests",
+    async () => {
+      // The writer's requests go through the global fetch, so code in the same process that swaps it
+      // could read the token (review of NS-237 slice 5). Only tests may stand a fake in for it.
+      const PATCHES = [
+        /globalThis\.fetch\s*=(?!=)/,
+        /stubGlobal\(\s*["'`]fetch["'`]/,
+        /defineProperty\(\s*globalThis\s*,\s*["'`]fetch["'`]/,
+      ];
+      const found: string[] = [];
+      for (const file of await sources(repoRoot)) {
+        const path = rel(file);
+        if (/\.test\.[a-z]+$/.test(path) || path.includes("/test/")) continue;
+        const code = withoutComments(await readFile(file, "utf8"));
+        for (const pattern of PATCHES) if (pattern.test(code)) found.push(`${path}: ${pattern}`);
+      }
+      expect(found).toEqual([]);
+    },
+    REPO_WALK_TIMEOUT_MS,
+  );
 
-  it("only src/mail/drafts.ts reads the compose token back (bearerOf)", async () => {
-    const found: string[] = [];
-    for (const file of await sources(repoRoot)) {
-      const path = rel(file);
-      if (path === `${MAIL_DIR}drafts.ts` || path === `${MAIL_DIR}access.ts`) continue;
-      if (path === `${MAIL_DIR}boundary.test.ts`) continue;
-      if (/\bbearerOf\b/.test(await readFile(file, "utf8"))) found.push(path);
-    }
-    expect(found).toEqual([]);
-  });
+  it(
+    "only src/mail/drafts.ts reads the compose token back (bearerOf)",
+    async () => {
+      const found: string[] = [];
+      for (const file of await sources(repoRoot)) {
+        const path = rel(file);
+        if (path === `${MAIL_DIR}drafts.ts` || path === `${MAIL_DIR}access.ts`) continue;
+        if (path === `${MAIL_DIR}boundary.test.ts`) continue;
+        if (/\bbearerOf\b/.test(await readFile(file, "utf8"))) found.push(path);
+      }
+      expect(found).toEqual([]);
+    },
+    REPO_WALK_TIMEOUT_MS,
+  );
 });

@@ -11,6 +11,11 @@ import * as gateways from "../index.js";
 const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 const LOCAL_ONLY = ["data", "private", "exports", "build", "coverage"];
 
+// The tests below that read every source file in the repository get their own time limit
+// (NS-258): alone they take well under a second, but CI runs every package's tests at once and
+// one walk took 5,025 ms against vitest's 5,000 ms default. A slow disk, not a slow check.
+const REPO_WALK_TIMEOUT_MS = 30_000;
+
 // Every TypeScript and JavaScript source in the repo, skipping builds, dependencies and dot
 // folders (NS-245: the whole tree, so a file in a new top-level folder can't slip past).
 async function sources(dir: string): Promise<string[]> {
@@ -68,70 +73,96 @@ const REVEAL = /\b(revealTenantPassword|dbRevealPorts|revealSealedSecret|approve
 const SEALED_ROWS = /\bvaultSecret\b|\bvault_secret\b(?![.:])/;
 
 describe("the vault's decrypt boundary (CRD-002)", () => {
-  it("no file outside packages/gateways/src imports the decrypt module", async () => {
-    const found = await offenders(IMPORTS_OPEN, (rel) => rel.startsWith("packages/gateways/src/"));
-    expect(found).toEqual([]);
-  });
+  it(
+    "no file outside packages/gateways/src imports the decrypt module",
+    async () => {
+      const found = await offenders(IMPORTS_OPEN, (rel) =>
+        rel.startsWith("packages/gateways/src/"),
+      );
+      expect(found).toEqual([]);
+    },
+    REPO_WALK_TIMEOUT_MS,
+  );
 
-  it("only src/vault/open.ts calls createDecipheriv", async () => {
-    const found = await offenders(
-      DECRYPT,
-      (rel) => rel === `${VAULT_DIR}open.ts` || rel === `${VAULT_DIR}boundary.test.ts`,
-    );
-    expect(found).toEqual([]);
-  });
+  it(
+    "only src/vault/open.ts calls createDecipheriv",
+    async () => {
+      const found = await offenders(
+        DECRYPT,
+        (rel) => rel === `${VAULT_DIR}open.ts` || rel === `${VAULT_DIR}boundary.test.ts`,
+      );
+      expect(found).toEqual([]);
+    },
+    REPO_WALK_TIMEOUT_MS,
+  );
 
-  it("only the vault's key, seal and open modules read the master key's bytes", async () => {
-    const allowed = ["key.ts", "seal.ts", "open.ts"].map((f) => VAULT_DIR + f);
-    const found = await offenders(KEY_BYTES, (rel) => allowed.includes(rel) || isVaultTest(rel));
-    expect(found).toEqual([]);
-  });
+  it(
+    "only the vault's key, seal and open modules read the master key's bytes",
+    async () => {
+      const allowed = ["key.ts", "seal.ts", "open.ts"].map((f) => VAULT_DIR + f);
+      const found = await offenders(KEY_BYTES, (rel) => allowed.includes(rel) || isVaultTest(rel));
+      expect(found).toEqual([]);
+    },
+    REPO_WALK_TIMEOUT_MS,
+  );
 
-  it("only the vault's write path in packages/db reads sealed rows", async () => {
-    const allowed = ["vault-schema.ts", "vault-write.ts", "vault.test.ts"].map(
-      (f) => `packages/db/src/${f}`,
-    );
-    const found = await offenders(
-      SEALED_ROWS,
-      (rel) => allowed.includes(rel) || rel === `${VAULT_DIR}boundary.test.ts`,
-    );
-    expect(found).toEqual([]);
-  });
+  it(
+    "only the vault's write path in packages/db reads sealed rows",
+    async () => {
+      const allowed = ["vault-schema.ts", "vault-write.ts", "vault.test.ts"].map(
+        (f) => `packages/db/src/${f}`,
+      );
+      const found = await offenders(
+        SEALED_ROWS,
+        (rel) => allowed.includes(rel) || rel === `${VAULT_DIR}boundary.test.ts`,
+      );
+      expect(found).toEqual([]);
+    },
+    REPO_WALK_TIMEOUT_MS,
+  );
 
   // Paul's reveal (NS-182, ADR-0024) makes and uses its own approval, so whoever can call it can
   // reveal. Its only caller is the API's reveal route, after a fresh passkey check (NS-230,
   // added with Paul's approval); nothing else outside the vault and its tests may name it.
-  it("only the vault's own files name the reveal path", async () => {
-    const allowed = [
-      "packages/db/src/vault-write.ts",
-      "packages/db/src/approval-write.ts",
-      "packages/db/src/index.ts",
-      "packages/db/src/vault-reveal.test.ts",
-      `${VAULT_DIR}reveal.ts`,
-      `${VAULT_DIR}reveal-db.test.ts`,
-      `${VAULT_DIR}boundary.test.ts`,
-      "packages/gateways/src/index.ts",
-      // The one API file: it checks the session, a passkey assertion made within a minute, the
-      // vault switch and the rate limit before it calls revealTenantPassword.
-      "apps/api/src/vault-reveal.ts",
-    ];
-    const found = await offenders(REVEAL, (rel) => allowed.includes(rel));
-    expect(found).toEqual([]);
-  });
+  it(
+    "only the vault's own files name the reveal path",
+    async () => {
+      const allowed = [
+        "packages/db/src/vault-write.ts",
+        "packages/db/src/approval-write.ts",
+        "packages/db/src/index.ts",
+        "packages/db/src/vault-reveal.test.ts",
+        `${VAULT_DIR}reveal.ts`,
+        `${VAULT_DIR}reveal-db.test.ts`,
+        `${VAULT_DIR}boundary.test.ts`,
+        "packages/gateways/src/index.ts",
+        // The one API file: it checks the session, a passkey assertion made within a minute, the
+        // vault switch and the rate limit before it calls revealTenantPassword.
+        "apps/api/src/vault-reveal.ts",
+      ];
+      const found = await offenders(REVEAL, (rel) => allowed.includes(rel));
+      expect(found).toEqual([]);
+    },
+    REPO_WALK_TIMEOUT_MS,
+  );
 
   // The API holds a session for Paul, so anything there that reaches the gateways package is one
   // step from the reveal path. Only the reveal route, its test and bin.ts (which wires the key
   // loader into it) may import it (NS-245); the rest of the API talks to packages/db.
-  it("only the reveal route, its test and bin.ts import @northstar/gateways in apps/api", async () => {
-    const allowed = ["vault-reveal.ts", "vault-reveal.test.ts", "bin.ts"].map(
-      (f) => `apps/api/src/${f}`,
-    );
-    const found = await offenders(
-      IMPORTS_GATEWAYS,
-      (rel) => !rel.startsWith("apps/api/") || allowed.includes(rel),
-    );
-    expect(found).toEqual([]);
-  });
+  it(
+    "only the reveal route, its test and bin.ts import @northstar/gateways in apps/api",
+    async () => {
+      const allowed = ["vault-reveal.ts", "vault-reveal.test.ts", "bin.ts"].map(
+        (f) => `apps/api/src/${f}`,
+      );
+      const found = await offenders(
+        IMPORTS_GATEWAYS,
+        (rel) => !rel.startsWith("apps/api/") || allowed.includes(rel),
+      );
+      expect(found).toEqual([]);
+    },
+    REPO_WALK_TIMEOUT_MS,
+  );
 
   it("the gateways import check would catch each way to import it", () => {
     expect([
