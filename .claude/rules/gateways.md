@@ -37,6 +37,10 @@ without amending ADR-0031. Since slice 4 its one entry point is `writePrepPlan`
 `verifyApproval` first, withdraws by `gateway` on a reschedule, and claims the decision before the
 first Google call. Event ids come only from `prepEventId`, and the calendar id only from the
 stored row, the marker lookup or `createCalendar`, never from a caller.
+Its one caller is `funnel prep` (NS-241 slice 5, `packages/funnel`). That command asks consent
+only when an approved plan is waiting, keeps the token in that run's closure, and passes only
+`readApprovedPrepPlans`' ids. Never hand the writer's token to the read-only Calendar client or
+store it.
 Other gateways (GitHub) don't exist yet: if you are about to create one outside its ticket, stop
 and ask Paul.
 The Gmail label writer (NS-229, `packages/inbox/src/labels/`, ADR-0027 **Rejected**: no caller,

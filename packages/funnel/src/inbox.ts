@@ -21,7 +21,9 @@ export const MAX_POLLS = 3;
 export const MAX_CLASSIFY = 25;
 
 export type LetterRow = { idempotencyKey: string; action: "retry" | "skip" | "hand_off" | null };
-export type LetterKind = "mail.poll" | "mail.classify" | "mail.grade";
+// `calendar.prep_write` (NS-241 slice 5, `funnel prep`) keys its letters by the approval's
+// decision id the same way: `<kind>:<id>:<n>`.
+export type LetterKind = "mail.poll" | "mail.classify" | "mail.grade" | "calendar.prep_write";
 
 // What the stored letters say about each message: pass it over unless Paul sent its newest letter
 // back with Retry (an open letter, Skip and Hand off all keep it out), and how many letters it has,

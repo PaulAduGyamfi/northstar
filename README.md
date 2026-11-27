@@ -36,8 +36,8 @@ One system that **finds jobs, applies to them, runs your inbox, and keeps your p
 | [packages/profile/](packages/profile/) | Resume import, stories, tailoring, audit, answers, replies, voice, Career DNA |
 | [packages/inbox/](packages/inbox/) | Read-only Gmail and Calendar, mail linking, verification codes, interview detection |
 | [packages/pipeline/](packages/pipeline/) | Assembling an application package for the Approval Gate |
-| [packages/gateways/](packages/gateways/) | The only code that acts outward: Apply Gateway, browser form driver, Gmail drafts, Calendar prep blocks (not wired yet), vault |
-| [packages/funnel/](packages/funnel/) | The 9-month backfill and funnel report, and the one-shot calendar interview check (`funnel interviews`) and job-mail check (`funnel inbox`) |
+| [packages/gateways/](packages/gateways/) | The only code that acts outward: Apply Gateway, browser form driver, Gmail drafts, Calendar prep blocks, vault |
+| [packages/funnel/](packages/funnel/) | The 9-month backfill and funnel report, and the one-shot calendar interview check (`funnel interviews`), job-mail check (`funnel inbox`) and interview prep (`funnel prep`) |
 | [evals/](evals/) | Eval sets per LLM route, replayed in CI |
 
 ## Requirement index (user's numbered asks → docs)
@@ -84,7 +84,10 @@ interviews` (Google consent each run, no stored token) and wait for you on the I
 detection doesn't run on its own yet. New job mail is linked to your applications and sorted when
 you run `pnpm --filter @northstar/funnel funnel inbox` (Gmail consent each run, no stored token);
 it shows on the Inbox page. Recruiter emails are graded A–F in the same run once you turn on
-`RECRUITER_EXTRACT` (off by default). What each package does today is listed
+`RECRUITER_EXTRACT` (off by default). Prep for the interviews you confirmed is planned and sent to
+your Queue when you run `pnpm --filter @northstar/funnel funnel prep`; the next run adds the plans
+you approved to a Northstar calendar it creates (Google consent for that calendar only, each run,
+no stored token). It doesn't yet look at your other meetings when it plans. What each package does today is listed
 under "Layout" in [AGENTS.md](AGENTS.md).
 
 ## Getting started (local)

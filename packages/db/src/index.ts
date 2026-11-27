@@ -477,6 +477,12 @@ export {
   recordPrepWrite,
   saveNorthstarCalendar,
 } from "./prep-ledger-write.js";
+// The approved prep plans not yet written, for `funnel prep` (NS-241 slice 5).
+export {
+  APPROVED_PREP_LIMIT,
+  type ApprovedPrepPlan,
+  readApprovedPrepPlans,
+} from "./prep-plan-read.js";
 export * as prepPlanSchema from "./prep-plan-schema.js";
 export {
   type DetectionRef,

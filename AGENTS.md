@@ -685,7 +685,21 @@ Exists now:
     "Added 3 prep blocks to your Northstar calendar").
   - `calendar.prep_write` is a dead-letter kind for its caller.
 
-  No caller yet: the command Paul runs, with per-run consent, comes next.
+  Since slice 5 the caller is a command Paul runs, `funnel prep` (`packages/funnel`, `prep.ts`;
+  `@northstar/funnel` depends on `@northstar/gateways` for it). In one run it:
+  - proposes prep for each confirmed, upcoming interview with no proposal. It uses Paul's zone
+    and working hours (`loadPrepConfig`: `PREP_TIME_ZONE`, else `ALERT_TIME_ZONE`, and
+    `PREP_WORKING_HOURS`, default 09:00-17:00) and no busy time yet;
+  - files each proposal with `requestPrepPlanApproval`. A replay counts as already sent;
+  - writes the approved plans. Only then does it ask consent (`authorizeCalendarWrite`, in memory
+    for that run, #400). The plans come from `readApprovedPrepPlans` (`packages/db`,
+    `prep-plan-read.ts`: past the undo window, not undone, withdrawn or written; ids only, at
+    most 50). Each goes through `writePrepPlan` behind the stored switch and breaker;
+  - prints counts only.
+
+  A write that throws becomes a `calendar.prep_write` dead letter (`write_failed`,
+  `claims_exhausted`), passed over until Paul retries it. Google not answering stops the writing
+  with no letter.
 - Recruiter grading (NS-167, REC-001/002), slice 1:
   - The `recruiter-extract` route (`packages/inbox`, `src/recruiter/`) reads a recruiter email's
     stated facts: title, seniority, company, place, remote kind, pay range, agency or in-house,
@@ -1350,6 +1364,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/funnel funnel review` | place or discard the messages the backfill couldn't decide, with a link to each in Gmail. Paul only |
 | repo root | `pnpm --filter @northstar/funnel funnel interviews` | sign in to Google Calendar read-only (browser consent every run, no stored token), detect interviews in the next 30 days against open applications whose company domains you entered (`jobs domains`), store them for `/interviews` and print counts only. Safe to rerun. Paul only: his real calendar, needs `DATABASE_URL` and `GOOGLE_OAUTH_CLIENT_*`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel inbox` | sign in to Gmail read-only (browser consent every run, no stored token), link new job mail from the stored cursor (the first run reads 7 days back), sort up to 25 recorded emails with the rules or the `mail-classify` model behind its switch, breaker and the spend cap, grade up to 10 recruiter emails when `RECRUITER_EXTRACT=on` (off by default), and print counts only; emails that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real mail, needs `DATABASE_URL`, `GOOGLE_OAUTH_CLIENT_*` and `ANTHROPIC_API_KEY`; agents never run it |
+| repo root | `pnpm --filter @northstar/funnel funnel prep` | plan prep blocks for each confirmed, upcoming interview inside your working hours (`PREP_TIME_ZONE` or `ALERT_TIME_ZONE`, `PREP_WORKING_HOURS`), send each plan to your Queue, and, when one is approved, sign in to Google for your Northstar calendar only (browser consent that run, no stored token) and add its blocks once each; prints counts only, and plans that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real calendar, needs `DATABASE_URL` and `GOOGLE_OAUTH_CLIENT_*` with `calendar.app.created` on the consent screen; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel report` / `funnel hypotheses` | the funnel report and the hypothesis board. Paul only: they print his real applications; agents never run them |
 | repo root | `pnpm --filter @northstar/sources jobs add <url>` | add a job from a link: ATS API, then the page's JSON-LD, then the `job-extract` model (needs `ANTHROPIC_API_KEY` only then). A job without a title or company is stored as a draft. LinkedIn, Indeed and Glassdoor links are refused. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs add --text data/<file> --url <url>` | add a job from a description Paul saved himself (sign-in sites such as LinkedIn); nothing is fetched |
