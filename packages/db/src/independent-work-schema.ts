@@ -38,6 +38,9 @@ export const independentWorkSet = pgTable(
   ],
 );
 
+// Migration 0092 (NS-231 slice 5) adds CHECKs, NOT VALID, refusing the invisible characters the
+// parser refuses in a title, link or line (`*_no_invisible`). They live only in that custom migration:
+// Drizzle can't express NOT VALID.
 export const independentWorkEntry = pgTable(
   "independent_work_entry",
   {

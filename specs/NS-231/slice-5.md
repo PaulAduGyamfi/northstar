@@ -25,10 +25,10 @@ verbatim into tailored resumes and LinkedIn copy.
 - No new writer, event or grant: the tables exist; `northstar_grant_app_role()` isn't needed.
 
 ## Acceptance criteria
-- [ ] Inserting a title, link or line with any character the parser refuses fails on the CHECK.
-- [ ] Every code point the parser's pattern matches is refused by the database (test).
-- [ ] Ordinary text still stores.
-- [ ] `pnpm turbo run lint typecheck test build` passes in `packages/db` (and dependents typecheck).
+- [x] Inserting a title, link or line with any character the parser refuses fails on the CHECK.
+- [x] Every code point the parser's pattern matches is refused by the database (test).
+- [x] Ordinary text still stores.
+- [x] `pnpm turbo run lint typecheck test build` passes in `packages/db` (and dependents typecheck).
 
 ## Out of scope
 - The thesis surfaces; requiring every stored entry.
