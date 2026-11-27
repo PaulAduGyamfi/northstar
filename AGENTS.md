@@ -339,7 +339,15 @@ Exists now:
   and a 25 %+ share of a direction ask for (once each, from its largest share), skipping any an
   active or backlogged growth track names. Suggestions only: nothing writes a track.
 
-  No Profile Grade handoff, storage or share card yet; the share card waits on a Publish gateway
+  Since slice 4 also history (DNA-008): `careerDnaSnapshot` (`career-dna/history.ts`) turns a
+  report into a snapshot of each dimension's band, points, count and cited atom and story ids (never
+  text), stored as versions in append-only `career_dna_report` (`packages/db`,
+  `career-dna-write.ts`: `saveCareerDnaReport`, a new version only when it differs from the newest,
+  feed "Updated your Career DNA report"; `readCareerDnaHistory`, newest 20). `diffCareerDna` and
+  `changeLines` say in fixed sentences what changed: band crossings, points within a band, the label,
+  and evidence gained and lost. No caller rebuilds it on a profile change yet.
+
+  No Profile Grade handoff, page or share card yet; the share card waits on a Publish gateway
   ADR and Q-10.
 - The voice profile (NS-136, ANS-007/008) in `packages/profile/src/voice/`, plain code, no model:
   - `measureVoice` turns 5–10 writing samples into a style guide (sentence length, contractions,

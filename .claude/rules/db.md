@@ -259,6 +259,12 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   append-only (triggers), written only through `interview-write.ts`. Times, the format and a count
   only: never a title, description, address or name in a row, event or span. A decision never
   moves an application's status.
+- Career DNA reports (NS-130 slice 4, DNA-008) are `career_dna_report`, one row per version per
+  candidate (the highest is current), append-only (a trigger), written only through
+  `career-dna-write.ts` (`saveCareerDnaReport` locks the candidate row and stores a version only
+  when the snapshot's SHA-256 differs from the newest). A row is a snapshot of scores and cited atom
+  and story ids, checked by `CareerDnaSnapshot`: never atom or story text or the report's
+  sentences. `career_dna.saved` carries the row id, version and a dimension count only.
 - Verification windows (NS-151) are `verification_window`, `verification_window_restart` (one
   per window), `verification_window_close` (one per window) and `verification_used_message` (one
   per candidate and Gmail id), append-only (triggers), written only through

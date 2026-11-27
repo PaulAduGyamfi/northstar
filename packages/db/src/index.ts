@@ -123,6 +123,16 @@ export {
   recordCallOutcome,
 } from "./breaker-write.js";
 export { soleCandidate } from "./candidate.js";
+export * as careerDnaSchema from "./career-dna-schema.js";
+// Career DNA report history (NS-130 slice 4, DNA-008).
+export {
+  CAREER_DNA_HISTORY_LIMIT,
+  CareerDnaSnapshot,
+  readCareerDnaHistory,
+  type SaveCareerDnaError,
+  type StoredCareerDna,
+  saveCareerDnaReport,
+} from "./career-dna-write.js";
 // loadMigrationConfig (the owner's URL) is not exported: only src/migrate.ts reads it.
 export { type DbConfig, loadDbConfig } from "./config.js";
 export { connectDb } from "./connect.js";
