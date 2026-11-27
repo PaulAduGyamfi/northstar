@@ -43,6 +43,15 @@ export {
   questionConcepts,
   rankCanonical,
 } from "./question-match.js";
+// One rule for how a reused banked answer counts (NS-249 slice 3): producer and Gate share it.
+export {
+  isExactWording,
+  labelReuse,
+  REUSE_HIGH_CONFIDENCE,
+  type ReuseSource,
+  reuseStrength,
+  weakerReuse,
+} from "./question-reuse.js";
 export * from "./recruiter-grade.js";
 export * from "./recruiter-learn.js";
 export * from "./reply-draft.js";

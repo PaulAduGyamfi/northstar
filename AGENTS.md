@@ -1161,8 +1161,14 @@ Exists now:
   answerable field of the stored form whose value is exactly the newest version of Paul's banked
   answer, with only `{company}` filled by a plain short name, `isSafeCompany` in
   `packages/domain`). A package must name the job's own posting, Paul's stored contact and the
-  newest tailored PDF, or it is refused. Which question a verified answer belongs to, and its
-  exact/high split, are still the producer's. Since NS-249 (slice 1) `requestApproval` refuses
+  newest tailored PDF, or it is refused. Since NS-249 (slice 3) the Gate also checks which
+  question a verified answer belongs to and its exact/high split: `labelReuse` (`packages/domain`,
+  `question-reuse.ts`) matches the stored form label itself, so an answer counts only if the label's
+  match is that answer's own narrative question (never a negated label), and the claim counts no
+  more than that reading (`weakerReuse`). `packages/pipeline` uses the same rule
+  (`isExactWording`, `REUSE_HIGH_CONFIDENCE`). A wording with `{company}` counts as exact only for
+  an `isSafeCompany` name, and the Gate counts a label with invisible formatting characters,
+  modifier letters or Greek or Cyrillic letters as `new` (a disguised "not"). Since NS-249 (slice 1) `requestApproval` refuses
   facts from every caller (`InvalidRequest` on `facts`; its input says `facts: null`): a package
   filed there waits for Paul and, with no stored package, can't be submitted. Only
   `requestPackageApproval` passes facts, through `requestApprovalWithFacts`, which
