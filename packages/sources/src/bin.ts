@@ -43,7 +43,13 @@ import {
   loadLlmConfig,
 } from "@northstar/llm";
 import { sql } from "drizzle-orm";
-import { AlertSettingError, alertPass, loadAlertConfig, scoreThenAlert } from "./alerts.js";
+import {
+  AlertSettingError,
+  alertPass,
+  FRESH_MINUTES,
+  loadAlertConfig,
+  scoreThenAlert,
+} from "./alerts.js";
 import { readGreenhouseForm } from "./ats/greenhouse-form.js";
 import { main } from "./cli.js";
 import { scorePending } from "./fit/run.js";
@@ -108,17 +114,22 @@ try {
     Intl.DateTimeFormat().resolvedOptions().timeZone,
   );
   if (!alertConfig.ok) throw new AlertSettingError(alertConfig.setting);
-  const alerts = () =>
-    alertPass(
+  const alerts = () => {
+    // One clock for the pass: the read's window and every decision use the same now.
+    const now = new Date();
+    return alertPass(
       {
-        candidates: () => readAlertCandidates(db, candidateId),
+        // Only jobs that could still alert (NS-199): fresh ones and held ones.
+        candidates: () =>
+          readAlertCandidates(db, candidateId, new Date(now.getTime() - FRESH_MINUTES * 60_000)),
         watches: () => listWatches(db, candidateId),
         alert: (input) => recordFreshAlert(db, { ...input, candidateId }),
         hold: (input) => recordAlertHeld(db, { ...input, candidateId }),
       },
-      new Date(),
+      now,
       alertConfig.value,
     );
+  };
   // One scoring pass over the current preferences and resume import (NS-116), then the alert
   // pass over what it scored (NS-163).
   const scoreOnly = () =>
