@@ -52,11 +52,25 @@ const KINDS: Record<string, KindWords> = {
         "Nothing runs now. Check the application on the Pipeline and your email first: the run may already have sent it, or the job may have closed. Only if it wasn't sent, apply on the job's own page yourself.",
     },
   },
+  // NS-240: a detected interview the store refused. Resolving only records Paul's choice; the
+  // next calendar check reads the window again on its own.
+  "calendar.interview_detection": {
+    what: "Finding interviews on your calendar",
+    next: {
+      retry:
+        "Nothing runs now: the next calendar check looks again. An event that changed too many times stays out, and the daily limit clears after a day.",
+      skip: "Nothing more is done about this item. Later calendar checks still run.",
+      hand_off:
+        "Nothing runs now. Check your calendar for the interview yourself: an invite that keeps changing, or many at once, may not be from the company.",
+    },
+  },
 };
 
 const REASONS: Record<string, string> = {
   sweep_failed: "every attempt failed",
   activity_failed: "every attempt to run it failed",
+  too_many_changes: "one calendar event changed too many times",
+  daily_limit: "too many possible interviews in one day",
 };
 
 // Own keys only: a code such as "constructor" must not find Object's built-ins.

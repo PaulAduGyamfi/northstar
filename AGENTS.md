@@ -523,6 +523,16 @@ Exists now:
     different second decision or one on a replaced version. Neither moves a status.
   - `listInterviews` gives the current detections with their decisions.
 
+  Since NS-240 slice 4 also the run, `runInterviewDetection` (`packages/inbox`,
+  `src/interview/run.ts`, plain code with ports): it reads one window (now to now + 30 days,
+  `DETECTION_WINDOW_DAYS`) through `listEvents`, runs `detectInterview` against the open
+  applications and stores each interview through its `record` port (ids, format, times and the
+  interviewer count; the addresses stay in memory). A `TooManyChanges` refusal becomes one dead
+  letter per event and application, and `DailyLimit` one per day that also stops the run's
+  storing (kind `calendar.interview_detection`; keys hold a SHA-256 prefix of the event id). It
+  returns counts on a `calendar.detect` span; a failed read, store or letter stops it
+  (`stoppedBy`). No company domains are stored yet (#313), so it matches nothing until they are.
+
   No caller, API or page yet.
 - Interview prep (NS-170, CAL-003/004), slice 1, plain code in `packages/domain`
   (`interview-prep.ts`): `planPrepBlocks` proposes CAL-003's default prep for one interview, two
@@ -698,7 +708,7 @@ Exists now:
   as Paul; `apps/api/src/dead-letters.ts`), and "Stuck work" on `/health` with Retry, Skip and
   Hand off buttons that say what happens next (`src/dead-letters.ts`). Since NS-236
   `recordDeadLetter` takes only a kind on `DEAD_LETTER_KINDS` (`apply.stale_sweep`,
-  `apply.submission`); a new producer adds its own.
+  `apply.submission`, `calendar.interview_detection`); a new producer adds its own.
 - Health and feed (NS-125, RES-013, OBS-002): `systemHealth` (`packages/domain`, `health.ts`)
   turns breakers, kill switches and board watches into `healthy / degraded / down` per subsystem
   with a plain reason, and `feedLine` (`feed.ts`) turns an event into one plain sentence from

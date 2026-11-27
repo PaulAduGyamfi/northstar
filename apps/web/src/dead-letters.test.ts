@@ -64,6 +64,31 @@ describe("nextStep", () => {
     ]);
   });
 
+  it("names a refused interview detection and both of its reasons", () => {
+    const detection = { ...ITEM, kind: "calendar.interview_detection", attempts: 1 };
+    expect([
+      letterLine({ ...detection, reasonCode: "too_many_changes" }),
+      letterLine({ ...detection, reasonCode: "daily_limit" }),
+    ]).toEqual([
+      {
+        what: "Finding interviews on your calendar",
+        why: "Stopped after 1 attempt: one calendar event changed too many times",
+      },
+      {
+        what: "Finding interviews on your calendar",
+        why: "Stopped after 1 attempt: too many possible interviews in one day",
+      },
+    ]);
+  });
+
+  it("says what happens next for every action on an interview detection, without claiming a rerun now", () => {
+    expect(DEAD_LETTER_ACTIONS.map((a) => nextStep("calendar.interview_detection", a))).toEqual([
+      "Nothing runs now: the next calendar check looks again. An event that changed too many times stays out, and the daily limit clears after a day.",
+      "Nothing more is done about this item. Later calendar checks still run.",
+      "Nothing runs now. Check your calendar for the interview yourself: an invite that keeps changing, or many at once, may not be from the company.",
+    ]);
+  });
+
   it("falls back to plain words for a kind it doesn't know", () => {
     expect(nextStep("other.kind", "retry")).toBe("Sent back to be tried again.");
   });
