@@ -173,7 +173,8 @@ WRAPPER_ARG = re.compile(r"^(-.*|[0-9.]+[smhd]?)$")  # timeout 5s, nice -n 10, e
 OPERATOR = set(";&|()\n")
 ALL = {"docker", "gh", "push"}
 # NS-132: options before git's or gh's subcommand that take the next word as their value.
-GIT_ARG_OPTS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+GIT_ARG_OPTS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path",
+                "--attr-source", "--super-prefix", "--config-env", "--list-cmds"}
 GH_ARG_OPTS = {"-R", "--repo", "--hostname"}
 GH_UNSANDBOXED = {"pr", "issue", "run"}
 
