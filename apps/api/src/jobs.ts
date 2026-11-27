@@ -1,4 +1,4 @@
-import type { JobListItem, ScorableJob } from "@northstar/db";
+import type { FitWhy, JobListItem, ScorableJob } from "@northstar/db";
 import { ageHours, freshness, queueScore, roleFamily } from "@northstar/sources";
 import { z } from "zod";
 import { POSTING_TEXT_MAX, postingText } from "./career-directions.js";
@@ -8,10 +8,14 @@ import { type AnyEndpoint, endpoint } from "./endpoint.js";
 // code: ready jobs whose posting isn't known to be closed, in the queue's own order (freshness ×
 // fit), each with what the page shows and no more. bin.ts wires the readers; tests fake them.
 // Titles, companies and places come from postings (untrusted): they pass postingText. No
-// description, requirement or atom leaves the API.
+// description or atom leaves the API. Since slice 11 each job's `why` (UX-014) adds check codes,
+// must-have counts and at most WHY_MISSING_MAX unmatched must-haves, in the posting's own words
+// through postingText; never a matched requirement, an atom id or text, or Paul's dealbreaker.
 
 // The page lists at most this many jobs: the freshest, best-fitting first.
 export const JOBS_PAGE_MAX = 100;
+// A job's why lists at most this many unmatched must-haves: the first ones the posting names.
+export const WHY_MISSING_MAX = 5;
 
 export type JobsPorts = {
   // Every job with its newest fit score (listJobs).
@@ -31,6 +35,8 @@ export type JobsPorts = {
   >;
   // Ready jobs whose posting isn't known to be closed (readScorableJobs), with their remote kind.
   open: () => Promise<Pick<ScorableJob, "id" | "remote">[]>;
+  // Each listed job's newest score's components and evidence (readFitWhy), at most 100 ids.
+  why: (jobIds: string[]) => Promise<Map<string, FitWhy>>;
   now: () => Date;
 };
 
@@ -66,6 +72,19 @@ const Job = z.object({
     })
     .nullable(),
   url: z.string().nullable(),
+  // Why the score is what it is (slice 11), or null when the job has no readable evidence.
+  why: z
+    .object({
+      title: z.enum(["exact", "partial", "none", "unknown"]),
+      // The job names a level Paul's seniority list doesn't include.
+      levelMismatch: z.boolean(),
+      pay: z.enum(["ok", "below", "unknown"]),
+      place: z.enum(["ok", "mismatch", "unknown"]),
+      mustHave: z.object({ matched: z.number().int(), total: z.number().int() }),
+      missing: z.array(z.string()),
+      dealbreaker: z.boolean(),
+    })
+    .nullable(),
 });
 
 const Output = z.object({ role: z.string().nullable(), jobs: z.array(Job), more: z.boolean() });
@@ -74,6 +93,47 @@ const Output = z.object({ role: z.string().nullable(), jobs: z.array(Job), more:
 const REASON = /^[a-z_]{1,40}(:[A-Za-z]{1,40})?$/;
 
 const text = (s: string | null): string | null => (s === null ? null : postingText(s) || null);
+
+// The stored evidence's shape (packages/sources, fit/score.ts Evidence), read leniently: extra
+// fields (atom ids, model stamps) are dropped here and never reach the answer.
+const Requirement = z.object({ requirement: z.string(), kind: z.enum(["must", "nice"]) });
+const StoredEvidence = z.object({
+  matched: z.array(Requirement),
+  unmatched: z.array(Requirement),
+  title: z.object({
+    status: z.enum(["exact", "partial", "none", "unknown"]),
+    levelMismatch: z.boolean(),
+  }),
+  pay: z.object({ status: z.enum(["ok", "below", "unknown"]) }),
+  place: z.object({ status: z.enum(["ok", "mismatch", "unknown"]) }),
+  dealbreaker: z.string().nullable(),
+});
+
+type Why = z.infer<typeof Job>["why"];
+
+// One job's why, field by field from its stored evidence; null when it doesn't parse (an older
+// score's shape), so the page shows the score without a why rather than a wrong one.
+export function jobWhy(stored: FitWhy | undefined): Why {
+  if (!stored) return null;
+  const parsed = StoredEvidence.safeParse(stored.evidence);
+  if (!parsed.success) return null;
+  const e = parsed.data;
+  const must = (r: { kind: string }) => r.kind === "must";
+  const matched = e.matched.filter(must).length;
+  const unmatched = e.unmatched.filter(must);
+  return {
+    title: e.title.status,
+    levelMismatch: e.title.levelMismatch,
+    pay: e.pay.status,
+    place: e.place.status,
+    mustHave: { matched, total: matched + unmatched.length },
+    missing: unmatched
+      .map((r) => postingText(r.requirement))
+      .filter((r) => r !== "")
+      .slice(0, WHY_MISSING_MAX),
+    dealbreaker: e.dealbreaker !== null,
+  };
+}
 
 export function jobsEndpoints(ports: JobsPorts): AnyEndpoint[] {
   const list = endpoint({
@@ -109,11 +169,19 @@ export function jobsEndpoints(ports: JobsPorts): AnyEndpoint[] {
         })
         // Best first; equal scores keep the freshest first.
         .sort((a, b) => b.order - a.order || a.age - b.age);
+      const shown = ranked.slice(0, JOBS_PAGE_MAX);
+      let whys = new Map<string, FitWhy>();
+      try {
+        whys = await ports.why(shown.filter(({ j }) => j.fit !== null).map(({ j }) => j.id));
+      } catch {
+        // The list still answers; each job shows its score without a why.
+        whys = new Map();
+      }
       return {
         ok: true,
         body: {
           role: role ?? null,
-          jobs: ranked.slice(0, JOBS_PAGE_MAX).map(({ j, age }, i) => ({
+          jobs: shown.map(({ j, age }, i) => ({
             rank: i + 1,
             title: text(j.title),
             company: text(j.company),
@@ -130,6 +198,7 @@ export function jobsEndpoints(ports: JobsPorts): AnyEndpoint[] {
                 }
               : null,
             url: postingLink(j.url),
+            why: j.fit ? jobWhy(whys.get(j.id)) : null,
           })),
           more: ranked.length > JOBS_PAGE_MAX,
         },

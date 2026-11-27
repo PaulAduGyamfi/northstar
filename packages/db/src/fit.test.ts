@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "./db.js";
 import { fitScore, searchPreference } from "./fit-schema.js";
+import { FIT_WHY_MAX, readFitWhy } from "./fit-why-read.js";
 import {
   type FitScoreInput,
   PREFERENCE_DEFAULTS,
@@ -234,6 +235,40 @@ describe("fit scores", () => {
     expect((await db.select().from(fitScore)).length).toBe(1);
     const events = await db.select().from(domainEvent).where(eq(domainEvent.type, "job.scored"));
     expect(events.length).toBe(1);
+  });
+
+  it("reads each job's newest score's components and evidence for the jobs page's why", async () => {
+    const older = { matched: [], unmatched: [{ requirement: "Go", kind: "must" }] };
+    const newer = { matched: [], unmatched: [{ requirement: "Rust", kind: "must" }] };
+    await saveFitScore(db, {
+      ...scoreInput(jobId, preferenceId, sourceId, { evidence: older }),
+      candidateId,
+      now: NOW,
+    });
+    await saveFitScore(db, {
+      ...scoreInput(jobId, preferenceId, sourceId, { jobFingerprint: FP_B, evidence: newer }),
+      candidateId,
+      now: new Date(NOW.getTime() + 60_000),
+    });
+    const why = await readFitWhy(db, { candidateId, jobIds: [jobId] });
+    expect([...why.entries()]).toEqual([
+      [
+        jobId,
+        {
+          components: { title: 1, mustHave: 1, niceToHave: null, preference: 0.5 },
+          evidence: newer,
+        },
+      ],
+    ]);
+  });
+
+  it("reads nothing for another candidate's job and refuses more than 100 ids", async () => {
+    await saveFitScore(db, { ...scoreInput(jobId, preferenceId, sourceId), candidateId, now: NOW });
+    const [other] = await db.insert(candidate).values({ displayName: "Other" }).returning();
+    const otherId = CandidateId.parse(other?.id);
+    expect((await readFitWhy(db, { candidateId: otherId, jobIds: [jobId] })).size).toBe(0);
+    const ids = Array.from({ length: FIT_WHY_MAX + 1 }, () => randomUUID());
+    await expect(readFitWhy(db, { candidateId, jobIds: ids })).rejects.toThrow("too many job ids");
   });
 
   it("stores a new score when the job's fingerprint changes", async () => {

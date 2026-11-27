@@ -91,7 +91,10 @@ are CSS variables in `apps/web/app/globals.css`.
   posting link only through `safeHref` (new tab, `noopener noreferrer`), and its fit reason in
   words through `reasonWords` (UX-014; an unknown code is left out, never shown raw). The order and
   the role filter are the API's (`GET /jobs`), never the browser's. Titles, companies and places
-  come from postings: text only.
+  come from postings: text only. Since slice 11 each job's why shows under its score through
+  `whyLines` (codes in words, an unknown one left out): the checks, must-haves backed of total and
+  the unmatched must-haves the API sends. Never show which atom backs a requirement or Paul's
+  dealbreaker words on the page; `jobs why <id>` keeps those.
 - Interviews (NS-240 slice 5, `/interviews`, `src/interviews.ts`, linked from Today) shows each
   detection in words (`interviewRow`): the format, the job's own title and company, the time and
   an interviewer count, never an invite's title, an address or a name. A waiting one reads "Not

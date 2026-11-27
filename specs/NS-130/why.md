@@ -1,6 +1,6 @@
 # NS-130 slice 11: the "why" for each job on /jobs
 
-Status: in progress
+Status: in review (PR)
 Requirements: UX-014 (every score has a why), MAT-003 (fit bands), DNA-004 (directions link here)
 Rules that apply: `.claude/rules/web.md`, `.claude/rules/db.md`, `.claude/rules/tests.md`
 
@@ -28,13 +28,13 @@ every score.
   experience: Kubernetes, Terraform"). An unknown code is left out, never shown raw.
 
 ## Acceptance criteria
-- [ ] `readFitWhy` returns the newest score's components and evidence per job and nothing for
+- [x] `readFitWhy` returns the newest score's components and evidence per job and nothing for
       another candidate's job.
-- [ ] `GET /jobs` gives each job its `why` with counts, codes and at most 5 cleaned unmatched
+- [x] `GET /jobs` gives each job its `why` with counts, codes and at most 5 cleaned unmatched
       must-haves, and no atom id or text (a test checks the body).
-- [ ] A failed evidence read keeps the list and sets `why` to null.
-- [ ] `whyLines` words every code and leaves out an unknown one.
-- [ ] `pnpm --filter @northstar/db --filter @northstar/api --filter @northstar/web lint typecheck
+- [x] A failed evidence read keeps the list and sets `why` to null.
+- [x] `whyLines` words every code and leaves out an unknown one.
+- [x] `pnpm --filter @northstar/db --filter @northstar/api --filter @northstar/web lint typecheck
       test` pass.
 
 ## Out of scope
