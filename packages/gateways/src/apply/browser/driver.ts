@@ -1,5 +1,16 @@
+import { trace } from "@opentelemetry/api";
 import type { Fill, FormDriver, FormField, PageState, Upload } from "../driver.js";
-import { challengeOf, checkCollected, chooseOptions, collectPage, pickForm } from "./collect.js";
+import {
+  challengeOf,
+  checkCollected,
+  chooseOptions,
+  collectPage,
+  formProblem,
+  pickForm,
+} from "./collect.js";
+
+// Why a form was refused (NS-255), on the gateway's active `apply.submit` span: a fixed code only.
+const FORM_PROBLEM = "northstar.apply.form_problem";
 
 // The Playwright form driver (NS-142, APPLY-008): `FormDriver` over one browser page. It only
 // reports what it sees (ADR-0003): a CAPTCHA, sign-in, one-time code or account wall comes back
@@ -147,7 +158,12 @@ export function createPlaywrightDriver(options: DriverOptions): FormDriver {
     if (challenge !== null) return { kind: "challenge", challenge };
     if (formAllowed) {
       const picked = pickForm(collected.forms);
-      if (picked !== null) {
+      // A form the driver can't fill or submit safely is no form (NS-255): the gateway hands off
+      // with form_changed, before anything is typed or pressed. Only the code goes on the span.
+      const facts = picked === null ? undefined : collected.facts[picked.index];
+      const problem = facts === undefined ? null : formProblem(facts);
+      if (problem !== null) trace.getActiveSpan()?.setAttribute(FORM_PROBLEM, problem);
+      if (picked !== null && problem === null) {
         form = {
           index: picked.index,
           count: collected.forms.length,
