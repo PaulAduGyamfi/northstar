@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { HandoffPackage, HandoffPackageError } from "@northstar/db";
 import type { Result } from "@northstar/domain";
@@ -39,10 +40,20 @@ let clock: number;
 let reads: string[];
 let outcome: Result<HandoffPackage, HandoffPackageError>;
 let grants: ReturnType<typeof createPrefillGrants>;
+let prefills: {
+  handoffId: string;
+  applicationId: string;
+  ats: string;
+  fieldCount: number;
+  grantKey: string;
+}[];
+let recordWorks: boolean;
 
 beforeEach(async () => {
   clock = 1_000_000;
   reads = [];
+  prefills = [];
+  recordWorks = true;
   outcome = { ok: true, value: PACKAGE };
   grants = createPrefillGrants(() => clock);
   const sessions = createSessions(() => 0);
@@ -54,6 +65,11 @@ beforeEach(async () => {
     readPackage: async (handoffId) => {
       reads.push(handoffId);
       return handoffId === HANDOFF ? outcome : { ok: false, error: { kind: "NotFound" } };
+    },
+    recordPrefill: async (input) => {
+      if (!recordWorks) return false;
+      prefills.push(input);
+      return true;
     },
     grants,
   });
@@ -230,6 +246,36 @@ describe("POST /handoffs/package", () => {
     const grant = await issued();
     const res = await readPackage({ handoffId: HANDOFF, grant, padding: "p".repeat(600) });
     expect(res.status).toBe(413);
+  });
+});
+
+// NS-192 slice 3: handoff.prefilled is written before the package is served.
+describe("POST /handoffs/package records the pre-fill", () => {
+  it("records ids, the ATS, the field count and a 16-hex grant key, and no value", async () => {
+    const grant = await issued();
+    const res = await readPackage({ handoffId: HANDOFF, grant });
+    expect(res.status).toBe(200);
+    expect(prefills).toEqual([
+      {
+        handoffId: HANDOFF,
+        applicationId: PACKAGE.applicationId,
+        ats: "greenhouse",
+        fieldCount: 2,
+        grantKey: createHash("sha256").update(grant).digest("hex").slice(0, 16),
+      },
+    ]);
+  });
+
+  it("serves nothing when the pre-fill can't be recorded", async () => {
+    recordWorks = false;
+    const grant = await issued();
+    const res = await readPackage({ handoffId: HANDOFF, grant });
+    expect([res.status, JSON.parse(res.body)]).toEqual([503, { error: "prefill_unrecorded" }]);
+  });
+
+  it("records nothing for a refused grant", async () => {
+    await readPackage({ handoffId: HANDOFF, grant: "x".repeat(43) });
+    expect(prefills).toEqual([]);
   });
 });
 

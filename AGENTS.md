@@ -759,8 +759,15 @@ Exists now:
     missing, used, expired or other handoff's grant is `403 grant_invalid` with nothing read. Then
     it answers `readHandoffPackage`'s fields as they are now, or its refusal as a fixed code.
 
-  A token alone reads nothing. The card's pre-fill link, the extension's fill and the
-  `handoff.prefilled` event come next (slice 3).
+  A token alone reads nothing. Since slice 3 a served package first writes `handoff.prefilled`
+  (`recordHandoffPrefill`, `handoff-write.ts`: ids, ATS and field count, by `user`, keyed per
+  grant; its feed line is a fixed-word `reason`), and nothing is served if that write fails
+  (`503 prefill_unrecorded`). The extension's plain fill logic is `apps/extension/src/prefill.ts`:
+  `prefillPlan` (https on one of the ATS's own hosts, at the apply URL's host and path; the
+  adapter's contact fields, mirrored from the gateway's adapters, then the package's own fields),
+  `fillForm` (in-page: visible, enabled fields of those names only; never a file, hidden field or
+  button; never clicks or submits) and `packageRequest` (30 s limit). Nothing calls them yet: how
+  the grant reaches the extension is Paul's choice (#332).
 - Verification windows (NS-151, VER-001…006) in `packages/db` (`verification-schema.ts`,
   `verification-write.ts`, append-only): `verification_window`, one `verification_window_restart`
   and one `verification_window_close` per window, and `verification_used_message` (one window per

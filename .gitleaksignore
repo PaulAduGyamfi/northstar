@@ -1,0 +1,7 @@
+# Synthetic test values (grant key "0123456789abcdef") from NS-192 slice 3 (#333), not secrets.
+# Removed from the tree in 5a1e041; these 4 fingerprints are allowed by Paul on 2026-11-27.
+# Exact fingerprints only: never add rules, paths or wildcards here.
+6cf3cb0c1b147b7a84eed3081d248b2e5b40ce4e:packages/db/src/handoff.test.ts:generic-api-key:279
+6cf3cb0c1b147b7a84eed3081d248b2e5b40ce4e:packages/db/src/handoff.test.ts:generic-api-key:316
+0d5f95e1157cf3523bf966a36924936cfcfd6b25:packages/db/src/handoff.test.ts:generic-api-key:329
+0d5f95e1157cf3523bf966a36924936cfcfd6b25:packages/db/src/handoff.test.ts:generic-api-key:342

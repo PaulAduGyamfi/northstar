@@ -254,6 +254,7 @@ export {
   listOpenHandoffs,
   type Resolved,
   type ResolveError,
+  recordHandoffPrefill,
   resolveHandoff,
 } from "./handoff-write.js";
 export { readSystemHealth } from "./health-read.js";
