@@ -230,7 +230,8 @@ Exists now:
     and its numbers and names (`names.ts`, NS-202) to come from what it cites. A story's title is
     shown to the model but is no evidence: quotes and names come from its four parts
     (`checkText`).
-  - `draftAnswer` is off by default: its fixtures are hand-written until Paul records real ones.
+  - `draftAnswer` is off by default. Since NS-263 its prompt is v2 (follow-ups only when the
+    evidence lacks what Paul did or how it turned out), recorded from the real model at 8/8.
     When on, a failing draft becomes `needs_human`.
 
   It has no caller, CLI or storage yet.
@@ -287,8 +288,8 @@ Exists now:
     message is a `confirmation` or `info_other` (`NUDGE_AFTER_KINDS`: the company's turn), with no
     reply draft filed on it and no status move or such mail for the stage's days
     (`DEFAULT_NUDGE_DAYS` 7 and 5, `parseNudgeDays` 1–60).
-  - `readNudgeCandidates` (`packages/db`, `nudge-read.ts`) reads ids and times for it. Its `kind`
-    is null until #224 stores classifications, so nothing is due yet.
+  - `readNudgeCandidates` (`packages/db`, `nudge-read.ts`) reads ids and times for it, and since
+    NS-261 the newest message's stored kind (null until it is classified, or in review).
   - `nudgePackage` (`reply/nudge.ts`) builds a reply package with a fixed body per stage
     (`NUDGE_SENTENCES`, no claims; the greeting only from the From header's own name), refuses a
     no-reply recipient, and `fileReplyDraft` files it like any reply. A company that goes quiet
@@ -503,7 +504,14 @@ Exists now:
   its classification by the backfill's rules (verified senders only) or the `mail-classify`
   route, with the provenance check. Verification mail from any sender (a verification subject
   or a code) is skipped before either; a refusal, invalid output, missing employer or failed
-  provenance check goes to review, and a held-back call is thrown for a retry. No storage or caller yet (#224).
+  provenance check goes to review, and a held-back call is thrown for a retry. Since NS-261 its
+  result is stored: append-only `mail_classification` (`packages/db`,
+  `mail-classification-write.ts`: `recordMailClassification`, one decision per recorded
+  `mail_link` message, the first standing; the kind and stage signal, or a review reason, with
+  `rules`/`model` and the prompt version, never a company, role, subject or address;
+  `mail.classified` / `mail.needs_review` with fixed-word feed lines; `readMailClassifications`).
+  `readInboxThreads` and `readNudgeCandidates` read the stored kind. No caller classifies new mail
+  yet (#230).
   Since NS-229 (slice 1) also Gmail labels (`src/labels/`, ADR-0027, **Rejected** 2026-11-27: `gmail.modify` held
   only by this writer, ADR-0014's per-run token, labels add-only and outside the Gate):
   `threadLabels(kind, origin)` gives a thread's fixed `Northstar/…` type label (INB-005) and
@@ -1019,7 +1027,7 @@ Exists now:
   (`/inbox`, INB-006): linked job-mail threads grouped by application with each one's origin badge
   (INB-008), how each thread was linked, "sender not verified" and an "Open in Gmail" link, plus
   a "Needs you to link it" group (`readInboxThreads` in `packages/db`, the API's `GET /inbox`,
-  `src/inbox.ts`). Classification shows "Not classified yet" until #224 stores it. `/api/*` is rewritten to the API, and pages that need Paul go
+  `src/inbox.ts`). Each thread shows its newest classified kind (NS-261), or "Not classified yet". `/api/*` is rewritten to the API, and pages that need Paul go
   through `readSession`/`todayView` or `readApi` (`src/session.ts`, `src/system.ts`), which forward
   his session cookie to the API. It holds no secret.
 - `packages/pipeline/` (NS-161, ADR-0023): plain-code pipeline steps, no model or network.
@@ -1073,6 +1081,14 @@ Exists now:
   newest tailored PDF, or it is refused. Which question a verified answer belongs to, and its
   exact/high split, are still the producer's. `requestApproval` still accepts facts for packages
   from other callers (#195).
+  Since NS-248 (item 1) the package's email is the application's tagged address (VER-007):
+  `preparePackage` assigns the application's tag once its inputs are complete (`assignTag`, kept for
+  good, so a rerun builds the same package) and puts `taggedAddress(email, tag)` in the contact;
+  an address with its own `+` part goes out as it is. The Gate accepts Paul's stored address or
+  that address with this application's own tag (`readApplicationTag`), never another one's.
+  `MAIL_TAG_PATTERN`, `generateMailTag`, `isTaggableAddress` and `taggedAddress` live in
+  `packages/domain` (`mail-tag.ts`), a copy of `packages/inbox`'s rules held equal by a parity test
+  in `packages/funnel`. No per-tenant tags yet (no account creation).
 - `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
   (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
   decision as an `approval` signal (or `withdrawn`), then runs the `submitApplication` activity
@@ -1086,7 +1102,8 @@ Exists now:
   `sweepStaleClaims` activity per candidate (the gateway's sweep with `dbSweepPorts`; 1 minute,
   3 attempts), continuing as new after 100 passes. A pass that fails all its attempts becomes a
   dead letter (`recordSweepFailure`: kind `apply.stale_sweep`, reason `sweep_failed`, keyed by
-  run and pass) and the next pass tries again. Nothing starts it yet (#230's client helper).
+  run and pass) and the next pass tries again. Since NS-225 slice 2 the worker process starts it
+  (`ensureStaleSweep`) whenever it runs.
   Since NS-226 (slice 1) `submissionWorkflow` takes an `applicationId` and ends visibly: a
   `refused`, `gave_up` or `not_approved` result, or the activity failing all 5 attempts, records
   one dead letter through the `recordSubmissionEnding` activity on `pipeline` (kind
@@ -1112,9 +1129,24 @@ Exists now:
   (`workerActivities`, `wiring.ts`: `pipeline` gets the ending and sweep activities, the browser
   pool only `submitApplication`, its gateway ports bound per call so a file read is the
   submission's own candidate's), and runs one Temporal `Worker` per queue with `workerOptions`:
-  `pipeline` with the workflow bundle, `apply-browser` only when it is on. Nothing starts the
-  workflows yet (the client helper, #230's next slice), and there is no worker health or
-  heartbeat yet.
+  `pipeline` with the workflow bundle, `apply-browser` only when it is on. Since slice 3 it
+  beats for both queues every 30 s (`startHeartbeats`, `src/heartbeat.ts`; the browser pool as
+  `enabled: false` while off) into `worker_heartbeat` (`packages/db`, migration 0099: one row per
+  candidate and queue, state not history; `recordWorkerHeartbeat`, `readWorkerHeartbeats`; the
+  last-seen time and its age on the database's clock, `started_at` the worker's own), and `systemHealth` shows each pool as `worker:<queue>`: running, down
+  after 180 s of silence ("Not running: last seen …"), or turned off. No heartbeat for the browser
+  steps yet (slice 4).
+  Since slice 2 also the client helper (`src/client.ts`, over a narrow `TemporalPort`, bound by
+  `temporalPort`): `startSubmission` starts `submission:<applicationId>:<packageSha256>`, one run
+  per package round (`REJECT_DUPLICATE`, conflict `FAIL`: a repeated start for the round starts
+  nothing while Temporal keeps the closed run; a new round after a rejection gets its own; the
+  Apply Gateway's claim, not the workflow id, stops a second submission; the input checked by
+  `inputProblem`), `signalApproval` / `signalWithdrawn` relay the Gate's decision to that round's
+  run (`NotRunning` when none runs; a rejected round's caller sends `withdrawn`), and
+  `ensureStaleSweep` starts the one `stale-claim-sweep`
+  (conflict `USE_EXISTING`), which `main.ts` does at every start for the one candidate. No caller
+  starts submissions or sends the signals yet (the package step's caller and the Queue's decide
+  path).
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 
@@ -1187,7 +1219,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/db db:generate` | new migration from `packages/db/src/schema.ts` (no database needed); prints "No schema changes" when migrations match |
 | repo root | `pnpm --filter @northstar/db db:migrate` | apply pending migrations as the tables' owner, `DATABASE_MIGRATION_URL`, which Node loads from the root `.env` (Paul, outside the sandbox, stack up). Builds `domain` and `db` first. The apps use `DATABASE_URL`, the `northstar_app` role (NS-212) |
 | repo root | `pnpm --filter @northstar/api start` | build and run the API on 127.0.0.1:`NORTHSTAR_API_PORT` (8787), reading the root `.env.app`; refuses to start until `NORTHSTAR_SIGNIN_KEY_SHA256` and `DATABASE_URL` are set (Paul) |
-| repo root | `pnpm --filter @northstar/worker start` | build and run the worker process (NS-225): connects to Temporal on this machine (`TEMPORAL_ADDRESS`, default 127.0.0.1:7233; stack up) and runs the `pipeline` pool, plus the `apply-browser` pool only with `WORKER_APPLY_BROWSER=on` and `WORKER_CHROMIUM_PATH`; reads the root `.env.app` like the API and needs `DATABASE_URL`. Nothing starts its workflows yet. Paul only: real database and Temporal; agents never run it |
+| repo root | `pnpm --filter @northstar/worker start` | build and run the worker process (NS-225): connects to Temporal on this machine (`TEMPORAL_ADDRESS`, default 127.0.0.1:7233; stack up) and runs the `pipeline` pool, plus the `apply-browser` pool only with `WORKER_APPLY_BROWSER=on` and `WORKER_CHROMIUM_PATH`; reads the root `.env.app` like the API and needs `DATABASE_URL`. At start it ensures the stale-claim sweep runs; nothing starts submission workflows yet. Paul only: real database and Temporal; agents never run it |
 | repo root | `pnpm --filter @northstar/web build` / `pnpm --filter @northstar/web start` | build and serve the web app on 127.0.0.1:3100; open it at `http://northstar.localhost:3100` (`NORTHSTAR_WEB_ORIGIN`, ADR-0018). It doesn't read the root `.env` or `.env.app`: export `NORTHSTAR_API_ORIGIN` (default `http://127.0.0.1:8787`) in the shell before build and start if the API's port changed. `pnpm --filter @northstar/web dev` while developing |
 | repo root | `pnpm --filter @northstar/extension build` | build the browser extension into `apps/extension/dist`; load that folder in `chrome://extensions` ("Load unpacked"), then paste the extension token in its options (Paul). The API needs `NORTHSTAR_EXTENSION_TOKEN_SHA256` and `DATABASE_URL` for captures |
 

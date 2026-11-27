@@ -22,6 +22,7 @@ import { PREFERENCE_DEFAULTS, saveFitScore, savePreferences } from "./fit-write.
 import { applyHandoff, applyHandoffDone } from "./handoff-schema.js";
 import { type JobFormQuestion, jobForm } from "./job-form-schema.js";
 import { saveJobForm } from "./job-form-write.js";
+import { assignTag } from "./mail-link-write.js";
 import { type BankClaim, requestPackageApproval } from "./package-approval.js";
 import { readPackageInputs } from "./package-read.js";
 import { profileSource } from "./profile-schema.js";
@@ -432,6 +433,45 @@ describe("requestPackageApproval", () => {
       { kind: "InvalidRequest", fields: ["package.postingId"] },
       { kind: "InvalidRequest", fields: ["package.contact"] },
       { kind: "InvalidRequest", fields: ["package.resume"] },
+    ]);
+  });
+
+  it("accepts the stored address tagged with the application's own tag (NS-248)", async () => {
+    await assignTag(db, { candidateId, target: { applicationId }, newTag: () => "k3q2m7" });
+    const result = await request({
+      ...pkg({}),
+      contact: { ...CONTACT, email: "test+ns-k3q2m7@example.com" },
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("refuses an address tagged with another application's tag, or with no stored tag", async () => {
+    const untagged = await request({
+      ...pkg({}),
+      contact: { ...CONTACT, email: "test+ns-k3q2m7@example.com" },
+    });
+    // Another application of the same candidate, with its own tag.
+    const [otherJob] = await db
+      .insert(job)
+      .values({ candidateId, companyId, title: "Engineer", url: "https://jobs.example.com/other" })
+      .returning({ id: job.id });
+    const [otherApp] = await db
+      .insert(application)
+      .values({ candidateId, jobId: otherJob?.id ?? "", status: "awaiting_approval" })
+      .returning({ id: application.id });
+    await assignTag(db, {
+      candidateId,
+      target: { applicationId: otherApp?.id ?? "" },
+      newTag: () => "a2b3c4",
+    });
+    await assignTag(db, { candidateId, target: { applicationId }, newTag: () => "k3q2m7" });
+    const wrongTag = await request({
+      ...pkg({}),
+      contact: { ...CONTACT, email: "test+ns-a2b3c4@example.com" },
+    });
+    expect([untagged, wrongTag].map((r) => (r.ok ? "filed" : r.error))).toEqual([
+      { kind: "InvalidRequest", fields: ["package.contact"] },
+      { kind: "InvalidRequest", fields: ["package.contact"] },
     ]);
   });
 

@@ -73,8 +73,10 @@ One system that **finds jobs, applies to them, runs your inbox, and keeps your p
 Phase 1 is being built ticket by ticket from the GitHub issues, mostly by agents working under
 ADR-0016 (the autonomous lane, see [docs/adr/](docs/adr/)). The building blocks exist and are
 tested on synthetic data, but **nothing runs on a schedule yet**. The worker process exists
-(`pnpm --filter @northstar/worker start`, NS-225), but nothing starts its workflows yet (#230's
-next slice), so no application is submitted and no mail is polled automatically. Its browser pool
+(`pnpm --filter @northstar/worker start`, NS-225), runs the stale-claim sweep and shows each pool
+on the Health page (a stopped pool reads "Not running"), but nothing
+starts submission workflows yet, so no application is submitted and no mail is polled
+automatically. Its browser pool
 is off unless you turn it on (`WORKER_APPLY_BROWSER=on`); while it is off, a submission waits in
 Temporal's queue (it isn't dropped) and still needs your approval when the pool comes on. What each package does today is listed
 under "Layout" in [AGENTS.md](AGENTS.md).

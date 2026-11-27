@@ -40,6 +40,8 @@ export default defineConfig({
     "./src/alert-setting-schema.ts",
     "./src/company-domain-schema.ts",
     "./src/mail-poll-schema.ts",
+    "./src/mail-classification-schema.ts",
+    "./src/worker-health-schema.ts",
   ],
   out: "./migrations",
 });

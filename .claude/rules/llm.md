@@ -28,8 +28,10 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
   It is off by default (`enabled: true` turns it on), because its fixtures are hand-written.
 - The `answer-draft` route (NS-135) lives in `packages/profile/src/answer/`. Every sentence
   cites a story or atom with a verbatim quote, checked by `validateAnswerDraft`. It is off by
-  default (`draftAnswer` returns `off` unless the caller passes `enabled: true`), because its
-  fixtures are hand-written.
+  default (`draftAnswer` returns `off` unless the caller passes `enabled: true`). Since NS-263
+  its prompt is v2 (follow-ups only when the evidence lacks what Paul did or how it turned out)
+  and its fixtures are Paul's real recordings (8/8). Turning it on is Paul's call; it has no
+  caller yet.
 - The `job-match` route (NS-138) lives in `packages/sources/src/fit/model-match.ts`. Call it
   only through `assistUnmatched`, which sends only what the rules left unmatched and keeps a
   proposal only when `checkJobMatches` finds its quote verbatim in a real atom. It is off by

@@ -362,6 +362,15 @@ export {
   recordPostingCheck,
   withdrawClosedApplications,
 } from "./liveness-write.js";
+// A linked message's stored classification (NS-261).
+export { CLASSIFICATION_REVIEW_REASONS } from "./mail-classification-schema.js";
+export {
+  type ClassificationError,
+  ClassificationResult,
+  readMailClassifications,
+  recordMailClassification,
+  type StoredClassification,
+} from "./mail-classification-write.js";
 export * as mailLinkSchema from "./mail-link-schema.js";
 export {
   assignTag,
@@ -370,6 +379,7 @@ export {
   listConfirmQueue,
   type QueuedMail,
   type RecordLinkInput,
+  readApplicationTag,
   readLinkCandidates,
   readLinkedThreads,
   readTags,
@@ -615,3 +625,11 @@ export {
   type WatchInput,
   type WatchStatus,
 } from "./watch-write.js";
+// The worker process's heartbeats (NS-225 slice 3), shown on Health.
+export * as workerHealthSchema from "./worker-health-schema.js";
+export {
+  readWorkerHeartbeats,
+  recordWorkerHeartbeat,
+  WORKER_QUEUES,
+  type WorkerQueue,
+} from "./worker-health-write.js";

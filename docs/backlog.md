@@ -131,3 +131,16 @@ From `docs/roadmap.md` P2, cut now that P1 is past half done.
 | NS-171 | Growth tracker: tracks, milestones, weekly capacity, balance rules | GRW-001…004 | growth, p2 |
 | NS-172 | Growth progress capture, dashboard and weekly review | GRW-005…007 | growth, p2 |
 | NS-173 | SmartRecruiters apply adapter and posting liveness checks | APPLY-002, SRC-010 | apply, sourcing, p2 |
+
+## Closed without a closing PR (2026-11-27)
+
+These issues were finished by work that didn't close them. This PR closes them on merge.
+
+| Issue | Done by |
+|---|---|
+| #136 NS-180 | the hook self-test uses a top-level name that never exists (`.claude/hooks/test-hooks.sh`, merged with NS-156's follow-ups) |
+| #182 NS-205 | ADR-0023, Accepted: package assembly lives in `packages/pipeline` |
+| #200 NS-215 | #262 (the dead-letter view) and its producer NS-220 |
+| #219 NS-221 | ADR-0024, Accepted: the reveal goes through the Gate and the API with a passkey |
+| #261 NS-236 | #344 (dead-letter kinds on a fixed list) |
+| #363 NS-258 | #365 and #373 (per-test and package-level timeouts) |

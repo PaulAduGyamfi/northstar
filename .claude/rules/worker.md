@@ -13,9 +13,14 @@ activity (`src/activities/apply.ts`); since NS-220 the stale-claim sweep (`src/w
 would show becomes a dead letter (`src/workflows/ending.ts`, `src/activities/ending.ts`). Workflow code may import only `@temporalio/workflow`, plain
 code and type-only imports: the bundle test (`bundleWorkflowCode`) fails otherwise. Since NS-225 (slice 1) the worker process: `src/main.ts`
 (entry `src/bin.ts`, the only file that reads `process.env`), its settings in `src/config.ts`
-(`loadWorkerConfig`) and the bound activities in `src/wiring.ts` (`workerActivities`). No client
-helper, worker health or heartbeats yet (#230's later slices); other domains' workflows arrive
-with their tickets.
+(`loadWorkerConfig`) and the bound activities in `src/wiring.ts` (`workerActivities`); since
+slice 2 the client helper `src/client.ts` (start a submission once per package round, relay the
+Gate's decision as a signal, ensure the one sweep). The workflow id is not the double-submit
+guard (Temporal forgets closed runs after retention): the Apply Gateway's claim is, so never drop
+it trusting the id. Since slice 3 each pool beats every 30 s (`src/heartbeat.ts`) into
+`worker_heartbeat`, which Health reads; a new queue beats too (add it to the table's CHECK and
+`WORKER_QUEUES`). No heartbeats for the browser steps yet (#230's slice 4); other domains'
+workflows arrive with their tickets.
 
 Rules:
 

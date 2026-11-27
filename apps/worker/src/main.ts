@@ -1,9 +1,12 @@
 import { constants } from "node:fs";
 import { access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { connectDb, loadDbConfig } from "@northstar/db";
+import { connectDb, loadDbConfig, recordWorkerHeartbeat, soleCandidate } from "@northstar/db";
+import { Client, Connection } from "@temporalio/client";
 import { NativeConnection, Worker } from "@temporalio/worker";
+import { ensureStaleSweep, temporalPort } from "./client.js";
 import { loadWorkerConfig } from "./config.js";
+import { startHeartbeats } from "./heartbeat.js";
 import { workerOptions } from "./pools.js";
 import { APPLY_BROWSER_QUEUE, PIPELINE_QUEUE } from "./queues.js";
 import { runPools, stopPools } from "./run-pools.js";
@@ -31,6 +34,23 @@ export async function main(env: Record<string, string | undefined>): Promise<voi
   const { db, close } = connectDb(loadDbConfig(env));
   try {
     const activities = workerActivities(db, config);
+    // Single tenant for now (Q-02): the one candidate, which soleCandidate creates on an empty
+    // database, as the CLIs do.
+    const candidateId = await soleCandidate(db);
+    // The stale-claim sweep runs whenever the worker does: started once, kept when already
+    // running (NS-225 slice 2).
+    const clientConnection = await Connection.connect({ address: config.temporalAddress });
+    try {
+      await ensureStaleSweep(
+        temporalPort(
+          new Client({ connection: clientConnection, namespace: config.temporalNamespace }),
+        ),
+        { candidateIds: [candidateId] },
+      );
+    } finally {
+      // A close error never hides the sweep's own failure.
+      await clientConnection.close().catch(() => {});
+    }
     const connection = await NativeConnection.connect({ address: config.temporalAddress });
     // Each Worker holds the connection until it has run and stopped, so the connection closes
     // only after every pool is down; a close error never hides the pools' own failure.
@@ -68,9 +88,30 @@ export async function main(env: Record<string, string | undefined>): Promise<voi
           applyBrowser: activities.applyBrowser !== null,
         }),
       );
+      // Health shows each pool from these beats (NS-225 slice 3): the browser pool too while it is
+      // off, as "turned off", so an earlier run's beat never reads as a pool that died.
+      const startedAt = new Date();
+      const heartbeats = startHeartbeats(
+        [
+          { queue: PIPELINE_QUEUE, enabled: true, startedAt },
+          { queue: APPLY_BROWSER_QUEUE, enabled: activities.applyBrowser !== null, startedAt },
+        ],
+        {
+          record: (beat) => recordWorkerHeartbeat(db, candidateId, beat),
+          every: (fn, ms) => setInterval(fn, ms),
+          cancel: (handle) => clearInterval(handle as ReturnType<typeof setInterval>),
+          onError: (errorClass) =>
+            console.error(JSON.stringify({ level: "warn", msg: "heartbeat failed", errorClass })),
+        },
+      );
       // Runs until a signal stops them. One failing stops the others and its error ends the
-      // process, so a pool is never silently down while another runs.
-      await runPools(workers);
+      // process, so a pool is never silently down while another runs. While the others shut
+      // down the beats go on for a moment: Health reads a pool's process, not its poller.
+      try {
+        await runPools(workers);
+      } finally {
+        heartbeats.stop();
+      }
     } finally {
       await connection.close().catch(() => {});
     }

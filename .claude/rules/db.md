@@ -108,6 +108,12 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `kill-switch-write.ts`; the newest row per subsystem is its state, no row means on). Breaker
   events are written only on a change of state and carry the dependency, counts and an error name,
   never a message or URL.
+  Worker heartbeats (NS-225 slice 3, migration 0099) are `worker_heartbeat`: one row per candidate
+  and queue (a CHECK lists the queues), overwritten every beat, state not history like
+  `dependency_breaker` (no trigger), written only through `worker-health-write.ts`
+  (`recordWorkerHeartbeat`; `readWorkerHeartbeats`), `last_seen_at` and its age on the database's
+  clock (`started_at` is the worker's own clock, read by nothing yet). Queue names
+  and times only; no event (a beat every 30 s would flood the feed).
 - Dead letters (NS-175, RES-007) are `dead_letter` and `dead_letter_resolution`, append-only
   (triggers), written only through `dead-letter-write.ts`. They hold a kind, a subject id, a
   reason code and an attempt count: never a payload, error message, URL or text (CHECKs enforce
@@ -163,7 +169,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   verifies each bank claim against the newest banked text (a `{company}` slot only with an
   `isSafeCompany` name); the package must name the job's own posting, contact and newest tailored
   PDF. New package producers use it, never `requestApproval` with their own facts. The question a
-  verified answer belongs to is still the producer's claim.
+  verified answer belongs to is still the producer's claim. Its contact email may be Paul's stored
+  address or that address tagged with the application's own `mail_tag` (`readApplicationTag`,
+  NS-248), never another application's tag.
 - Stored packages (NS-192) are `application_package`, one per `application_package` Gate
   request, append-only (a trigger), written only by `requestPackageApproval` in the same
   transaction as the request (a replay stores nothing). Its foreign key names the request's id,
@@ -279,6 +287,12 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   reasons to the fixed list `RECRUITER_GRADE_REASONS` (`packages/domain`), never email text; `recruiter.graded`
   carries the message id, grade, confidence and reasons, and its feed line is its fixed-word
   `reason`.
+  Mail classifications (NS-261) are `mail_classification`, append-only (a trigger), one per
+  candidate and Gmail message (`recordMailClassification` checks the message's `mail_link` first,
+  not a foreign key, as for `recruiter_grade`), written only through
+  `mail-classification-write.ts`. CHECKs keep the kind, stage signal and review reason to their
+  fixed lists and the shape consistent; never store the classification's company, role or
+  requisition, a subject or an address.
   `readLinkCandidates` (NS-223) is their read-only candidates reader: applications not in a
   terminal status, with their creation time and the job's and sources' ATS names, never a name or
   address.
