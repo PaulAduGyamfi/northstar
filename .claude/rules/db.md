@@ -184,7 +184,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   candidate, kind and content hash, as `reply_draft`'s does. The package holds Paul's contact
   details and answers: read it only through `readHandoffPackage`, which re-verifies the approval
   and the hash, or (NS-242) `readDecisionPackage`, the submission activity's reader, which checks
-  the hash and application it is given and leaves the approval to the Apply Gateway; never copy it
+  the hash and application it is given and leaves the approval to the Apply Gateway, or (NS-203
+  slice 5) `readPackageAnswers`, the Queue's reader, which gives each filled field's form label,
+  value and whether it is editable, never the contact, files or apply URL; never copy it
   into an event, span, log or error.
 - Stored files (NS-227, slice 2) are `stored_file`, append-only (a trigger), one row per candidate
   and SHA-256, written only through `file-write.ts` (`storeFileIn`, inside the caller's

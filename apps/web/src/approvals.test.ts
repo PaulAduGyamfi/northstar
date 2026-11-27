@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   batchUndoLabel,
   changedAnswers,
+  editableAnswers,
   editProblem,
   editResultWords,
   KIND_WORDS,
   MAX_ANSWER,
   MAX_REPLY_BODY,
   PackageBody,
+  packageEditBody,
   packageEditProblem,
   packageEditResultWords,
   packageLines,
@@ -256,21 +258,34 @@ describe("application package answers (NS-203 slice 5)", () => {
     ]);
   });
 
+  it("lists only the text answers for editing", () => {
+    expect(editableAnswers(ANSWERS).map((a) => a.fieldName)).toEqual(["question_1"]);
+  });
+
   it("keeps only editable answers whose text changed", () => {
-    expect(
-      changedAnswers(ANSWERS, {
-        question_1: "I like what your team builds.",
-        question_2: "No",
-      }),
-    ).toEqual({ question_1: "I like what your team builds." });
+    const drafts = new Map([
+      ["question_1", "I like what your team builds."],
+      ["question_2", "No"],
+    ]);
+    expect([...changedAnswers(ANSWERS, drafts)]).toEqual([
+      ["question_1", "I like what your team builds."],
+    ]);
+  });
+
+  it("sends an answer to a field named __proto__ like any other", () => {
+    const answers = [{ fieldName: "__proto__", label: "Why?", value: "Old.", editable: true }];
+    const changed = changedAnswers(answers, new Map([["__proto__", "New."]]));
+    expect(JSON.parse(packageEditBody("r1", changed))).toEqual(
+      JSON.parse('{"requestId":"r1","fields":{"__proto__":"New."}}'),
+    );
   });
 
   it("sends nothing unchanged, empty or too long", () => {
     expect([
-      packageEditProblem({}),
-      packageEditProblem({ question_1: "  " }),
-      packageEditProblem({ question_1: "x".repeat(MAX_ANSWER + 1) }),
-      packageEditProblem({ question_1: "Fine." }),
+      packageEditProblem(new Map()),
+      packageEditProblem(new Map([["question_1", "  "]])),
+      packageEditProblem(new Map([["question_1", "x".repeat(MAX_ANSWER + 1)]])),
+      packageEditProblem(new Map([["question_1", "Fine."]])),
     ]).toEqual([
       "Nothing changed, so there's nothing to save.",
       "An answer can't be empty.",
@@ -284,10 +299,12 @@ describe("application package answers (NS-203 slice 5)", () => {
       packageEditResultWords(200, undefined),
       packageEditResultWords(409, "not_pending"),
       packageEditResultWords(400, "invalid_input"),
+      packageEditResultWords(413, "too_large"),
     ]).toEqual([
       "Saved. Your edited application is waiting for your approval, every answer marked new.",
       "That application isn't waiting any more, so nothing changed.",
       "Northstar couldn't accept those answers. Check them and try again.",
+      "Those answers are too long to send at once. Save fewer at a time.",
     ]);
   });
 });

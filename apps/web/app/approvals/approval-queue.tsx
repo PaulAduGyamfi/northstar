@@ -7,6 +7,7 @@ import {
   changedAnswers,
   DecideBody,
   EDITED_MARK,
+  editableAnswers,
   editProblem,
   editResultWords,
   KIND_WORDS,
@@ -16,6 +17,7 @@ import {
   type Outcome,
   type PackageAnswer,
   PackageBody,
+  packageEditBody,
   packageEditProblem,
   packageEditResultWords,
   packageLines,
@@ -417,7 +419,7 @@ function ReplyPreview({ requestId, isEdited }: { requestId: string; isEdited: bo
 function PackagePreview({ requestId, isEdited }: { requestId: string; isEdited: boolean }) {
   const router = useRouter();
   const [answers, setAnswers] = useState<PackageAnswer[] | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, string> | null>(null);
+  const [drafts, setDrafts] = useState<ReadonlyMap<string, string> | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   async function show() {
@@ -440,7 +442,7 @@ function PackagePreview({ requestId, isEdited }: { requestId: string; isEdited: 
       setError(isTimeout(e) ? "No answer in time. Try again." : "Couldn't reach Northstar.");
     }
   }
-  async function save(original: PackageAnswer[], edited: Record<string, string>) {
+  async function save(original: PackageAnswer[], edited: ReadonlyMap<string, string>) {
     // Checked here first, so an empty or unchanged edit never reaches the Gate.
     const changed = changedAnswers(original, edited);
     const problem = packageEditProblem(changed);
@@ -454,7 +456,7 @@ function PackagePreview({ requestId, isEdited }: { requestId: string; isEdited: 
       const res = await apiFetch("/api/approvals/edit-package", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ requestId, fields: changed }),
+        body: packageEditBody(requestId, changed),
       });
       const answer: unknown = await res.json().catch(() => null);
       const code =
@@ -478,20 +480,18 @@ function PackagePreview({ requestId, isEdited }: { requestId: string; isEdited: 
     return (
       <div className="muted">
         <p>Edit the text answers (choices, contact details and the resume stay as they are)</p>
-        {answers
-          .filter((a) => a.editable)
-          .map((a) => (
-            <label key={a.fieldName}>
-              {a.label}
-              <textarea
-                value={drafts[a.fieldName] ?? a.value}
-                maxLength={MAX_ANSWER}
-                rows={4}
-                style={{ width: "100%" }}
-                onChange={(e) => setDrafts({ ...drafts, [a.fieldName]: e.target.value })}
-              />
-            </label>
-          ))}
+        {editableAnswers(answers).map((a) => (
+          <label key={a.fieldName}>
+            {a.label}
+            <textarea
+              value={drafts.get(a.fieldName) ?? a.value}
+              maxLength={MAX_ANSWER}
+              rows={4}
+              style={{ width: "100%" }}
+              onChange={(e) => setDrafts(new Map(drafts).set(a.fieldName, e.target.value))}
+            />
+          </label>
+        ))}
         <button
           type="button"
           className="primary"
@@ -524,7 +524,7 @@ function PackagePreview({ requestId, isEdited }: { requestId: string; isEdited: 
           </p>
         ))}
         {answers.some((a) => a.editable) ? (
-          <button type="button" className="secondary" onClick={() => setDrafts({})}>
+          <button type="button" className="secondary" onClick={() => setDrafts(new Map())}>
             Edit
           </button>
         ) : null}{" "}

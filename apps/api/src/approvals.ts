@@ -55,8 +55,11 @@ const PackageAnswers = z.object({
 });
 
 // An edit names at most this many fields (a form's own bound, job-form-write.ts) and each value at
-// most the package schema's 10,000 characters; the Gate's own checks decide the rest.
+// most the package schema's 10,000 characters; the Gate's own checks decide the rest. The body
+// itself is capped at EDIT_PACKAGE_MAX_BODY, room for several full answers in any script; a larger
+// edit is a 413, which the Queue words as "save fewer at a time".
 const MAX_EDITED_FIELDS = 200;
+const EDIT_PACKAGE_MAX_BODY = 256 * 1024;
 const EditedFields = z
   .record(z.string().min(1).max(200), z.string().min(1).max(10_000))
   .refine((fields) => Object.keys(fields).length <= MAX_EDITED_FIELDS);
@@ -323,6 +326,7 @@ export function approvalEndpoints(ports: ApprovalPorts): AnyEndpoint[] {
     method: "POST",
     path: "/approvals/edit-package",
     auth: "session",
+    maxBodyBytes: EDIT_PACKAGE_MAX_BODY,
     input: z.object({ requestId: z.uuid(), fields: EditedFields }),
     output: z.object({ requestId: z.string() }),
     handler: async ({ requestId, fields }) => {

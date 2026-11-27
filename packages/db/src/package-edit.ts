@@ -130,6 +130,8 @@ export async function readPackageAnswers(
   if (!row) return null;
   const stored = parsePackage(row.package);
   if (!stored.ok) throw new Error("stored application package does not parse");
+  // The job's current form, as editPackage reads it, so the two agree on what is editable. A form
+  // the employer relabelled after filing shows its new label.
   const inputs = await readPackageInputs(db, candidateId, stored.value.applicationId);
   const form = inputs?.form?.ats === stored.value.ats ? inputs.form : null;
   const questions = new Map(form?.questions.map((q) => [q.fieldName, q]) ?? []);

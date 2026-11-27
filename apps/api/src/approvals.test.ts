@@ -489,4 +489,10 @@ describe("application packages in the queue (NS-203 slice 5)", () => {
     });
     expect([res.status, calls]).toEqual([400, []]);
   });
+
+  it("takes an edit larger than the default body cap, holding two full answers", async () => {
+    const fields = { question_1: "a".repeat(10_000), question_2: "b".repeat(10_000) };
+    const res = await post("/approvals/edit-package", { requestId: R1, fields });
+    expect([res.status, calls]).toEqual([200, [["editPackage", { requestId: R1, fields }]]]);
+  });
 });
