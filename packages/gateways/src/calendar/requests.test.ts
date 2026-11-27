@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CalendarWriteAccess } from "./access.js";
 import { CalendarWriteError, CalendarWriteHeldBack } from "./errors.js";
 import {
+  CALENDAR_ID_DOMAIN,
   createCalendarWriteClient,
   NORTHSTAR_CALENDAR_MARKER,
   type PrepEvent,
@@ -16,7 +17,9 @@ import {
 const API = "https://www.googleapis.com/calendar/v3";
 const CALENDARS = `${API}/calendars`;
 const LIST = `${API}/users/me/calendarList?minAccessRole=owner&maxResults=250&fields=items(id%2Cdescription)`;
-const CAL_ID = "c0ffee12ab@group.calendar.google.com";
+// Invented calendar ids in Google's shape, built from the writer's own domain constant.
+const calId = (local: string) => [local, CALENDAR_ID_DOMAIN].join("@");
+const CAL_ID = calId("c0ffee12ab");
 const EVENTS = `${CALENDARS}/c0ffee12ab%40group.calendar.google.com/events?sendUpdates=none`;
 const calendarBody = JSON.stringify({
   summary: "Northstar",
@@ -248,7 +251,7 @@ describe("createCalendarWriteClient", () => {
     fakeGoogle(() =>
       json(200, {
         items: [
-          { id: "aaaa1111@group.calendar.google.com", description: "Northstar" },
+          { id: calId("aaaa1111"), description: "Northstar" },
           { id: CAL_ID, description: NORTHSTAR_CALENDAR_MARKER },
         ],
       }),

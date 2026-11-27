@@ -34,7 +34,9 @@ export type PrepEvent = { id: string; kind: PrepEventKind; start: Date; end: Dat
 
 // Google's rules for a client-chosen event id: lowercase base32hex, 5 to 1024 characters.
 const EVENT_ID = /^[a-v0-9]{5,1024}$/;
-// A secondary calendar's id, as Google makes it for calendars.insert.
+// A secondary calendar's id, as Google makes it for calendars.insert: `<letters and digits>@` and
+// this domain. Exported so tests build their invented ids from it.
+export const CALENDAR_ID_DOMAIN = "group.calendar.google.com";
 const CALENDAR_ID = /^[a-z0-9]{1,128}@group\.calendar\.google\.com$/;
 // An ISO time in UTC as Date#toISOString writes it: no time zone needs sending (ADR-0031 item 6).
 const UTC_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
