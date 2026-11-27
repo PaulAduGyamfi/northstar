@@ -20,14 +20,15 @@ only: `profile import-resume` (a new import) and `profile interview` (an approve
 - A refresh that fails (an error result or a thrown error) prints
   `Career DNA not refreshed: run profile dna to try again.` and leaves the command's exit code
   as it was. The import or story is already stored, so the refresh is a separate step.
+- With no resume import there is no report to rebuild (`NoProfile`), so it prints nothing.
 - The lines are the rubric's fixed words and counts, never atom or story text.
 
 ## Acceptance criteria
-- [ ] A successful import refreshes the report and prints the version and what changed.
-- [ ] An approved story refreshes the report.
-- [ ] An unchanged import and a skipped interview don't refresh.
-- [ ] A refresh that fails, or throws, leaves the exit code at 0 and prints the retry line.
-- [ ] `pnpm turbo run lint typecheck test build` passes in `packages/profile`.
+- [x] A successful import refreshes the report and prints the version and what changed.
+- [x] An approved story refreshes the report.
+- [x] An unchanged import and a skipped interview don't refresh.
+- [x] A refresh that fails, or throws, leaves the exit code at 0 and prints the retry line.
+- [x] `pnpm turbo run lint typecheck test build` passes in `packages/profile`.
 
 ## Out of scope
 - LinkedIn and site imports: the report doesn't read them yet.

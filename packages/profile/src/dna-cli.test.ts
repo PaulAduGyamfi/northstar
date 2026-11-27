@@ -1,6 +1,6 @@
 import type { CareerDnaSnapshot, StoredCareerDna, StoryView } from "@northstar/db";
 import { describe, expect, it } from "vitest";
-import { type DnaCliDeps, dnaCommand } from "./dna-cli.js";
+import { type DnaCliDeps, dnaCommand, refreshAfterChange } from "./dna-cli.js";
 
 // `profile dna` (NS-130 slice 5) on an in-memory store. Synthetic atoms and stories only.
 
@@ -141,5 +141,54 @@ describe("profile dna", () => {
   it("refuses extra arguments with its usage line", async () => {
     const h = harness();
     expect([await dnaCommand(h.deps, ["now"]), h.lines]).toEqual([1, ["usage: profile dna"]]);
+  });
+});
+
+describe("refreshing after a profile change", () => {
+  it("prints the saved version and what changed", async () => {
+    const h = harness();
+    await refreshAfterChange(h.deps);
+    expect(h.lines).toEqual([
+      "Career DNA: saved as version 1.",
+      "  This is your first Career DNA report.",
+    ]);
+  });
+
+  it("says the report is unchanged when nothing changed", async () => {
+    const h = harness();
+    await refreshAfterChange(h.deps);
+    h.lines.length = 0;
+    await refreshAfterChange(h.deps);
+    expect(h.lines).toEqual([
+      "Career DNA: unchanged since version 1.",
+      "  Nothing changed since your last report.",
+    ]);
+  });
+
+  it("prints nothing without a resume import", async () => {
+    const h = harness({ readScoringProfile: async () => null });
+    await refreshAfterChange(h.deps);
+    expect([h.lines, h.versions]).toEqual([[], []]);
+  });
+
+  it("prints only the retry line when the save refuses the report", async () => {
+    const h = harness({
+      saveCareerDnaReport: async () => ({
+        ok: false,
+        error: { kind: "InvalidReport", fields: ["dimensions"] },
+      }),
+    });
+    await refreshAfterChange(h.deps);
+    expect(h.lines).toEqual(["Career DNA not refreshed: run profile dna to try again."]);
+  });
+
+  it("prints only the retry line, never the error, when a read throws", async () => {
+    const h = harness({
+      readStories: async () => {
+        throw new Error("connection to example.com lost");
+      },
+    });
+    await refreshAfterChange(h.deps);
+    expect(h.lines).toEqual(["Career DNA not refreshed: run profile dna to try again."]);
   });
 });
