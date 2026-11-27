@@ -1275,3 +1275,6 @@ its parent in the body, never in the title. Details: ADR-0016 items 10–15.
 
 When a command, folder or convention changes, update this file (and the matching
 `.claude/rules/` file) in the same pull request. A stale rule is a bug: fix it or delete it.
+Keep `README.md` current the same way: a PR that adds an app or package, changes how to set up
+or run the project, or changes what it can do end to end updates the README's repo map, Status
+or Getting started in the same PR (Paul, 2026-11-27).

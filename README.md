@@ -25,6 +25,20 @@ One system that **finds jobs, applies to them, runs your inbox, and keeps your p
 | [CLAUDE.md](CLAUDE.md) | Claude Code notes (imports AGENTS.md) |
 | [.claude/](.claude/) | Agent harness: settings, hooks (`bash .claude/hooks/test-hooks.sh`), reviewer subagents, `/ticket` `/verify` `/adr` skills, path rules |
 | [specs/](specs/) | Ticket specs (`NS-NNN`) and templates |
+| [apps/api/](apps/api/) | The local API the web app and extension talk to (127.0.0.1, Paul's sign-in and passkeys) |
+| [apps/web/](apps/web/) | The web app: Today, Queue, Pipeline, Inbox, Grow, Interviews, Career DNA, Health, Settings |
+| [apps/extension/](apps/extension/) | "Save to Northstar" Chrome extension: save a job page, pre-fill a handed-off form |
+| [apps/worker/](apps/worker/) | Temporal workflows: submission and the stale-claim sweep (no worker process yet) |
+| [packages/domain/](packages/domain/) | Pure rules: application states, approval policy, growth planner, interview prep, metrics |
+| [packages/db/](packages/db/) | Postgres schema, migrations and the append-only write paths |
+| [packages/llm/](packages/llm/) · [packages/prompts/](packages/prompts/) | The only LLM gateway, and versioned, hash-locked prompts |
+| [packages/sources/](packages/sources/) | Adding jobs from links, board polling, fit scores, posting liveness, fresh-job alerts |
+| [packages/profile/](packages/profile/) | Resume import, stories, tailoring, audit, answers, replies, voice, Career DNA |
+| [packages/inbox/](packages/inbox/) | Read-only Gmail and Calendar, mail linking, verification codes, interview detection |
+| [packages/pipeline/](packages/pipeline/) | Assembling an application package for the Approval Gate |
+| [packages/gateways/](packages/gateways/) | The only code that acts outward: Apply Gateway, browser form driver, Gmail drafts, vault |
+| [packages/funnel/](packages/funnel/) | The 9-month backfill and funnel report |
+| [evals/](evals/) | Eval sets per LLM route, replayed in CI |
 
 ## Requirement index (user's numbered asks → docs)
 
@@ -56,4 +70,20 @@ One system that **finds jobs, applies to them, runs your inbox, and keeps your p
 
 ## Status
 
-Phase 0 — requirements and architecture. No application code yet. **Build is gated on the product owner approving a UI direction** (UX-000) — mockups in [docs/design/mockups/](docs/design/mockups/).
+Phase 1 is being built ticket by ticket from the GitHub issues, mostly by agents working under
+ADR-0016 (the autonomous lane, see [docs/adr/](docs/adr/)). The building blocks exist and are
+tested on synthetic data, but **nothing runs on a schedule yet**: the worker process (#230) isn't
+built, so no application is submitted and no mail is polled automatically. What each package does
+today is listed under "Layout" in [AGENTS.md](AGENTS.md).
+
+## Getting started (local)
+
+```bash
+nvm use && corepack enable pnpm            # Node 24, pnpm from package.json
+pnpm install --frozen-lockfile
+pnpm turbo run lint typecheck test build   # what CI runs
+```
+
+Running the stack, migrations and the apps needs the settings files described in
+[AGENTS.md](AGENTS.md)'s Commands table: the owner's file for compose and `db:migrate`, and the
+apps' own file (NS-235). Every command, and who may run it, is listed there.
