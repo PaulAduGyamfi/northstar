@@ -1008,6 +1008,9 @@ async function withdrawOnce(
   });
 }
 
+// The kinds editRequest accepts (NS-203 slice 1). The approval_edit trigger names the same list.
+const EDITABLE_KINDS = new Set<string>(["email_reply"]);
+
 export type EditResult = { requestId: string; previousRequestId: string; replayed: boolean };
 
 // Rolls an edit's transaction back with a value: thrown inside it, caught outside it.
@@ -1020,9 +1023,10 @@ class EditRollback extends Error {
 // Paul edits a waiting request (NS-203, APR-002). An edit is a new request (ADR-0017: one
 // request is one send), so in one transaction the old request is withdrawn by Paul, a new one
 // with the same kind and subject pins the edited content, and approval_edit links the two. Only
-// a pending request of a kind with no policy facts can be edited: a package's facts would have
-// to be derived again (a later slice), and a reveal never waits in the queue. The caller stores
-// the edited content in the same transaction. Repeating a committed edit returns its new request.
+// a pending request of an allowlisted kind (email_reply) can be edited: a package's facts would
+// have to be derived again (a later slice), and a reveal never waits in the queue. Not exported
+// from the package: editReplyDraft is its only caller and stores the edited content in the same
+// transaction. Repeating a committed edit returns its new request.
 export async function editRequest(
   db: Db,
   input: { candidateId: CandidateId; requestId: string; newContentSha256: string },
@@ -1063,9 +1067,10 @@ async function editOnce(
     );
   if (!request) return err({ kind: "NotFound" });
   span.setAttribute("northstar.approval.kind", request.kind);
-  if (request.kind === "application_package" || request.kind === "vault_reveal") {
-    return err({ kind: "NotEditable" });
-  }
+  // An allowlist: a kind is editable only once it has its own edit path that stores the edited
+  // content behind the new request (today reply drafts, editReplyDraft). Any other kind could
+  // otherwise get a new hash with nothing behind it, recorded as Paul's.
+  if (!EDITABLE_KINDS.has(request.kind)) return err({ kind: "NotEditable" });
   // A retried edit that already committed: the same edited content returns its new request.
   const [done] = await tx
     .select({ requestId: approvalEdit.requestId, sha: approvalRequest.contentSha256 })

@@ -198,24 +198,27 @@ describe("editReplyDraft", () => {
 });
 
 describe("editRequest", () => {
-  it("won't edit an application package", async () => {
-    const pkg = await requestApproval(db, {
-      candidateId,
-      kind: "application_package",
-      subject: "application:00000000-0000-4000-8000-000000000001",
-      contentSha256: "a".repeat(64),
-      facts: null,
-      actor: "system",
-      idempotencyKey: "pkg-1",
-    });
-    if (!pkg.ok) throw new Error(pkg.error.kind);
-    expect(
-      await editRequest(db, {
+  it("edits only reply requests: an answer or an application package is refused", async () => {
+    const filed = (kind: "answer" | "application_package", n: number) =>
+      requestApproval(db, {
         candidateId,
-        requestId: pkg.value.requestId,
-        newContentSha256: "b".repeat(64),
-      }),
-    ).toEqual({ ok: false, error: { kind: "NotEditable" } });
+        kind,
+        subject: `${kind === "answer" ? "answer" : "application"}:00000000-0000-4000-8000-00000000000${n}`,
+        contentSha256: "a".repeat(64),
+        facts: null,
+        actor: "system",
+        idempotencyKey: `${kind}-${n}`,
+      });
+    const answer = await filed("answer", 1);
+    const pkg = await filed("application_package", 2);
+    if (!answer.ok || !pkg.ok) throw new Error("not filed");
+    const editOf = (requestId: string) =>
+      editRequest(db, { candidateId, requestId, newContentSha256: "b".repeat(64) });
+    expect([await editOf(answer.value.requestId), await editOf(pkg.value.requestId)]).toEqual([
+      { ok: false, error: { kind: "NotEditable" } },
+      { ok: false, error: { kind: "NotEditable" } },
+    ]);
+    expect(await listPendingApprovals(db, candidateId)).toHaveLength(2);
   });
 });
 

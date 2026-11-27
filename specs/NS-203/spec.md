@@ -14,9 +14,11 @@ approve exactly what he wrote.
 ## Behavior (slice 1: reply drafts)
 - **`editRequest`** (`packages/db`, `approval-write.ts`) is the Gate's edit, in one transaction:
   - It refuses a request that isn't the candidate's (`NotFound`), and one that is no longer
-    pending: decided, withdrawn or already edited (`NotPending`). It refuses an
-    `application_package` or `vault_reveal` request (`NotEditable`): packages need their facts
-    derived again, which is a later slice.
+    pending: decided, withdrawn or already edited (`NotPending`). It edits only `email_reply`
+    requests (`NotEditable` otherwise; an allowlist in code and in the `approval_edit` trigger),
+    because a kind is editable only once it has its own path that stores the edited content.
+    Packages also need their facts derived again, which is a later slice. It isn't exported from
+    `@northstar/db`: `editReplyDraft` is its only caller.
   - It refuses new content with the same SHA-256 (`ContentUnchanged`).
   - It withdraws the old request by `user` (reason `paul`). The `approval.withdrawn` event carries
     `edited: true`, so the feed says "You edited a request; the edited version is waiting for your

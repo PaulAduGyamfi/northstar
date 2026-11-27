@@ -71,7 +71,6 @@ export {
   decideApprovals,
   type EditError,
   type EditResult,
-  editRequest,
   type InvalidRequest,
   listPendingApprovals,
   type NotEditable,

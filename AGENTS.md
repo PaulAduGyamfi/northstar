@@ -268,7 +268,8 @@ Exists now:
   request by `user` (its `approval.withdrawn` carries `edited: true`: "You edited a request; the
   edited version is waiting for your approval"), files a new one with the same kind and subject
   pinning the edited content, and links them in append-only `approval_edit`. Only a pending
-  request of a kind without facts (never `application_package` or `vault_reveal`) can be edited;
+  `email_reply` can be edited (an allowlist in code and in the table's trigger; `editRequest` isn't
+  exported, so `editReplyDraft` is the only way in);
   a decision that lands meanwhile rolls the edit back. The API's `POST /approvals/edit-reply`
   (session only) serves it. No Edit button in the web app yet (slice 2).
   Since slice 3 also follow-up nudges (RPL-004), plain code:

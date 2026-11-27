@@ -26,8 +26,9 @@ BEGIN
     RAISE EXCEPTION 'an edit keeps the request''s kind and subject'
       USING ERRCODE = 'check_violation';
   END IF;
-  -- Packages need their policy facts derived again, and a reveal never waits in the queue.
-  IF next.kind IN ('application_package', 'vault_reveal') THEN
+  -- An allowlist: only kinds with their own edit path that stores the edited content (reply
+  -- drafts). Packages need their facts derived again, and a reveal never waits in the queue.
+  IF next.kind <> 'email_reply' THEN
     RAISE EXCEPTION 'this kind of request cannot be edited'
       USING ERRCODE = 'check_violation';
   END IF;
