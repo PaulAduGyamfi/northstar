@@ -311,7 +311,13 @@ Exists now:
   cover through the Fit Score's `matchRequirements`, and lists each one's matched atoms, its 5
   most frequent unmatched must-haves and its jobs posted in the last 7 days. No caller yet.
 
-  No handoffs, storage or share card yet; the share card waits on a Publish gateway ADR and Q-10.
+  Since slice 3 also evidence gaps (DNA-006): `evidenceGaps` (`career-dna/gaps.ts`, plain code)
+  suggests "Build proof for …" for each low or thin dimension and each must-have gap that 2+ jobs
+  and a 25 %+ share of a direction ask for (once each, from its largest share), skipping any an
+  active or backlogged growth track names. Suggestions only: nothing writes a track.
+
+  No Profile Grade handoff, storage or share card yet; the share card waits on a Publish gateway
+  ADR and Q-10.
 - The voice profile (NS-136, ANS-007/008) in `packages/profile/src/voice/`, plain code, no model:
   - `measureVoice` turns 5–10 writing samples into a style guide (sentence length, contractions,
     "I"/"we", exclamation marks, phrases used in 3+ samples), rendered by `renderVoiceGuide` for

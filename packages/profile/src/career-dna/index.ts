@@ -1,6 +1,13 @@
 // Career DNA (NS-130): the report's core, plain code with no model, database or network.
 export { type Archetype, archetypeOf } from "./archetype.js";
 export {
+  type EvidenceGap,
+  evidenceGaps,
+  GAP_MIN_JOBS,
+  GAP_MIN_SHARE,
+  type GapDirection,
+} from "./gaps.js";
+export {
   buildCareerDna,
   type CareerDnaFailure,
   type CareerDnaReport,
