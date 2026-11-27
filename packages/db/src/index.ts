@@ -420,6 +420,13 @@ export {
 // The Gate derives a package's policy facts itself (NS-213).
 export { type BankClaim, requestPackageApproval } from "./package-approval.js";
 export { type PackageInputs, readPackageInputs, readPackageRounds } from "./package-read.js";
+// The Gate's settled package outcomes for the worker's signal relay (NS-213 slice 2).
+export {
+  type PackageSignal,
+  RELAY_LIMIT,
+  RELAY_WINDOW_DAYS,
+  readPackageSignals,
+} from "./package-signal-read.js";
 export { type PackageNeedsHumanRefusal, recordPackageNeedsHuman } from "./package-write.js";
 export * as passkeySchema from "./passkey-schema.js";
 // Paul's passkeys (NS-178, ADR-0022).

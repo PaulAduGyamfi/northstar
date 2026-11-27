@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { failureKey, planSweep } from "./sweep-plan.js";
+import { failureKey, planSweep, relayFailureKey } from "./sweep-plan.js";
 
 const A = "00000000-0000-4000-8000-0000000000a1";
 const B = "00000000-0000-4000-8000-0000000000b1";
@@ -33,6 +33,24 @@ describe("planSweep", () => {
       });
     },
   );
+});
+
+describe("planSweep for the relay", () => {
+  it("uses the default it is given when the input names no interval", () => {
+    expect(planSweep({ candidateIds: [A] }, 1)).toEqual({
+      ok: true,
+      candidateIds: [A],
+      minutes: 1,
+    });
+  });
+});
+
+describe("relayFailureKey", () => {
+  it("names a failed relay pass by its workflow run and pass number", () => {
+    expect(relayFailureKey("0f1e2d3c-4b5a-4968-8776-655443322110", 7)).toBe(
+      "signal_relay:0f1e2d3c-4b5a-4968-8776-655443322110:7",
+    );
+  });
 });
 
 describe("failureKey", () => {

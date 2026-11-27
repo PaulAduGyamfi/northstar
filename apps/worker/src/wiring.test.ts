@@ -19,10 +19,16 @@ const launch = async () => {
 };
 
 describe("workerActivities", () => {
-  it("gives the pipeline pool the ending and sweep activities, and no browser pool while it is off", () => {
+  it("gives the pipeline pool the ending, sweep and relay activities, and no browser pool while it is off", () => {
     const pools = workerActivities(db, loadWorkerConfig({}), launch);
     expect([Object.keys(pools.pipeline).sort(), pools.applyBrowser]).toEqual([
-      ["recordSubmissionEnding", "recordSweepFailure", "sweepStaleClaims"],
+      [
+        "recordRelayFailure",
+        "recordSubmissionEnding",
+        "recordSweepFailure",
+        "relayPackageDecisions",
+        "sweepStaleClaims",
+      ],
       null,
     ]);
   });

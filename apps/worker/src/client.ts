@@ -8,6 +8,7 @@ import {
 } from "@temporalio/client";
 import { PIPELINE_QUEUE } from "./queues.js";
 import { inputProblem } from "./workflows/ending.js";
+import type { RelayInput } from "./workflows/relay.js";
 import type { SubmissionInput } from "./workflows/submission.js";
 import type { SweepInput } from "./workflows/sweep.js";
 
@@ -35,6 +36,9 @@ export type TemporalPort = {
   ): Promise<{ started: boolean }>;
   // False when no workflow with this id is running.
   signal(workflowId: string, signal: string, args: unknown[]): Promise<{ delivered: boolean }>;
+  // True only while a submission workflow with this id runs and still waits for the Gate's
+  // decision (its `waiting` query, NS-213 slice 2). A closed run is never queried.
+  waiting(workflowId: string): Promise<boolean>;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -47,6 +51,9 @@ const SHA256 = /^[0-9a-f]{64}$/;
 
 // The one stale-claim sweep (NS-220): a fixed id, so starting it again keeps the running one.
 export const SWEEP_WORKFLOW_ID = "stale-claim-sweep";
+
+// The one package decision relay (NS-213 slice 2): a fixed id, like the sweep.
+export const RELAY_WORKFLOW_ID = "package-signal-relay";
 
 export type StartError =
   // The input would fail at the workflow's start: ids and the hash only (NS-242).
@@ -138,6 +145,24 @@ export async function ensureStaleSweep(port: TemporalPort, input: SweepInput): P
   });
 }
 
+// Makes sure the package decision relay runs (NS-213 slice 2), like the sweep: started once, the
+// running one kept, with the candidate ids it started with.
+export async function ensureSignalRelay(port: TemporalPort, input: RelayInput): Promise<void> {
+  for (const id of input.candidateIds) {
+    if (!UUID.test(id)) throw new Error("candidateIds: every id must be a uuid");
+  }
+  await port.start("packageSignalRelayWorkflow", {
+    workflowId: RELAY_WORKFLOW_ID,
+    args: [input],
+    reuse: "existing",
+  });
+}
+
+// Whether a package round's submission workflow still waits for its decision.
+export function roundWaiting(port: TemporalPort, round: Round): Promise<boolean> {
+  return port.waiting(submissionWorkflowId(round.applicationId, round.packageSha256));
+}
+
 // The port on Temporal's Client: every workflow on the `pipeline` queue (RES-001). Calls use
 // the client's own gRPC retries and the connection's timeout; no extra deadline (accepted for
 // a local Temporal).
@@ -169,6 +194,18 @@ export function temporalPort(client: Client): TemporalPort {
         return { delivered: true };
       } catch (error) {
         if (error instanceof WorkflowNotFoundError) return { delivered: false };
+        throw error;
+      }
+    },
+    async waiting(workflowId) {
+      const handle = client.workflow.getHandle(workflowId);
+      try {
+        // Described first: querying a closed run would make a worker replay its whole history.
+        const described = await handle.describe();
+        if (described.status.name !== "RUNNING") return false;
+        return (await handle.query<boolean>("waiting")) === true;
+      } catch (error) {
+        if (error instanceof WorkflowNotFoundError) return false;
         throw error;
       }
     },

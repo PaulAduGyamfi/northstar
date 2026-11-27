@@ -25,6 +25,8 @@ export const DEAD_LETTER_KINDS = [
   // NS-240: a detected interview the store refused (too many changes, the daily limit;
   // runInterviewDetection in @northstar/inbox).
   "calendar.interview_detection",
+  // NS-213 slice 2: a pass of the package decision relay (apps/worker relay.ts).
+  "apply.signal_relay",
 ] as const;
 export type DeadLetterKind = (typeof DEAD_LETTER_KINDS)[number];
 

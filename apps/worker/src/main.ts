@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { connectDb, loadDbConfig, recordWorkerHeartbeat, soleCandidate } from "@northstar/db";
 import { Client, Connection } from "@temporalio/client";
 import { NativeConnection, Worker } from "@temporalio/worker";
-import { ensureStaleSweep, temporalPort } from "./client.js";
+import { ensureSignalRelay, ensureStaleSweep, temporalPort } from "./client.js";
 import { loadWorkerConfig } from "./config.js";
 import { startHeartbeats } from "./heartbeat.js";
 import { workerOptions } from "./pools.js";
@@ -37,16 +37,15 @@ export async function main(env: Record<string, string | undefined>): Promise<voi
     // Single tenant for now (Q-02): the one candidate, which soleCandidate creates on an empty
     // database, as the CLIs do.
     const candidateId = await soleCandidate(db);
-    // The stale-claim sweep runs whenever the worker does: started once, kept when already
-    // running (NS-225 slice 2).
+    // The stale-claim sweep (NS-225 slice 2) and the package decision relay (NS-213 slice 2) run
+    // whenever the worker does: each started once, kept when already running.
     const clientConnection = await Connection.connect({ address: config.temporalAddress });
     try {
-      await ensureStaleSweep(
-        temporalPort(
-          new Client({ connection: clientConnection, namespace: config.temporalNamespace }),
-        ),
-        { candidateIds: [candidateId] },
+      const port = temporalPort(
+        new Client({ connection: clientConnection, namespace: config.temporalNamespace }),
       );
+      await ensureStaleSweep(port, { candidateIds: [candidateId] });
+      await ensureSignalRelay(port, { candidateIds: [candidateId] });
     } finally {
       // A close error never hides the sweep's own failure.
       await clientConnection.close().catch(() => {});

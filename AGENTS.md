@@ -791,7 +791,8 @@ Exists now:
   as Paul; `apps/api/src/dead-letters.ts`), and "Stuck work" on `/health` with Retry, Skip and
   Hand off buttons that say what happens next (`src/dead-letters.ts`). Since NS-236
   `recordDeadLetter` takes only a kind on `DEAD_LETTER_KINDS` (`apply.stale_sweep`,
-  `apply.submission`, `calendar.interview_detection`); a new producer adds its own.
+  `apply.submission`, `calendar.interview_detection`, and since NS-213 slice 2
+  `apply.signal_relay`); a new producer adds its own.
 - Health and feed (NS-125, RES-013, OBS-002): `systemHealth` (`packages/domain`, `health.ts`)
   turns breakers, kill switches and board watches into `healthy / degraded / down` per subsystem
   with a plain reason, and `feedLine` (`feed.ts`) turns an event into one plain sentence from
@@ -1166,8 +1167,21 @@ Exists now:
   run (`NotRunning` when none runs; a rejected round's caller sends `withdrawn`), and
   `ensureStaleSweep` starts the one `stale-claim-sweep`
   (conflict `USE_EXISTING`), which `main.ts` does at every start for the one candidate. No caller
-  starts submissions or sends the signals yet (the package step's caller and the Queue's decide
-  path).
+  starts submissions yet (the package step's caller).
+  Since NS-213 slice 2 (#195 item 2) the Gate's decisions reach the waiting runs:
+  `readPackageSignals` (`packages/db`, `package-signal-read.ts`, read-only) lists the
+  `application_package` rounds whose outcome took effect by the Gate's clock in the last 7 days
+  (at most 200): an approval past its undo window and not undone (with its decision id), or
+  `withdrawn` for a withdrawal or an effective rejection. A decision still in its undo window is
+  never relayed: a run keeps its first decision, so an undo after the signal would end the round
+  as `not_approved` for good. `packageSignalRelayWorkflow` (`src/workflows/relay.ts`, on
+  `pipeline`, every minute, continuing as new after 100 passes) runs the `relayPackageDecisions`
+  activity (`src/activities/relay.ts`), which signals only a round whose run is running and still
+  waiting (the submission's `waiting` query, through `TemporalPort.waiting`, which describes the
+  run first so a closed one is never queried), so repeated passes add nothing to a run's history.
+  It reaches Temporal through the worker's own client (`Context.current().client`). A pass that
+  fails its 3 attempts is a dead letter (`apply.signal_relay`, `relay_failed`, keyed by run and
+  pass). `main.ts` ensures the one `package-signal-relay` (`ensureSignalRelay`) beside the sweep.
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 

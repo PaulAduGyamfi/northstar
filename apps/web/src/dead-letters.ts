@@ -52,6 +52,18 @@ const KINDS: Record<string, KindWords> = {
         "Nothing runs now. Check the application on the Pipeline and your email first: the run may already have sent it, or the job may have closed. Only if it wasn't sent, apply on the job's own page yourself.",
     },
   },
+  // NS-213 slice 2: a pass of the relay that tells waiting submissions about Paul's decisions
+  // (apps/worker relay.ts). It reads again on every pass, so resolving only records his choice.
+  "apply.signal_relay": {
+    what: "Passing your approval decisions to waiting submissions",
+    next: {
+      retry:
+        "Nothing runs now: the relay already tries again every minute. If it keeps failing, a new item shows here.",
+      skip: "Nothing more is done about this pass. Later passes still run.",
+      hand_off:
+        "Nothing runs now: the relay keeps trying on its own. If items keep showing here, an approved application may be waiting; check the worker on this page.",
+    },
+  },
   // NS-240: a detected interview the store refused. Resolving only records Paul's choice; the
   // next calendar check reads the window again on its own.
   "calendar.interview_detection": {
@@ -68,6 +80,7 @@ const KINDS: Record<string, KindWords> = {
 
 const REASONS: Record<string, string> = {
   sweep_failed: "every attempt failed",
+  relay_failed: "every attempt failed",
   activity_failed: "every attempt to run it failed",
   too_many_changes: "one calendar event changed too many times",
   daily_limit: "too many possible interviews in one day",

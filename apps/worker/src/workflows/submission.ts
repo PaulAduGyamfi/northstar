@@ -2,6 +2,7 @@ import {
   ActivityFailure,
   ApplicationFailure,
   condition,
+  defineQuery,
   defineSignal,
   isCancellation,
   proxyActivities,
@@ -25,6 +26,10 @@ import { NOT_APPROVED, SUBMIT_ATTEMPTS, type SubmissionResult } from "./types.js
 export const approvalSignal = defineSignal<[{ decisionId: string }]>("approval");
 // The request was withdrawn before approval (Paul, or a changed package).
 export const withdrawnSignal = defineSignal("withdrawn");
+// True until the run has a decision or a withdrawal (NS-213 slice 2): the decision relay signals
+// only a run that still waits, so its repeated passes never grow the run's history. A query
+// changes no history, so in-flight runs need no versioning.
+export const waitingQuery = defineQuery<boolean>("waiting");
 
 // Ids only (NS-242): Temporal keeps workflow inputs and activity arguments as plain text in its
 // history, so the package itself (Paul's contact details and answers) never travels here; the
@@ -106,6 +111,7 @@ async function runSubmission(
   setHandler(withdrawnSignal, () => {
     withdrawn = true;
   });
+  setHandler(waitingQuery, () => decisionId === null && !withdrawn);
 
   // A durable wait: costs nothing while Paul takes days to decide.
   await condition(() => decisionId !== null || withdrawn);

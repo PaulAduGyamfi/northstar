@@ -28,7 +28,7 @@ One system that **finds jobs, applies to them, runs your inbox, and keeps your p
 | [apps/api/](apps/api/) | The local API the web app and extension talk to (127.0.0.1, Paul's sign-in and passkeys) |
 | [apps/web/](apps/web/) | The web app: Today, Queue, Pipeline, Inbox, Grow, Jobs, Interviews, Career DNA, Health, Settings |
 | [apps/extension/](apps/extension/) | "Save to Northstar" Chrome extension: save a job page, pre-fill a handed-off form |
-| [apps/worker/](apps/worker/) | The worker process: Temporal workflows (submission, the stale-claim sweep) and their pools |
+| [apps/worker/](apps/worker/) | The worker process: Temporal workflows (submission, the stale-claim sweep, the decision relay) and their pools |
 | [packages/domain/](packages/domain/) | Pure rules: application states, approval policy, growth planner, interview prep, metrics |
 | [packages/db/](packages/db/) | Postgres schema, migrations and the append-only write paths |
 | [packages/llm/](packages/llm/) · [packages/prompts/](packages/prompts/) | The only LLM gateway, and versioned, hash-locked prompts |
@@ -73,7 +73,8 @@ One system that **finds jobs, applies to them, runs your inbox, and keeps your p
 Phase 1 is being built ticket by ticket from the GitHub issues, mostly by agents working under
 ADR-0016 (the autonomous lane, see [docs/adr/](docs/adr/)). The building blocks exist and are
 tested on synthetic data, but **nothing runs on a schedule yet**. The worker process exists
-(`pnpm --filter @northstar/worker start`, NS-225), runs the stale-claim sweep and shows each pool
+(`pnpm --filter @northstar/worker start`, NS-225), runs the stale-claim sweep and the relay that passes your approval decisions to waiting
+submissions, and shows each pool
 on the Health page (a stopped pool reads "Not running"), but nothing
 starts submission workflows yet, so no application is submitted and no mail is polled
 automatically. Its browser pool
