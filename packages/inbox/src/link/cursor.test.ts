@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MessageHeaders } from "../gmail.js";
 import { FutureCursorError, type MailCursor, pollFromCursor } from "./cursor.js";
-import { type MailPollDeps, newMailQuery } from "./poll.js";
+import { MAX_PER_POLL, type MailPollDeps, newMailQuery } from "./poll.js";
 
 // One poll tick with a stored cursor (NS-247 slice 2) on a fake Gmail client and a fake store.
 // Synthetic mail only.
@@ -100,6 +100,22 @@ describe("pollFromCursor", () => {
       FutureCursorError,
     );
     expect([late.queries, late.saved, stored.queries, stored.saved]).toEqual([[], [], [], []]);
+  });
+
+  it("saves no overlap after a truncated run, so the next tick moves past the oldest batch", async () => {
+    const many = Array.from({ length: MAX_PER_POLL + 1 }, (_, i) => tagged(i + 1));
+    const { deps, saved } = setup(many, null);
+    const report = await pollFromCursor(deps, { firstSince: FIRST });
+    expect([report.truncated, saved]).toEqual([
+      true,
+      [{ since: minutes(MAX_PER_POLL), overlap: false }],
+    ]);
+  });
+
+  it("passes the caller's dead-lettered ids on to the poll", async () => {
+    const { deps } = setup([tagged(5), tagged(7)], null);
+    const report = await pollFromCursor(deps, { firstSince: FIRST, skip: new Set(["m5"]) });
+    expect([report.passedOver, report.handled]).toEqual([1, 2]);
   });
 
   it("throws a failed save, so the next tick reads the old cursor again", async () => {

@@ -1,6 +1,6 @@
 # NS-247 slice 2: a stored cursor for the mail poll
 
-Status: in progress (autonomous lane, ADR-0016)
+Status: done, in review (autonomous lane, ADR-0016)
 Issue: #293 (item 1's stored cursor; parent #224)
 Requirements: INB-002, INB-009; RES-006 (safe to repeat)
 Rules that apply: ADR-0012 (append-only), ADR-0016, `.claude/rules/db.md`, `.claude/rules/tests.md`
@@ -35,8 +35,8 @@ a crash must neither skip mail nor read everything again.
   step's ports.
 
 ## Acceptance criteria
-- [ ] Read, save, no-op save, never-backwards and the append-only guard (PGlite).
-- [ ] `pollFromCursor`: first run from `firstSince`, later runs from the stored cursor, saves the
+- [x] Read, save, no-op save, never-backwards and the append-only guard (PGlite).
+- [x] `pollFromCursor`: first run from `firstSince`, later runs from the stored cursor, saves the
       report's cursor, and saves even when stopped at a message (fakes).
 - [ ] lint, typecheck, test, build green (CI `checks`: this container's Node 22 can't install the
       workspace).
