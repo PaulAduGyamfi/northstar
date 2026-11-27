@@ -57,7 +57,7 @@ export async function pollDue(deps: PollDeps, now: Date): Promise<PassSummary> {
       summary.paused = (summary.paused ?? 0) + 1;
       continue;
     }
-    const result = await pollBoard(deps, watch, admission);
+    const result = await pollBoard(deps, watch, admission, now);
     const next = nextState(watch, result.outcome === "ok", now);
     await deps.store.record(watch, now, result, next);
     summary.added += result.added;
@@ -71,13 +71,11 @@ type Admission =
   | { ok: false; by: "kill_switch" | "breaker" }
   // The check itself failed; `error` is the error's name, never its message.
   | { ok: false; by: "guard_error"; error: string }
-  // `dependency` is null when there is no call to guard (Workday boards are never read).
-  | { ok: true; dependency: string | null; probeToken: string | null };
+  | { ok: true; dependency: string; probeToken: string | null };
 
 // May this board be read now? Its ATS's switch must be on and its breaker must allow the call.
 // A check that throws (Postgres down) holds the board back: no unguarded call goes out.
 async function admit(guard: PollGuard, watch: Watch): Promise<Admission> {
-  if (watch.ats === "workday") return { ok: true, dependency: null, probeToken: null };
   const name = `source:${watch.ats}`;
   try {
     if (!(await guard.isOn(name))) return { ok: false, by: "kill_switch" };
@@ -122,7 +120,8 @@ export function nextState(watch: Watch, ok: boolean, now: Date): NextState {
 function pollBoard(
   deps: PollDeps,
   watch: Watch,
-  admission: { dependency: string | null; probeToken: string | null },
+  admission: { dependency: string; probeToken: string | null },
+  now: Date,
 ): Promise<PollResult> {
   return trace
     .getTracer("@northstar/sources")
@@ -150,7 +149,6 @@ function pollBoard(
       // Tells the ATS's breaker how the board read went. Only the read counts: saving postings
       // is our database, not the ATS. A report that fails is noted and the poll goes on.
       const report = async (outcome: CallOutcome) => {
-        if (admission.dependency === null) return;
         try {
           await deps.guard.report(admission.dependency, outcome, admission.probeToken);
         } catch {
@@ -158,10 +156,9 @@ function pollBoard(
         }
       };
       try {
-        if (watch.ats === "workday") throw new Error("Workday boards aren't polled");
         let postings: Awaited<ReturnType<typeof listBoard>>;
         try {
-          postings = await listBoard(deps, { ats: watch.ats, board: watch.board });
+          postings = await listBoard(deps, { ats: watch.ats, board: watch.board }, now);
         } catch (error) {
           await report({ ok: false, error: errorName(error) });
           throw error;

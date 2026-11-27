@@ -20,7 +20,9 @@ export const BOARD_MAX_BYTES = 10 * 1024 * 1024;
 // (RES-005, NS-176): a resolver that never answers can't hold a fetch forever.
 export const DNS_TIMEOUT_MS = 5_000;
 
-export type FetchOptions = { maxBytes?: number };
+// `json` sends that value as a POST body (NS-260: Workday's public job search is a POST). A POST
+// never follows a redirect: the 3xx is returned, so a search can't be re-sent somewhere else.
+export type FetchOptions = { maxBytes?: number; json?: unknown };
 
 export type FetchDeps = {
   // All addresses a host name resolves to.
@@ -52,7 +54,7 @@ export async function safeFetch(
   return tracer.startActiveSpan("source.fetch", async (span) => {
     try {
       span.setAttribute("server.address", hostOf(start));
-      const r = await fetchHops(deps, start, opts.maxBytes ?? MAX_BYTES);
+      const r = await fetchHops(deps, start, opts.maxBytes ?? MAX_BYTES, opts.json);
       span.setAttribute("http.response.status_code", r.status);
       span.setAttribute("source.bytes", Buffer.byteLength(r.body));
       span.setAttribute("source.redirects", r.redirects);
@@ -74,18 +76,32 @@ const hostOf = (raw: string) => {
   }
 };
 
-async function fetchHops(deps: FetchDeps, start: string, maxBytes: number): Promise<Fetched> {
+async function fetchHops(
+  deps: FetchDeps,
+  start: string,
+  maxBytes: number,
+  json: unknown,
+): Promise<Fetched> {
   const signal = AbortSignal.timeout(TIMEOUT_MS);
+  const post = json !== undefined;
   let url = start;
   for (let redirects = 0; ; redirects++) {
     await checkTarget(deps, url);
+    const accept = "text/html,application/json;q=0.9,*/*;q=0.5";
     const res = await deps.fetch(url, {
       redirect: "manual",
       signal,
-      headers: { accept: "text/html,application/json;q=0.9,*/*;q=0.5" },
+      ...(post
+        ? {
+            method: "POST",
+            headers: { accept, "content-type": "application/json" },
+            body: JSON.stringify(json),
+          }
+        : { headers: { accept } }),
     });
     const location = res.headers.get("location");
-    if (res.status >= 300 && res.status < 400 && location) {
+    // A POST's redirect is returned as it is (see FetchOptions).
+    if (!post && res.status >= 300 && res.status < 400 && location) {
       if (redirects >= MAX_REDIRECTS)
         throw new FetchRefused(`more than ${MAX_REDIRECTS} redirects`);
       // Relative locations resolve against the current URL.

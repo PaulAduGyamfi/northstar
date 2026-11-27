@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { detectAts } from "../ats/detect.js";
 import { fakeWeb } from "../test/fake-web.js";
 import { BoardUnavailable, listBoard } from "./list.js";
 
@@ -215,5 +216,95 @@ describe("listBoard", () => {
     });
     const list = await listBoard(deps, { ats: "lever", board: "initech" });
     expect(list.map((p) => p.extraction.atsPostingId)).toEqual([LEVER_ID]);
+  });
+});
+
+// NS-260: a Workday career site's public job search (synthetic tenant and postings).
+describe("listBoard on a Workday career site", () => {
+  const WD = "https://initech.wd5.myworkdayjobs.com/wday/cxs/initech/Careers/jobs";
+  const NOW = new Date("2026-11-27T12:00:00Z");
+  const board = { ats: "workday", board: "initech.wd5/Careers" } as const;
+
+  it("asks the site's job search once, as a POST for the first page", async () => {
+    const { deps, sent } = fakeWeb({ [WD]: { body: { total: 0, jobPostings: [] } } });
+    await listBoard(deps, board, NOW);
+    expect(sent.map((s) => [s.url, s.method, s.body && JSON.parse(s.body)])).toEqual([
+      [WD, "POST", { appliedFacets: {}, limit: 20, offset: 0, searchText: "" }],
+    ]);
+  });
+
+  it("maps a posting to its site link, tenant-scoped id and fields", async () => {
+    const { deps } = fakeWeb({
+      [WD]: {
+        body: {
+          total: 1,
+          jobPostings: [
+            {
+              title: "Backend Engineer",
+              externalPath: "/job/New-York-NY/Backend-Engineer_R-1001",
+              locationsText: "New York, NY",
+              postedOn: "Posted 2 Days Ago",
+              remoteType: "Hybrid",
+              bulletFields: ["R-1001"],
+            },
+          ],
+        },
+      },
+    });
+    const [p] = await listBoard(deps, board, NOW);
+    const url =
+      "https://initech.wd5.myworkdayjobs.com/Careers/job/New-York-NY/Backend-Engineer_R-1001";
+    expect(p?.url).toBe(url);
+    expect(p?.extraction).toMatchObject({ method: "ats_api", ats: "workday" });
+    // The same id `jobs add` reads from the posting's link, so the two dedupe.
+    const added = detectAts(url);
+    expect([p?.extraction.atsPostingId, added?.ats === "workday" && added.postingId]).toEqual([
+      "initech/R-1001",
+      "initech/R-1001",
+    ]);
+    expect(p?.extraction.fields).toMatchObject({
+      title: "Backend Engineer",
+      company: "initech",
+      location: "New York, NY",
+      remote: "hybrid",
+      description: null,
+      postedAt: new Date("2026-11-25T12:00:00Z"),
+    });
+  });
+
+  it("skips a posting whose path isn't a job path, so a link can't be bent", async () => {
+    const { deps } = fakeWeb({
+      [WD]: {
+        body: {
+          jobPostings: [
+            { title: "Bent", externalPath: "/../../other/job/x_R-1" },
+            { title: "Off site", externalPath: "https://evil.example/job/x_R-2" },
+            { title: "No id", externalPath: "/job/Remote/Engineer" },
+            { title: "Analyst", externalPath: "/job/Remote/Analyst_R-1002" },
+          ],
+        },
+      },
+    });
+    const list = await listBoard(deps, board, NOW);
+    expect(list.map((p) => p.extraction.atsPostingId)).toEqual(["initech/R-1002"]);
+  });
+
+  it("a redirect or an error status is BoardUnavailable, not an empty board", async () => {
+    const moved = fakeWeb({ [WD]: { status: 302, location: "https://initech.example/login" } });
+    await expect(listBoard(moved.deps, board, NOW)).rejects.toThrow(
+      new BoardUnavailable("the board answered 302"),
+    );
+    const busy = fakeWeb({ [WD]: { status: 503, body: "busy" } });
+    await expect(listBoard(busy.deps, board, NOW)).rejects.toThrow(
+      new BoardUnavailable("the board answered 503"),
+    );
+  });
+
+  it("a stored Workday board that isn't tenant.wdN/site is refused before any request", async () => {
+    const { deps, asked } = fakeWeb({});
+    await expect(listBoard(deps, { ats: "workday", board: "initech" }, NOW)).rejects.toThrow(
+      new BoardUnavailable("the stored Workday board isn't tenant.wdN/site"),
+    );
+    expect(asked).toEqual([]);
   });
 });

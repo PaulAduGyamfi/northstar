@@ -28,7 +28,7 @@ type Io = {
 export const TICK_MS = 60_000;
 
 const BOARDS =
-  "boards.greenhouse.io/<board>, jobs.lever.co/<company>, jobs.ashbyhq.com/<org>, jobs.smartrecruiters.com/<Company> or apply.workable.com/<account>";
+  "boards.greenhouse.io/<board>, jobs.lever.co/<company>, jobs.ashbyhq.com/<org>, jobs.smartrecruiters.com/<Company>, apply.workable.com/<account> or <tenant>.wd<N>.myworkdayjobs.com/<site>";
 
 export async function watchCommand(io: Io, args: string[]): Promise<number | null> {
   const [sub, ...rest] = args;

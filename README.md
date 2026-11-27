@@ -32,7 +32,7 @@ One system that **finds jobs, applies to them, runs your inbox, and keeps your p
 | [packages/domain/](packages/domain/) | Pure rules: application states, approval policy, growth planner, interview prep, metrics |
 | [packages/db/](packages/db/) | Postgres schema, migrations and the append-only write paths |
 | [packages/llm/](packages/llm/) · [packages/prompts/](packages/prompts/) | The only LLM gateway, and versioned, hash-locked prompts |
-| [packages/sources/](packages/sources/) | Adding jobs from links, board polling, fit scores, posting liveness, fresh-job alerts |
+| [packages/sources/](packages/sources/) | Adding jobs from links, board polling (Greenhouse, Lever, Ashby, SmartRecruiters, Workable, Workday), fit scores, posting liveness, fresh-job alerts |
 | [packages/profile/](packages/profile/) | Resume import, stories, tailoring, audit, answers, replies, voice, Career DNA |
 | [packages/inbox/](packages/inbox/) | Read-only Gmail and Calendar, mail linking, verification codes, interview detection |
 | [packages/pipeline/](packages/pipeline/) | Assembling an application package for the Approval Gate |

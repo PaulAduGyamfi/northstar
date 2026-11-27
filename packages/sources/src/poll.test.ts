@@ -323,12 +323,24 @@ describe("kill switches and breakers (RES-002, RES-008)", () => {
     expect(w.jobs).toHaveLength(1);
   });
 
-  it("a Workday watch never asks the breaker or reports to it", async () => {
-    const w = world({}, [watch({ ats: "workday" })]);
+  // NS-260: Workday boards are read now, behind the same switch and breaker as the others.
+  it("a Workday watch is read behind source:workday's switch and breaker", async () => {
+    const wd = "https://initech.wd5.myworkdayjobs.com/wday/cxs/initech/Careers/jobs";
+    const w = world(
+      {
+        [wd]: {
+          body: {
+            jobPostings: [{ title: "Engineer", externalPath: "/job/Remote/Engineer_R-1001" }],
+          },
+        },
+      },
+      [watch({ ats: "workday", board: "initech.wd5/Careers" })],
+    );
     await pollDue(w.deps, T0);
-    expect(w.g.asked).toEqual([]);
-    expect(w.g.reports).toEqual([]);
-    expect(w.recorded.map((r) => r.result.outcome)).toEqual(["failed"]);
+    expect([w.g.reports.map((r) => r.dependency), w.recorded.map((r) => r.result.outcome)]).toEqual(
+      [["source:workday"], ["ok"]],
+    );
+    expect(w.jobs).toHaveLength(1);
   });
 });
 

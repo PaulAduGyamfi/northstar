@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AshbyJob, fromAshby } from "../ats/ashby.js";
 import { fromGreenhouse, GreenhousePosting, safeJson } from "../ats/greenhouse.js";
 import { fromLever, LeverPosting } from "../ats/lever.js";
+import { postedOn } from "../ats/workday.js";
 import { dateOrNull, type Extraction, emptyFields, htmlToText, remoteFrom } from "../extraction.js";
 import { BOARD_MAX_BYTES, type FetchDeps, safeFetch } from "../fetch.js";
 import type { BoardTarget } from "./detect.js";
@@ -31,9 +32,16 @@ export class BoardUnavailable extends Error {
 
 type Board = Pick<BoardTarget, "ats" | "board">;
 
-export async function listBoard(deps: FetchDeps, t: Board): Promise<BoardPosting[]> {
+// `now` dates Workday's relative "Posted 3 Days Ago" (the other ATSs give dates).
+export async function listBoard(
+  deps: FetchDeps,
+  t: Board,
+  now: Date = new Date(),
+): Promise<BoardPosting[]> {
   const enc = encodeURIComponent(t.board);
   switch (t.ats) {
+    case "workday":
+      return listWorkday(deps, t.board, now);
     case "greenhouse": {
       const body = await read(
         deps,
@@ -101,8 +109,72 @@ export async function listBoard(deps: FetchDeps, t: Board): Promise<BoardPosting
   }
 }
 
-async function read<T>(deps: FetchDeps, url: string, shape: z.ZodType<T>): Promise<T> {
-  const res = await safeFetch(deps, url, { maxBytes: BOARD_MAX_BYTES });
+// A stored Workday board: `<tenant>.wd<N>/<site>`, as detectBoard writes it (NS-260).
+const WORKDAY_BOARD = /^([a-z0-9-]{1,63})\.(wd\d{1,3})\/([A-Za-z0-9][A-Za-z0-9._-]{0,99})$/;
+// A posting's path on its site: /job/<segments>/<title>_<requisition id>. Each segment starts with
+// a letter or digit, so no `..` and no other host can be spliced into the link.
+const WORKDAY_PATH =
+  /^\/job\/(?:[A-Za-z0-9][A-Za-z0-9._~%-]*\/)*[A-Za-z0-9][A-Za-z0-9._~%-]*_([A-Za-z0-9-]{1,40})$/;
+// Workday's search returns at most 20 postings a page; one page a poll (one request per board).
+const WORKDAY_PAGE = 20;
+
+// One posting in the career site's public job search (`/wday/cxs/<tenant>/<site>/jobs`). The search
+// has no description: the title, place and age only, like SmartRecruiters' list.
+const WorkdayPosting = z.object({
+  title: z.string(),
+  externalPath: z.string().regex(WORKDAY_PATH),
+  locationsText: z.string().optional(),
+  postedOn: z.string().optional(),
+  remoteType: z.string().optional(),
+});
+
+async function listWorkday(deps: FetchDeps, board: string, now: Date): Promise<BoardPosting[]> {
+  const m = WORKDAY_BOARD.exec(board);
+  const [, tenant, dc, site] = m ?? [];
+  if (!tenant || !dc || !site) {
+    throw new BoardUnavailable("the stored Workday board isn't tenant.wdN/site");
+  }
+  const host = `${tenant}.${dc}.myworkdayjobs.com`;
+  // The first page of open postings in Workday's own order, with no search or filter: exactly what
+  // the career site asks for when anyone opens it. No sign-in, no apply.
+  const body = await read(
+    deps,
+    `https://${host}/wday/cxs/${tenant}/${site}/jobs`,
+    z.object({ jobPostings: z.array(z.unknown()) }),
+    { appliedFacets: {}, limit: WORKDAY_PAGE, offset: 0, searchText: "" },
+  );
+  return each(body.jobPostings, WorkdayPosting, (p) => {
+    const location = p.locationsText ?? null;
+    const reqId = WORKDAY_PATH.exec(p.externalPath)?.[1] ?? "";
+    return {
+      url: `https://${host}/${site}${p.externalPath}`,
+      extraction: {
+        method: "ats_api",
+        ats: "workday",
+        // Scoped by tenant, exactly as detectAts reads it from the posting's link (SRC-006).
+        atsPostingId: `${tenant}/${reqId}`,
+        fields: {
+          ...emptyFields(),
+          title: p.title,
+          // The search names no company: the tenant stands in, as Lever's board slug does.
+          company: tenant,
+          location,
+          remote: remoteFrom(p.remoteType, location),
+          ats: "workday",
+          postedAt: postedOn(p.postedOn, now),
+        },
+      },
+    };
+  });
+}
+
+async function read<T>(
+  deps: FetchDeps,
+  url: string,
+  shape: z.ZodType<T>,
+  json?: unknown,
+): Promise<T> {
+  const res = await safeFetch(deps, url, { maxBytes: BOARD_MAX_BYTES, json });
   if (res.status !== 200) throw new BoardUnavailable(`the board answered ${res.status}`);
   const parsed = shape.safeParse(safeJson(res.body));
   if (!parsed.success) {
