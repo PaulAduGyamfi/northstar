@@ -53,6 +53,7 @@ describe("QueueBody", () => {
       kind: "answer",
       subject: "answer:r1",
       requestedAt: "2026-11-25T12:00:00.000Z",
+      edited: false,
     };
     expect(QueueBody.safeParse({ items: [item] }).success).toBe(true);
     expect(QueueBody.safeParse({ items: [{ ...item, kind: "anything" }] }).success).toBe(false);
@@ -148,6 +149,16 @@ describe("reply drafts (NS-237)", () => {
       "Subject: Re: Your application",
       "Hi Jo, thank you.",
       "It cites none of your stories or atoms.",
+    ]);
+  });
+
+  it("says the reply is Paul's edit in place of the cites line (NS-203 slice 3)", () => {
+    expect(replyLines(REPLY, true)).toEqual([
+      "To: jo@acme.example",
+      "Subject: Re: Your application",
+      "Hi Jo, thank you.",
+      "Question for you: Which week suits you?",
+      "Edited by you: you changed this reply's text after it was drafted.",
     ]);
   });
 

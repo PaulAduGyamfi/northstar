@@ -67,6 +67,8 @@ const Queue = z.object({
       kind: Kind,
       subject: z.string(),
       requestedAt: z.string(),
+      // The request replaced one Paul edited (NS-203 slice 3).
+      edited: z.boolean(),
     }),
   ),
 });
@@ -135,6 +137,7 @@ export function approvalEndpoints(ports: ApprovalPorts): AnyEndpoint[] {
             kind: p.kind,
             subject: p.subject,
             requestedAt: p.requestedAt.toISOString(),
+            edited: p.edited,
           })),
         },
       };

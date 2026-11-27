@@ -35,6 +35,7 @@ beforeEach(async () => {
           kind: "application_package",
           subject: `application_package:${R1}`,
           requestedAt: T,
+          edited: false,
         },
       ];
     },
@@ -167,11 +168,26 @@ describe("GET /approvals", () => {
             kind: "application_package",
             subject: `application_package:${R1}`,
             requestedAt: "2026-11-25T12:00:00.000Z",
+            edited: false,
           },
         ],
       },
     ]);
     expect(calls).toEqual([["list", undefined]]);
+  });
+
+  it("says which waiting request replaced one Paul edited (NS-203 slice 3)", async () => {
+    ports.list = async () => [
+      {
+        requestId: R1,
+        kind: "email_reply",
+        subject: "email_reply:x",
+        requestedAt: T,
+        edited: true,
+      },
+    ];
+    const res = await get("/approvals");
+    expect(JSON.parse(res.body).items[0].edited).toBe(true);
   });
 
   it("filters by kind, and refuses a kind the Gate doesn't know", async () => {

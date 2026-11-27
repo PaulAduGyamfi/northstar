@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   batchUndoLabel,
   DecideBody,
+  EDITED_MARK,
   editProblem,
   editResultWords,
   KIND_WORDS,
@@ -212,8 +213,11 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
               <span className="muted">
                 {item.subject}, waiting {waitedFor(item.requestedAt, now)}
               </span>
+              {item.edited ? <span className="status-label"> {EDITED_MARK}</span> : null}
             </label>
-            {item.kind === "email_reply" ? <ReplyPreview requestId={item.requestId} /> : null}
+            {item.kind === "email_reply" ? (
+              <ReplyPreview requestId={item.requestId} isEdited={item.edited} />
+            ) : null}
           </li>
         ))}
       </ul>
@@ -269,7 +273,7 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
 // "Show the reply" for one email reply (NS-237): fetched only when Paul asks, shown as plain text.
 // Since NS-203 slice 2 it also has "Edit": Paul changes the body, and saving files the edit with
 // the Gate (POST /approvals/edit-reply), which withdraws this request and files the edited one.
-function ReplyPreview({ requestId }: { requestId: string }) {
+function ReplyPreview({ requestId, isEdited }: { requestId: string; isEdited: boolean }) {
   const router = useRouter();
   const [reply, setReply] = useState<ReplyBody | null>(null);
   const [draft, setDraft] = useState<string | null>(null);
@@ -361,7 +365,7 @@ function ReplyPreview({ requestId }: { requestId: string }) {
     );
   }
   if (reply !== null) {
-    const lines = replyLines(reply);
+    const lines = replyLines(reply, isEdited);
     return (
       <div className="muted">
         {lines.map((line, i) => (

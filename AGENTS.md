@@ -282,6 +282,11 @@ Exists now:
   (`approval-queue.tsx`): Paul edits the body, and Save sends it there after `editProblem`
   (`src/approvals.ts`: not empty, at most `MAX_REPLY_BODY`, the package schema's 5,000, changed) and says the answer with
   `editResultWords` (a double-click's `409 not_pending` reads as already done), then reloads.
+  Since slice 3 an edited request is marked: `listPendingApprovals` (`packages/db`) gives each
+  waiting request `edited` (an `approval_edit` row names it as the new request), `GET /approvals`
+  passes it on, and the Queue shows "Edited by you" next to it and, in its reply view, in place of
+  the cites line (`replyLines(reply, edited)`), since the first draft's cites may no longer back
+  Paul's text.
   Since slice 3 also follow-up nudges (RPL-004), plain code:
   - `nudgesDue` (`packages/domain`, `follow-up.ts`) picks the applications in `applied`
     (`submitted`, `confirmed`) or `interview` (`in_process`) whose newest verified-sender linked

@@ -1,6 +1,6 @@
 # NS-203 slice 3: mark an edited request "Edited by you" in the Queue
 
-Status: in progress (autonomous lane, ADR-0016). Assigned by the orchestrator.
+Status: built (autonomous lane, ADR-0016). Assigned by the orchestrator.
 Issue: #179 (parent #68); slices 1 (#324) and 2 (#347) came first.
 Requirements: APR-002 · ADR-0002, ADR-0017
 Rules that apply: `.claude/rules/db.md`, `.claude/rules/web.md`, `.claude/rules/tests.md`
@@ -21,11 +21,11 @@ edits.
   reply's text after it was drafted." in place of the cites line (`replyLines(reply, edited)`).
 
 ## Acceptance criteria
-- [ ] `listPendingApprovals` marks only a request that replaced an edited one (PGlite test).
-- [ ] `GET /approvals` returns `edited` for each item.
-- [ ] The Queue's words: the item's mark and the reply view's line for an edited request; the cites
+- [x] `listPendingApprovals` marks only a request that replaced an edited one (PGlite test).
+- [x] `GET /approvals` returns `edited` for each item.
+- [x] The Queue's words: the item's mark and the reply view's line for an edited request; the cites
       line unchanged for one that wasn't edited.
-- [ ] lint, typecheck, test and build green for db, api and web; docs updated.
+- [x] lint, typecheck, test and build green for db, api and web; docs updated.
 
 ## Out of scope
 - Editing application packages and banked answers (their facts must be derived again).

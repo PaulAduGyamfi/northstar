@@ -34,6 +34,8 @@ const Item = z.object({
   kind: z.enum(KINDS),
   subject: z.string(),
   requestedAt: z.string(),
+  // The request replaced one Paul edited (NS-203 slice 3).
+  edited: z.boolean(),
 });
 export type QueueItem = z.infer<typeof Item>;
 export const QueueBody = z.object({ items: z.array(Item) });
@@ -140,15 +142,24 @@ export const ReplyBody = z.object({
 });
 export type ReplyBody = z.infer<typeof ReplyBody>;
 
+// The mark next to a request Paul edited (NS-203 slice 3), and what its reply view says in place
+// of the cites line: the text is his now, so the first draft's cites may no longer back it.
+export const EDITED_MARK = "Edited by you";
+export const EDITED_LINE = "Edited by you: you changed this reply's text after it was drafted.";
+
 // What Paul reads before he approves a reply, line by line, shown as plain text: who it goes to
 // first, with a warning when that is another domain than the sender's own (RPL-002).
-export function replyLines(reply: ReplyBody): string[] {
+export function replyLines(reply: ReplyBody, edited = false): string[] {
   const lines = [`To: ${reply.to}`];
   if (reply.replyToOtherDomain) {
     lines.push("Check the address: the sender asked for replies on another domain than theirs.");
   }
   lines.push(`Subject: ${reply.subject}`, reply.body);
   for (const q of reply.followUps) lines.push(`Question for you: ${q}`);
+  if (edited) {
+    lines.push(EDITED_LINE);
+    return lines;
+  }
   const n = reply.cites.length;
   lines.push(
     n === 0 ? "It cites none of your stories or atoms." : `It cites ${n} of your stories or atoms.`,
