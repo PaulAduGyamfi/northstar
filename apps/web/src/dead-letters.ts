@@ -76,6 +76,18 @@ const KINDS: Record<string, KindWords> = {
         "Nothing runs now. Check your calendar for the interview yourself: an invite that keeps changing, or many at once, may not be from the company.",
     },
   },
+  // NS-241 slice 4: an approved prep plan the Calendar writer couldn't write. Blocks already
+  // written stay, and a rerun writes each block once (its event id comes from the approval).
+  "calendar.prep_write": {
+    what: "Adding approved prep blocks to your Northstar calendar",
+    next: {
+      retry:
+        "Nothing runs now: the next time you add prep blocks, this plan is tried again. Blocks already added aren't added twice.",
+      skip: "Nothing more is done about this plan. Blocks already added stay on your Northstar calendar.",
+      hand_off:
+        "Nothing runs now. Add the prep blocks to your calendar yourself; any already added stay on your Northstar calendar.",
+    },
+  },
   // NS-238 item 1: an email that stopped `funnel inbox` from reading new mail three times in a
   // run. Later runs pass over it until Paul retries it.
   "mail.poll": {
@@ -117,6 +129,8 @@ const REASONS: Record<string, string> = {
   daily_limit: "too many possible interviews in one day",
   invalid_detection: "the calendar event couldn't be stored as it is",
   unknown_application: "its application wasn't found",
+  write_failed: "every attempt to write to Google Calendar failed",
+  claims_exhausted: "too many runs stopped part-way",
   read_failed: "Gmail wouldn't give the email",
   step_failed: "linking it to your applications failed",
   classify_failed: "sorting it failed",

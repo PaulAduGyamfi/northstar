@@ -655,8 +655,26 @@ Exists now:
   and `requests.ts` with the only three calls (create the calendar with a fixed marker, find it by
   that marker, `events.insert` with `sendUpdates=none` and a body of exactly the event id, a fixed
   title and UTC start and end; 409 means already written), behind the `calendar_writes` kill
-  switch and the `calendar` breaker, with a runtime allowlist and a boundary test. No Gate check,
-  ledger or caller yet (the next slice, with a migration).
+  switch and the `calendar` breaker, with a runtime allowlist and a boundary test.
+  Since slice 4 (migration 0104) plans go through the Gate and the writer:
+  - `requestPrepPlanApproval` (`packages/db`, `prep-plan-write.ts`) files one `prep_plan` request
+    per stored proposal of a current, confirmed interview, never from caller-built blocks, with
+    `prep_plan_request` in the same transaction (append-only; a foreign key pins the request's id,
+    kind and hash).
+  - The hash is `prepPlanContentSha256` (`packages/domain`, `prep-plan.ts`): the proposal, the
+    detection id and version, the calendar's name and each block's kind, times and fixed title.
+  - `writePrepPlan` (`packages/gateways`, `src/calendar/gateway.ts`) re-hashes the stored plan and
+    calls `verifyApproval`. On a reschedule (a new detection version) it withdraws the approval by
+    `gateway` and writes nothing. Without the scope it answers `scope_missing`.
+  - It then claims the decision (`claimPrepWrite`, `prep-ledger-write.ts`: one write at a time
+    per candidate, a 5-minute lease) and uses the stored Northstar calendar, else the marked one,
+    else a new one (`northstar_calendar`, saved as soon as Google names it).
+  - It inserts each block with `prepEventId` (the decision's hex and the index, so a retry answers
+    409) and records the write once (`prep_write_record`, `calendar.prep_written`: ids and the count,
+    "Added 3 prep blocks to your Northstar calendar").
+  - `calendar.prep_write` is a dead-letter kind for its caller.
+
+  No caller yet: the command Paul runs, with per-run consent, comes next.
 - Recruiter grading (NS-167, REC-001/002), slice 1:
   - The `recruiter-extract` route (`packages/inbox`, `src/recruiter/`) reads a recruiter email's
     stated facts: title, seniority, company, place, remote kind, pay range, agency or in-house,
@@ -858,8 +876,8 @@ Exists now:
   as Paul; `apps/api/src/dead-letters.ts`), and "Stuck work" on `/health` with Retry, Skip and
   Hand off buttons that say what happens next (`src/dead-letters.ts`). Since NS-236
   `recordDeadLetter` takes only a kind on `DEAD_LETTER_KINDS` (`apply.stale_sweep`,
-  `apply.submission`, `calendar.interview_detection`, and since NS-213 slice 2
-  `apply.signal_relay`); a new producer adds its own.
+  `apply.submission`, `calendar.interview_detection`, since NS-213 slice 2
+  `apply.signal_relay`, and since NS-241 slice 4 `calendar.prep_write`); a new producer adds its own.
 - Health and feed (NS-125, RES-013, OBS-002): `systemHealth` (`packages/domain`, `health.ts`)
   turns breakers, kill switches and board watches into `healthy / degraded / down` per subsystem
   with a plain reason, and `feedLine` (`feed.ts`) turns an event into one plain sentence from

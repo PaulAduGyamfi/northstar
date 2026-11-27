@@ -460,6 +460,30 @@ export {
   readApplicationTimeline,
   type TimelineItem,
 } from "./pipeline-read.js";
+// Prep plans through the Gate and the Calendar writer's ledger (NS-241 slice 4, ADR-0031).
+export {
+  claimPrepWrite,
+  dbCalendarLedger,
+  MAX_PREP_CLAIMS,
+  NorthstarCalendarConflict,
+  PREP_CLAIM_LEASE_MS,
+  type PrepClaim,
+  PrepClaimsExhausted,
+  PrepRecordConflict,
+  prepWrittenReason,
+  readNorthstarCalendar,
+  recordPrepWrite,
+  saveNorthstarCalendar,
+} from "./prep-ledger-write.js";
+export * as prepPlanSchema from "./prep-plan-schema.js";
+export {
+  type DetectionRef,
+  type FiledPrepPlan,
+  type PrepPlanFileError,
+  readPrepPlan,
+  requestPrepPlanApproval,
+  type StoredPrepPlan,
+} from "./prep-plan-write.js";
 export * as profileSchema from "./profile-schema.js";
 export { PROFILE_SETTING_FIELDS, QUALIFIED_SETTING_FIELDS } from "./profile-schema.js";
 export {
