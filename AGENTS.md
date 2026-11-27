@@ -305,8 +305,13 @@ Exists now:
   - `buildCareerDna` gives the report's label, strength and gap lines. `checkCareerDna` refuses an
     uncited strength or label line, an unknown atom or story id, and a gap line with a score.
 
-  No directions, handoffs, storage or share card yet; the share card waits on a Publish gateway
-  ADR and Q-10.
+  Since slice 2 also career directions (DNA-004): `careerDirections` (`packages/sources`,
+  `fit/directions.ts`, plain code) groups ready jobs into role families by title (seniority words
+  and qualifiers dropped; at least 2 jobs), ranks them by how much of their must-haves Paul's atoms
+  cover through the Fit Score's `matchRequirements`, and lists each one's matched atoms, its 5
+  most frequent unmatched must-haves and its jobs posted in the last 7 days. No caller yet.
+
+  No handoffs, storage or share card yet; the share card waits on a Publish gateway ADR and Q-10.
 - The voice profile (NS-136, ANS-007/008) in `packages/profile/src/voice/`, plain code, no model:
   - `measureVoice` turns 5–10 writing samples into a style guide (sentence length, contractions,
     "I"/"we", exclamation marks, phrases used in 3+ samples), rendered by `renderVoiceGuide` for
