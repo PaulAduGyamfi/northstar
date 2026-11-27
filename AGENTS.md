@@ -717,9 +717,10 @@ Exists now:
   `apps/api/src/prep-plan-view.ts`) answers `readPrepPlanView` (`packages/db`,
   `prep-plan-read.ts`, read-only): the interview the plan was filed for, each block's kind and
   times in order, and `rescheduled` when a newer version of the interview is stored. It never
-  answers the event id, calendar id or hash. A `prep_plan` item's "Show the plan"
+  answers the event id, calendar id or hash. "Show the plan"
   (`app/approvals/prep-plan-preview.tsx`) words it in the browser's own zone (`prepPlanLines`,
-  `src/prep-plan.ts`), with a line telling Paul to reject a rescheduled plan.
+  `src/prep-plan.ts`), with a line telling Paul to reject a rescheduled plan; the Queue doesn't
+  render it on a `prep_plan` item yet (a follow-up, after the Queue edit work).
 
   A write that throws becomes a `calendar.prep_write` dead letter (`write_failed`,
   `claims_exhausted`), and so does a refusal no later run clears (`plan_not_found`,

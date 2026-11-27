@@ -103,7 +103,8 @@ are CSS variables in `apps/web/app/globals.css`.
   verified" (an invite isn't authenticated) with Confirm and Dismiss through
   `POST /interviews/decide`; neither choice moves a status, and the page says so in its intro and
   after a choice (`decidedMessage`, in one message area that stays mounted).
-- A prep plan in the Queue (NS-241 slice 6) shows only when Paul asks ("Show the plan",
+- A prep plan in the Queue (NS-241 slice 6; not rendered on the card until its follow-up) shows
+  only when Paul asks ("Show the plan",
   `app/approvals/prep-plan-preview.tsx`, the API's `GET /approvals/prep-plan`), as plain text
   through `prepPlanLines` (`src/prep-plan.ts`) in the browser's own time zone: the interview, then
   each block in time order, and the reschedule line when the interview moved. It decides nothing:
