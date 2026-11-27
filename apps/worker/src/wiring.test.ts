@@ -1,7 +1,9 @@
 import type { Db } from "@northstar/db";
+import { CandidateId } from "@northstar/domain";
+import type { FormDriver } from "@northstar/gateways";
 import { describe, expect, it } from "vitest";
 import { loadWorkerConfig } from "./config.js";
-import { workerActivities } from "./wiring.js";
+import { browserPorts, workerActivities } from "./wiring.js";
 
 // Each pool gets only its own activities (NS-225, RES-001). Binding touches neither the database
 // nor a browser, so a stand-in database is enough here.
@@ -29,5 +31,45 @@ describe("workerActivities", () => {
       launch,
     );
     expect(Object.keys(pools.applyBrowser ?? {})).toEqual(["submitApplication"]);
+  });
+});
+
+describe("browserPorts", () => {
+  const CANDIDATE = CandidateId.parse("00000000-0000-4000-8000-0000000000c1");
+
+  it("reads a file as the submission's own candidate", async () => {
+    const asked: unknown[] = [];
+    const ports = browserPorts(CANDIDATE, "/opt/chromium/chrome", {
+      readFile: async (c, sha256) => {
+        asked.push([c, sha256]);
+        return null;
+      },
+      launch,
+    });
+    await ports.readFile("a".repeat(64));
+    expect(asked).toEqual([[CANDIDATE, "a".repeat(64)]]);
+  });
+
+  it("starts the installed Chromium bound to the adapter's hosts, only on the form's first open", async () => {
+    const launches: unknown[] = [];
+    const page = { kind: "challenge", challenge: "captcha" } as const;
+    const fake: FormDriver = {
+      open: async () => page,
+      fillAndSubmit: async () => page,
+      close: async () => {},
+    };
+    const ports = browserPorts(CANDIDATE, "/opt/chromium/chrome", {
+      readFile: async () => null,
+      launch: async (options) => {
+        launches.push(options);
+        return fake;
+      },
+    });
+    const driver = ports.openDriver(["boards.greenhouse.io"]);
+    expect(launches).toEqual([]);
+    await driver.open("https://boards.greenhouse.io/example/jobs/1");
+    expect(launches).toEqual([
+      { hosts: ["boards.greenhouse.io"], executablePath: "/opt/chromium/chrome" },
+    ]);
   });
 });

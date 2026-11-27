@@ -13,7 +13,7 @@ describe("loadWorkerConfig", () => {
     ]);
   });
 
-  it.each(["127.0.0.1:7233", "localhost:17233", "[::1]:7233"])(
+  it.each(["127.0.0.1:7233", "127.0.0.1:17233", "[::1]:7233"])(
     "accepts a loopback address (%s)",
     (TEMPORAL_ADDRESS) => {
       expect(loadWorkerConfig({ TEMPORAL_ADDRESS }).temporalAddress).toBe(TEMPORAL_ADDRESS);
@@ -22,6 +22,7 @@ describe("loadWorkerConfig", () => {
 
   it.each([
     "temporal.example.com:7233",
+    "localhost:7233",
     "10.0.0.5:7233",
     "127.0.0.1",
     "127.0.0.1:0",
@@ -37,9 +38,7 @@ describe("loadWorkerConfig", () => {
           return (e as Error).message;
         }
       })();
-      expect(thrown).toBe(
-        "TEMPORAL_ADDRESS: host:port on this machine (127.0.0.1, localhost or [::1])",
-      );
+      expect(thrown).toBe("TEMPORAL_ADDRESS: host:port on this machine (127.0.0.1 or [::1])");
     },
   );
 

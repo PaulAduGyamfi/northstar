@@ -19,8 +19,9 @@ export type WorkerConfig = {
 const DEFAULT_ADDRESS = "127.0.0.1:7233";
 const DEFAULT_NAMESPACE = "default";
 // The compose stack binds Temporal to 127.0.0.1 (NS-104) and the connection has no TLS, so only a
-// loopback host is accepted: a typo can't send workflow traffic over the network.
-const ADDRESS = /^(127\.0\.0\.1|localhost|\[::1\]):([0-9]{1,5})$/;
+// literal loopback address is accepted (not `localhost`, which the hosts file can point
+// anywhere): a typo can't send workflow traffic over the network.
+const ADDRESS = /^(127\.0\.0\.1|\[::1\]):([0-9]{1,5})$/;
 const NAMESPACE = /^[A-Za-z0-9._-]{1,64}$/;
 
 // Unset and empty both mean "use the default".
@@ -34,7 +35,7 @@ function address(env: Record<string, string | undefined>): string {
   const m = ADDRESS.exec(value);
   const port = m ? Number(m[2]) : 0;
   if (!(port >= 1 && port <= 65535)) {
-    throw new Error("TEMPORAL_ADDRESS: host:port on this machine (127.0.0.1, localhost or [::1])");
+    throw new Error("TEMPORAL_ADDRESS: host:port on this machine (127.0.0.1 or [::1])");
   }
   return value;
 }

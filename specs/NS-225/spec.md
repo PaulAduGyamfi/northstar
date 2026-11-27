@@ -24,9 +24,9 @@ but no process runs them. Nothing in Northstar happens on its own until one does
 ## Behavior (slice 1)
 - `loadWorkerConfig(env)` (`src/config.ts`), the one place the worker reads settings (entry point
   passes `process.env`; app code never reads it):
-  - `TEMPORAL_ADDRESS`: `host:port`, default `127.0.0.1:7233`. Only a loopback host
-    (`127.0.0.1`, `localhost`, `::1`) is accepted: the compose stack binds Temporal to 127.0.0.1
-    and the connection has no TLS.
+  - `TEMPORAL_ADDRESS`: `host:port`, default `127.0.0.1:7233`. Only a literal loopback address
+    (`127.0.0.1`, `[::1]`; not `localhost`, which the hosts file can point anywhere) is accepted:
+    the compose stack binds Temporal to 127.0.0.1 and the connection has no TLS.
   - `TEMPORAL_NAMESPACE`: default `default`; letters, digits, `.`, `_`, `-`, 1–64 characters.
   - `WORKER_APPLY_BROWSER`: `on` or `off`, default **off**. Only `on` starts the `apply-browser`
     pool, so nothing can be submitted until Paul turns it on (the `auto_apply` kill switch and the
@@ -35,11 +35,13 @@ but no process runs them. Nothing in Northstar happens on its own until one does
     pool is on (playwright-core downloads no browser, ADR-0028).
   - The pool limits (`loadPoolLimits`) and apply pacing (`loadApplyLimits`) as today.
   - A bad value names the setting and what it must be, never the value.
-- `deferredFormDriver(hosts, launch)` (`packages/gateways`, `src/apply/browser/deferred.ts`): a
+- `deferredFormDriver(launch)` (`packages/gateways`, `src/apply/browser/deferred.ts`): a
   `FormDriver` the gateway can take synchronously, which launches the browser on its first
-  `open` with the adapter's own hosts. After `close()` it takes no further browser action: a close
-  before `open` launches nothing, a close during the launch closes the new browser as soon as it
-  starts and fails the step, and any step after close throws.
+  `open` (the worker's `browserPorts` closes the adapter's hosts and the Chromium path over
+  `launch`). After `close()` it takes no further browser action: a close before `open` launches
+  nothing, a close during the launch closes the new browser as soon as it starts and fails the
+  step, and any step after close throws. A launch failure (a launch timeout included) is a
+  `DriverError` naming only the error's class, so it never counts against the ATS's breaker.
 - The gateway's `openDriver` port takes the adapter's hosts (`openDriver(hosts)`), so the browser
   is bound to the ATS's hosts the gateway already checked the apply URL against.
 - `workerActivities(db, settings)` (`src/wiring.ts`) binds the activities to the database:
@@ -50,7 +52,13 @@ but no process runs them. Nothing in Northstar happens on its own until one does
 - `main.ts` connects (`NativeConnection`) and runs one `Worker` per queue with `workerOptions`:
   `pipeline` with the workflows bundle (`src/workflows/index.ts`) and its activities, and
   `apply-browser` only when it is on. A failed connection or a bad setting exits non-zero with
-  one line naming the problem. It shuts down cleanly on SIGINT/SIGTERM (Temporal's default).
+  one line naming the problem; with the browser pool on, a Chromium path that isn't an executable
+  file fails at start. The pools run and stop together (`runPools`): when one fails, the others
+  are shut down and that first error is the one reported, then the connection and the database
+  pool close. It shuts down cleanly on SIGINT/SIGTERM (Temporal's default).
+- With the browser pool off, a submit activity a workflow schedules waits in Temporal's
+  `apply-browser` queue and runs once Paul turns it on (still through the Gate, the switches and
+  the claim at that moment): off holds submissions back, it doesn't drop them.
 - `pnpm --filter @northstar/worker start` builds and runs it, reading the root `.env.app` like the
   API. Placeholders for the new settings go in `.env.example`'s "Apps" part.
 

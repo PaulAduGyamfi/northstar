@@ -75,7 +75,8 @@ ADR-0016 (the autonomous lane, see [docs/adr/](docs/adr/)). The building blocks 
 tested on synthetic data, but **nothing runs on a schedule yet**. The worker process exists
 (`pnpm --filter @northstar/worker start`, NS-225), but nothing starts its workflows yet (#230's
 next slice), so no application is submitted and no mail is polled automatically. Its browser pool
-is off unless you turn it on (`WORKER_APPLY_BROWSER=on`). What each package does today is listed
+is off unless you turn it on (`WORKER_APPLY_BROWSER=on`); while it is off, a submission waits in
+Temporal's queue (it isn't dropped) and still needs your approval when the pool comes on. What each package does today is listed
 under "Layout" in [AGENTS.md](AGENTS.md).
 
 ## Getting started (local)

@@ -20,7 +20,13 @@ export function deferredFormDriver(launch: LaunchDriver): FormDriver {
   // the launch and closes the browser itself.
   const started = async (): Promise<FormDriver> => {
     if (closed) throw new DriverError("the driver is closed");
-    driver ??= launch();
+    // A browser that won't start is this machine's trouble, never the ATS's: as a DriverError it
+    // never counts against the ATS's breaker (only a step timeout does), even when the launch
+    // itself timed out. Only the error's class name, never its message.
+    driver ??= launch().catch((error: unknown) => {
+      const name = error instanceof Error ? error.name : "unknown";
+      throw new DriverError(`the browser didn't start (${name})`);
+    });
     const d = await driver;
     if (closed) throw new DriverError("the driver closed while the browser was starting");
     return d;

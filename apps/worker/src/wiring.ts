@@ -1,5 +1,7 @@
 import { type Db, readDecisionPackage, readStoredFile } from "@northstar/db";
+import type { CandidateId } from "@northstar/domain";
 import {
+  type ApplyPorts,
   dbPorts,
   dbSweepPorts,
   deferredFormDriver,
@@ -37,18 +39,15 @@ export function workerActivities(
   const browser = config.applyBrowser;
   if (!browser.on) return { pipeline, applyBrowser: null };
 
-  // The gateway with its ports, bound per call so a file read is scoped to the submission's own
-  // candidate. The browser starts only on the form's first open, bound to the adapter's hosts
-  // (deferredFormDriver), from the installed Chromium.
+  // The gateway with its ports, bound per call (browserPorts).
   const submit = (input: SubmitInput) =>
     submitApplication(
       dbPorts(
         db,
-        {
-          readFile: (sha256) => readStoredFile(db, input.candidateId, sha256),
-          openDriver: (hosts) =>
-            deferredFormDriver(() => launch({ hosts, executablePath: browser.chromiumPath })),
-        },
+        browserPorts(input.candidateId, browser.chromiumPath, {
+          readFile: (c, sha256) => readStoredFile(db, c, sha256),
+          launch,
+        }),
         config.applyLimits,
       ),
       input,
@@ -57,4 +56,22 @@ export function workerActivities(
     readDecisionPackage(db, candidateId, named),
   );
   return { pipeline, applyBrowser };
+}
+
+// One submission's file and browser ports. A file read is scoped to the submission's own
+// candidate, and the browser starts only on the form's first open (deferredFormDriver), bound to
+// the adapter's hosts the gateway passes in, from the installed Chromium.
+export function browserPorts(
+  candidateId: CandidateId,
+  chromiumPath: string,
+  deps: {
+    readFile: (candidateId: CandidateId, sha256: string) => Promise<Uint8Array | null>;
+    launch: typeof launchFormDriver;
+  },
+): Pick<ApplyPorts, "readFile" | "openDriver"> {
+  return {
+    readFile: (sha256) => deps.readFile(candidateId, sha256),
+    openDriver: (hosts) =>
+      deferredFormDriver(() => deps.launch({ hosts, executablePath: chromiumPath })),
+  };
 }
