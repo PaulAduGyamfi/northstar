@@ -351,8 +351,8 @@ Exists now:
   append-only `profile_contact` in `packages/db` (`contact-schema.ts`, `contact-write.ts`:
   `setContact`, `readContact`; newest wins, the same details store nothing), checked with the
   package's own `ContactDetails` schema (`packages/domain`), and `profile contact set|show`
-  (`contact-cli.ts`). `profile.contact_set` carries a phone flag only. No caller reads it yet
-  (the package caller, slice 4).
+  (`contact-cli.ts`). `profile.contact_set` carries a phone flag only. Its reader is
+  `preparePackage` (slice 6), through `readPackageInputs`.
 - Career DNA (NS-130, DNA-001…003), slice 1, plain code in `packages/profile/src/career-dna/`, no
   model, database or caller yet:
   - `CAREER_DNA_RUBRIC` (version 1, software engineering): six dimensions (engineering,
@@ -799,7 +799,7 @@ Exists now:
   nothing. Stored in `packages/db` (`job-form-schema.ts`, `job-form-write.ts`: append-only
   `job_form`, a new row whenever the form differs from the job's newest, which is current; `saveJobForm`, `readJobForm`,
   `readJobAtsSources`) by `jobs form <job-id>`. Lever's and Ashby's public APIs publish no
-  questions. No caller assembles a package from it yet.
+  questions. `preparePackage` (`packages/pipeline`, slice 6) builds a package from it.
   Since NS-163 also fresh-job alerts (`alerts.ts`, SRC-015, plain code): after every scoring
   pass, a job whose latest score is in the queue band and that is under an hour old gets one
   `job.fresh_alert` event, its feed line "Posted 12 min ago · Fit 88 · ready to approve". Inside
