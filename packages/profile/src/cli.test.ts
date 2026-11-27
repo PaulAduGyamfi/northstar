@@ -752,3 +752,99 @@ describe("profile contact (NS-227)", () => {
     expect([await main(d), printed]).toEqual([1, [CONTACT_USAGE]]);
   });
 });
+
+// NS-130 slice 6 (DNA-008): the commands that change the Career DNA report's inputs refresh it.
+describe("profile cli refreshes Career DNA after a profile change", () => {
+  const imported: ImportResult = {
+    kind: "imported",
+    sourceId: "s1",
+    counts: { roles: 2, education: 1, atoms: 3, skills: 4, certifications: 1, links: 2 },
+    record,
+  };
+  // A synthetic stored profile and a store that saves every report as version 1, counting saves.
+  function withDna(d: CliDeps) {
+    const saves: number[] = [];
+    d.readScoringProfile = async () => ({
+      sourceId: "00000000-0000-4000-8000-000000000009",
+      atoms: [
+        { id: "00000000-0000-4000-8000-000000000001", what: "Built a ledger", how: ["Java"] },
+      ],
+      skills: [],
+    });
+    d.saveCareerDnaReport = async () => {
+      saves.push(1);
+      return { ok: true, value: { stored: true, version: 1, reportId: "r1" } };
+    };
+    return saves;
+  }
+
+  it("a new resume import saves the report and prints its version after the import lines", async () => {
+    const { d, printed } = deps(["import-resume", "data/resume.pdf"], imported);
+    const saves = withDna(d);
+    expect(await main(d)).toBe(0);
+    expect(saves).toEqual([1]);
+    expect(printed.slice(3)).toEqual([
+      "Career DNA: saved as version 1.",
+      "  This is your first Career DNA report.",
+    ]);
+  });
+
+  it("an unchanged resume import doesn't refresh the report", async () => {
+    const { d } = deps(["import-resume", "data/resume.pdf"], { kind: "unchanged" });
+    const saves = withDna(d);
+    expect(await main(d)).toBe(0);
+    expect(saves).toEqual([]);
+  });
+
+  it("an approved story saves the report", async () => {
+    const { d, printed } = deps(["interview"], new Error("unused"), null, {
+      interview: { kind: "approved", storyId: "story-1", records: [record] },
+    });
+    const saves = withDna(d);
+    expect(await main(d)).toBe(0);
+    expect(saves).toEqual([1]);
+    expect(printed.at(-2)).toBe("Career DNA: saved as version 1.");
+  });
+
+  it("a skipped interview doesn't refresh the report", async () => {
+    const { d } = deps(["interview"], new Error("unused"), null, {
+      interview: { kind: "skipped" },
+    });
+    const saves = withDna(d);
+    expect(await main(d)).toBe(0);
+    expect(saves).toEqual([]);
+  });
+
+  it("a refresh that throws still exits 0 after an import, with the retry line", async () => {
+    const { d, printed } = deps(["import-resume", "data/resume.pdf"], imported);
+    withDna(d);
+    d.saveCareerDnaReport = async () => {
+      throw new Error("database unavailable");
+    };
+    expect(await main(d)).toBe(0);
+    expect(printed.at(-1)).toBe("Career DNA not refreshed: run profile dna to try again.");
+  });
+
+  it("a refresh that throws still exits 0 after an approved story, with the retry line", async () => {
+    const { d, printed } = deps(["interview"], new Error("unused"), null, {
+      interview: { kind: "approved", storyId: "story-1", records: [record] },
+    });
+    withDna(d);
+    d.saveCareerDnaReport = async () => {
+      throw new Error("database unavailable");
+    };
+    expect(await main(d)).toBe(0);
+    expect(printed.at(-1)).toBe("Career DNA not refreshed: run profile dna to try again.");
+  });
+
+  it("a rejected resume import doesn't refresh the report", async () => {
+    const { d } = deps(["import-resume", "data/resume.pdf"], {
+      kind: "rejected",
+      failures: [{ item: "atom", index: 0, problem: "number_not_in_quote" }],
+      record,
+    });
+    const saves = withDna(d);
+    expect(await main(d)).toBe(1);
+    expect(saves).toEqual([]);
+  });
+});

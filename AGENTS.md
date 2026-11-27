@@ -348,7 +348,9 @@ Exists now:
   and evidence gained and lost. Since slice 5 `refreshCareerDna` (`career-dna/store.ts`) builds the
   report from the current resume import's atoms (what, how and imported quote) and Paul's approved
   stories, saves it, and returns `changeLines` against the previous version; `profile dna` runs it.
-  Nothing runs it automatically after an import or a story approval yet.
+  Since slice 6 `profile import-resume` (a new import) and `profile interview` (an approved story)
+  also run it afterwards (`refreshAfterChange`, `dna-cli.ts`) and print the version and what
+  changed; a failed refresh prints one retry line and never fails the import or the story.
 
   No Profile Grade handoff, page or share card yet; the share card waits on a Publish gateway
   ADR and Q-10.
