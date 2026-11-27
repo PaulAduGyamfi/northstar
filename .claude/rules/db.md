@@ -245,6 +245,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   request `editRequest` files. `approval_edit` (append-only, one row per old and per new request,
   both the candidate's) links an edited request to the one it replaced; a trigger checks Paul
   withdrew the old one and that both share kind and subject. Write it only through `editRequest`.
+  The Gmail draft writer's ledger (NS-237 slice 6) is `reply_draft_claim` (one row per attempt,
+  candidate and decision) and `reply_draft_record` (one per decision), append-only (triggers),
+  written only through `reply-ledger-write.ts` (`claimDraft` under a per-decision advisory lock;
+  `recordDraft`, which refuses a different second id). Ids and times only; `reply.draft_created`
+  carries the decision and draft message ids, and its feed line is a fixed-word `reason`.
   `readNudgeCandidates` (`nudge-read.ts`, NS-237 slice 3) is the follow-up nudge check's
   read-only reader: applications in a nudge stage, their last move, newest linked message from a
   verified sender and whether a `reply_draft` is filed for it; ids and times only.
