@@ -61,6 +61,9 @@ function deps(argv: string[], answers: (string | null)[] = []) {
     now: () => new Date("2026-11-01T00:00:00Z"),
     baselines: BASELINES,
     runBackfill: async () => COUNTS,
+    runInterviews: async () => {
+      throw new Error("not used here");
+    },
     readText: async () =>
       "company,role,applied_on,stage_reached,outcome\nGlobex,Engineer,2026-03-02,screen,rejected\n",
     setManualRows: async (input) => {
