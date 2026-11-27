@@ -197,7 +197,7 @@ describe("postingLink", () => {
       postingLink("http://jobs.example.com/1"),
       postingLink("javascript:alert(1)"),
       postingLink("not a link"),
-      postingLink("https://user:pass@jobs.example.com/1"),
+      postingLink("https://user:test-key@example.com/1"),
       postingLink("HTTPS://Jobs.Example.com/1"),
     ]).toEqual([
       "https://jobs.example.com/1",
