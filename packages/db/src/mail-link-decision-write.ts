@@ -41,6 +41,9 @@ export async function decideQueuedThread(
     db.transaction(async (tx) => {
       // The candidate's row lock serializes decisions, so two clicks can't both decide a message.
       await tx.execute(sql`select id from candidate where id = ${input.candidateId} for update`);
+      // The application's status is read without its own lock: a move to rejected or withdrawn
+      // landing just after does no harm, since a link never moves a status and matching only
+      // offers open applications.
       if (applicationId !== null) {
         const [app] = await tx
           .select({ status: application.status })

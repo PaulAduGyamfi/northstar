@@ -39,7 +39,8 @@ belongs to none, so the queue only grows.
     in it waits in the queue again.
   - `readLinkTargets(db, candidateId)` gives the open applications Paul can link to (id, job
     title, company), newest first, at most 200.
-- **API** (`apps/api/src/inbox.ts`, session only): `GET /inbox` also answers `linkTargets`, and
+- **API** (`apps/api/src/inbox.ts`, session only): `GET /inbox/link-targets` lists the open
+  applications (a route of its own, so `GET /inbox`'s answer is unchanged), and
   `POST /inbox/decide` takes `{ gmailThreadId, decision: "link" | "dismiss", applicationId? }`.
   It answers `{ recorded }`, `404 not_found`, `409 application_closed`, `404 unknown_application`
   or `503 unavailable`.
