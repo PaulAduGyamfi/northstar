@@ -4,6 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "./db.js";
 import {
+  DEAD_LETTER_KINDS,
   type DeadLetterInput,
   listOpenDeadLetters,
   recordDeadLetter,
@@ -13,7 +14,7 @@ import { deadLetter, deadLetterResolution } from "./resilience-schema.js";
 import { candidate, domainEvent } from "./schema.js";
 import { createTestDb, sqlState } from "./test/pglite.js";
 
-// The dead-letter store (NS-175, RES-007). Synthetic kinds, subjects and codes only.
+// The dead-letter store (NS-175, RES-007). Listed kinds (NS-236); synthetic subjects and codes.
 
 const RESTRICT_VIOLATION = "23001";
 const CHECK_VIOLATION = "23514";
@@ -39,7 +40,7 @@ afterEach(async () => {
 
 const letter = (over: Partial<DeadLetterInput> = {}): DeadLetterInput => ({
   candidateId,
-  kind: "apply.submit",
+  kind: "apply.submission",
   subject: `application:${randomUUID()}`,
   reasonCode: "timeout",
   attempts: 3,
@@ -73,9 +74,31 @@ describe("recordDeadLetter", () => {
       .from(domainEvent)
       .where(eq(domainEvent.type, "dead_letter.recorded"));
     expect([event?.reason, event?.payload]).toEqual([
-      "apply.submit stopped after 1 attempt (timeout); it waits for you to retry, skip or hand it off",
-      { deadLetterId: id, kind: "apply.submit", reasonCode: "timeout", attempts: 1 },
+      "apply.submission stopped after 1 attempt (timeout); it waits for you to retry, skip or hand it off",
+      { deadLetterId: id, kind: "apply.submission", reasonCode: "timeout", attempts: 1 },
     ]);
+  });
+
+  it("records every listed producer's kind", async () => {
+    const results = await Promise.all(
+      DEAD_LETTER_KINDS.map((kind) => recordDeadLetter(db, letter({ kind }))),
+    );
+    expect(results.map((r) => r.ok && r.value.status)).toEqual(
+      DEAD_LETTER_KINDS.map(() => "recorded"),
+    );
+  });
+
+  it("refuses a well-formed kind that isn't on the list, and stores nothing", async () => {
+    const results = await Promise.all(
+      ["apply.submit", "llm.route:story-draft"].map((kind) =>
+        recordDeadLetter(db, letter({ kind })),
+      ),
+    );
+    expect(results.map((r) => (r.ok ? null : r.error))).toEqual([
+      { kind: "InvalidDeadLetter", field: "kind" },
+      { kind: "InvalidDeadLetter", field: "kind" },
+    ]);
+    expect(await db.select().from(deadLetter)).toEqual([]);
   });
 
   it("refuses a malformed kind, subject, reason code or attempt count", async () => {
@@ -105,11 +128,11 @@ describe("recordDeadLetter", () => {
 describe("listOpenDeadLetters", () => {
   it("lists letters with no resolution, oldest first, optionally by kind", async () => {
     const a = await record();
-    const b = await record({ kind: "llm.route:story-draft" });
+    const b = await record({ kind: "apply.stale_sweep" });
     const c = await record();
     await resolveDeadLetter(db, { candidateId, deadLetterId: c, action: "skip", actor: "user" });
     const ids = (await listOpenDeadLetters(db, candidateId)).map((l) => l.deadLetterId);
-    const byKind = (await listOpenDeadLetters(db, candidateId, "llm.route:story-draft")).map(
+    const byKind = (await listOpenDeadLetters(db, candidateId, "apply.stale_sweep")).map(
       (l) => l.deadLetterId,
     );
     expect([ids, byKind]).toEqual([[a, b], [b]]);
@@ -140,7 +163,7 @@ describe("resolveDeadLetter", () => {
         actor: "user",
       });
       expect([first, second]).toEqual([
-        { ok: true, value: { kind: "apply.submit", subject } },
+        { ok: true, value: { kind: "apply.submission", subject } },
         { ok: false, error: { kind: "AlreadyResolved" } },
       ]);
     },
@@ -219,7 +242,7 @@ describe("dead-letter tables in the database", () => {
       sqlState(
         db.insert(deadLetter).values({
           candidateId,
-          kind: "apply.submit",
+          kind: "apply.submission",
           subject: `application:${randomUUID()}`,
           reasonCode: "timeout",
           attempts: 1,

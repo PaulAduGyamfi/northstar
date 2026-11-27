@@ -16,6 +16,16 @@ import {
 // stays visible until Paul retries, skips or hands it off. Never silently dropped. The only
 // writer of dead_letter and dead_letter_resolution. Kind, subject, codes and counts only.
 
+// Every producer's kind (NS-236). A kind goes into the feed line, the event and the span, so it is
+// a constant from this list, never built from data. A new producer adds its kind here in its own
+// ticket, with its words in apps/web/src/dead-letters.ts.
+export const DEAD_LETTER_KINDS = [
+  "apply.stale_sweep", // NS-220: the stale-claim sweep (apps/worker sweep.ts)
+  "apply.submission", // NS-226: a submission that ended without a visible outcome (ending.ts)
+] as const;
+export type DeadLetterKind = (typeof DEAD_LETTER_KINDS)[number];
+
+const KINDS: ReadonlySet<string> = new Set(DEAD_LETTER_KINDS);
 const KIND = new RegExp(NAME_PATTERN);
 const SUBJECT = new RegExp(DEAD_LETTER_SUBJECT_PATTERN);
 const REASON = new RegExp(REASON_CODE_PATTERN);
@@ -47,7 +57,7 @@ export type InvalidDeadLetter = { kind: "InvalidDeadLetter"; field: string };
 
 // Which field of an input is malformed, or null when it is fine. The database checks the same.
 function invalidField(input: DeadLetterInput): string | null {
-  if (!KIND.test(input.kind) || input.kind.length > 64) return "kind";
+  if (!KINDS.has(input.kind) || !KIND.test(input.kind) || input.kind.length > 64) return "kind";
   if (!SUBJECT.test(input.subject)) return "subject";
   if (!REASON.test(input.reasonCode)) return "reasonCode";
   if (!Number.isSafeInteger(input.attempts) || input.attempts < 1) return "attempts";
@@ -99,7 +109,7 @@ export async function recordDeadLetter(
         aggregate: `dead_letter:${row.id}`,
         type: "dead_letter.recorded",
         actor: "system",
-        // Kind and reason code are pattern-checked names, safe to show.
+        // The kind is from DEAD_LETTER_KINDS and the reason code is pattern-checked: safe to show.
         reason: `${input.kind} stopped after ${input.attempts} attempt${input.attempts === 1 ? "" : "s"} (${input.reasonCode}); it waits for you to retry, skip or hand it off`,
         // Ids, kind, codes and counts only: never a payload, message or URL.
         payload: {

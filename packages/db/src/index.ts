@@ -162,8 +162,10 @@ export { type ContactRefusal, readContact, setContact } from "./contact-write.js
 export type { Db } from "./db.js";
 // The dead-letter store (NS-175, RES-007).
 export {
+  DEAD_LETTER_KINDS,
   type DeadLetterAction,
   type DeadLetterInput,
+  type DeadLetterKind,
   type DeadLetterView,
   type InvalidDeadLetter,
   listOpenDeadLetters,
