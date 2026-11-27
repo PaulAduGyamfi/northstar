@@ -160,7 +160,7 @@ fi
 # the beginning, after ; & | ( or a newline, after VAR=value prefixes and wrappers (command, env,
 # timeout, ...), inside `sh -c '...'` / eval, and inside $(...) or backticks. Unbalanced quotes
 # fail closed. The word docker anywhere else (a commit message, `grep docker`) is just a word.
-runs_docker=$(python3 - "$cmd" <<'PY'
+runs=$(python3 - "$cmd" <<'PY'
 import re, shlex, sys
 
 WRAPPERS = {"command", "builtin", "exec", "env", "time", "nohup", "nice", "ionice", "timeout",
@@ -170,14 +170,56 @@ REDIRECT = re.compile(r"^[0-9]*[<>&]")  # >/dev/null, 2>&1, </dev/null in front 
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "fish"}
 ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 WRAPPER_ARG = re.compile(r"^(-.*|[0-9.]+[smhd]?)$")  # timeout 5s, nice -n 10, env -i
+OPERATOR = set(";&|()\n")
+ALL = {"docker", "gh", "push"}
+# NS-132: options before git's or gh's subcommand that take the next word as their value.
+GIT_ARG_OPTS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+GH_ARG_OPTS = {"-R", "--repo", "--hostname"}
+GH_UNSANDBOXED = {"pr", "issue", "run"}
 
 def words(text):
     lex = shlex.shlex(text, posix=True, punctuation_chars=";&|()")
     lex.whitespace_split = True
     return list(lex)
 
-def mentions_docker(text):
-    return "docker" in re.sub(r"[\"'\\]", "", text)
+def mentions(text):
+    """Unsplittable text: every guarded word it contains, quotes and backslashes removed."""
+    plain = re.sub(r"[\"'\\]", "", text)
+    found = set()
+    if "docker" in plain:
+        found.add("docker")
+    if re.search(r"\bgh\b", plain):
+        found.add("gh")
+    if re.search(r"\bpush\b", plain):
+        found.add("push")
+    return found
+
+def subcommand(rest, arg_opts):
+    """The first word after a program's leading options: git -C dir push gives push."""
+    i = 0
+    while i < len(rest):
+        tok = rest[i]
+        if tok and set(tok) <= OPERATOR:
+            return None
+        if tok in arg_opts:
+            i += 2
+            continue
+        if tok.startswith("-"):
+            i += 1
+            continue
+        return tok
+    return None
+
+def kinds_at(name, rest):
+    """Which guarded commands a program name in command position runs, given its words."""
+    found = set()
+    if name == "docker":
+        found.add("docker")
+    if name == "gh" and subcommand(rest, GH_ARG_OPTS) in GH_UNSANDBOXED:
+        found.add("gh")
+    if name == "git" and subcommand(rest, GIT_ARG_OPTS) == "push":
+        found.add("push")
+    return found
 
 HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 
@@ -201,32 +243,39 @@ def split_heredocs(text):
                 shell_bodies.append("\n".join(body))
     return "\n".join(out), shell_bodies
 
-def runs_docker(text, depth=0):
+def runs(text, depth=0):
+    """Which of docker, gh pr|issue|run and git push the text runs as a command."""
     if depth > 4:
-        return True
+        return set(ALL)
+    found = set()
     text, shell_bodies = split_heredocs(text)
-    if any(runs_docker(body, depth + 1) for body in shell_bodies):
-        return True
+    for body in shell_bodies:
+        found |= runs(body, depth + 1)
     # A newline separates commands like ; does (inside a quoted string it changes nothing).
     text = text.replace("\n", " ; ")
     # $(...) and unescaped `...` run their contents as commands, wherever they sit.
     for inner in re.findall(r"\$\(([^()]*)\)|(?<!\\)`([^`]*?)(?<!\\)`", text):
-        if runs_docker(inner[0] or inner[1], depth + 1):
-            return True
+        found |= runs(inner[0] or inner[1], depth + 1)
     try:
         toks = words(text)
     except ValueError:
-        # Unbalanced quotes: can't split it, so fail closed whenever docker appears at all.
-        return mentions_docker(text)
-    # Backstop: the words `docker compose` side by side, anywhere. Catches what the command-start
-    # walk below can miss (a redirection or `function` in front, a wrapper flag that takes an
-    # argument). A commit message is one quoted word, so it doesn't trip this.
+        # Unbalanced quotes: can't split it, so fail closed whenever a guarded word appears.
+        return found | mentions(text)
+    # Backstop: the guarded words side by side, anywhere (docker compose, gh pr|issue|run, git
+    # push). Catches what the command-start walk below can miss (a redirection or `function` in
+    # front, a wrapper flag that takes an argument). A commit message is one quoted word, so it
+    # doesn't trip this.
     for i in range(len(toks) - 1):
-        if toks[i].rsplit("/", 1)[-1] == "docker" and toks[i + 1] == "compose":
-            return True
+        name, nxt = toks[i].rsplit("/", 1)[-1], toks[i + 1]
+        if name == "docker" and nxt == "compose":
+            found.add("docker")
+        if name == "gh" and nxt in GH_UNSANDBOXED:
+            found.add("gh")
+        if name == "git" and nxt == "push":
+            found.add("push")
     at_start, after_wrapper = True, False
     for i, tok in enumerate(toks):
-        if tok and set(tok) <= set(";&|()\n"):
+        if tok and set(tok) <= OPERATOR:
             at_start, after_wrapper = True, False
             continue
         if not at_start:
@@ -239,27 +288,36 @@ def runs_docker(text, depth=0):
         if after_wrapper and WRAPPER_ARG.match(tok):
             continue
         # A program name built at run time ($d, $(printf docker), $'\x64ocker', dock*) could be
-        # docker: only a plain literal file name counts as "not docker". A variable in the folder
-        # part ($TMPDIR/run.sh) is fine.
+        # any of them: only a plain literal file name counts as "not guarded". A variable in the
+        # folder part ($TMPDIR/run.sh) is fine.
         name = tok.rsplit("/", 1)[-1]
         # [ and [[ are the test command, not a glob.
         if name not in ("[", "[[") and (re.search(r"[$`*?\[]", name) or tok.startswith(("$(", "$'"))):
-            return True
-        if name == "docker":
-            return True
+            return set(ALL)
+        found |= kinds_at(name, toks[i + 1:])
         if name in SHELLS or name == "eval":
             rest = toks[i + 1:]
             script = rest[rest.index("-c") + 1] if "-c" in rest[:-1] else " ".join(rest)
             if name == "eval" or "-c" in rest[:-1]:
-                if runs_docker(script, depth + 1):
-                    return True
+                found |= runs(script, depth + 1)
         at_start, after_wrapper = False, False
-    return False
+    return found
 
-print("yes" if runs_docker(sys.argv[1]) else "no")
+print(" ".join(sorted(runs(sys.argv[1]))))
 PY
 )
-if [[ "$runs_docker" == yes ]]; then
+
+# NS-132: gh pr|issue|run and git push run OUTSIDE the sandbox with Paul's GitHub login, and the
+# text checks above only see them at the start of the command. When the tokenizer finds one in
+# command position anywhere (after a VAR= prefix or a wrapper, after ; && |, inside sh -c, eval
+# or $(...), spelled "gh", \gh or g\it), the command must be that plain command and nothing
+# else, so every shape check above has applied to it.
+if [[ " $runs " == *" gh "* || " $runs " == *" push "* ]]; then
+  [[ "$cmd" =~ ^(gh[[:space:]]+(pr|issue|run)|git[[:space:]]+push)([[:space:]]|$) ]] ||
+    block "gh pr|issue|run and git push must be the whole command, spelled plainly: no prefix, wrapper, quotes, escapes, chaining or substitution."
+fi
+
+if [[ " $runs " == *" docker "* ]]; then
   svc='[a-z0-9][a-z0-9-]*'
   # -f docker-compose.yml is pinned: with an explicit file, compose doesn't auto-load
   # compose.yaml or *.override.* files the sandboxed shell might create, and ignores COMPOSE_FILE.
