@@ -219,7 +219,7 @@ describe("runPrep: busy time from what is stored", () => {
       end: new Date(Date.UTC(2026, 11, 1, 0, MAX_BUSY + 21 - i)),
     }));
     const busy = busyFor(uuid(1), [], blocks);
-    expect([busy.length, busy[0].start, busy.at(-1)?.start]).toEqual([
+    expect([busy.length, busy[0]?.start, busy.at(-1)?.start]).toEqual([
       MAX_BUSY,
       new Date(Date.UTC(2026, 11, 1, 0, 1)),
       new Date(Date.UTC(2026, 11, 1, 0, MAX_BUSY)),

@@ -161,7 +161,9 @@ describe("readPrepPlanView", () => {
       view?.interview,
       view?.rescheduled,
       view?.blocks.map((b) => b.kind),
-      view?.blocks.every((b, i, all) => i === 0 || all[i - 1].start.getTime() <= b.start.getTime()),
+      view?.blocks.every(
+        (b, i, all) => i === 0 || (all[i - 1]?.start.getTime() ?? 0) <= b.start.getTime(),
+      ),
     ]).toEqual([
       { start: new Date("2026-12-01T15:00:00Z"), end: new Date("2026-12-01T16:00:00Z") },
       false,
