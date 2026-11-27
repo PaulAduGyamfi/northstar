@@ -147,6 +147,7 @@ export {
 export {
   type CompanyDomainRefusal,
   type CompanyDomains,
+  isSharedDomain,
   normalizeDomain,
   readCompanyDomains,
   setCompanyDomain,

@@ -2,7 +2,12 @@ import { CandidateId } from "@northstar/domain";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { companyDomain } from "./company-domain-schema.js";
-import { normalizeDomain, readCompanyDomains, setCompanyDomain } from "./company-domain-write.js";
+import {
+  isSharedDomain,
+  normalizeDomain,
+  readCompanyDomains,
+  setCompanyDomain,
+} from "./company-domain-write.js";
 import type { Db } from "./db.js";
 import { readLinkCandidates } from "./mail-link-write.js";
 import { company, domainEvent } from "./schema.js";
@@ -71,6 +76,29 @@ describe("normalizeDomain", () => {
   });
 });
 
+describe("isSharedDomain", () => {
+  it("names freemail, shared ATS and hosting domains, names under them, and bare public suffixes", () => {
+    expect(
+      [
+        "gmail.com",
+        "live.com",
+        "greenhouse.io",
+        "mail.greenhouse.io",
+        "acme.github.io",
+        "co.uk",
+      ].map(isSharedDomain),
+    ).toEqual(Array(6).fill(true));
+  });
+
+  it("leaves a company's own domain alone, including one under a public suffix", () => {
+    expect(["acme.example", "acme.co.uk", "mail.acme.com"].map(isSharedDomain)).toEqual([
+      false,
+      false,
+      false,
+    ]);
+  });
+});
+
 describe("setCompanyDomain and readCompanyDomains", () => {
   it("lists every company with no domains before Paul sets any", async () => {
     expect(await readCompanyDomains(db, candidateId)).toEqual([
@@ -116,6 +144,27 @@ describe("setCompanyDomain and readCompanyDomains", () => {
       error: { kind: "ClaimedByOther", companyId: globex },
     });
     expect(await db.select().from(companyDomain)).toHaveLength(1);
+  });
+
+  it("refuses a shared domain or a bare public suffix, and stores nothing", async () => {
+    expect([await add("gmail.com"), await add("co.uk"), await add("acme.github.io")]).toEqual(
+      Array(3).fill({ ok: false, error: { kind: "SharedDomain" } }),
+    );
+    expect(await db.select().from(companyDomain)).toHaveLength(0);
+  });
+
+  it("refuses a domain above or below one another company holds", async () => {
+    const globex = await otherCompany();
+    await add("globex.example", globex);
+    expect([await add("mail.globex.example"), await add("example")]).toEqual([
+      { ok: false, error: { kind: "ClaimedByOther", companyId: globex } },
+      { ok: false, error: { kind: "InvalidDomain" } },
+    ]);
+    await add("talent.initech.example", globex);
+    expect(await add("initech.example")).toEqual({
+      ok: false,
+      error: { kind: "ClaimedByOther", companyId: globex },
+    });
   });
 
   it("refuses a bad domain and a company that isn't Paul's", async () => {

@@ -22,10 +22,102 @@ export function normalizeDomain(raw: string): string | null {
   return domain.length >= 3 && domain.length <= 253 && DOMAIN_SHAPE.test(domain) ? domain : null;
 }
 
+// Domains that are never one company's own (security review of NS-252), refused at write time so
+// Paul sees why. Mail from them proves nothing about which company wrote it. A fixed list, no
+// dependency; matchMail's own SHARED_DOMAINS still drops the freemail and ATS ones at match time.
+// Freemail and shared ATS sending domains: refused with every name under them too.
+const SHARED_ROOTS = [
+  "gmail.com",
+  "googlemail.com",
+  "outlook.com",
+  "hotmail.com",
+  "live.com",
+  "msn.com",
+  "yahoo.com",
+  "yahoo.co.uk",
+  "icloud.com",
+  "me.com",
+  "mac.com",
+  "aol.com",
+  "proton.me",
+  "protonmail.com",
+  "gmx.com",
+  "gmx.de",
+  "gmx.net",
+  "zoho.com",
+  "mail.com",
+  "fastmail.com",
+  "greenhouse.io",
+  "greenhouse-mail.io",
+  "lever.co",
+  "ashbyhq.com",
+  "myworkday.com",
+  "myworkdayjobs.com",
+  "smartrecruiters.com",
+  "workable.com",
+  "workablemail.com",
+  // Hosts where anyone can have a name of their own.
+  "github.io",
+  "gitlab.io",
+  "vercel.app",
+  "netlify.app",
+  "herokuapp.com",
+  "pages.dev",
+  "workers.dev",
+  "appspot.com",
+  "web.app",
+  "firebaseapp.com",
+  "azurewebsites.net",
+  "cloudfront.net",
+  "amazonaws.com",
+  "blogspot.com",
+  "wordpress.com",
+  "substack.com",
+  "onmicrosoft.com",
+];
+// Public suffixes with a dot: refused as a whole (a typo for `acme.co.uk`), names under them are fine.
+const PUBLIC_SUFFIXES = new Set([
+  "co.uk",
+  "org.uk",
+  "ac.uk",
+  "gov.uk",
+  "me.uk",
+  "com.au",
+  "net.au",
+  "org.au",
+  "co.nz",
+  "co.jp",
+  "ne.jp",
+  "co.kr",
+  "com.br",
+  "com.mx",
+  "com.ar",
+  "co.in",
+  "co.za",
+  "com.cn",
+  "com.sg",
+  "com.hk",
+  "com.tw",
+  "com.tr",
+  "co.il",
+  "com.pl",
+]);
+
+const under = (domain: string, root: string) => domain === root || domain.endsWith(`.${root}`);
+
+// Whether a domain can't be one company's own: a shared or hosting domain (or a name under one),
+// or a bare public suffix.
+export function isSharedDomain(domain: string): boolean {
+  return PUBLIC_SUFFIXES.has(domain) || SHARED_ROOTS.some((root) => under(domain, root));
+}
+
 export type CompanyDomainRefusal =
   | { kind: "InvalidDomain" }
+  // Freemail, a shared ATS or hosting domain, or a public suffix: never one company's own.
+  | { kind: "SharedDomain" }
   | { kind: "UnknownCompany" }
-  // Another of Paul's companies holds this domain now: one domain never picks two companies.
+  // Another of Paul's companies holds this domain, or one above or below it, now: one sender
+  // never picks two companies.
   | { kind: "ClaimedByOther"; companyId: string };
 
 export type CompanyDomains = { companyId: string; name: string; domains: string[] };
@@ -86,6 +178,9 @@ export async function setCompanyDomain(
 > {
   const domain = normalizeDomain(input.domain);
   if (domain === null) return { ok: false, error: { kind: "InvalidDomain" } };
+  if (input.action === "add" && isSharedDomain(domain)) {
+    return { ok: false, error: { kind: "SharedDomain" } };
+  }
   try {
     return await inSpan("company.domain_set", { "northstar.domain.action": input.action }, (span) =>
       db.transaction(async (tx) => {
@@ -101,7 +196,9 @@ export async function setCompanyDomain(
         const held = all.find((c) => c.companyId === input.companyId)?.domains ?? [];
         if (input.action === "add") {
           const other = all.find(
-            (c) => c.companyId !== input.companyId && c.domains.includes(domain),
+            (c) =>
+              c.companyId !== input.companyId &&
+              c.domains.some((d) => under(domain, d) || under(d, domain)),
           );
           if (other) {
             return {

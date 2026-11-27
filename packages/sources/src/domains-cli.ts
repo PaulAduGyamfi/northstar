@@ -22,6 +22,8 @@ export const DOMAINS_USAGE =
 
 const REFUSED: Record<CompanyDomainRefusal["kind"], string> = {
   InvalidDomain: "That isn't a plain mail domain (such as mail.example.com). Nothing was saved.",
+  SharedDomain:
+    "That domain is shared by many senders (freemail, an ATS, a hosting service or a public suffix), so it can't be one company's own. Nothing was saved.",
   UnknownCompany: "No company of yours has that id (see jobs domains). Nothing was saved.",
   ClaimedByOther:
     "Another of your companies already has that domain, so it would pick both. Nothing was saved.",
