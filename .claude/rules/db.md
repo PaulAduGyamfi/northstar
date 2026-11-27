@@ -100,7 +100,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
 - Dead letters (NS-175, RES-007) are `dead_letter` and `dead_letter_resolution`, append-only
   (triggers), written only through `dead-letter-write.ts`. They hold a kind, a subject id, a
   reason code and an attempt count: never a payload, error message, URL or text (CHECKs enforce
-  the shapes). A producer passes its own idempotency key; one resolution per letter.
+  the shapes). A producer passes its own idempotency key; one resolution per letter. The kind is a
+  constant from `DEAD_LETTER_KINDS` (NS-236), never built from data; a new producer adds its kind
+  there, with its words in `apps/web/src/dead-letters.ts`.
 - Profile settings (NS-141, ANS-001) are `profile_setting`, append-only (a trigger), written only
   through `settings-write.ts`; the newest row per field and qualifier (case-insensitive) is the
   value. Its field list and keyed fields duplicate `FACTUAL_FIELDS` in `packages/profile` (a test

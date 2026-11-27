@@ -696,7 +696,9 @@ Exists now:
   stale-claim sweep (NS-220, `apply.stale_sweep`). Since NS-215 also the view: the API's
   `GET /dead-letters` (never the subject) and `POST /dead-letters/resolve` (session only, always
   as Paul; `apps/api/src/dead-letters.ts`), and "Stuck work" on `/health` with Retry, Skip and
-  Hand off buttons that say what happens next (`src/dead-letters.ts`). No kind allowlist yet.
+  Hand off buttons that say what happens next (`src/dead-letters.ts`). Since NS-236
+  `recordDeadLetter` takes only a kind on `DEAD_LETTER_KINDS` (`apply.stale_sweep`,
+  `apply.submission`); a new producer adds its own.
 - Health and feed (NS-125, RES-013, OBS-002): `systemHealth` (`packages/domain`, `health.ts`)
   turns breakers, kill switches and board watches into `healthy / degraded / down` per subsystem
   with a plain reason, and `feedLine` (`feed.ts`) turns an event into one plain sentence from
