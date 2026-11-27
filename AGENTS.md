@@ -129,6 +129,9 @@ Exists now:
   questions (`question-canon.ts`) and `matchQuestion`/`classifyQuestion`, plain code that maps a
   form question to one of them with a confidence score (factual, reusable narrative or
   company-specific), or to "new". No model, no database yet; the answer bank builds on it.
+  Since NS-249 (slice 2) the canon and matcher live in `packages/domain` (`question-canon.ts`,
+  `question-match.ts`, with the text `normalize` in `text-normalize.ts`) so the Gate can match a
+  form label too; `packages/profile` re-exports them under the same names and paths.
   Since NS-137 also `confirmQuestion` (`question-confirm.ts`), with no embedding provider
   (decided on #62): for a question the matcher left new because it scored low or tied, the
   `question-confirm` route picks one of up to three close narrative or company-specific catalog

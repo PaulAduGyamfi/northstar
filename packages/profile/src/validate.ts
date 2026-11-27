@@ -1,3 +1,4 @@
+import { normalize } from "@northstar/domain";
 import type { ProfileExtract } from "./schema.js";
 
 // The deterministic provenance check (ADR-0004, NFR-AIQ-002): plain code, no model. An extraction
@@ -10,17 +11,8 @@ export type ProvenanceFailure = {
 
 export type ProvenanceResult = { ok: true } | { ok: false; failures: ProvenanceFailure[] };
 
-// Typography only: curly quotes, dash variants, non-breaking spaces and line breaks (a bullet that
-// wraps). Words, digits and punctuation that carry meaning are compared exactly.
-export function normalize(text: string): string {
-  return text
-    .normalize("NFKC")
-    .replace(/[‘’‚′]/g, "'")
-    .replace(/[“”„″]/g, '"')
-    .replace(/[‐‑‒–—―−]/g, "-")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+// Typography only (NS-249: now in packages/domain, with the question matcher that uses it).
+export { normalize } from "@northstar/domain";
 
 // Numbers as whole tokens, so "4" is not found inside "40".
 export function numbers(text: string): Set<string> {
