@@ -134,7 +134,7 @@ Exists now:
   `question-confirm` route picks one of up to three close narrative or company-specific catalog
   questions by index, or none, and code checks the index. Never for factual or negated questions.
   Its matches carry `confirmedBy: "model"` and must never count as reuse for the Gate's policy.
-  Off by default (hand-written fixtures); no caller yet.
+  Off by default (real recordings since NS-266); no caller yet.
   Since GH-59 also answer reuse (ANS-003): `adaptAnswer` fills a banked answer's `{company}`
   slot and picks the variant that fits the form's limit (never cuts it), `reuseNote` and
   `narrativeKindOf`.
@@ -196,7 +196,7 @@ Exists now:
   `readThesisProfile` (`packages/db`) and `thesis-draft.ts` (`packages/profile`): the
   `positioning-thesis` route drafts up to three theses citing atoms, and `draftTheses` keeps only
   those `thesisProblems` passes (`checkThesis` plus unknown atom ids). Off by default
-  (hand-written fixtures); nothing is saved until Paul runs `profile thesis set`.
+  (real recordings since NS-266); nothing is saved until Paul runs `profile thesis set`.
 - Gap-to-proof (NS-196, DX-010), plain code, no model: Paul's independent work since his last role
   from his own file (`independent-work.ts`: `parseIndependentWork`, one `Title | YYYY-MM | YYYY-MM
   or present [| https link]` header and 1–6 `- ` lines per entry; any bad line stores nothing,
@@ -247,7 +247,7 @@ Exists now:
     fixed sentences in `framingSentences`: a greeting, a thank-you or a next step. The only name
     is the sender's first name, from `greetingName`, which is parsed by code and never a word
     that answers or commits.
-  - `draftReply` is off by default (hand-written fixtures). A failing draft becomes
+  - `draftReply` is off by default (real recordings since NS-266). A failing draft becomes
     `needs_human`.
 
   Since NS-237 (slice 1) a checked draft can be filed with the Gate (RPL-002):
@@ -613,7 +613,7 @@ Exists now:
 
     It adds the red flags code finds itself (gift cards, a fee to pay, bank or ID numbers). It
     can't tell whether the email's statements are true.
-  - `extractRecruiterFacts` is off by default (hand-written fixtures).
+  - `extractRecruiterFacts` is off by default (real recordings since NS-266).
   - `gradeRecruiterMessage` (`packages/sources`, `src/recruiter/grade.ts`) is plain code that
     grades A–F. It uses the Fit Score's own title, pay, place and dealbreaker checks, with
     points per factor. A dealbreaker, an upfront fee or a request for sensitive data makes it F;
@@ -659,8 +659,8 @@ Exists now:
   checks, the MAT-003 bands, and the evidence behind each number. A score is keyed by the job's
   fields, the preference version and the resume import, so any change re-scores. The queue
   orders by freshness × fit.
-  Since NS-138 also the `job-match` route (`fit/model-match.ts`), off by default (hand-written
-  fixtures): for the requirements the rules left unmatched it proposes an atom and a verbatim
+  Since NS-138 also the `job-match` route (`fit/model-match.ts`), off by default (real recordings
+  since NS-266): for the requirements the rules left unmatched it proposes an atom and a verbatim
   quote, `checkJobMatches` keeps only those whose atom and quote check out, and `scorePending`
   takes them through an optional `assist` step (a score that used one is stored as
   `method: "rules_model"`; a failed assist keeps the rules score). No caller turns it on yet.
