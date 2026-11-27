@@ -35,7 +35,9 @@ export async function runPools(pools: readonly Pool[]): Promise<void> {
 }
 
 // Stops pools that were created but never run (a later pool's creation failed), so they let go of
-// the connection: each is started and shut down at once.
+// the connection: each is started and shut down at once. Relies on @temporalio/worker 1.25's
+// run() marking the worker running before its first await (true while no Temporal plugin is
+// configured): with a plugin, shutdown() right after run() would throw and be ignored here.
 export async function stopPools(pools: readonly Pool[]): Promise<void> {
   await Promise.allSettled(
     pools.map((p) => {
