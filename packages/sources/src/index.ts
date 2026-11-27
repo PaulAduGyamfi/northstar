@@ -1,7 +1,5 @@
 // Public entry of @northstar/sources (NS-114): link ingest, ATS clients, JSON-LD and the
 // job-extract route, dedupe, and each source's terms status.
-// Alert settings as `jobs alerts` checks and words them (NS-199), shared with the API.
-
 // Fresh-job alerts (NS-163): the plain-code decision, quiet hours and the alert pass.
 export {
   type AlertConfig,
@@ -21,6 +19,7 @@ export {
   scoreThenAlert,
   settingsSource,
 } from "./alerts.js";
+// Alert settings as `jobs alerts` checks and words them (NS-199), shared with the API.
 export {
   ALERT_FIELD_WORDS,
   type AlertFieldWord,
