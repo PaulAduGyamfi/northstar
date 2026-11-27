@@ -15,9 +15,12 @@ nօt want to work at …?" as `bank_high_confidence` (checked with the real matc
 authorized to work in Canada?" got "Yes" from settings.
 
 ## Behavior
-- `isDisguisedLabel` also flags any nonspacing mark (`\p{Mn}`), the braille blank U+2800, and any
+- `isDisguisedLabel` also flags any combining mark (`\p{M}`: nonspacing, enclosing, spacing), the
+  IPA and phonetic letters (U+0250–U+02AF, U+1D00–U+1DBF: "nᴏt"), the braille blank U+2800, and any
   letter outside the Latin, Common and Inherited scripts (it already flagged `\p{Cf}`, modifier
-  letters, Greek and Cyrillic). Accented Latin letters, dashes and symbols stay allowed. The Gate
+  letters, Greek and Cyrillic). Precomposed accented Latin letters (Vietnamese included), dashes
+  and symbols stay allowed; a label sent decomposed (NFD), with an emoji variation selector, or in
+  another script goes to Paul. The Gate
   (`labelReuse`) and the producer share it, so both change together.
 - `assemblePackage` checks it first, before the factual path: a disguised label is `not_matched`
   whether it would have been answered from settings or the bank. No new reason code.

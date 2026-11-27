@@ -1189,8 +1189,9 @@ Exists now:
   modifier letters or Greek or Cyrillic letters as `new` (a disguised "not"). Since NS-272 the producer
   applies the same rule (`isDisguisedLabel`): `assemblePackage` never answers such a label from the
   bank (`not_matched`, like a negated label), a model's pick included. Since NS-273 the rule also
-  refuses nonspacing marks, the braille blank and any letter outside the Latin, Common and Inherited
-  scripts (Armenian, Cherokee, Hangul fillers…), and the producer checks it before the factual path,
+  refuses every combining mark (so a decomposed label too), IPA and phonetic letters ("nᴏt"), the
+  braille blank and any letter outside the Latin, Common and Inherited scripts (Armenian, Cherokee,
+  Hangul fillers…), and the producer checks it before the factual path,
   so a disguised label is never answered from settings either. Since NS-249 (slice 1) `requestApproval` refuses
   facts from every caller (`InvalidRequest` on `facts`; its input says `facts: null`): a package
   filed there waits for Paul and, with no stored package, can't be submitted. Only

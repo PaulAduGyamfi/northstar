@@ -42,14 +42,17 @@ export function isExactWording(
 // Characters a label could use to hide a word from the matcher and the negation check. A label
 // holding any of them never earns reuse; it only goes to Paul:
 // - invisible formatting (zero-width spaces, direction marks: \p{Cf});
-// - nonspacing marks (\p{Mn}): a combining accent ("no\u0301t": NFKC composes it, so "not" no
-//   longer reads as a word), the grapheme joiner U+034F and variation selectors (NS-273);
-// - modifier letters (U+02BC as an apostrophe in "wouldnʼt") and the braille blank U+2800;
+// - combining marks of every kind (\p{M}): an accent ("no\u0301t": NFKC composes it, so "not" no
+//   longer reads as a word), an enclosing or spacing mark ("n\u20ddot"), the grapheme joiner
+//   U+034F and variation selectors (NS-273). So a label sent decomposed (NFD) goes to Paul too;
+// - modifier letters (U+02BC as an apostrophe in "wouldnʼt"), the braille blank U+2800, and the
+//   IPA and phonetic letters (U+0250–U+02AF, U+1D00–U+1DBF: "nᴏt" with a small capital O), Latin
+//   script but needed by no company name (NS-273);
 // - any letter outside the Latin, Common and Inherited scripts: Greek or Cyrillic lookalikes
 //   ("nоt" with a Cyrillic о), and since NS-273 Armenian "օ", Cherokee and Coptic letters and
 //   Hangul fillers. A label in another script is refused whole: conservative, it goes to Paul.
 // The producer (packages/pipeline) runs the same check, so it never answers one (NS-272, NS-273).
-const HIDING = /[\p{Cf}\p{Mn}\u02B0-\u02FF\u2800]/u;
+const HIDING = /[\p{Cf}\p{M}\u0250-\u02FF\u1D00-\u1DBF\u2800]/u;
 const OTHER_SCRIPT = /(?![\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}])\p{L}/u;
 
 export const isDisguisedLabel = (label: string): boolean =>

@@ -98,6 +98,9 @@ describe("isDisguisedLabel", () => {
     "Why would you n\u2800ot want to work at Example Corp?",
     "Why would you n\u13a4t want to work at Example Corp?",
     "Why would you n\u3164ot want to work at Example Corp?",
+    "Why would you n\u20ddot want to work at Example Corp?",
+    "Why would you n\u1d0ft want to work at Example Corp?",
+    "Why would you n\u0275t want to work at Example Corp?",
   ])("flags another script's letter or a hidden mark or blank (%s, NS-273)", (label) => {
     expect(isDisguisedLabel(label)).toBe(true);
   });
@@ -107,8 +110,9 @@ describe("isDisguisedLabel", () => {
       [
         "Why do you want to work at Soci\u00e9t\u00e9 G\u00e9n\u00e9rale?",
         "Why do you want to work at Example Corp? \u2014 2\u20133 sentences, 100%",
+        "Why do you want to work at Vi\u1ec7t Nam Example Corp?",
       ].map(isDisguisedLabel),
-    ).toEqual([false, false]);
+    ).toEqual([false, false, false]);
   });
 
   it("leaves a plain label, curly apostrophe included, alone", () => {
