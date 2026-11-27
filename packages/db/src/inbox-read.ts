@@ -1,5 +1,5 @@
 import type { ApplicationStatus, CandidateId } from "@northstar/domain";
-import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { Db } from "./db.js";
 import { mailClassification } from "./mail-classification-schema.js";
 import { mailLinkDecision } from "./mail-link-decision-schema.js";
@@ -13,6 +13,10 @@ import { application, company, job } from "./schema.js";
 // The unified job inbox (NS-165, INB-006): linked mail threads grouped by application, and the
 // threads waiting for Paul to link them. Read-only, from mail_link: Gmail ids, steps, flags and
 // times only. Subjects, senders and bodies are never stored, so they can't appear here.
+
+// The kind a thread shows when its newest decided message was verification mail left alone
+// (NS-271): not one of the mail kinds, so the Inbox words it apart.
+export const VERIFICATION_KIND = "verification";
 
 export type InboxThread = {
   gmailThreadId: string;
@@ -178,13 +182,16 @@ export async function readInboxThreads(db: Db, candidateId: CandidateId): Promis
     }
 
     // Each linked thread's newest classified message's kind (NS-261), keyed like the grades. A
-    // message that went to review has no kind, so an older classified one shows instead.
+    // message that went to review has no kind, so an older classified one shows instead. A
+    // verification email left alone (NS-271) shows as `verification`, which is no mail kind.
     const kinds = new Map<string, string>();
     const kindRows = await db
       .select({
         gmailThreadId: mailLink.gmailThreadId,
         applicationId: linkedTo,
-        kind: mailClassification.kind,
+        kind: sql<
+          string | null
+        >`case when ${mailClassification.outcome} = 'skipped' then ${VERIFICATION_KIND} else ${mailClassification.kind} end`,
       })
       .from(mailClassification)
       .innerJoin(
@@ -198,7 +205,7 @@ export async function readInboxThreads(db: Db, candidateId: CandidateId): Promis
       .where(
         and(
           eq(mailClassification.candidateId, candidateId),
-          isNotNull(mailClassification.kind),
+          or(isNotNull(mailClassification.kind), eq(mailClassification.outcome, "skipped")),
           isNotNull(linkedTo),
           inArray(mailLink.gmailThreadId, ["", ...new Set(linked.map((t) => t.gmailThreadId))]),
         ),

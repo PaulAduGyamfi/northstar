@@ -153,10 +153,19 @@ export function threadRows(a: InboxApplicationView, nowMs: number): ThreadRow[] 
     linked: `Linked ${STEP_WORDS[t.step]}`,
     unverified: t.senderVerified ? "" : "sender not verified",
     // Classification arrives with the mail-link loop (#224).
-    kind: t.kind === null ? "Not classified yet" : t.kind.replaceAll("_", " "),
+    kind: kindWords(t.kind),
     ...(t.recruiterGrade ? { grade: gradeWords(t.recruiterGrade) } : {}),
     ...paulWords(t.recruiterGrade),
   }));
+}
+
+// A thread's newest kind in words. `verification` (NS-271) is verification mail left alone for
+// the Verification Catcher, not a mail kind; it matches `VERIFICATION_KIND` in packages/db's
+// inbox-read.ts (the web app doesn't import packages/db).
+function kindWords(kind: string | null): string {
+  if (kind === null) return "Not classified yet";
+  if (kind === "verification") return "Verification email, left alone";
+  return kind.replaceAll("_", " ");
 }
 
 // "You graded it D", only when Paul regraded the thread's graded message.

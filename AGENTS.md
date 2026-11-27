@@ -521,7 +521,12 @@ Exists now:
   `mail_link` message, the first standing; the kind and stage signal, or a review reason, with
   `rules`/`model` and the prompt version, never a company, role, subject or address;
   `mail.classified` / `mail.needs_review` with fixed-word feed lines; `readMailClassifications`).
-  `readInboxThreads` and `readNudgeCandidates` read the stored kind.
+  `readInboxThreads` and `readNudgeCandidates` read the stored kind. Since NS-271 verification
+  mail the classifier skipped is stored too, as outcome `skipped` (no kind, reason or prompt
+  version, by `rules`; `mail.verification_left_alone`, feed "Left a verification email alone"),
+  through `funnel inbox`'s own `recordSkipped` port, so later runs never read it again. The Inbox
+  shows it as "Verification email, left alone" (`readInboxThreads` gives the kind `verification`).
+  Nothing about the code is kept (VER-005).
   Since NS-238 item 1 (slice 1) the loop has a caller Paul runs, `funnel inbox` (`packages/funnel`,
   `inbox.ts`; Paul decided on #400: Gmail consent each run, no stored token, no schedule). In one
   run it polls from the stored cursor through `linkNewMessage` (the first run reads 7 days back),
