@@ -3,7 +3,7 @@
 Status: in progress (autonomous lane, ADR-0016; Paul agreed to the page about 04:20Z)
 Issue: #54
 Requirements: DNA-001 (the report shown with its evidence counts), DNA-008 (history: what changed)
-Rules that apply: ADR-0016, ADR-0018 (session sign-in), `.claude/rules/api.md` (endpoint pattern),
+Rules that apply: ADR-0016, ADR-0018 (session sign-in), AGENTS.md (`apps/api` endpoint pattern),
 `.claude/rules/web.md`, `.claude/rules/db.md` (career DNA reports), `docs/design/tokens.md`
 
 ## Why
