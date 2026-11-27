@@ -1041,8 +1041,10 @@ export async function editRequest(
     } catch (error) {
       if (error instanceof EditRollback) return err(error.error);
       const code = pgCode(error);
-      // A concurrent edit, withdrawal or decision of the same request committed first.
+      // A concurrent edit, withdrawal or decision of the same request committed first. The
+      // approval_edit trigger's own refusals use another code (23000), so a broken link throws.
       if (code === UNIQUE_VIOLATION || code === CHECK_VIOLATION || code === EXCLUSION_VIOLATION) {
+        span.setAttribute("northstar.approval.edit_refused_code", code);
         return err({ kind: "NotPending" });
       }
       throw error;
@@ -1105,6 +1107,8 @@ async function editOnce(
     subject: request.subject,
     contentSha256: input.newContentSha256,
     facts: null,
+    // Paul's own edit: deliberately outside RequestInput's agent/system actors, which describe
+    // producers. Only this path files a request as `user`.
     actor: "user",
     idempotencyKey: `edit:${request.id}`,
   });

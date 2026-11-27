@@ -39,6 +39,16 @@ approve exactly what he wrote.
   with the new request's id, 404 for an unknown request, 409 when it isn't pending or the body is
   unchanged, and 400 for a bad body.
 
+ADR-0017 item 6 says a new version is a new subject. An edit keeps the subject instead: the old
+request is withdrawn first (NS-140 reopens a withdrawn subject), and the Gate's subject guard still
+allows only one live request per subject, so the queue never holds two live replies to one Gmail
+message. The new request pins the edited content's own hash, so an approval of one version never
+lets the other out.
+
+A decision that commits between the edit's first check and its withdrawal is caught by the second
+read after the withdrawal's locks. PGlite runs one connection, so that interleaving has no test;
+the single-step cases (decided or withdrawn first) are tested.
+
 ## Acceptance criteria
 - [ ] After an edit, approving the old request is refused, and the new request's hash matches the
       edited content (`replyContentSha256` of the stored draft).

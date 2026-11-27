@@ -24,7 +24,8 @@ import { createTestDb, sqlState } from "./test/pglite.js";
 // Paul's edit of a waiting reply draft (NS-203 slice 1) on PGlite. Synthetic mail only.
 
 const RESTRICT_VIOLATION = "23001";
-const CHECK_VIOLATION = "23514";
+// The approval_edit trigger's refusals (migration 0087), kept apart from check_violation.
+const INTEGRITY_VIOLATION = "23000";
 
 const exporter = new InMemorySpanExporter();
 beforeAll(() => {
@@ -248,6 +249,45 @@ describe("the approval_edit table", () => {
           editedAt: new Date(),
         }),
       ),
-    ]).toEqual([RESTRICT_VIOLATION, RESTRICT_VIOLATION, RESTRICT_VIOLATION, CHECK_VIOLATION]);
+    ]).toEqual([RESTRICT_VIOLATION, RESTRICT_VIOLATION, RESTRICT_VIOLATION, INTEGRITY_VIOLATION]);
+  });
+
+  it("refuses a link between different subjects, and one between requests that aren't replies", async () => {
+    const other = await fileReplyDraft(db, {
+      candidateId,
+      reply: { ...REPLY, gmailMessageId: "18c3f0a2b4d6e805" },
+    });
+    const third = await fileReplyDraft(db, {
+      candidateId,
+      reply: { ...REPLY, gmailMessageId: "18c3f0a2b4d6e806" },
+    });
+    if (!other.ok || !third.ok) throw new Error("not filed");
+    await withdrawApproval(db, { candidateId, requestId: other.value.requestId, by: "user" });
+    // Two answers on one subject: the first withdrawn by Paul, so the second may be filed.
+    const answer = (n: number) =>
+      requestApproval(db, {
+        candidateId,
+        kind: "answer",
+        subject: "answer:00000000-0000-4000-8000-000000000009",
+        contentSha256: String(n).repeat(64),
+        facts: null,
+        actor: "system",
+        idempotencyKey: `answer-${n}`,
+      });
+    const first = await answer(1);
+    if (!first.ok) throw new Error(first.error.kind);
+    await withdrawApproval(db, { candidateId, requestId: first.value.requestId, by: "user" });
+    const second = await answer(2);
+    if (!second.ok) throw new Error(second.error.kind);
+    const link = (previousRequestId: string, requestId: string) =>
+      sqlState(
+        db
+          .insert(approvalEdit)
+          .values({ candidateId, previousRequestId, requestId, editedAt: new Date() }),
+      );
+    expect([
+      await link(other.value.requestId, third.value.requestId),
+      await link(first.value.requestId, second.value.requestId),
+    ]).toEqual([INTEGRITY_VIOLATION, INTEGRITY_VIOLATION]);
   });
 });
