@@ -38,6 +38,9 @@ const CONTROL = /\p{Cc}/u;
 // fillers, the braille blank, the combining grapheme joiner and the variation selectors.
 // The joiner and the selectors are combining marks, so they sit outside the class.
 const FORMAT = /[\p{Cf}\p{Zl}\p{Zp}\u115f\u1160\u3164\uffa0\u2800]|\u034f|\p{Variation_Selector}/u;
+// The same pattern the database's CHECKs list by code point (migration 0092, NS-231 slice 5); a
+// test checks the database refuses every character it matches.
+export const INVISIBLE_IN_WORK = FORMAT;
 const formatProblem = (what: string) => `${what} can't hold an invisible formatting character`;
 
 // The database stores only links starting with exactly `https://` (case matters) and no control
