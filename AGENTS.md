@@ -1027,7 +1027,17 @@ Exists now:
   (`/inbox`, INB-006): linked job-mail threads grouped by application with each one's origin badge
   (INB-008), how each thread was linked, "sender not verified" and an "Open in Gmail" link, plus
   a "Needs you to link it" group (`readInboxThreads` in `packages/db`, the API's `GET /inbox`,
-  `src/inbox.ts`). Each thread shows its newest classified kind (NS-261), or "Not classified yet". `/api/*` is rewritten to the API, and pages that need Paul go
+  `src/inbox.ts`). Each thread shows its newest classified kind (NS-261), or "Not classified yet".
+  Since NS-262 Paul links a queued thread to one of his open applications, or dismisses it:
+  `decideQueuedThread` (`packages/db`, `mail-link-decision-write.ts`) records one append-only
+  `mail_link_decision` per queued message in the thread that has none (a repeat or a second choice
+  stores nothing; a closed or other candidate's application is refused), with `mail.link_confirmed`
+  on the application or `mail.link_dismissed`, by `user`, ids and counts only. A link never moves a
+  status and is never sender-verified. Decided messages leave the queue (`listConfirmQueue`, the
+  Inbox), a linked thread shows under its application as "Linked by you" (step `paul`), but never
+  counts for later mail's thread step (`readLinkedThreads`): its first sender is unknown. The API's `GET /inbox/link-targets`
+  (`readLinkTargets`: open applications) and `POST /inbox/decide` (session only), and Link and
+  Dismiss on each queued thread (`app/inbox/queue-actions.tsx`). `/api/*` is rewritten to the API, and pages that need Paul go
   through `readSession`/`todayView` or `readApi` (`src/session.ts`, `src/system.ts`), which forward
   his session cookie to the API. It holds no secret.
 - `packages/pipeline/` (NS-161, ADR-0023): plain-code pipeline steps, no model or network.

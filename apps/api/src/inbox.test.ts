@@ -1,8 +1,8 @@
 import { createServer, type Server } from "node:http";
-import type { Inbox } from "@northstar/db";
+import type { Inbox, LinkTarget } from "@northstar/db";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ApiConfig } from "./config.js";
-import { inboxEndpoints } from "./inbox.js";
+import { type InboxPorts, inboxEndpoints } from "./inbox.js";
 import { createApi } from "./server.js";
 import { createSessions } from "./sessions.js";
 import { portOf, type Sent, send } from "./test/http.js";
@@ -49,10 +49,16 @@ let server: Server;
 let cookie: string;
 let reads: number;
 let read: () => Promise<Inbox>;
+let targets: () => Promise<LinkTarget[]>;
+let decide: InboxPorts["decide"];
+let decided: Parameters<InboxPorts["decide"]>[0][];
 
 beforeEach(async () => {
   reads = 0;
   read = async () => INBOX;
+  targets = async () => [{ applicationId: A1, jobTitle: "Backend Engineer", company: null }];
+  decide = async () => ({ ok: true, value: { recorded: 2 } });
+  decided = [];
   const sessions = createSessions(() => 0);
   cookie = `ns_session=${sessions.open().token}`;
   server = createServer();
@@ -68,6 +74,11 @@ beforeEach(async () => {
         read: () => {
           reads += 1;
           return read();
+        },
+        targets: () => targets(),
+        decide: (input) => {
+          decided.push(input);
+          return decide(input);
         },
       }),
     }),
@@ -185,5 +196,89 @@ describe("GET /inbox", () => {
       ],
     });
     expect((await get()).status).toBe(500);
+  });
+});
+
+const post = (body: unknown, withCookie = true): Promise<Sent> =>
+  send(server, {
+    method: "POST",
+    path: "/inbox/decide",
+    headers: {
+      ...(withCookie ? { cookie } : {}),
+      origin: WEB,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+describe("GET /inbox/link-targets (NS-262)", () => {
+  it("lists the open applications field by field, behind the session", async () => {
+    // A field the read might add later must never reach the response.
+    const withExtra = {
+      applicationId: A1,
+      jobTitle: "Backend Engineer",
+      company: null,
+      extra: "x",
+    };
+    targets = async () => [withExtra];
+    const signedOut = await send(server, { method: "GET", path: "/inbox/link-targets" });
+    const res = await send(server, {
+      method: "GET",
+      path: "/inbox/link-targets",
+      headers: { cookie },
+    });
+    expect([signedOut.status, res.status, JSON.parse(res.body)]).toEqual([
+      401,
+      200,
+      { items: [{ applicationId: A1, jobTitle: "Backend Engineer", company: null }] },
+    ]);
+  });
+});
+
+describe("POST /inbox/decide (NS-262)", () => {
+  it("links a queued thread to an application and answers how many messages it decided", async () => {
+    const res = await post({ gmailThreadId: "cc01", decision: "link", applicationId: A1 });
+    expect([res.status, JSON.parse(res.body), decided]).toEqual([
+      200,
+      { decision: "link", recorded: 2 },
+      [{ gmailThreadId: "cc01", decision: { kind: "link", applicationId: A1 } }],
+    ]);
+  });
+
+  it("dismisses a queued thread", async () => {
+    const res = await post({ gmailThreadId: "cc01", decision: "dismiss" });
+    expect([res.status, decided]).toEqual([
+      200,
+      [{ gmailThreadId: "cc01", decision: { kind: "dismiss" } }],
+    ]);
+  });
+
+  it("refuses a request without a session, a link with no application and a bad thread id, deciding nothing", async () => {
+    const results = [
+      await post({ gmailThreadId: "cc01", decision: "dismiss" }, false),
+      await post({ gmailThreadId: "cc01", decision: "link" }),
+      await post({ gmailThreadId: "cc01", decision: "dismiss", applicationId: A1 }),
+      await post({ gmailThreadId: "x/../evil", decision: "dismiss" }),
+    ];
+    expect([results.map((r) => r.status), decided]).toEqual([[401, 400, 400, 400], []]);
+  });
+
+  it("names each refusal of the write", async () => {
+    const answers = [];
+    for (const kind of ["NotFound", "UnknownApplication", "ApplicationClosed"] as const) {
+      decide = async () => ({ ok: false, error: { kind } });
+      const res = await post({ gmailThreadId: "cc01", decision: "link", applicationId: A1 });
+      answers.push([res.status, JSON.parse(res.body)]);
+    }
+    decide = async () => {
+      throw new Error("connection refused");
+    };
+    const down = await post({ gmailThreadId: "cc01", decision: "dismiss" });
+    expect([...answers, [down.status, JSON.parse(down.body)]]).toEqual([
+      [404, { error: "not_found" }],
+      [404, { error: "unknown_application" }],
+      [409, { error: "application_closed" }],
+      [503, { error: "unavailable" }],
+    ]);
   });
 });

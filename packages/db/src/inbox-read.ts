@@ -2,6 +2,7 @@ import type { ApplicationStatus, CandidateId } from "@northstar/domain";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Db } from "./db.js";
 import { mailClassification } from "./mail-classification-schema.js";
+import { mailLinkDecision } from "./mail-link-decision-schema.js";
 import { type MATCH_STEPS, mailLink, type QUEUE_REASONS } from "./mail-link-schema.js";
 import { type Origin, readOrigins } from "./origin-write.js";
 import { recruiterGrade } from "./recruiter-grade-schema.js";
@@ -16,8 +17,9 @@ export type InboxThread = {
   gmailThreadId: string;
   messages: number;
   lastReceivedAt: Date;
-  // How the newest message was linked.
-  step: (typeof MATCH_STEPS)[number];
+  // How the newest message was linked: a matching step, or `paul` when he linked it from the
+  // confirm queue (NS-262).
+  step: (typeof MATCH_STEPS)[number] | "paul";
   // Any message's sender was verified for this application (INB-011).
   senderVerified: boolean;
   // The newest classified message's kind (NS-261); null until one is classified.
@@ -56,39 +58,42 @@ export const MAX_INBOX_THREADS = 1000;
 
 const NO_ORIGIN: Origin = { startedBy: null, submittedVia: null };
 
+// Paul's decision on a queued message (NS-262), joined to its mail_link row: a message he linked
+// counts under that application, and one he decided either way leaves the queue.
+const decisionJoin = and(
+  eq(mailLinkDecision.candidateId, mailLink.candidateId),
+  eq(mailLinkDecision.gmailMessageId, mailLink.gmailMessageId),
+);
+// The application a message belongs to: matching's link, else Paul's.
+const linkedTo = sql<
+  string | null
+>`coalesce(${mailLink.applicationId}, ${mailLinkDecision.applicationId})`;
+
 export async function readInboxThreads(db: Db, candidateId: CandidateId): Promise<Inbox> {
   return inSpan("db.inbox.read", {}, async (span) => {
     const lastReceived = sql<Date>`max(${mailLink.receivedAt})`;
     const linked = await db
       .select({
-        applicationId: mailLink.applicationId,
+        applicationId: linkedTo,
         gmailThreadId: mailLink.gmailThreadId,
         messages: sql<number>`count(*)::int`,
         lastReceivedAt: lastReceived,
-        step: sql<string>`(array_agg(${mailLink.step} order by ${mailLink.receivedAt} desc))[1]`,
+        step: sql<string>`(array_agg(coalesce(${mailLink.step}, 'paul') order by ${mailLink.receivedAt} desc))[1]`,
         senderVerified: sql<boolean>`bool_or(${mailLink.senderVerified})`,
         jobTitle: job.title,
         company: company.name,
         status: application.status,
       })
       .from(mailLink)
+      .leftJoin(mailLinkDecision, decisionJoin)
       .innerJoin(
         application,
-        and(
-          eq(application.id, mailLink.applicationId),
-          eq(application.candidateId, mailLink.candidateId),
-        ),
+        and(eq(application.id, linkedTo), eq(application.candidateId, mailLink.candidateId)),
       )
       .innerJoin(job, eq(job.id, application.jobId))
       .leftJoin(company, eq(company.id, job.companyId))
-      .where(and(eq(mailLink.candidateId, candidateId), isNotNull(mailLink.applicationId)))
-      .groupBy(
-        mailLink.applicationId,
-        mailLink.gmailThreadId,
-        job.title,
-        company.name,
-        application.status,
-      )
+      .where(eq(mailLink.candidateId, candidateId))
+      .groupBy(linkedTo, mailLink.gmailThreadId, job.title, company.name, application.status)
       .orderBy(desc(lastReceived), mailLink.gmailThreadId)
       .limit(MAX_INBOX_THREADS);
     const queued = await db
@@ -99,7 +104,14 @@ export async function readInboxThreads(db: Db, candidateId: CandidateId): Promis
         reason: sql<string>`(array_agg(${mailLink.queueReason} order by ${mailLink.receivedAt} desc))[1]`,
       })
       .from(mailLink)
-      .where(and(eq(mailLink.candidateId, candidateId), isNull(mailLink.applicationId)))
+      .leftJoin(mailLinkDecision, decisionJoin)
+      .where(
+        and(
+          eq(mailLink.candidateId, candidateId),
+          isNull(mailLink.applicationId),
+          isNull(mailLinkDecision.id),
+        ),
+      )
       .groupBy(mailLink.gmailThreadId)
       .orderBy(desc(lastReceived), mailLink.gmailThreadId)
       .limit(MAX_INBOX_THREADS);
@@ -110,7 +122,9 @@ export async function readInboxThreads(db: Db, candidateId: CandidateId): Promis
     const gradeRows = await db
       .select({
         gmailThreadId: mailLink.gmailThreadId,
-        applicationId: mailLink.applicationId,
+        applicationId: linkedTo,
+        // A dismissed message leaves the queue, so its grade belongs to no thread shown.
+        dismissed: sql<boolean>`${mailLinkDecision.decision} = 'dismissed'`,
         grade: recruiterGrade.grade,
         reasons: recruiterGrade.reasons,
         confidence: recruiterGrade.confidence,
@@ -123,6 +137,7 @@ export async function readInboxThreads(db: Db, candidateId: CandidateId): Promis
           eq(mailLink.gmailMessageId, recruiterGrade.gmailMessageId),
         ),
       )
+      .leftJoin(mailLinkDecision, decisionJoin)
       .where(
         and(
           eq(recruiterGrade.candidateId, candidateId),
@@ -135,6 +150,7 @@ export async function readInboxThreads(db: Db, candidateId: CandidateId): Promis
       )
       .orderBy(desc(mailLink.receivedAt), desc(mailLink.gmailMessageId));
     for (const g of gradeRows) {
+      if (g.dismissed === true) continue;
       const key = `${g.gmailThreadId}:${g.applicationId ?? ""}`;
       if (!grades.has(key)) {
         grades.set(key, { grade: g.grade, reasons: g.reasons, confidence: g.confidence });
@@ -147,7 +163,7 @@ export async function readInboxThreads(db: Db, candidateId: CandidateId): Promis
     const kindRows = await db
       .select({
         gmailThreadId: mailLink.gmailThreadId,
-        applicationId: mailLink.applicationId,
+        applicationId: linkedTo,
         kind: mailClassification.kind,
       })
       .from(mailClassification)
@@ -158,11 +174,12 @@ export async function readInboxThreads(db: Db, candidateId: CandidateId): Promis
           eq(mailLink.gmailMessageId, mailClassification.gmailMessageId),
         ),
       )
+      .leftJoin(mailLinkDecision, decisionJoin)
       .where(
         and(
           eq(mailClassification.candidateId, candidateId),
           isNotNull(mailClassification.kind),
-          isNotNull(mailLink.applicationId),
+          isNotNull(linkedTo),
           inArray(mailLink.gmailThreadId, ["", ...new Set(linked.map((t) => t.gmailThreadId))]),
         ),
       )

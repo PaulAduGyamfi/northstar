@@ -42,6 +42,7 @@ export default defineConfig({
     "./src/mail-poll-schema.ts",
     "./src/mail-classification-schema.ts",
     "./src/worker-health-schema.ts",
+    "./src/mail-link-decision-schema.ts",
   ],
   out: "./migrations",
 });
