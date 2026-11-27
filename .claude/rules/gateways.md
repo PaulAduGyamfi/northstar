@@ -17,7 +17,9 @@ on drafts or messages (its boundary test and the runtime `requestAllowed`). Neve
 never hand its `GmailComposeAccess` to code that reads mail, and claim the decision in the
 ledger before `drafts.create`. Its token comes only from `authorizeCompose` (`consent.ts`,
 slice 5): `gmail.compose` alone, PKCE, no refresh token, scopes from Google's answer, and a grant
-with any other scope refused. Never add `include_granted_scopes` or a second scope. Other gateways (calendar, GitHub) don't exist yet: if you are
+with any other scope refused. It exchanges the code itself: never give it a caller-supplied
+exchange or export its test seam (`authorizeComposeWith`), since the raw answer holds the token.
+Never add `include_granted_scopes` or a second scope. Other gateways (calendar, GitHub) don't exist yet: if you are
 about to create one outside its ticket, stop and ask Paul.
 The Gmail label writer (NS-229, `packages/inbox/src/labels/`, ADR-0027 **Rejected**: no caller,
 no code may request `gmail.modify`) only adds

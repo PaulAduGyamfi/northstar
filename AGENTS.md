@@ -302,8 +302,9 @@ Exists now:
   desktop OAuth with PKCE to a one-shot `127.0.0.1` listener, `gmail.compose` only, no refresh
   token, the token in memory for one run (ADR-0014). The scopes come from Google's answer: a grant
   holding any other scope is refused, and one without compose gives a token whose
-  `hasComposeScope()` is false (`scope_missing`). No database ledger (it needs a migration) or
-  caller yet.
+  `hasComposeScope()` is false (`scope_missing`). The token exchange happens inside the module, so
+  no caller ever sees the raw token, and nothing outside `src/mail/` but the package entry imports
+  `consent.ts` (the boundary test). No database ledger (it needs a migration) or caller yet.
 - Factual answers (NS-141, ANS-001) from Paul's profile settings, plain code, no model:
   `profile_setting` in `packages/db` (`settings-write.ts`: `setProfileSetting`,
   `readProfileSettings`, `recordFactualAnswer`; append-only, newest wins, setting the same value

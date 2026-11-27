@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 import { inspect } from "node:util";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { GMAIL_COMPOSE_SCOPE } from "./access.js";
 import {
   authorizeCompose,
+  authorizeComposeWith,
   type ComposeConsentDeps,
   ComposeConsentError,
-  composeTokenEndpoint,
 } from "./consent.js";
 
 // A fake OAuth client and token: never a real Google credential (the repo is public). The fake
@@ -18,6 +18,13 @@ const READONLY = "https://www.googleapis.com/auth/gmail.readonly";
 
 type Seen = { authUrl?: URL; tokenBody?: URLSearchParams; callbacks: number[] };
 
+// The test seam: the flow with a fake token exchange. The package entry never exports it, and the
+// boundary test refuses any import of consent.ts from outside src/mail/ but the package entry.
+type Run = ComposeConsentDeps & {
+  exchange: (body: URLSearchParams) => Promise<Record<string, unknown>>;
+};
+const start = (run: Run) => authorizeComposeWith(run, run.exchange);
+
 function deps(
   seen: Seen,
   opts: {
@@ -26,7 +33,7 @@ function deps(
     timeoutMs?: number;
     openBrowser?: () => Promise<void>;
   } = {},
-): ComposeConsentDeps {
+): Run {
   return {
     config,
     timeoutMs: opts.timeoutMs ?? 5_000,
@@ -42,7 +49,7 @@ function deps(
         const res = await fetch(`${redirect}?${query}`);
         seen.callbacks.push(res.status);
       }),
-    fetchToken: async (body) => {
+    exchange: async (body) => {
       seen.tokenBody = body;
       return (
         opts.tokenResponse ?? {
@@ -68,10 +75,10 @@ async function failure(run: Promise<unknown>): Promise<Error> {
   throw new Error("expected the consent flow to refuse");
 }
 
-describe("authorizeCompose", () => {
+describe("authorizeComposeWith", () => {
   it("asks for gmail.compose only, with PKCE S256, no refresh token and a 127.0.0.1 redirect", async () => {
     const seen = fresh();
-    await authorizeCompose(deps(seen));
+    await start(deps(seen));
     const p = seen.authUrl?.searchParams;
     expect(`${seen.authUrl?.origin}${seen.authUrl?.pathname}`).toBe(
       "https://accounts.google.com/o/oauth2/v2/auth",
@@ -89,7 +96,7 @@ describe("authorizeCompose", () => {
 
   it("exchanges the code with the verifier that matches the challenge and the same redirect", async () => {
     const seen = fresh();
-    await authorizeCompose(deps(seen));
+    await start(deps(seen));
     const verifier = seen.tokenBody?.get("code_verifier") ?? "";
     expect(createHash("sha256").update(verifier).digest("base64url")).toBe(
       seen.authUrl?.searchParams.get("code_challenge"),
@@ -103,7 +110,7 @@ describe("authorizeCompose", () => {
   });
 
   it("returns a compose token with the scope Google granted, which prints only a mask", async () => {
-    const access = await authorizeCompose(deps(fresh()));
+    const access = await start(deps(fresh()));
     expect(access.hasComposeScope()).toBe(true);
     expect(access.scopes).toEqual([GMAIL_COMPOSE_SCOPE]);
     expect(JSON.stringify({ access })).not.toContain(TOKEN);
@@ -112,7 +119,7 @@ describe("authorizeCompose", () => {
   });
 
   it("takes the scopes from Google's answer, so a grant without compose can't write drafts", async () => {
-    const access = await authorizeCompose(
+    const access = await start(
       deps(fresh(), { tokenResponse: { access_token: TOKEN, scope: "" } }),
     );
     expect(access.hasComposeScope()).toBe(false);
@@ -120,9 +127,7 @@ describe("authorizeCompose", () => {
   });
 
   it("treats a missing scope field as no scopes granted", async () => {
-    const access = await authorizeCompose(
-      deps(fresh(), { tokenResponse: { access_token: TOKEN } }),
-    );
+    const access = await start(deps(fresh(), { tokenResponse: { access_token: TOKEN } }));
     expect(access.hasComposeScope()).toBe(false);
   });
 
@@ -134,7 +139,7 @@ describe("authorizeCompose", () => {
       `${GMAIL_COMPOSE_SCOPE} https://www.googleapis.com/auth/gmail.modify`,
     ]) {
       const error = await failure(
-        authorizeCompose(deps(fresh(), { tokenResponse: { access_token: TOKEN, scope } })),
+        start(deps(fresh(), { tokenResponse: { access_token: TOKEN, scope } })),
       );
       expect(error).toBeInstanceOf(ComposeConsentError);
       expect(error.message).toBe(
@@ -143,19 +148,36 @@ describe("authorizeCompose", () => {
     }
   });
 
-  it("refuses a callback whose state doesn't match, and never exchanges its code", async () => {
+  it("refuses a callback with another state but keeps waiting, so a stray request can't cancel the sign-in", async () => {
     const seen = fresh();
     const error = await failure(
-      authorizeCompose(deps(seen, { consent: () => `code=${CODE}&state=forged` })),
+      start(deps(seen, { consent: () => `code=${CODE}&state=forged`, timeoutMs: 300 })),
     );
-    expect(error.message).toBe("The OAuth callback's state didn't match; nothing was granted");
-    // The flow stops before any exchange: Google's token endpoint never sees the forged code.
+    expect(seen.callbacks).toEqual([400]);
+    expect(error.message).toBe("No answer from Google's consent page; run it again");
+    // Google's token endpoint never sees the forged code.
     expect(seen.tokenBody).toBeUndefined();
+  });
+
+  it("still signs in when Paul's real callback follows a stray one", async () => {
+    const seen = fresh();
+    const access = await start({
+      ...deps(seen),
+      openBrowser: async (url) => {
+        const u = new URL(url);
+        const redirect = u.searchParams.get("redirect_uri") ?? "";
+        seen.callbacks.push((await fetch(`${redirect}?code=stray&state=forged`)).status);
+        await fetch(`${redirect}?code=${CODE}&state=${u.searchParams.get("state")}`);
+      },
+    });
+    expect(seen.callbacks).toEqual([400]);
+    expect(seen.tokenBody?.get("code")).toBe(CODE);
+    expect(access.hasComposeScope()).toBe(true);
   });
 
   it("reports a refused consent by Google's fixed error word only", async () => {
     const error = await failure(
-      authorizeCompose(
+      start(
         deps(fresh(), {
           consent: (url) => `error=access_denied&state=${url.searchParams.get("state")}`,
         }),
@@ -166,7 +188,7 @@ describe("authorizeCompose", () => {
 
   it("never echoes an error value that isn't one of Google's plain words", async () => {
     const error = await failure(
-      authorizeCompose(
+      start(
         deps(fresh(), {
           consent: (url) =>
             `error=${encodeURIComponent("<b>Paste your code</b>")}&state=${url.searchParams.get("state")}`,
@@ -178,31 +200,27 @@ describe("authorizeCompose", () => {
 
   it("refuses a callback with no code", async () => {
     const error = await failure(
-      authorizeCompose(
-        deps(fresh(), { consent: (url) => `state=${url.searchParams.get("state")}` }),
-      ),
+      start(deps(fresh(), { consent: (url) => `state=${url.searchParams.get("state")}` })),
     );
     expect(error.message).toBe("The OAuth callback had no code");
   });
 
   it("refuses a token answer with no access token, without quoting the answer", async () => {
     const error = await failure(
-      authorizeCompose(deps(fresh(), { tokenResponse: { error: "invalid_grant", code: CODE } })),
+      start(deps(fresh(), { tokenResponse: { error: "invalid_grant", code: CODE } })),
     );
     expect(error.message).toBe("Google's token response had no access token");
     expect(error.message).not.toContain(CODE);
   });
 
   it("gives up when Paul never comes back from the consent page", async () => {
-    const error = await failure(
-      authorizeCompose(deps(fresh(), { consent: () => "", timeoutMs: 50 })),
-    );
+    const error = await failure(start(deps(fresh(), { consent: () => "", timeoutMs: 50 })));
     expect(error.message).toBe("No answer from Google's consent page; run it again");
   });
 
   it("refuses when the consent page can't be opened, naming the error type only", async () => {
     const error = await failure(
-      authorizeCompose(
+      start(
         deps(fresh(), {
           openBrowser: async () => {
             throw new TypeError(`no browser for ${TOKEN}`);
@@ -216,7 +234,7 @@ describe("authorizeCompose", () => {
   it("accepts one callback only, then stops listening", async () => {
     const seen = fresh();
     let redirect = "";
-    await authorizeCompose({
+    await start({
       ...deps(seen),
       openBrowser: async (url) => {
         const u = new URL(url);
@@ -228,37 +246,78 @@ describe("authorizeCompose", () => {
   });
 
   it("never puts the code or token in any refusal's message", async () => {
+    // Started one at a time: a run left un-awaited while another waits would reject unhandled.
     const runs = [
-      authorizeCompose(deps(fresh(), { consent: () => `code=${CODE}&state=forged` })),
-      authorizeCompose(deps(fresh(), { tokenResponse: { access_token: TOKEN, scope: READONLY } })),
+      () => start(deps(fresh(), { consent: () => `code=${CODE}&state=forged`, timeoutMs: 100 })),
+      () => start(deps(fresh(), { tokenResponse: { access_token: TOKEN, scope: READONLY } })),
     ];
     for (const run of runs) {
-      const error = await failure(run);
+      const error = await failure(run());
       expect(error.message).not.toContain(CODE);
       expect(error.message).not.toContain(TOKEN);
     }
   });
 });
 
-describe("composeTokenEndpoint", () => {
-  it("posts the form to Google's token endpoint with a time limit", async () => {
-    const calls: { url: string; init: RequestInit }[] = [];
-    const endpoint = composeTokenEndpoint(async (url, init) => {
-      calls.push({ url: String(url), init: init ?? {} });
-      return new Response(JSON.stringify({ access_token: TOKEN }), { status: 200 });
+describe("authorizeCompose", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // Google's token endpoint answered by a stub; the loopback callback still goes through.
+  function stubTokenEndpoint(answer: () => Response): { url?: string; init?: RequestInit } {
+    const seen: { url?: string; init?: RequestInit } = {};
+    const real = globalThis.fetch;
+    vi.stubGlobal("fetch", async (url: string | URL, init?: RequestInit) => {
+      if (String(url).startsWith("http://127.0.0.1:")) return real(url, init);
+      seen.url = String(url);
+      seen.init = init;
+      return answer();
     });
-    const body = new URLSearchParams({ code: CODE });
-    expect(await endpoint(body)).toEqual({ access_token: TOKEN });
-    expect(calls[0]?.url).toBe("https://oauth2.googleapis.com/token");
-    expect(calls[0]?.init.method).toBe("POST");
-    expect(calls[0]?.init.signal).toBeInstanceOf(AbortSignal);
+    return seen;
+  }
+
+  // A browser that consents at once.
+  const consenting: ComposeConsentDeps = {
+    config,
+    timeoutMs: 5_000,
+    openBrowser: async (url) => {
+      const u = new URL(url);
+      await fetch(
+        `${u.searchParams.get("redirect_uri")}?code=${CODE}&state=${u.searchParams.get("state")}`,
+      );
+    },
+  };
+
+  it("takes no token exchange from its caller, so no caller can keep a copy of the token", () => {
+    // ADR-0025 item 4: only the draft writer holds the compose token.
+    expect(Object.keys(consenting).sort()).toEqual(["config", "openBrowser", "timeoutMs"]);
+    expect(authorizeCompose.length).toBe(1);
+  });
+
+  it("exchanges the code at Google's own token endpoint, with a time limit", async () => {
+    const seen = stubTokenEndpoint(
+      () => new Response(JSON.stringify({ access_token: TOKEN, scope: GMAIL_COMPOSE_SCOPE })),
+    );
+    const access = await authorizeCompose(consenting);
+    expect(access.hasComposeScope()).toBe(true);
+    expect(seen.url).toBe("https://oauth2.googleapis.com/token");
+    expect(seen.init?.method).toBe("POST");
+    expect(seen.init?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("reports a refused exchange by its status only, never the body", async () => {
-    const endpoint = composeTokenEndpoint(
-      async () => new Response(JSON.stringify({ error_description: CODE }), { status: 400 }),
+    stubTokenEndpoint(
+      () => new Response(JSON.stringify({ error_description: CODE }), { status: 400 }),
     );
-    const error = await failure(endpoint(new URLSearchParams()));
+    const error = await failure(authorizeCompose(consenting));
     expect(error.message).toBe("Google's token endpoint answered 400");
+  });
+
+  it("reports an answer that isn't JSON without quoting it", async () => {
+    stubTokenEndpoint(() => new Response(`{"access_token":"${TOKEN}"`, { status: 200 }));
+    const error = await failure(authorizeCompose(consenting));
+    expect(error.message).toBe("Google's token response wasn't JSON");
+    expect(error.message).not.toContain(TOKEN);
   });
 });

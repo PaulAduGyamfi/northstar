@@ -34,9 +34,10 @@ async function sources(dir: string): Promise<string[]> {
 
 const rel = (file: string) => relative(repoRoot, file).split(sep).join("/");
 
-// An import, re-export or require of a path ending in mail/drafts, mail/message or mail/access.
+// An import, re-export or require of a path ending in mail/drafts, mail/message, mail/access or
+// (NS-237 slice 5) mail/consent, whose test seam takes a token exchange that sees the raw token.
 const IMPORTS_PRIVATE =
-  /(from\s+|import\s*\(\s*|require\s*\(\s*)["'][^"']*mail\/(drafts|message|access)(\.[a-z]+)?["']/;
+  /(from\s+|import\s*\(\s*|require\s*\(\s*)["'][^"']*mail\/(drafts|message|access|consent)(\.[a-z]+)?["']/;
 
 // Gmail's send, update and delete calls on drafts and messages, as a URL path or a method name.
 const WRITES_BEYOND_CREATE = [
@@ -56,8 +57,10 @@ describe("the draft writer's boundary (ADR-0025 item 4)", () => {
       if (path.startsWith(MAIL_DIR)) continue;
       const text = await readFile(file, "utf8");
       const matches = text.match(new RegExp(IMPORTS_PRIVATE, "g")) ?? [];
+      // The package entry exports the token type and the consent flow's public entry point only.
       const allowed = path === "packages/gateways/src/index.ts";
-      if (matches.some((m) => !(allowed && /mail\/access(\.js)?["']$/.test(m)))) found.push(path);
+      if (matches.some((m) => !(allowed && /mail\/(access|consent)(\.js)?["']$/.test(m))))
+        found.push(path);
     }
     expect(found).toEqual([]);
   });
@@ -73,6 +76,11 @@ describe("the draft writer's boundary (ADR-0025 item 4)", () => {
         if (pattern.test(text)) found.push(`${path}: ${pattern}`);
     }
     expect(found).toEqual([]);
+  });
+
+  it("the package entry never exports the consent flow's test seam (authorizeComposeWith)", async () => {
+    const entry = await readFile(join(repoRoot, "packages/gateways/src/index.ts"), "utf8");
+    expect(entry).not.toMatch(/\bauthorizeComposeWith\b/);
   });
 
   it("only src/mail/drafts.ts reads the compose token back (bearerOf)", async () => {

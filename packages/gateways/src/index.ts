@@ -43,7 +43,6 @@ export {
   authorizeCompose,
   type ComposeConsentDeps,
   ComposeConsentError,
-  composeTokenEndpoint,
 } from "./mail/consent.js";
 export {
   type DraftGuard,

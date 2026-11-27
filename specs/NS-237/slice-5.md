@@ -17,26 +17,30 @@ memory for one run, and no refresh token.
   callback, then stops. It times out after `timeoutMs`.
 - Requests `https://www.googleapis.com/auth/gmail.compose` only, with `access_type=online`, so it
   gets no refresh token.
-- Exchanges the code at Google's token endpoint through the injected `fetchToken`. The scopes come
-  from the token response's `scope`, never from configuration (slice 4's review). Then:
+- Exchanges the code at Google's token endpoint inside the module (a 30 s limit). Nothing outside
+  `src/mail/` ever sees the raw answer: ADR-0025 item 4 lets only the draft writer hold the
+  token, so no caller can pass its own exchange (security review). Tests use
+  `authorizeComposeWith(deps, exchange)`, which the package entry doesn't export, and the boundary
+  test refuses any import of `consent.ts` from outside `src/mail/` but the package entry. A
+  non-2xx answer is reported by status only, and one that isn't JSON by that fact only. The
+  scopes come from the token response's `scope`, never from configuration (slice 4's review).
   - A grant holding any scope other than `gmail.compose` is refused (`ComposeConsentError`), so
     the writer's token can never read, modify or delete mail.
   - A grant without `gmail.compose`, because the scope isn't on the OAuth client yet (ADR-0025
     item 6), still returns a `GmailComposeAccess` with the scopes granted.
     `hasComposeScope()` is then false, and the writer reports `needs_human` (`scope_missing`)
     without making a request.
+- A callback with another state gets a 400 and the flow keeps waiting, so a stray local request
+  can't cancel Paul's sign-in (security review). Only this run's state ends it.
 - Refuses with `ComposeConsentError`, never quoting a token, code or state, when:
-  - the callback's state doesn't match;
   - consent wasn't given (Google's fixed error word only);
   - there's no code, or no access token;
   - it times out;
   - the browser can't be opened.
-- `composeTokenEndpoint(fetch)` is the real token endpoint (30 s limit), reporting a non-2xx
-  answer by status only.
 
 The flow is written for this module, following `packages/inbox/src/oauth.ts` (the read-only
 flow), because `packages/gateways` doesn't depend on `packages/inbox`. The package entry exports
-`authorizeCompose`, `composeTokenEndpoint`, `ComposeConsentError` and its deps type. The boundary
+`authorizeCompose`, `ComposeConsentError` and its deps type (client, browser opener, timeout). The boundary
 test's rules keep applying: no send, update or delete anywhere under `src/mail/`.
 
 ## Acceptance criteria
@@ -45,7 +49,9 @@ test's rules keep applying: no send, update or delete anywhere under `src/mail/`
 - [ ] A grant of exactly `gmail.compose` returns a `GmailComposeAccess` with `hasComposeScope()` true; it prints a mask (test).
 - [ ] A grant with any other scope is refused, and so is one with `gmail.compose` plus `gmail.readonly` (tests).
 - [ ] A grant without `gmail.compose` returns an access whose `hasComposeScope()` is false (test).
-- [ ] A forged state, a refused consent, a missing code, a missing token and a timeout each refuse, and no error message holds the code or token (tests).
+- [ ] A forged state is refused with a 400 and doesn't end the flow; Paul's real callback after it still signs in (tests).
+- [ ] A refused consent, a missing code, a missing token, a non-2xx or non-JSON exchange and a timeout each refuse, and no error message holds the code or token (tests).
+- [ ] `authorizeCompose` takes no token exchange from its caller; nothing outside `src/mail/` but the package entry imports `consent.ts` (tests, boundary test).
 - [ ] The listener accepts only one callback (test).
 - [ ] `node_modules/.bin/turbo run lint typecheck test build --force` and `node evals/dist/bin.js --all` pass.
 

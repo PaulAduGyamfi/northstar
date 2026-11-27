@@ -18,28 +18,42 @@ export type ComposeConsentDeps = {
   config: { clientId: string; clientSecret: string };
   // Opens the consent page in Paul's browser (the caller prints the URL too).
   openBrowser: (url: string) => Promise<void>;
-  // POSTs the form to Google's token endpoint and returns its JSON (injected so tests fake it).
-  fetchToken: (body: URLSearchParams) => Promise<Record<string, unknown>>;
   // How long to wait for Paul to come back from the consent page.
   timeoutMs: number;
 };
+
+// Exchanges the form at Google's token endpoint and returns the parsed answer. Private to this
+// module (security review of slice 5): the answer holds the raw access token, and ADR-0025 item 4
+// lets only the draft writer hold it. A caller-supplied exchange could keep a copy and call Gmail's
+// send around the writer.
+type TokenExchange = (body: URLSearchParams) => Promise<Record<string, unknown>>;
 
 export class ComposeConsentError extends Error {
   override name = "ComposeConsentError";
 }
 
 // Runs the consent flow once and returns the writer's in-memory token. Throws ComposeConsentError,
-// never quoting a token, code or state, on a cancelled consent, a forged callback, a timeout or a
-// grant wider than gmail.compose. A grant without gmail.compose (not yet on the OAuth client) still
-// returns a token whose hasComposeScope() is false, so the writer says `scope_missing`.
-export async function authorizeCompose(deps: ComposeConsentDeps): Promise<GmailComposeAccess> {
+// never quoting a token, code or state, on a cancelled consent, a timeout or a grant wider than
+// gmail.compose. A grant without gmail.compose (not yet on the OAuth client) still returns a token
+// whose hasComposeScope() is false, so the writer says `scope_missing`.
+export function authorizeCompose(deps: ComposeConsentDeps): Promise<GmailComposeAccess> {
+  return authorizeComposeWith(deps, googleTokenExchange);
+}
+
+// The flow with its token exchange as a parameter, for consent.test.ts only. The package entry
+// doesn't export it, and the boundary test refuses any import of this module from outside
+// src/mail/ but the package entry, so no caller can pass its own exchange.
+export async function authorizeComposeWith(
+  deps: ComposeConsentDeps,
+  exchange: TokenExchange,
+): Promise<GmailComposeAccess> {
   const verifier = randomBytes(32).toString("base64url");
   const challenge = createHash("sha256").update(verifier).digest("base64url");
   // A random state ties the callback to this run, so another page can't feed us a code.
   const state = randomBytes(16).toString("base64url");
 
   const { code, redirectUri } = await waitForCode(deps, state, challenge);
-  const json = await deps.fetchToken(
+  const json = await exchange(
     new URLSearchParams({
       code,
       client_id: deps.config.clientId,
@@ -81,26 +95,28 @@ function waitForCode(
         res.end(text);
       };
       if (url.pathname !== "/") return done(404, "Not found");
+      // A request without this run's state is someone else's (another local process, a page
+      // probing ports): refuse it but keep waiting, so it can't cancel Paul's sign-in.
       if (url.searchParams.get("state") !== state) {
-        done(400, "This sign-in link doesn't belong to this run.");
-        return finish(
-          new ComposeConsentError("The OAuth callback's state didn't match; nothing was granted"),
-        );
+        return done(400, "This sign-in link doesn't belong to this run.");
       }
       const error = url.searchParams.get("error");
       if (error !== null) {
-        done(200, "Northstar: consent not given. You can close this tab.");
         // Google's error codes are fixed words such as access_denied; anything else isn't echoed.
         const word = /^[a-z_]{1,40}$/.test(error) ? error : "error";
-        return finish(new ComposeConsentError(`Google consent was not given (${word})`));
+        res.on("finish", () =>
+          finish(new ComposeConsentError(`Google consent was not given (${word})`)),
+        );
+        return done(200, "Northstar: consent not given. You can close this tab.");
       }
       const code = url.searchParams.get("code");
       if (!code) {
-        done(400, "No code in the callback.");
-        return finish(new ComposeConsentError("The OAuth callback had no code"));
+        res.on("finish", () => finish(new ComposeConsentError("The OAuth callback had no code")));
+        return done(400, "No code in the callback.");
       }
+      // Finish once the page has been sent, so Paul sees it rather than a reset connection.
+      res.on("finish", () => finish(null, code));
       done(200, "Northstar can now create Gmail drafts (never send). You can close this tab.");
-      finish(null, code);
     });
     const timer = setTimeout(
       () => finish(new ComposeConsentError("No answer from Google's consent page; run it again")),
@@ -145,18 +161,19 @@ function waitForCode(
   });
 }
 
-// The real token endpoint, for the caller. A non-2xx answer is reported by status only.
-export function composeTokenEndpoint(
-  fetchFn: typeof fetch,
-): (body: URLSearchParams) => Promise<Record<string, unknown>> {
-  return async (body) => {
-    const res = await fetchFn(TOKEN_URL, {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body,
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!res.ok) throw new ComposeConsentError(`Google's token endpoint answered ${res.status}`);
+// Google's token endpoint, with a 30 s limit. A non-2xx answer is reported by status only, and an
+// answer that isn't JSON by that fact only: a parser's message can quote the body, token and all.
+const googleTokenExchange: TokenExchange = async (body) => {
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body,
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) throw new ComposeConsentError(`Google's token endpoint answered ${res.status}`);
+  try {
     return (await res.json()) as Record<string, unknown>;
-  };
-}
+  } catch {
+    throw new ComposeConsentError("Google's token response wasn't JSON");
+  }
+};
