@@ -49,7 +49,9 @@ are CSS variables in `apps/web/app/globals.css`.
   reply", the API's `GET /approvals/reply`), as plain text through `replyLines`: the recipient
   first, with the other-domain warning under it. An approve of a reply with no draft comes back
   `missing_draft` and stays in the queue; one to another domain is approved only on its own
-  (`approve_alone` in a batch).
+  (`approve_alone` in a batch). Its Edit button (NS-203 slice 2) changes only the body, and only
+  through `POST /approvals/edit-reply` after `editProblem`; a timeout says `TIMED_OUT_MESSAGE`,
+  and a `409 not_pending` reads as already done (a second click, or a decision meanwhile).
 - The run inspector (NS-154) fetches a feed line's run (`GET /feed/run`) only when Paul asks, and
   shows it as plain text through `src/run.ts` (`callLine`, `totalsLine`).
 - Pipeline filters (NS-207) live in the URL (`parseFilters`, `filterQuery` in `src/pipeline.ts`)

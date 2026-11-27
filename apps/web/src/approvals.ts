@@ -158,8 +158,9 @@ export function replyLines(reply: ReplyBody): string[] {
 
 // Editing a waiting reply's body before approving it (NS-203 slice 2, APR-002). The API's
 // POST /approvals/edit-reply files the edit with the Gate; these decide what the page sends and
-// says. The body limit mirrors the API's input schema.
-export const MAX_REPLY_BODY = 10_000;
+// says. The body limit mirrors the reply package schema's (packages/domain, reply-draft.ts), which
+// editReplyDraft checks; the endpoint's own 10,000 only bounds the request's size.
+export const MAX_REPLY_BODY = 5_000;
 
 // Why an edit can't be sent, or null when it can. Nothing goes out for these: the API would
 // refuse them anyway, and an unchanged body would only withdraw and re-file the same content.

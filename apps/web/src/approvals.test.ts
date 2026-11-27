@@ -179,7 +179,7 @@ describe("editProblem", () => {
       editProblem("Thanks.", "Thanks."),
     ]).toEqual([
       "The reply can't be empty.",
-      "The reply is too long: at most 10,000 characters.",
+      "The reply is too long: at most 5,000 characters.",
       "Nothing changed, so there's nothing to save.",
     ]);
   });
@@ -198,6 +198,8 @@ describe("editResultWords", () => {
       editResultWords(401, "unauthorized"),
       editResultWords(409, "unchanged"),
       editResultWords(404, "not_found"),
+      editResultWords(409, "not_editable"),
+      editResultWords(400, "invalid_body"),
       editResultWords(503, "unavailable"),
       editResultWords(418, "teapot"),
     ]).toEqual([
@@ -205,6 +207,8 @@ describe("editResultWords", () => {
       "You've been signed out. Sign in again to edit.",
       "Nothing changed, so there's nothing to save.",
       "That reply is gone. Reload the page.",
+      "Only email replies can be edited.",
+      "Northstar couldn't accept that text. Check it and try again.",
       "That didn't save. Try again.",
       "That edit couldn't be saved.",
     ]);

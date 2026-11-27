@@ -9,7 +9,7 @@ Issue #179. Slice 1: #324 (`editReplyDraft`, `POST /approvals/edit-reply`).
 - "Show the reply" on an `email_reply` item gains **Edit**. It opens the body in a textarea; the
   recipient, subject and cited items are not editable (slice 1 keeps them).
 - **Save the edit** checks with `editProblem` first (not blank, at most `MAX_REPLY_BODY` = the
-  API's 10,000, different from the original) and sends nothing on a problem. Then it calls
+  reply package schema's 5,000, different from the original) and sends nothing on a problem. Then it calls
   `POST /api/approvals/edit-reply` and says the answer with `editResultWords`:
   - 200: "Saved. Your edited version is waiting for your approval.";
   - `409 not_pending` (a double-click after the first save, or a decision meanwhile): read as
