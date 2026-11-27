@@ -6,5 +6,9 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     globalSetup: ["../db/dist/test/global-setup.js"],
+    // Each database test's beforeEach opens a fresh PGlite copy of that snapshot. Under CI's
+    // parallel turbo load that has taken over vitest's 10 s hook default in sweep-db, submit-db
+    // and others (NS-258). This only gives setup hooks more time; no test or assertion changes.
+    hookTimeout: 30_000,
   },
 });
