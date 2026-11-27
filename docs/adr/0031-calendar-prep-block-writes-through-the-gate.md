@@ -1,6 +1,6 @@
 # ADR-0031 — Approved prep blocks go to a Northstar calendar with `calendar.app.created`, through the Gate
 
-**Status:** Proposed · **Date:** 2026-11-27
+**Status:** Accepted (Paul, in chat with the orchestrator, 2026-11-27: "Accept as written") · **Date:** 2026-11-27
 
 ## Context
 CAL-003 asks Northstar to schedule prep before each interview: by default two 45-minute blocks in
