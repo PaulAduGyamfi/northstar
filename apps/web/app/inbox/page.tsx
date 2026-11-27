@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { webConfig } from "../../src/config";
 import {
   applicationTitle,
+  type GradeView,
   InboxBody,
   LinkTargetsBody,
   originBadge,
@@ -15,6 +16,7 @@ import { PillNav } from "../../src/pill-nav";
 import { SESSION_COOKIE } from "../../src/session";
 import { dotStatus, HealthBody, readApi } from "../../src/system";
 import { QueueActions } from "./queue-actions";
+import { RegradeControl } from "./regrade-control";
 
 // Asked for on every request: mail is linked as it arrives, and it depends on Paul's session.
 export const dynamic = "force-dynamic";
@@ -59,10 +61,11 @@ export default async function InboxPage() {
               status.
             </p>
             <ul>
-              {queuedRows(inbox.body.queued, now).map((q) => (
+              {queuedRows(inbox.body.queued, now).map((q, i) => (
                 <li key={q.key}>
                   {q.why} · {q.messages}, {q.received}
                   {q.grade ? ` · ${q.grade}` : ""}
+                  {q.paulGrade ? ` · ${q.paulGrade}` : ""}
                   {q.href ? (
                     <>
                       {" · "}
@@ -72,6 +75,11 @@ export default async function InboxPage() {
                     </>
                   ) : null}{" "}
                   <QueueActions gmailThreadId={q.key} targets={linkTargets} label={q.why} />
+                  <Regrade
+                    gmailThreadId={q.key}
+                    grade={inbox.body.queued[i]?.recruiterGrade}
+                    label={q.why}
+                  />
                 </li>
               ))}
             </ul>
@@ -87,11 +95,12 @@ export default async function InboxPage() {
                   <span className="status-label">{statusWord(a)}</span> · {originBadge(a)}
                 </p>
                 <ul>
-                  {threadRows(a, now).map((t) => (
+                  {threadRows(a, now).map((t, i) => (
                     <li key={t.key}>
                       {t.kind} · {t.messages}, {t.received} · {t.linked}
                       {t.unverified ? ` · ${t.unverified}` : ""}
                       {t.grade ? ` · ${t.grade}` : ""}
+                      {t.paulGrade ? ` · ${t.paulGrade}` : ""}
                       {t.href ? (
                         <>
                           {" · "}
@@ -99,7 +108,12 @@ export default async function InboxPage() {
                             Open in Gmail
                           </a>
                         </>
-                      ) : null}
+                      ) : null}{" "}
+                      <Regrade
+                        gmailThreadId={t.key}
+                        grade={a.threads[i]?.recruiterGrade}
+                        label={t.kind}
+                      />
                     </li>
                   ))}
                 </ul>
@@ -108,5 +122,26 @@ export default async function InboxPage() {
           : null}
       </main>
     </>
+  );
+}
+
+// The Regrade control, only on a graded thread (NS-238 item 3): it starts at Paul's own letter, else
+// the system's.
+function Regrade({
+  gmailThreadId,
+  grade,
+  label,
+}: {
+  gmailThreadId: string;
+  grade: GradeView | undefined;
+  label: string;
+}) {
+  if (!grade) return null;
+  return (
+    <RegradeControl
+      gmailThreadId={gmailThreadId}
+      current={grade.paulGrade ?? grade.grade}
+      label={label}
+    />
   );
 }

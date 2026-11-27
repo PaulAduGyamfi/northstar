@@ -46,6 +46,7 @@ import {
   recordCheckIn,
   recordHandoffPrefill,
   recordPasskeyUse,
+  regradeThread,
   resolveDeadLetter,
   resolveHandoff,
   saveFitScore,
@@ -254,6 +255,7 @@ try {
     read: async () => readInboxThreads(db, await candidateId()),
     targets: async () => readLinkTargets(db, await candidateId()),
     decide: async (input) => decideQueuedThread(db, { candidateId: await candidateId(), ...input }),
+    regrade: async (input) => regradeThread(db, { candidateId: await candidateId(), ...input }),
   });
   // Dead letters (NS-215, RES-007): stuck work, and Paul's retry, skip or hand-off.
   const deadLetters = deadLetterEndpoints({

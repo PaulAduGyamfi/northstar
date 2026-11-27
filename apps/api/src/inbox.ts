@@ -1,4 +1,10 @@
-import type { Inbox, LinkTarget, QueueDecision, QueueDecisionError } from "@northstar/db";
+import type {
+  Inbox,
+  LinkTarget,
+  QueueDecision,
+  QueueDecisionError,
+  RegradeError,
+} from "@northstar/db";
 import {
   APPLICATION_STATUSES,
   RECRUITER_GRADE_REASONS,
@@ -23,6 +29,11 @@ export type InboxPorts = {
   }) => Promise<
     { ok: true; value: { recorded: number } } | { ok: false; error: QueueDecisionError }
   >;
+  // Paul's own letter for a graded thread's newest graded message (NS-238 item 3, regradeThread).
+  regrade?: (input: {
+    gmailThreadId: string;
+    grade: string;
+  }) => Promise<{ ok: true; value: { recorded: boolean } } | { ok: false; error: RegradeError }>;
 };
 
 // Gmail thread ids are hex (mail_link's CHECK). Only such an id goes into a link: anything else
@@ -35,10 +46,14 @@ const Grade = z.object({
   grade: z.enum(["A", "B", "C", "D", "F"]),
   reasons: z.array(z.enum(RECRUITER_GRADE_REASONS)).max(12),
   confidence: z.enum(["normal", "low"]),
+  // Paul's own letter (NS-238 item 3), absent until he regrades.
+  paulGrade: z.enum(["A", "B", "C", "D", "F"]).optional(),
 });
 type GradeView = z.infer<typeof Grade>;
 // Only a graded thread carries the field, picked field by field.
-const gradeOf = (g: { grade: string; reasons: string[]; confidence: string } | undefined) =>
+const gradeOf = (
+  g: { grade: string; reasons: string[]; confidence: string; paulGrade?: string } | undefined,
+) =>
   g === undefined
     ? {}
     : {
@@ -46,6 +61,9 @@ const gradeOf = (g: { grade: string; reasons: string[]; confidence: string } | u
           grade: g.grade as GradeView["grade"],
           reasons: g.reasons as GradeView["reasons"],
           confidence: g.confidence as GradeView["confidence"],
+          ...(g.paulGrade === undefined
+            ? {}
+            : { paulGrade: g.paulGrade as NonNullable<GradeView["paulGrade"]> }),
         },
       };
 
@@ -203,5 +221,27 @@ export function inboxEndpoints(ports: InboxPorts): AnyEndpoint[] {
       }
     },
   });
-  return [read, targets, decide];
+  const regrade = endpoint({
+    method: "POST",
+    path: "/inbox/regrade",
+    auth: "session",
+    input: z.object({
+      gmailThreadId: z.string().regex(GMAIL_ID),
+      grade: z.enum(["A", "B", "C", "D", "F"]),
+    }),
+    output: z.object({ grade: z.enum(["A", "B", "C", "D", "F"]), recorded: z.boolean() }),
+    handler: async ({ gmailThreadId, grade }) => {
+      if (!ports.regrade) return { ok: false, status: 503, error: "unavailable" };
+      try {
+        // Only Paul's signed-in path reaches this; the write records it as his.
+        const r = await ports.regrade({ gmailThreadId, grade });
+        if (r.ok) return { ok: true, body: { grade, recorded: r.value.recorded } };
+        if (r.error.kind === "NotGraded") return { ok: false, status: 404, error: "not_graded" };
+        return { ok: false, status: 400, error: "invalid_input" };
+      } catch {
+        return { ok: false, status: 503, error: "unavailable" };
+      }
+    },
+  });
+  return [read, targets, decide, regrade];
 }

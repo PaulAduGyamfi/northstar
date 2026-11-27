@@ -43,6 +43,7 @@ export default defineConfig({
     "./src/mail-classification-schema.ts",
     "./src/worker-health-schema.ts",
     "./src/mail-link-decision-schema.ts",
+    "./src/recruiter-regrade-schema.ts",
   ],
   out: "./migrations",
 });

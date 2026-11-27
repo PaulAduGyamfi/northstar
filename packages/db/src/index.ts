@@ -473,6 +473,15 @@ export {
   recordRecruiterGrade,
   type StoredGrade,
 } from "./recruiter-grade-write.js";
+// Paul's regrade of a recruiter message (NS-238 item 3).
+export * as recruiterRegradeSchema from "./recruiter-regrade-schema.js";
+export {
+  LETTERS as RECRUITER_LETTERS,
+  type RegradeError,
+  readRegrades,
+  regradeRecruiterMessage,
+  regradeThread,
+} from "./recruiter-regrade-write.js";
 export * as replyLedgerSchema from "./reply-ledger-schema.js";
 // The Gmail draft writer's ledger (NS-237 slice 6): one approval, one draft.
 export {

@@ -52,6 +52,8 @@ let read: () => Promise<Inbox>;
 let targets: () => Promise<LinkTarget[]>;
 let decide: InboxPorts["decide"];
 let decided: Parameters<InboxPorts["decide"]>[0][];
+let regrade: NonNullable<InboxPorts["regrade"]>;
+let regraded: { gmailThreadId: string; grade: string }[];
 
 beforeEach(async () => {
   reads = 0;
@@ -59,6 +61,8 @@ beforeEach(async () => {
   targets = async () => [{ applicationId: A1, jobTitle: "Backend Engineer", company: null }];
   decide = async () => ({ ok: true, value: { recorded: 2 } });
   decided = [];
+  regrade = async () => ({ ok: true, value: { recorded: true } });
+  regraded = [];
   const sessions = createSessions(() => 0);
   cookie = `ns_session=${sessions.open().token}`;
   server = createServer();
@@ -79,6 +83,10 @@ beforeEach(async () => {
         decide: (input) => {
           decided.push(input);
           return decide(input);
+        },
+        regrade: (input) => {
+          regraded.push(input);
+          return regrade(input);
         },
       }),
     }),
@@ -280,5 +288,71 @@ describe("POST /inbox/decide (NS-262)", () => {
       [409, { error: "application_closed" }],
       [503, { error: "unavailable" }],
     ]);
+  });
+});
+
+describe("POST /inbox/regrade (NS-238 item 3)", () => {
+  const regradePost = (body: unknown, withCookie = true): Promise<Sent> =>
+    send(server, {
+      method: "POST",
+      path: "/inbox/regrade",
+      headers: {
+        ...(withCookie ? { cookie } : {}),
+        origin: WEB,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+  it("records Paul's letter for a thread and answers whether it stored one", async () => {
+    const res = await regradePost({ gmailThreadId: "cc01", grade: "D" });
+    expect([res.status, JSON.parse(res.body), regraded]).toEqual([
+      200,
+      { grade: "D", recorded: true },
+      [{ gmailThreadId: "cc01", grade: "D" }],
+    ]);
+  });
+
+  it("refuses no session, a letter that isn't one and a bad thread id, regrading nothing", async () => {
+    const results = [
+      await regradePost({ gmailThreadId: "cc01", grade: "D" }, false),
+      await regradePost({ gmailThreadId: "cc01", grade: "E" }),
+      await regradePost({ gmailThreadId: "x/../evil", grade: "D" }),
+    ];
+    expect([results.map((r) => r.status), regraded]).toEqual([[401, 400, 400], []]);
+  });
+
+  it("answers 404 for a thread with no graded email and 503 when the store fails", async () => {
+    regrade = async () => ({ ok: false, error: { kind: "NotGraded" } });
+    const missing = await regradePost({ gmailThreadId: "cc01", grade: "D" });
+    regrade = async () => {
+      throw new Error("connection refused");
+    };
+    const down = await regradePost({ gmailThreadId: "cc01", grade: "D" });
+    expect([
+      [missing.status, JSON.parse(missing.body)],
+      [down.status, JSON.parse(down.body)],
+    ]).toEqual([
+      [404, { error: "not_graded" }],
+      [503, { error: "unavailable" }],
+    ]);
+  });
+
+  it("passes Paul's letter on with a thread's grade", async () => {
+    const grade = { grade: "B", reasons: ["title:exact"], confidence: "normal", paulGrade: "D" };
+    read = async () => ({
+      applications: [],
+      queued: [
+        {
+          gmailThreadId: "cc01",
+          messages: 1,
+          lastReceivedAt: T,
+          reason: "no_match",
+          recruiterGrade: grade,
+        },
+      ],
+    });
+    const body = JSON.parse((await get()).body);
+    expect(body.queued[0].recruiterGrade).toEqual(grade);
   });
 });

@@ -31,12 +31,12 @@ turns those regrades into bounded weight adjustments; this slice only records th
   Regrade.
 
 ## Acceptance criteria
-- [ ] A regrade stores once; a repeat of the same letter stores nothing; a later different letter
+- [x] A regrade stores once; a repeat of the same letter stores nothing; a later different letter
       is a new row and becomes current; an ungraded message is refused (PGlite).
-- [ ] One event per stored regrade, by Paul, codes only; the table refuses UPDATE, DELETE,
+- [x] One event per stored regrade, by Paul, codes only; the table refuses UPDATE, DELETE,
       TRUNCATE and bad rows.
-- [ ] The Inbox read shows Paul's newest letter; the API and web words (tests).
-- [ ] lint, typecheck, test, build green (CI `checks`).
+- [x] The Inbox read shows Paul's newest letter; the API and web words (tests).
+- [x] lint, typecheck, test, build green (CI `checks`).
 
 ## Out of scope
 - Weight adjustments from regrades (slice 2), replies and archives as signals, the agreement

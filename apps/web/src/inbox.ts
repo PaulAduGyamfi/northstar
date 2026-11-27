@@ -11,6 +11,8 @@ const Grade = z.object({
   grade: z.enum(["A", "B", "C", "D", "F"]),
   reasons: z.array(z.string()),
   confidence: z.enum(["normal", "low"]),
+  // Paul's own letter (NS-238 item 3), absent until he regrades.
+  paulGrade: z.enum(["A", "B", "C", "D", "F"]).optional(),
 });
 export type GradeView = z.infer<typeof Grade>;
 
@@ -127,6 +129,8 @@ export type ThreadRow = {
   kind: string;
   // The recruiter grade in words (NS-238); absent when the thread has none.
   grade?: string;
+  // Paul's own letter in words (NS-238 item 3); absent until he regrades.
+  paulGrade?: string;
 };
 
 const messages = (n: number) => `${n} ${n === 1 ? "message" : "messages"}`;
@@ -151,7 +155,13 @@ export function threadRows(a: InboxApplicationView, nowMs: number): ThreadRow[] 
     // Classification arrives with the mail-link loop (#224).
     kind: t.kind === null ? "Not classified yet" : t.kind.replaceAll("_", " "),
     ...(t.recruiterGrade ? { grade: gradeWords(t.recruiterGrade) } : {}),
+    ...paulWords(t.recruiterGrade),
   }));
+}
+
+// "You graded it D", only when Paul regraded the thread's graded message.
+function paulWords(g: GradeView | undefined): { paulGrade?: string } {
+  return g?.paulGrade ? { paulGrade: `You graded it ${g.paulGrade}` } : {};
 }
 
 export type QueuedRow = {
@@ -161,6 +171,7 @@ export type QueuedRow = {
   received: string;
   why: string;
   grade?: string;
+  paulGrade?: string;
 };
 
 export function queuedRows(queued: InboxView["queued"], nowMs: number): QueuedRow[] {
@@ -171,6 +182,7 @@ export function queuedRows(queued: InboxView["queued"], nowMs: number): QueuedRo
     received: received(q.lastReceivedAt, nowMs),
     why: `This thread ${REASON_WORDS[q.reason]}`,
     ...(q.recruiterGrade ? { grade: gradeWords(q.recruiterGrade) } : {}),
+    ...paulWords(q.recruiterGrade),
   }));
 }
 
@@ -212,6 +224,23 @@ export function decideProblem(code: unknown): string {
   if (code === "unknown_application") return "That application isn't one of yours anymore.";
   if (code === "application_closed")
     return "That application is closed (rejected or withdrawn): pick another.";
+  if (code === "unavailable") return "Northstar couldn't save that right now. Try again.";
+  return "That didn't go through. Try again.";
+}
+
+// Paul's regrade of a recruiter email (NS-238 item 3), in words. It only records his letter:
+// nothing is drafted, sent or archived because of it.
+export const REGRADE_LETTERS = ["A", "B", "C", "D", "F"] as const;
+export type RegradeLetter = (typeof REGRADE_LETTERS)[number];
+
+export function regradedMessage(grade: RegradeLetter, recorded: boolean): string {
+  return recorded
+    ? `Saved your grade: ${grade}. Northstar learns from it; nothing is sent.`
+    : `Your grade was already ${grade}.`;
+}
+
+export function regradeProblem(code: unknown): string {
+  if (code === "not_graded") return "That thread has no graded email to regrade.";
   if (code === "unavailable") return "Northstar couldn't save that right now. Try again.";
   return "That didn't go through. Try again.";
 }
