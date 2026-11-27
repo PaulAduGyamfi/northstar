@@ -15,6 +15,7 @@ import {
 import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
 import { type AuditCliDeps, auditCommand } from "./audit-cli.js";
 import { type ContactCliDeps, contactCommand } from "./contact-cli.js";
+import { type DnaCliDeps, dnaCommand } from "./dna-cli.js";
 import { type Claim, checkEmploymentFacts, type Mismatch, parseOfficialRecord } from "./facts.js";
 import { type GrowthCliDeps, growthCommand } from "./growth-cli.js";
 import type { ImportResult } from "./import.js";
@@ -68,7 +69,8 @@ export type CliDeps = {
   WorkCliDeps &
   GrowthCliDeps &
   VoiceCliDeps &
-  ContactCliDeps;
+  ContactCliDeps &
+  DnaCliDeps;
 
 const USAGE =
   'usage: profile import-resume <path> [--reimport] | profile show | profile interview [--atom <id>] | profile stories | profile facts set <file> | profile facts check | profile thesis draft | profile thesis set "<text>" --atoms <id,id> | profile thesis show | profile import-linkedin <folder>';
@@ -148,6 +150,8 @@ export async function main(deps: CliDeps): Promise<number> {
   if (command === "voice") return voiceCommand(deps, deps.argv.slice(1));
   // Paul's contact details for application packages (NS-227): its own usage line.
   if (command === "contact") return contactCommand(deps, deps.argv.slice(1));
+  // The Career DNA report from the stored profile, saved when it changed (NS-130 slice 5).
+  if (command === "dna") return dnaCommand(deps, deps.argv.slice(1));
   deps.print(command === "settings" || command === "answer" ? SETTINGS_USAGE : USAGE);
   return 1;
 }
