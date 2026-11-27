@@ -1,6 +1,6 @@
 import type { ScoringProfile } from "@northstar/db";
 import type { GrowthTrack } from "@northstar/domain";
-import { type CareerDnaDimension, evidenceGaps } from "@northstar/profile";
+import { type CareerDnaDimension, evidenceGaps, INVISIBLE_IN_WORK } from "@northstar/profile";
 import { careerDirections, type DirectionJob } from "@northstar/sources";
 import { z } from "zod";
 import { type AnyEndpoint, endpoint } from "./endpoint.js";
@@ -52,12 +52,12 @@ export function directionJobs(
 // Control characters and invisible formatting characters (U+200B, U+202E…): a posting could use
 // them to make a line read as something else. Line and paragraph separators are listed too,
 // although the whitespace step below already turns them into spaces.
-// Since NS-130 slice 12 also the blank-looking characters that aren't formatting ones, the same
-// set parseIndependentWork refuses (packages/profile, INVISIBLE_IN_WORK): the Hangul fillers, the
-// braille blank, the combining grapheme joiner and the variation selectors, so a posting can't pad
-// a line with characters that look like nothing.
-const HIDDEN =
-  /[\p{Cc}\p{Cf}\u2028\u2029\u115f\u1160\u3164\uffa0\u2800\u034f]|\p{Variation_Selector}/gu;
+// Since NS-130 slice 12 also the blank-looking characters that aren't formatting ones, through
+// the very pattern parseIndependentWork refuses (packages/profile, INVISIBLE_IN_WORK: the Hangul
+// fillers, the braille blank, the combining grapheme joiner and the variation selectors), so a
+// posting can't pad a line with characters that look like nothing, and the two lists can't drift.
+const HIDDEN = new RegExp(`[\\p{Cc}\\u2028\\u2029]|${INVISIBLE_IN_WORK.source}`, "gu");
+/[\p{Cc}\p{Cf}\u2028\u2029\u115f\u1160\u3164\uffa0\u2800\u034f]|\p{Variation_Selector}/gu;
 
 // Posting text as the page may show it: hidden characters gone, spaces collapsed, cut to
 // POSTING_TEXT_MAX characters (whole code points, so no half of a pair is left).

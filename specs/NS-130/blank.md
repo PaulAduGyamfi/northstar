@@ -11,8 +11,8 @@ formatting characters but not the blank-looking ones the independent-work checks
 
 ## Behavior
 `postingText` also removes the Hangul fillers (U+115F, U+1160, U+3164, U+FFA0), the braille blank
-(U+2800), the combining grapheme joiner (U+034F) and the variation selectors, the same set as
-`INVISIBLE_IN_WORK` in `packages/profile`. Everything else is unchanged.
+(U+2800), the combining grapheme joiner (U+034F) and the variation selectors, by reusing `INVISIBLE_IN_WORK` from `packages/profile` (now exported)
+rather than copying the list, so the two can't drift. Everything else is unchanged.
 
 ## Acceptance criteria
 - [x] Each listed character is removed and words around it stay apart.
