@@ -181,6 +181,9 @@ importers:
       '@northstar/llm':
         specifier: workspace:*
         version: link:../llm
+      '@northstar/sources':
+        specifier: workspace:*
+        version: link:../sources
       '@opentelemetry/api':
         specifier: 1.9.1
         version: 1.9.1

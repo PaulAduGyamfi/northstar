@@ -403,6 +403,7 @@ export {
   countUngradedRecruiterMail,
   readRecordedMessageIds,
   readUnclassifiedMail,
+  readUngradedRecruiterMail,
   type UnclassifiedMail,
 } from "./mail-loop-read.js";
 // The mail poll's stored cursor (NS-247 slice 2).

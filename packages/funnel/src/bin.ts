@@ -12,21 +12,26 @@ import {
   knownGmailIds,
   latestFactsCheck,
   loadDbConfig,
+  PREFERENCE_DEFAULTS,
+  type PreferenceValues,
   readDeadLetterKeys,
   readFunnelMessages,
   readLinkCandidates,
   readLinkedThreads,
   readMailCursor,
   readManualRows,
+  readPreferences,
   readRecordedMessageIds,
   readTags,
   readUnclassifiedMail,
+  readUngradedRecruiterMail,
   recordCallOutcome,
   recordDeadLetter,
   recordFunnelEvent,
   recordInterviewDetection,
   recordMailClassification,
   recordMailLink,
+  recordRecruiterGrade,
   resolveReview,
   saveFunnelMessages,
   saveMailCursor,
@@ -39,6 +44,7 @@ import {
   classifyLinkedMail,
   createCalendarClient,
   createGmailClient,
+  extractRecruiterFacts,
   googleTokenEndpoint,
   isJobMail,
   type LinkStepDeps,
@@ -56,10 +62,13 @@ import {
   loadLlmBudget,
   loadLlmConfig,
 } from "@northstar/llm";
+import { gradeRecruiterMessage } from "@northstar/sources";
 import { sql } from "drizzle-orm";
 import { createAsker } from "./ask.js";
 import { runBackfill } from "./backfill.js";
 import { main } from "./cli.js";
+import { loadFunnelConfig } from "./config.js";
+import { runGrading } from "./grade.js";
 import { runInbox } from "./inbox.js";
 import { toInterviewCandidates } from "./interviews.js";
 import { Baselines } from "./report.js";
@@ -192,6 +201,8 @@ try {
       return { report, applications, withDomains };
     },
     runInbox: async () => {
+      // A bad RECRUITER_EXTRACT stops the run before Google is asked anything.
+      const config = loadFunnelConfig(process.env);
       const access = await gmailAccess();
       // Every Gmail read goes through the stored `gmail` breaker.
       const gmail = createGmailClient({
@@ -223,7 +234,7 @@ try {
           }),
       };
       const letter = async (
-        kind: "mail.poll" | "mail.classify",
+        kind: "mail.poll" | "mail.classify" | "mail.grade",
         input: {
           subject: string;
           reasonCode: string;
@@ -292,6 +303,32 @@ try {
         recordClassification: (gmailMessageId, result) =>
           recordMailClassification(db, { candidateId, gmailMessageId, result }),
         ungradedRecruiterMail: () => countUngradedRecruiterMail(db, candidateId),
+        grading: () => {
+          // Paul's current search preferences, read once a run (the defaults before he sets any).
+          let prefs: Promise<PreferenceValues> | undefined;
+          return runGrading({
+            enabled: config.recruiterExtract,
+            gradeLetters: () => readDeadLetterKeys(db, candidateId, "mail.grade"),
+            ungraded: (limit) => readUngradedRecruiterMail(db, candidateId, limit),
+            readFull: (gmailMessageId) => gmail.getFull(gmailMessageId),
+            // The route behind its switch, the anthropic breaker and the spend cap.
+            extract: (body) => extractRecruiterFacts({ gateway: llm, enabled: true }, body),
+            grade: async (facts, body) => {
+              prefs ??= readPreferences(db, candidateId).then((p) => p ?? PREFERENCE_DEFAULTS);
+              // No learned weights: the stored grade stays the grader's own (NS-238 item 3).
+              return gradeRecruiterMessage(facts, await prefs, body);
+            },
+            record: (gmailMessageId, grade) =>
+              recordRecruiterGrade(db, { candidateId, gmailMessageId, grade }),
+            recordGradeLetter: (m, reason, key) =>
+              letter("mail.grade", {
+                subject: `mail_link:${m.mailLinkId}`,
+                reasonCode: reason,
+                attempts: 1,
+                key,
+              }),
+          });
+        },
       });
     },
     // pnpm runs scripts from the package folder; resolve the path from where Paul ran pnpm.

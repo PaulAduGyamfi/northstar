@@ -9,6 +9,7 @@ import {
   countUngradedRecruiterMail,
   readRecordedMessageIds,
   readUnclassifiedMail,
+  readUngradedRecruiterMail,
 } from "./mail-loop-read.js";
 import { recordRecruiterGrade } from "./recruiter-grade-write.js";
 import { candidate } from "./schema.js";
@@ -75,6 +76,60 @@ describe("readUnclassifiedMail", () => {
     expect((await readUnclassifiedMail(db, candidateId, 25)).map((m) => m.gmailMessageId)).toEqual([
       M1,
     ]);
+  });
+});
+
+describe("readUngradedRecruiterMail", () => {
+  it("gives recruiter mail with no grade, newest first, leaving out graded, dismissed and other kinds", async () => {
+    for (const [id, day] of [
+      [M1, 1],
+      [M2, 2],
+      [M3, 3],
+      [M4, 4],
+    ] as const) {
+      await recorded(id, day, false);
+    }
+    await classify(M1, "recruiter_inbound");
+    await classify(M2, "recruiter_inbound");
+    await classify(M3, "recruiter_inbound");
+    await classify(M4, "confirmation");
+    await recordRecruiterGrade(db, {
+      candidateId,
+      gmailMessageId: M2,
+      grade: { grade: "B", points: 4, reasons: ["title:exact"], confidence: "normal" },
+    });
+    await decideQueuedThread(db, { candidateId, gmailThreadId: M3, decision: { kind: "dismiss" } });
+    expect(
+      (await readUngradedRecruiterMail(db, candidateId, 10)).map((m) => m.gmailMessageId),
+    ).toEqual([M1]);
+  });
+
+  it("leaves out another candidate's recruiter mail", async () => {
+    const [other] = await db.insert(candidate).values({ displayName: "Other" }).returning();
+    if (!other) throw new Error("no candidate");
+    const otherId = CandidateId.parse(other.id);
+    await recorded(M1, 1, false, otherId);
+    await recordMailClassification(db, {
+      candidateId: otherId,
+      gmailMessageId: M1,
+      result: {
+        outcome: "classified",
+        kind: "recruiter_inbound",
+        stageSignal: "none",
+        decidedBy: "rules",
+      },
+    });
+    expect(await readUngradedRecruiterMail(db, candidateId, 10)).toEqual([]);
+  });
+
+  it("gives newest first up to the limit", async () => {
+    await recorded(M1, 1, false);
+    await recorded(M2, 2, false);
+    await classify(M1, "recruiter_inbound");
+    await classify(M2, "recruiter_inbound");
+    expect(
+      (await readUngradedRecruiterMail(db, candidateId, 1)).map((m) => m.gmailMessageId),
+    ).toEqual([M2]);
   });
 });
 

@@ -8,6 +8,7 @@ import {
 } from "@northstar/inbox";
 import { HeldBack, LlmTransportError } from "@northstar/llm";
 import { describe, expect, it } from "vitest";
+import { FunnelConfigError } from "./config.js";
 import {
   type ClassifyLetterReason,
   type InboxRunDeps,
@@ -88,6 +89,13 @@ function fake(over: Partial<InboxRunDeps> = {}) {
       return { ok: true };
     },
     ungradedRecruiterMail: async () => 0,
+    grading: async () => ({
+      enabled: false,
+      graded: 0,
+      gradeLetters: 0,
+      gradeStoppedBy: null,
+      moreToGrade: false,
+    }),
     ...over,
   };
   return { deps, pollLetters, classifyLetters, saved, skips, relinked };
@@ -393,6 +401,10 @@ const REPORT: InboxRunReport = {
   classifyStoppedBy: null,
   moreWaiting: false,
   recruiterWaiting: 0,
+  gradingOn: false,
+  graded: 0,
+  gradeLetters: 0,
+  gradeStoppedBy: null,
 };
 
 async function command(run: () => Promise<InboxRunReport>) {
@@ -400,6 +412,31 @@ async function command(run: () => Promise<InboxRunReport>) {
   const code = await inboxCommand({ print: (l) => printed.push(l), runInbox: run });
   return { code, printed };
 }
+
+describe("runInbox: grading", () => {
+  it("carries the grading step's counts into the report, after sorting", async () => {
+    const order: string[] = [];
+    const r = await runInbox(
+      fake({
+        unclassified: async () => {
+          order.push("sort");
+          return [];
+        },
+        grading: async () => {
+          order.push("grade");
+          return {
+            enabled: true,
+            graded: 2,
+            gradeLetters: 1,
+            gradeStoppedBy: null,
+            moreToGrade: false,
+          };
+        },
+      }).deps,
+    );
+    expect([order, r.gradingOn, r.graded, r.gradeLetters]).toEqual([["sort", "grade"], true, 2, 1]);
+  });
+});
 
 describe("inboxCommand", () => {
   it("prints counts only and exits 0", async () => {
@@ -440,6 +477,47 @@ describe("inboxCommand", () => {
       "Passed over: 1 message(s) that kept failing. Each is in Stuck work on /health.",
       "Couldn't sort: 2. Each is in Stuck work on /health.",
       "Recruiter emails waiting for a grade: 3. Grading starts once recruiter reading is turned on.",
+    ]);
+  });
+
+  it("says how many it graded and where the ones it couldn't grade wait, when grading is on", async () => {
+    const { code, printed } = await command(async () => ({
+      ...REPORT,
+      gradingOn: true,
+      graded: 2,
+      gradeLetters: 1,
+      recruiterWaiting: 3,
+    }));
+    expect([code, printed.filter((l) => /grade/i.test(l))]).toEqual([
+      0,
+      [
+        "Graded recruiter emails: 2.",
+        "Couldn't grade: 1. Each is in Stuck work on /health.",
+        "Recruiter emails still to grade: 3; run it again later.",
+        "See the grades on /inbox.",
+      ],
+    ]);
+  });
+
+  it("exits 1 when grading stopped early", async () => {
+    const { code, printed } = await command(async () => ({
+      ...REPORT,
+      gradingOn: true,
+      gradeStoppedBy: "LlmTransportError",
+    }));
+    expect([code, printed.filter((l) => l.startsWith("Grading stopped"))]).toEqual([
+      1,
+      ["Grading stopped early: the Claude API didn't answer."],
+    ]);
+  });
+
+  it("exits 1 on a bad RECRUITER_EXTRACT, naming the setting", async () => {
+    const { code, printed } = await command(async () => {
+      throw new FunnelConfigError("RECRUITER_EXTRACT must be on or off");
+    });
+    expect([code, printed[0]]).toEqual([
+      1,
+      "Inbox run stopped: RECRUITER_EXTRACT must be on or off",
     ]);
   });
 
