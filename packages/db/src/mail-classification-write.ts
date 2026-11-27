@@ -39,7 +39,16 @@ const Review = z
   })
   .strict();
 
-export const ClassificationResult = z.discriminatedUnion("outcome", [Classified, Review]);
+// Verification mail the classifier left alone (NS-271, INB-012): stored so the mail loop stops
+// reading it again. Verification is the only reason, and nothing about the code is kept (VER-005).
+const Skipped = z
+  .object({
+    outcome: z.literal("skipped"),
+    reason: z.literal("verification"),
+  })
+  .strict();
+
+export const ClassificationResult = z.discriminatedUnion("outcome", [Classified, Review, Skipped]);
 export type ClassificationResult = z.infer<typeof ClassificationResult>;
 
 // Each kind in the feed's words (fixed text, no names).
@@ -87,18 +96,14 @@ export async function recordMailClassification(
           ),
         );
       if (!link) return { ok: false as const, error: { kind: "UnknownMessage" as const } };
-      const classified = r.outcome === "classified";
+      const stored = storedRow(r);
       const [row] = await tx
         .insert(mailClassification)
         .values({
           candidateId: input.candidateId,
           gmailMessageId: input.gmailMessageId,
           outcome: r.outcome,
-          kind: classified ? r.kind : null,
-          stageSignal: classified ? r.stageSignal : null,
-          decidedBy: classified ? r.decidedBy : "model",
-          reviewReason: classified ? null : r.reason,
-          promptVersion: r.promptVersion ?? null,
+          ...stored,
         })
         .onConflictDoNothing({
           target: [mailClassification.candidateId, mailClassification.gmailMessageId],
@@ -109,21 +114,8 @@ export async function recordMailClassification(
       await appendEvent(tx, span, {
         candidateId: input.candidateId,
         aggregate: `mail_classification:${row.id}`,
-        type: classified ? "mail.classified" : "mail.needs_review",
         actor: "system",
-        // The feed shows this reason (no template): fixed words only.
-        reason: classified
-          ? `Sorted a job email: ${KIND_WORDS[r.kind]}`
-          : "A job email needs your review: it couldn't be sorted with confidence",
-        // Codes and the message id only.
-        payload: classified
-          ? {
-              gmailMessageId: input.gmailMessageId,
-              kind: r.kind,
-              stageSignal: r.stageSignal,
-              decidedBy: r.decidedBy,
-            }
-          : { gmailMessageId: input.gmailMessageId, reason: r.reason },
+        ...eventOf(r, input.gmailMessageId),
         idempotencyKey: `mail_classification:${input.candidateId}:${input.gmailMessageId}`,
         at: row.at,
       });
@@ -132,9 +124,69 @@ export async function recordMailClassification(
   );
 }
 
+// The row's columns per outcome; the table's shape CHECK holds the same rules.
+function storedRow(r: ClassificationResult) {
+  switch (r.outcome) {
+    case "classified":
+      return {
+        kind: r.kind,
+        stageSignal: r.stageSignal,
+        decidedBy: r.decidedBy,
+        reviewReason: null,
+        promptVersion: r.promptVersion ?? null,
+      };
+    case "review":
+      return {
+        kind: null,
+        stageSignal: null,
+        decidedBy: "model",
+        reviewReason: r.reason,
+        promptVersion: r.promptVersion,
+      };
+    case "skipped":
+      return {
+        kind: null,
+        stageSignal: null,
+        decidedBy: "rules",
+        reviewReason: null,
+        promptVersion: null,
+      };
+  }
+}
+
+// The feed event per outcome. The feed shows its reason (no template): fixed words only. The
+// payload holds codes and the message id only.
+function eventOf(r: ClassificationResult, gmailMessageId: string) {
+  switch (r.outcome) {
+    case "classified":
+      return {
+        type: "mail.classified",
+        reason: `Sorted a job email: ${KIND_WORDS[r.kind]}`,
+        payload: {
+          gmailMessageId,
+          kind: r.kind,
+          stageSignal: r.stageSignal,
+          decidedBy: r.decidedBy,
+        },
+      };
+    case "review":
+      return {
+        type: "mail.needs_review",
+        reason: "A job email needs your review: it couldn't be sorted with confidence",
+        payload: { gmailMessageId, reason: r.reason },
+      };
+    case "skipped":
+      return {
+        type: "mail.verification_left_alone",
+        reason: "Left a verification email alone",
+        payload: { gmailMessageId },
+      };
+  }
+}
+
 export type StoredClassification = {
   gmailMessageId: string;
-  outcome: "classified" | "review";
+  outcome: "classified" | "review" | "skipped";
   kind: (typeof MAIL_KINDS)[number] | null;
   stageSignal: (typeof STAGE_SIGNALS)[number] | null;
   decidedBy: "rules" | "model";

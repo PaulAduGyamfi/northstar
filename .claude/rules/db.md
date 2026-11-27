@@ -301,7 +301,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   not a foreign key, as for `recruiter_grade`), written only through
   `mail-classification-write.ts`. CHECKs keep the kind, stage signal and review reason to their
   fixed lists and the shape consistent; never store the classification's company, role or
-  requisition, a subject or an address.
+  requisition, a subject or an address. Outcome `skipped` (NS-271) is verification mail left alone:
+  no kind, stage, reason or prompt version, decided by `rules`. A reader that wants kinds reads
+  `classified` rows only; never store anything about the code or link (VER-005).
   `readInboxCreditReport` (`origin-write.ts`, NS-248 item 2, INB-010) is their read-only credit
   report: per origin bucket (the same `originBucket` as `readCreditReport`), applications that
   reached replied, screen and interview, from `classified` rows whose message belongs to the

@@ -67,6 +67,12 @@ describe("threadRows", () => {
       },
     ]);
   });
+
+  it("says a thread whose newest message was verification mail was left alone (NS-271)", () => {
+    const thread = { ...(APP.threads[0] as InboxApplicationView["threads"][number]) };
+    const rows = threadRows({ ...APP, threads: [{ ...thread, kind: "verification" }] }, NOW);
+    expect(rows.map((r) => r.kind)).toEqual(["Verification email, left alone"]);
+  });
 });
 
 describe("queuedRows", () => {

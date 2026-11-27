@@ -73,6 +73,8 @@ are CSS variables in `apps/web/app/globals.css`.
 - The Inbox (NS-165, `/inbox`, `src/inbox.ts`) shows Gmail ids, counts, steps and flags only:
   subjects, senders and bodies are never stored, so never fetch or show them. A thread's link is
   shown only when `safeHref` passes and it points at `https://mail.google.com/`.
+  A thread whose newest decided message was verification mail left alone (NS-271, kind
+  `verification`) reads "Verification email, left alone".
   A thread's recruiter grade (NS-238) shows as words through `gradeWords`, with every reason
   (UX-014); an unknown reason code is left out, never shown raw.
 - Model spend (NS-219, on `/health`, `src/spend.ts`) shows spend against each cap and every

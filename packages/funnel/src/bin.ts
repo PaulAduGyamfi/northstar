@@ -302,6 +302,13 @@ try {
         classify: (mail) => classifyLinkedMail({ gateway: llm, route }, mail),
         recordClassification: (gmailMessageId, result) =>
           recordMailClassification(db, { candidateId, gmailMessageId, result }),
+        // Verification mail left alone (NS-271): the fixed outcome only, never the code.
+        recordSkipped: (gmailMessageId) =>
+          recordMailClassification(db, {
+            candidateId,
+            gmailMessageId,
+            result: { outcome: "skipped", reason: "verification" },
+          }),
         ungradedRecruiterMail: () => countUngradedRecruiterMail(db, candidateId),
         grading: () => {
           // Paul's current search preferences, read once a run (the defaults before he sets any).

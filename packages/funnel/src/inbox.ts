@@ -79,6 +79,9 @@ export type InboxRunDeps = {
     gmailMessageId: string,
     result: ClassificationResult,
   ) => Promise<{ ok: boolean }>;
+  // That a verification email was left alone (NS-271): a final outcome, so later runs don't read
+  // it again. Its own port, since nothing about the mail is classified or kept (VER-005).
+  recordSkipped: (gmailMessageId: string) => Promise<{ ok: boolean }>;
   ungradedRecruiterMail: () => Promise<number>;
   // The grading step (`runGrading`, grade.ts), after sorting; off unless RECRUITER_EXTRACT is on.
   grading: () => Promise<GradingReport>;
@@ -284,8 +287,16 @@ async function classifyRecorded(deps: InboxRunDeps, r: InboxRunReport): Promise<
     }
     done++;
     const result = storedResult(t);
-    // Verification mail belongs to the Verification Catcher: nothing is stored or sent (INB-012).
+    // Verification mail belongs to the Verification Catcher: nothing is classified or sent
+    // (INB-012). Only that it was left alone is stored, so later runs don't read it again; a
+    // refused store is a letter like any other.
     if (result === null) {
+      const left = await deps.recordSkipped(m.gmailMessageId);
+      if (!left.ok) {
+        await giveUp(m, "record_refused");
+        r.classifyLetters++;
+        continue;
+      }
       r.verification++;
       continue;
     }

@@ -44,7 +44,9 @@ export const mailClassification = pgTable(
     check("mail_classification_gmail_id_shape", sql`${t.gmailMessageId} ~ '^[0-9a-f]{1,32}$'`),
     check("mail_classification_decided_by_valid", sql`${t.decidedBy} in ('rules', 'model')`),
     // Classified: a listed kind and stage, no review reason. Review: a listed reason, no kind or
-    // stage, decided by the model. NULL-safe: a CHECK that evaluates to NULL would let a row in.
+    // stage, decided by the model. Skipped (NS-271): verification mail left alone (INB-012), with
+    // no kind, stage or reason, decided by rules. NULL-safe: a CHECK that evaluates to NULL would
+    // let a row in.
     check(
       "mail_classification_shape",
       sql`(${t.outcome} = 'classified' and ${t.kind} is not null and ${t.kind} in (${inList(MAIL_KINDS)})
@@ -53,7 +55,9 @@ export const mailClassification = pgTable(
         or (${t.outcome} = 'review' and ${t.kind} is null and ${t.stageSignal} is null
             and ${t.reviewReason} is not null
             and ${t.reviewReason} in (${inList(CLASSIFICATION_REVIEW_REASONS)})
-            and ${t.decidedBy} = 'model')`,
+            and ${t.decidedBy} = 'model')
+        or (${t.outcome} = 'skipped' and ${t.kind} is null and ${t.stageSignal} is null
+            and ${t.reviewReason} is null and ${t.decidedBy} = 'rules')`,
     ),
     // A model's decision names its prompt version; a rules decision has none.
     check(

@@ -64,6 +64,7 @@ function fake(over: Partial<InboxRunDeps> = {}) {
   const saved: { id: string; result: ClassificationResult }[] = [];
   const skips: string[][] = [];
   const relinked: string[] = [];
+  const leftAlone: string[] = [];
   const deps: InboxRunDeps = {
     poll: async (skip) => {
       skips.push([...skip]);
@@ -88,6 +89,10 @@ function fake(over: Partial<InboxRunDeps> = {}) {
       saved.push({ id: gmailId, result });
       return { ok: true };
     },
+    recordSkipped: async (gmailId) => {
+      leftAlone.push(gmailId);
+      return { ok: true };
+    },
     ungradedRecruiterMail: async () => 0,
     grading: async () => ({
       enabled: false,
@@ -98,7 +103,7 @@ function fake(over: Partial<InboxRunDeps> = {}) {
     }),
     ...over,
   };
-  return { deps, pollLetters, classifyLetters, saved, skips, relinked };
+  return { deps, pollLetters, classifyLetters, saved, skips, relinked, leftAlone };
 }
 
 describe("runInbox: linking new mail", () => {
@@ -371,6 +376,31 @@ describe("letterState", () => {
     expect([letterKey("mail.poll", id(1), count), letterKey("mail.poll", id(2), count)]).toEqual([
       `mail.poll:${id(1)}:3`,
       `mail.poll:${id(2)}:1`,
+    ]);
+  });
+});
+
+describe("runInbox: verification mail (NS-271)", () => {
+  it("stores that a verification email was left alone, once, and classifies nothing for it", async () => {
+    const f = fake({
+      unclassified: async () => [row(1)],
+      classify: async () => ({ kind: "skip", reason: "verification" }),
+    });
+    const r = await runInbox(f.deps);
+    expect([f.leftAlone, f.saved, r.verification, r.classifyLetters]).toEqual([[id(1)], [], 1, 0]);
+  });
+
+  it("letters a verification email whose outcome couldn't be stored", async () => {
+    const f = fake({
+      unclassified: async () => [row(1)],
+      classify: async () => ({ kind: "skip", reason: "verification" }),
+      recordSkipped: async () => ({ ok: false }),
+    });
+    const r = await runInbox(f.deps);
+    expect([f.classifyLetters, r.verification, r.classifyLetters]).toEqual([
+      [{ id: id(1), reason: "record_refused" }],
+      0,
+      1,
     ]);
   });
 });
