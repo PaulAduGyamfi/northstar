@@ -13,6 +13,7 @@ import {
   readAlertCandidates,
   readAlertSettings,
   readAtomTexts,
+  readCompanyDomains,
   readDedupeCandidates,
   readFitScore,
   readJobAtsSources,
@@ -33,6 +34,7 @@ import {
   savePollResult,
   savePreferences,
   setAlertSettings,
+  setCompanyDomain,
   setJobField,
   soleCandidate,
   withdrawClosedApplications,
@@ -164,6 +166,12 @@ try {
       defaults,
       read: () => readAlertSettings(db, candidateId),
       save: (change) => setAlertSettings(db, { candidateId, change }),
+    },
+    // A company's own mail domains, entered by Paul (NS-252).
+    domains: {
+      read: () => readCompanyDomains(db, candidateId),
+      save: (companyId, domain, action) =>
+        setCompanyDomain(db, { candidateId, companyId, domain, action }),
     },
     // A saved Greenhouse job's form (NS-227), read through the same safe fetcher as `jobs add`.
     form: {

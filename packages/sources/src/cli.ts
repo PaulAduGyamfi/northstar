@@ -3,6 +3,7 @@ import type { JobListItem, SetFieldError } from "@northstar/db";
 import type { Result } from "@northstar/domain";
 import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
 import { type AlertsCliDeps, alertsCommand } from "./alerts-cli.js";
+import { type DomainsCliDeps, domainsCommand } from "./domains-cli.js";
 import { FIT_USAGE, type FitCliDeps, fitCommand, scoreAfter } from "./fit/cli.js";
 import { type FormCliDeps, formCommand } from "./form-cli.js";
 import type { IngestResult } from "./ingest.js";
@@ -35,6 +36,8 @@ export type CliDeps = {
   form: FormCliDeps;
   // Fresh-job alert settings (NS-199 slice 2): their own usage line, so USAGE stays as it was.
   alerts: AlertsCliDeps;
+  // A company's own mail domains (NS-252): their own usage line, so USAGE stays as it was.
+  domains?: DomainsCliDeps;
 };
 
 const USAGE = `usage: jobs add <url> | jobs add --text <file> --url <url> | jobs list | jobs set <job-id> <field> <value>\n       jobs watch add <board-url> --tier 1|2|3 | jobs watch list | jobs watch remove|retry <id> | jobs poll | jobs run\n       jobs check\n${FIT_USAGE}`;
@@ -66,6 +69,10 @@ export async function main(deps: CliDeps): Promise<number> {
   }
   const alerts = await alertsCommand({ ...deps.alerts, print: deps.print }, deps.argv);
   if (alerts !== null) return alerts;
+  if (deps.domains) {
+    const domains = await domainsCommand({ ...deps.domains, print: deps.print }, deps.argv);
+    if (domains !== null) return domains;
+  }
   const form = await formCommand({ ...deps.form, print: deps.print }, deps.argv);
   if (form !== null) return form;
   const fit = await fitCommand(deps, deps.argv);
