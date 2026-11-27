@@ -1,6 +1,6 @@
 # ADR-0025 — Gmail reply drafts with `gmail.compose`, created only after approval, never sent
 
-**Status:** Proposed · **Date:** 2026-11-26
+**Status:** Accepted (Paul, by delegation to the orchestrator on 2026-11-27) · **Date:** 2026-11-26
 
 ## Context
 RPL-001 and RPL-002 ask for reply drafts to job email in Paul's voice, shown in the app's approval

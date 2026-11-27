@@ -1,7 +1,7 @@
 // Public entry of @northstar/inbox (NS-113, ADR-0014): read-only Gmail access, the job-mail
 // pre-filter and the mail-classify route. Since NS-123 also the Verification Catcher's core.
 
-// The read-only Calendar client (NS-240, ADR-0026 Proposed): primary calendar events only.
+// The read-only Calendar client (NS-240, ADR-0026 Accepted): primary calendar events only.
 export { CalendarAccess } from "./calendar/access.js";
 export {
   CALENDAR_DEPENDENCY,
@@ -33,8 +33,8 @@ export {
   interviewFromMail,
   type MailInterview,
 } from "./interview/detect.js";
-// Gmail labels (NS-229, ADR-0027 Proposed): fixed names and the add-only label writer. No caller
-// yet, and nothing requests the gmail.modify scope until Paul accepts the ADR.
+// Gmail labels (NS-229, ADR-0027 Rejected): fixed names and the add-only label writer. It keeps
+// no caller, and no code may request the gmail.modify scope.
 export { LABEL_NAMES, type LabelOrigin, threadLabels } from "./labels/names.js";
 export {
   createLabelWriter,

@@ -1,6 +1,6 @@
 # ADR-0021 — LLM spend cap that pauses routes by priority
 
-**Status:** Proposed · **Date:** 2026-11-26
+**Status:** Accepted (Paul, by delegation to the orchestrator on 2026-11-27) · **Date:** 2026-11-26
 
 ## Context
 RES-009 asks for per-day caps on LLM spend, and that when a cap is hit "low-priority routes

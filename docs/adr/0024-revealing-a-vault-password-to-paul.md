@@ -1,6 +1,6 @@
 # ADR-0024 — Revealing a vault password to Paul under a one-use `vault_reveal` approval
 
-**Status:** Proposed · **Date:** 2026-11-26
+**Status:** Accepted (Paul, by delegation to the orchestrator on 2026-11-27) · **Date:** 2026-11-26
 
 ## Context
 CRD-002 says the UI may reveal a tenant password only after a fresh passkey check. ADR-0010 keeps

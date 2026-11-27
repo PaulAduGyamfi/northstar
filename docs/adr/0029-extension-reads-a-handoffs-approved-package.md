@@ -1,7 +1,11 @@
 # ADR-0029 — The extension may read one open handoff's approved package
 
-**Status:** Proposed · **Date:** 2026-11-26 · **Amends:** ADR-0019 items 4 and its "no reads"
-consequence, if accepted
+**Status:** Accepted, option 2 (Paul, by delegation to the orchestrator on 2026-11-27) ·
+**Date:** 2026-11-26 · **Amends:** ADR-0019's "no reads" consequence, only for the 2 minutes after
+Paul's own click
+
+> **Accepted: option 2, a one-time grant from Paul's session.** A leaked extension token alone
+> still reads nothing. Options 1 and 3 are not chosen.
 
 ## Context
 APPLY-006 and ACC-007 ask that, when a CAPTCHA, sign-in or verification step stops a submission,
