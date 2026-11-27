@@ -29,9 +29,9 @@ Each gains the one `evaluate collectPage` step before the submit's `count` and `
 existing step stays.
 
 ## Acceptance criteria
-- [ ] A form that gains a combobox after `open` is refused with nothing pressed.
-- [ ] A form whose single submit becomes CAPTCHA-tied after `open` is refused with nothing
+- [x] A form that gains a combobox after `open` is refused with nothing pressed.
+- [x] A form whose single submit becomes CAPTCHA-tied after `open` is refused with nothing
       pressed.
-- [ ] A challenge that appears after `open` is refused with nothing pressed.
-- [ ] The two existing tests change only by the added step.
-- [ ] lint, typecheck, test and build green for `@northstar/gateways`.
+- [x] A challenge that appears after `open` is refused with nothing pressed.
+- [x] The two existing tests change only by the added step.
+- [x] lint, typecheck, test and build green for `@northstar/gateways`.

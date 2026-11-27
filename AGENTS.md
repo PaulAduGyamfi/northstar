@@ -809,7 +809,9 @@ Exists now:
     `unnamed_fields`, `combobox`, `no_submit` (a `type="button"`-only form), `several_submits`,
     `hidden_submit` or `captcha_submit` into no form at `open`. So the gateway hands off with
     `form_changed` before anything is typed or pressed; the code goes on the `apply.submit` span
-    (`northstar.apply.form_problem`). An `h-captcha` widget is a CAPTCHA even when marked
+    (`northstar.apply.form_problem`). Since NS-256 `fillAndSubmit` also reads the form again just
+    before the click and throws (a `driver_error` handoff, nothing pressed) when a challenge now
+    shows, the form count changed, or `formProblem` is no longer null. An `h-captcha` widget is a CAPTCHA even when marked
     invisible (the conservative reading of ADR-0003; Paul may relax it). No new reason code: that
     needs a migration.
 

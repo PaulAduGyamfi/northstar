@@ -253,6 +253,23 @@ export function createPlaywrightDriver(options: DriverOptions): FormDriver {
             },
           ]);
       }
+      // The page's own script may have changed the form since `open` (NS-256): read it again just
+      // before the one step that can't be taken back, and refuse a challenge, a different number
+      // of forms, or a form that now has a problem. Nothing has been pressed yet.
+      guard();
+      const again = checkCollected(await page.evaluate(collectPage, null));
+      if (challengeOf(again.signals) !== null) {
+        throw new DriverError("a challenge appeared before submit");
+      }
+      if (again.forms.length !== count) {
+        throw new DriverError(`the page now has ${again.forms.length} forms, not ${count}`);
+      }
+      const nowFacts = again.facts[index];
+      const nowProblem = nowFacts === undefined ? "no_submit" : formProblem(nowFacts);
+      if (nowProblem !== null) {
+        trace.getActiveSpan()?.setAttribute(FORM_PROBLEM, nowProblem);
+        throw new DriverError(`the form changed before submit: ${nowProblem}`);
+      }
       const submit = page.locator(FORMS).nth(index).locator(SUBMIT_SELECTOR);
       guard();
       const buttons = await submit.count();
