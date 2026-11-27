@@ -381,7 +381,7 @@ describe("letterState", () => {
 });
 
 describe("runInbox: verification mail (NS-271)", () => {
-  it("stores that a verification email was left alone, once, and classifies nothing for it", async () => {
+  it("stores that a verification email was left alone and classifies nothing for it", async () => {
     const f = fake({
       unclassified: async () => [row(1)],
       classify: async () => ({ kind: "skip", reason: "verification" }),

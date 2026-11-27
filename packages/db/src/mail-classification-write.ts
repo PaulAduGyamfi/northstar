@@ -124,8 +124,13 @@ export async function recordMailClassification(
   );
 }
 
+type StoredColumns = Pick<
+  typeof mailClassification.$inferInsert,
+  "kind" | "stageSignal" | "decidedBy" | "reviewReason" | "promptVersion"
+> & { decidedBy: "rules" | "model" };
+
 // The row's columns per outcome; the table's shape CHECK holds the same rules.
-function storedRow(r: ClassificationResult) {
+function storedRow(r: ClassificationResult): StoredColumns {
   switch (r.outcome) {
     case "classified":
       return {
@@ -156,7 +161,10 @@ function storedRow(r: ClassificationResult) {
 
 // The feed event per outcome. The feed shows its reason (no template): fixed words only. The
 // payload holds codes and the message id only.
-function eventOf(r: ClassificationResult, gmailMessageId: string) {
+function eventOf(
+  r: ClassificationResult,
+  gmailMessageId: string,
+): { type: string; reason: string; payload: Record<string, unknown> } {
   switch (r.outcome) {
     case "classified":
       return {

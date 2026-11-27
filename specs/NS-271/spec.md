@@ -21,10 +21,12 @@ unsorted mail is held back for good.
   and stores it once, like any outcome: the first decision stands. Its event is
   `mail.verification_left_alone`, with the message id only. Its feed line is the fixed-word
   reason "Left a verification email alone".
-- `funnel inbox` stores that outcome for a skipped message (`storedResult`). It still counts the
-  message as `verification`. A refused store becomes a `mail.classify` dead letter
-  (`record_refused`), as for any outcome. `readUnclassifiedMail` already leaves out any message
-  with a row, so later runs never read it again.
+- `funnel inbox` stores that outcome for a skipped message through its own `recordSkipped` port,
+  not `recordClassification`: nothing is classified for it, and the merged #413 test asserting
+  that verification mail stores no classification stays as it is (`storedResult` still returns
+  null for a skip). It still counts the message as `verification`. A refused store becomes a
+  `mail.classify` dead letter (`record_refused`), as for any outcome. `readUnclassifiedMail`
+  already leaves out any message with a row, so later runs never read it again.
 - The Inbox shows a thread whose newest decided message is one of these as
   "Verification email, left alone": `readInboxThreads` gives the kind `verification`, and the
   web app words it. Review rows still give no kind, as before.

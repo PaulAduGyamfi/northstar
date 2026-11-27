@@ -160,7 +160,8 @@ export function threadRows(a: InboxApplicationView, nowMs: number): ThreadRow[] 
 }
 
 // A thread's newest kind in words. `verification` (NS-271) is verification mail left alone for
-// the Verification Catcher, not a mail kind.
+// the Verification Catcher, not a mail kind; it matches `VERIFICATION_KIND` in packages/db's
+// inbox-read.ts (the web app doesn't import packages/db).
 function kindWords(kind: string | null): string {
   if (kind === null) return "Not classified yet";
   if (kind === "verification") return "Verification email, left alone";
