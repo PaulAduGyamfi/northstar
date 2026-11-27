@@ -92,9 +92,12 @@ export async function savePreferences(
     // The first save always stores a version, even of the defaults: scores need one to name.
     if (previous && changed.length === 0) return { status: "unchanged", current: previous };
     const version = (previous?.version ?? 0) + 1;
+    // Only the preference fields (NS-259): callers often pass the stored preferences back with
+    // one field changed, and those still carry the old row's id and version.
+    const values = Object.fromEntries(KEYS.map((k) => [k, input.values[k]])) as PreferenceValues;
     const [row] = await tx
       .insert(searchPreference)
-      .values({ candidateId: input.candidateId, version, ...input.values })
+      .values({ ...values, candidateId: input.candidateId, version })
       .returning();
     if (!row) throw new Error("search_preference insert returned no row");
     const current = toPreferences(row);

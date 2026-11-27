@@ -131,6 +131,25 @@ describe("search preferences", () => {
     expect((await db.select().from(searchPreference)).length).toBe(2);
   });
 
+  // NS-259: the CLI edits the stored preferences (with their id and version) and saves that.
+  it("stores a change made from the stored preferences as a new row and version", async () => {
+    await savePreferences(db, { candidateId, values: PREFERENCE_DEFAULTS, now: NOW });
+    const stored = await readPreferences(db, candidateId);
+    if (!stored) throw new Error("no stored preferences");
+    const r = await savePreferences(db, {
+      candidateId,
+      values: { ...stored, seniority: ["senior"] },
+      now: NOW,
+    });
+    const current = await readPreferences(db, candidateId);
+    expect([r.status, current?.version, current?.seniority, current?.id === stored.id]).toEqual([
+      "saved",
+      2,
+      ["senior"],
+      false,
+    ]);
+  });
+
   it("stores nothing when the value is the same as the current one", async () => {
     const values = { ...PREFERENCE_DEFAULTS, titles: ["Backend Engineer"] };
     await savePreferences(db, { candidateId, values, now: NOW });
