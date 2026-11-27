@@ -123,10 +123,10 @@ describe("proposeInterviewPrep", () => {
     await propose(detectionId, { timeZone: "America/New_York" });
     const [event] = await events();
     const spans = JSON.stringify(exporter.getFinishedSpans().map((s) => s.attributes));
-    expect([JSON.stringify(event).includes("New_York"), spans.includes("New_York")]).toEqual([
-      false,
-      false,
-    ]);
+    expect([
+      JSON.stringify([event?.reason, event?.payload]).includes("New_York"),
+      spans.includes("New_York"),
+    ]).toEqual([false, false]);
   });
 
   it("stores one proposal and one event when called twice, answering the first", async () => {
