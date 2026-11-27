@@ -38,6 +38,12 @@ export {
 // draft, never sent. Only the entry point, its token type and its errors are exported; the Gmail
 // requests (src/mail/drafts.ts) stay inside src/mail/ (a boundary test).
 export { GMAIL_COMPOSE_SCOPE, GmailComposeAccess } from "./mail/access.js";
+// The draft writer's own consent flow (NS-237 slice 5): gmail.compose only, in memory for one run.
+export {
+  authorizeCompose,
+  type ComposeConsentDeps,
+  ComposeConsentError,
+} from "./mail/consent.js";
 export {
   type DraftGuard,
   DraftHeldBack,
