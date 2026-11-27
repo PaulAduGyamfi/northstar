@@ -83,6 +83,12 @@ function deps(
     reviewVoiceProfile: async () => ({ ok: true, value: undefined }),
     setContact: async () => ({ ok: true, value: { saved: true } }),
     readContact: async () => null,
+    // NS-130 slice 5: no Career DNA unless a test sets one.
+    readScoringProfile: async () => null,
+    readCareerDnaHistory: async () => [],
+    saveCareerDnaReport: async () => {
+      throw new Error("no Career DNA store in this test");
+    },
   };
   return { d, printed, interviewedAtoms };
 }
