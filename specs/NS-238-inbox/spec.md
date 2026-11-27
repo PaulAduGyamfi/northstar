@@ -21,12 +21,16 @@ the calendar (#405).
    `linkNewMessage`, with Paul's address from Gmail's profile, the open verification windows, his
    tags, open applications with their company domains (`readLinkCandidates`) and the linked
    threads. A run handles at most 200 messages (the poller's own bound); a truncated run says so.
-3. **Stuck messages:** when the poll stops at a message, the run tries again (at most 3 polls a
-   run). A message that stops it 3 times, for any reason except a held-back call, becomes a dead
-   letter (`mail.poll`, reason `read_failed`, key `mail.poll:<gmail id>:<n>`). Later runs pass over
-   a message unless Paul's newest resolution of its letters is Retry (an open letter, Skip and Hand
-   off keep it out), so one bad message can't hold back the rest; a message that fails again after
-   a Retry gets a new letter (`<n>` + 1).
+3. **Stuck messages:** when the poll stops at a message, the run tries again (at most 3 polls, plus
+   one more after each message given up on). A message that stops it 3 times becomes a dead letter
+   (`mail.poll`, reason `step_failed`, key `mail.poll:<gmail id>:<n>`), unless the stop was Gmail's,
+   the token's, a breaker's or the cursor's (by the error's name: `HeldBack`, `GmailError`,
+   `OAuthError`, `FutureCursorError`): those stop linking for the run with no letter, so an outage is
+   never blamed on a message. Later runs pass over a message unless Paul's newest resolution of its
+   letters is Retry (an open letter, Skip and Hand off keep it out). The poll never lists a message
+   again once it has read past it, so before polling the run reads each retried message by its id
+   (`getHeaders`, the same pre-filter) and runs the link step on it, unless it is already recorded
+   (`readRecordedMessageIds`). One that fails again gets a new letter (`<n>` + 1).
 4. **Classifies:** up to 25 recorded messages a run that have no classification, aren't dismissed
    by Paul and aren't passed over for a `mail.classify` letter (the same rule), newest first (`readUnclassifiedMail`). Each is
    read in full (`getFull`, in memory only), run through `classifyLinkedMail` and stored with

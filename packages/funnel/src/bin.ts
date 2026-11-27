@@ -18,6 +18,7 @@ import {
   readLinkedThreads,
   readMailCursor,
   readManualRows,
+  readRecordedMessageIds,
   readTags,
   readUnclassifiedMail,
   recordCallOutcome,
@@ -39,10 +40,14 @@ import {
   createCalendarClient,
   createGmailClient,
   googleTokenEndpoint,
+  isJobMail,
+  type LinkStepDeps,
+  linkNewMessage,
   loadGoogleConfig,
   mailClassifyRoute,
   pollFromCursor,
   runInterviewDetection,
+  tagFromDeliveredTo,
 } from "@northstar/inbox";
 import {
   type CallGuard,
@@ -203,6 +208,20 @@ try {
       const candidates = await readLinkCandidates(db, candidateId);
       const knownDomains = new Set(candidates.flatMap((c) => c.companyDomains ?? []));
       const mailbox = await gmail.profileAddress();
+      // The link step's ports, shared by the poll and the relink of retried messages.
+      const step: LinkStepDeps = {
+        mailbox,
+        openWindows: () => windows.openWindows(),
+        readTags: () => readTags(db, candidateId),
+        readCandidates: () => readLinkCandidates(db, candidateId),
+        readLinkedThreads: () => readLinkedThreads(db, candidateId),
+        record: (input) =>
+          recordMailLink(db, {
+            candidateId,
+            ...input,
+            decision: input.decision as DbLinkDecision,
+          }),
+      };
       const letter = async (
         kind: "mail.poll" | "mail.classify",
         input: {
@@ -227,20 +246,10 @@ try {
         poll: (skip) =>
           pollFromCursor(
             {
+              ...step,
               gmail,
               now: () => new Date(),
               knownDomains,
-              mailbox,
-              openWindows: () => windows.openWindows(),
-              readTags: () => readTags(db, candidateId),
-              readCandidates: () => readLinkCandidates(db, candidateId),
-              readLinkedThreads: () => readLinkedThreads(db, candidateId),
-              record: (input) =>
-                recordMailLink(db, {
-                  candidateId,
-                  ...input,
-                  decision: input.decision as DbLinkDecision,
-                }),
               cursor: {
                 read: () => readMailCursor(db, candidateId),
                 save: (c) => saveMailCursor(db, { candidateId, ...c }),
@@ -249,13 +258,24 @@ try {
             // The very first run reads the last 7 days; the backfill covers before that.
             { firstSince: new Date(Date.now() - FIRST_RUN_DAYS * 86_400_000), skip },
           ),
+        relink: async (gmailMessageId) => {
+          const headers = await gmail.getHeaders(gmailMessageId);
+          const tag = tagFromDeliveredTo(headers.deliveredTo);
+          const tags = new Set((await step.readTags()).map((t) => t.tag));
+          // The poll's own rule (INB-002 or a known tag): anything else isn't linked or queued.
+          if (isJobMail(headers, knownDomains) || (tag.kind === "tag" && tags.has(tag.tag))) {
+            await linkNewMessage(step, headers);
+          }
+        },
+        recorded: (gmailMessageIds) => readRecordedMessageIds(db, candidateId, gmailMessageIds),
         pollLetters: () => readDeadLetterKeys(db, candidateId, "mail.poll"),
         classifyLetters: () => readDeadLetterKeys(db, candidateId, "mail.classify"),
         recordPollLetter: (key, attempts) =>
           letter("mail.poll", {
             // The message has no row yet: the letter is the candidate's.
             subject: `candidate:${candidateId}`,
-            reasonCode: "read_failed",
+            // Gmail's own failures never letter (NOT_THE_MESSAGE): this is the step's.
+            reasonCode: "step_failed",
             attempts,
             key,
           }),

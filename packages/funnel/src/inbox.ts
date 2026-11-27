@@ -27,7 +27,7 @@ type LetterKind = "mail.poll" | "mail.classify";
 export function letterState(
   rows: readonly LetterRow[],
   kind: LetterKind,
-): { passOver: Set<string>; count: Map<string, number> } {
+): { passOver: Set<string>; retried: Set<string>; count: Map<string, number> } {
   const newest = new Map<string, LetterRow["action"]>();
   const count = new Map<string, number>();
   const prefix = `${kind}:`;
@@ -40,7 +40,10 @@ export function letterState(
     count.set(gmailId, (count.get(gmailId) ?? 0) + 1);
   }
   const passOver = new Set([...newest].filter(([, a]) => a !== "retry").map(([id]) => id));
-  return { passOver, count };
+  // Sent back with Retry: the poll won't list these again once it has read past them, so the run
+  // reads each one again by its id.
+  const retried = new Set([...newest].filter(([, a]) => a === "retry").map(([id]) => id));
+  return { passOver, retried, count };
 }
 
 // A message's next letter key: `<kind>:<gmail id>:<n>`, one more than it has.
@@ -55,6 +58,11 @@ export type InboxRunDeps = {
   // Every `mail.poll` and `mail.classify` letter with Paul's resolution (readDeadLetterKeys).
   pollLetters: () => Promise<readonly LetterRow[]>;
   classifyLetters: () => Promise<readonly LetterRow[]>;
+  // Reads one message again by its id and runs the link step on it (pre-filter included); the step
+  // records each message once, so a message already linked records nothing.
+  relink: (gmailMessageId: string) => Promise<void>;
+  // Which of these messages already have a mail_link row (readRecordedMessageIds).
+  recorded: (gmailMessageIds: readonly string[]) => Promise<ReadonlySet<string>>;
   // `key` is the letter's idempotency key, built here (`letterKey`).
   recordPollLetter: (key: string, attempts: number) => Promise<void>;
   recordClassifyLetter: (
@@ -85,6 +93,8 @@ export type InboxRunReport = {
   // listing); null when it finished.
   pollStoppedBy: string | null;
   pollLetters: number;
+  // Messages Paul sent back with Retry that were read again this run.
+  relinked: number;
   byRules: number;
   byModel: number;
   review: number;
@@ -124,6 +134,7 @@ export async function runInbox(deps: InboxRunDeps): Promise<InboxRunReport> {
     truncated: false,
     pollStoppedBy: null,
     pollLetters: 0,
+    relinked: 0,
     byRules: 0,
     byModel: 0,
     review: 0,
@@ -139,12 +150,44 @@ export async function runInbox(deps: InboxRunDeps): Promise<InboxRunReport> {
   return r;
 }
 
+// Messages Paul sent back with Retry and not yet recorded: read each by its id and link it. A
+// message that fails again gets a new letter and is passed over; Gmail, the token or a breaker
+// failing stops the run's linking (false), leaving the rest for a later run.
+async function relinkRetried(
+  deps: InboxRunDeps,
+  r: InboxRunReport,
+  letters: ReturnType<typeof letterState>,
+  skip: Set<string>,
+): Promise<boolean> {
+  if (letters.retried.size === 0) return true;
+  const done = await deps.recorded([...letters.retried]);
+  for (const gmailId of letters.retried) {
+    if (done.has(gmailId)) continue;
+    try {
+      await deps.relink(gmailId);
+      r.relinked++;
+    } catch (e) {
+      if (NOT_THE_MESSAGE.has(errorName(e))) {
+        r.pollStoppedBy = errorName(e);
+        return false;
+      }
+      await deps.recordPollLetter(letterKey("mail.poll", gmailId, letters.count), 1);
+      skip.add(gmailId);
+      r.pollLetters++;
+    }
+  }
+  return true;
+}
+
 async function linkNewMail(deps: InboxRunDeps, r: InboxRunReport): Promise<void> {
   const letters = letterState(await deps.pollLetters(), "mail.poll");
   const skip = new Set(letters.passOver);
+  if (!(await relinkRetried(deps, r, letters, skip))) return;
   // How many polls in this run stopped at each message.
   const stops = new Map<string, number>();
-  while (r.polls < MAX_POLLS) {
+  // One more poll after each message given up on (at most MAX_POLLS more), so the mail after it is
+  // still linked in this run.
+  while (r.polls < MAX_POLLS + Math.min(r.pollLetters, MAX_POLLS)) {
     let p: MailPollReport;
     try {
       p = await deps.poll(skip);
@@ -284,6 +327,7 @@ export async function inboxCommand(deps: InboxDeps): Promise<number> {
     `New mail: ${r.listed} listed. Linked to an application: ${r.linked}. Waiting for you to link: ${r.queued}. Not job mail: ${r.notJobMail}. Skipped: ${r.skipped}.`,
   );
   if (r.truncated) deps.print("More mail is waiting than one run reads; run it again.");
+  if (r.relinked > 0) deps.print(`Read again after your Retry: ${r.relinked}.`);
   if (r.passedOver + r.pollLetters > 0) {
     deps.print(
       `Passed over: ${r.passedOver + r.pollLetters} message(s) that kept failing. Each is in Stuck work on /health.`,

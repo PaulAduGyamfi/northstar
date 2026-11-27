@@ -81,7 +81,7 @@ const KINDS: Record<string, KindWords> = {
   "mail.poll": {
     what: "Reading new job mail",
     next: {
-      retry: "The next `funnel inbox` run tries this email again.",
+      retry: "The next `funnel inbox` run reads this email again.",
       skip: "Later `funnel inbox` runs pass over this email.",
       hand_off:
         "Later `funnel inbox` runs pass over this email. Look through your recent job mail in Gmail yourself: one email in it can't be read here.",
@@ -108,6 +108,7 @@ const REASONS: Record<string, string> = {
   invalid_detection: "the calendar event couldn't be stored as it is",
   unknown_application: "its application wasn't found",
   read_failed: "Gmail wouldn't give the email",
+  step_failed: "linking it to your applications failed",
   classify_failed: "sorting it failed",
   record_refused: "its result couldn't be stored",
 };

@@ -1,5 +1,5 @@
 import type { CandidateId } from "@northstar/domain";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "./db.js";
 import { mailClassification } from "./mail-classification-schema.js";
 import { mailLinkDecision } from "./mail-link-decision-schema.js";
@@ -80,4 +80,23 @@ export async function countUngradedRecruiterMail(
       ),
     );
   return row?.n ?? 0;
+}
+
+// Which of the given messages the mail loop has recorded (a mail_link row), the candidate's own only.
+export async function readRecordedMessageIds(
+  db: Pick<Db, "select">,
+  candidateId: CandidateId,
+  gmailMessageIds: readonly string[],
+): Promise<Set<string>> {
+  if (gmailMessageIds.length === 0) return new Set();
+  const rows = await db
+    .select({ gmailMessageId: mailLink.gmailMessageId })
+    .from(mailLink)
+    .where(
+      and(
+        eq(mailLink.candidateId, candidateId),
+        inArray(mailLink.gmailMessageId, [...gmailMessageIds]),
+      ),
+    );
+  return new Set(rows.map((r) => r.gmailMessageId));
 }

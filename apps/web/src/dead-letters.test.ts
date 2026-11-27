@@ -89,7 +89,7 @@ describe("nextStep", () => {
   });
 
   it("names a stuck email for reading and sorting, with each of their reasons", () => {
-    const poll = { ...ITEM, kind: "mail.poll", reasonCode: "read_failed", attempts: 3 };
+    const poll = { ...ITEM, kind: "mail.poll", reasonCode: "step_failed", attempts: 3 };
     const sort = { ...ITEM, kind: "mail.classify", attempts: 1 };
     expect([
       letterLine(poll),
@@ -99,7 +99,7 @@ describe("nextStep", () => {
     ]).toEqual([
       {
         what: "Reading new job mail",
-        why: "Stopped after 3 attempts: Gmail wouldn't give the email",
+        why: "Stopped after 3 attempts: linking it to your applications failed",
       },
       {
         what: "Sorting a job email",
@@ -115,7 +115,7 @@ describe("nextStep", () => {
 
   it("says a retried email is tried on the next inbox run and a skipped one is passed over", () => {
     expect(DEAD_LETTER_ACTIONS.map((a) => nextStep("mail.poll", a))).toEqual([
-      "The next `funnel inbox` run tries this email again.",
+      "The next `funnel inbox` run reads this email again.",
       "Later `funnel inbox` runs pass over this email.",
       "Later `funnel inbox` runs pass over this email. Look through your recent job mail in Gmail yourself: one email in it can't be read here.",
     ]);

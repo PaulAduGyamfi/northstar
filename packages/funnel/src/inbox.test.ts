@@ -62,6 +62,7 @@ function fake(over: Partial<InboxRunDeps> = {}) {
   const classifyLetters: { id: string; reason: ClassifyLetterReason }[] = [];
   const saved: { id: string; result: ClassificationResult }[] = [];
   const skips: string[][] = [];
+  const relinked: string[] = [];
   const deps: InboxRunDeps = {
     poll: async (skip) => {
       skips.push([...skip]);
@@ -69,6 +70,10 @@ function fake(over: Partial<InboxRunDeps> = {}) {
     },
     pollLetters: async () => [],
     classifyLetters: async () => [],
+    relink: async (gmailId) => {
+      relinked.push(gmailId);
+    },
+    recorded: async () => new Set(),
     recordPollLetter: async (key, attempts) => {
       pollLetters.push({ key, attempts });
     },
@@ -85,7 +90,7 @@ function fake(over: Partial<InboxRunDeps> = {}) {
     ungradedRecruiterMail: async () => 0,
     ...over,
   };
-  return { deps, pollLetters, classifyLetters, saved, skips };
+  return { deps, pollLetters, classifyLetters, saved, skips, relinked };
 }
 
 describe("runInbox: linking new mail", () => {
@@ -103,17 +108,61 @@ describe("runInbox: linking new mail", () => {
     ]);
   });
 
-  it("gives up on a message that stops three polls: one letter, and the poll isn't stuck", async () => {
+  it("gives up on a message that stops three polls, then polls once more past it", async () => {
     const f = fake({
-      poll: async () => ({ ...POLL, stoppedBy: "TypeError", stoppedAt: id(1) }),
+      // Stops at id(1) until it is passed over.
+      poll: async (skip) =>
+        skip.has(id(1))
+          ? { ...POLL, passedOver: 1 }
+          : { ...POLL, stoppedBy: "TypeError", stoppedAt: id(1) },
     });
     const r = await runInbox(f.deps);
-    expect([r.polls, r.pollLetters, r.pollStoppedBy, f.pollLetters]).toEqual([
-      3,
+    expect([r.polls, r.pollLetters, r.pollStoppedBy, f.pollLetters, f.skips.at(-1)]).toEqual([
+      4,
       1,
       null,
       [{ key: `mail.poll:${id(1)}:1`, attempts: 3 }],
+      [id(1)],
     ]);
+  });
+
+  it("reads again each message Paul sent back with Retry, unless it is already recorded", async () => {
+    const f = fake({
+      pollLetters: async () => [
+        { idempotencyKey: `mail.poll:${id(1)}:1`, action: "retry" },
+        { idempotencyKey: `mail.poll:${id(2)}:1`, action: "retry" },
+        { idempotencyKey: `mail.poll:${id(3)}:1`, action: "skip" },
+      ],
+      recorded: async () => new Set([id(2)]),
+    });
+    const r = await runInbox(f.deps);
+    expect([f.relinked, r.relinked, f.skips[0]]).toEqual([[id(1)], 1, [id(3)]]);
+  });
+
+  it("gives a retried message that fails again a new letter and passes over it", async () => {
+    const f = fake({
+      pollLetters: async () => [{ idempotencyKey: `mail.poll:${id(1)}:1`, action: "retry" }],
+      relink: async () => {
+        throw new TypeError("bad");
+      },
+    });
+    const r = await runInbox(f.deps);
+    expect([f.pollLetters, r.pollLetters, f.skips[0]]).toEqual([
+      [{ key: `mail.poll:${id(1)}:2`, attempts: 1 }],
+      1,
+      [id(1)],
+    ]);
+  });
+
+  it("stops linking, with no letter, when Gmail fails on a retried message", async () => {
+    const f = fake({
+      pollLetters: async () => [{ idempotencyKey: `mail.poll:${id(1)}:1`, action: "retry" }],
+      relink: async () => {
+        throw new GmailError("Gmail answered 503", 503);
+      },
+    });
+    const r = await runInbox(f.deps);
+    expect([r.polls, f.pollLetters, r.pollStoppedBy]).toEqual([0, [], "GmailError"]);
   });
 
   it("records no letter when different messages stop it, and reports the stop", async () => {
@@ -331,6 +380,7 @@ const REPORT: InboxRunReport = {
   truncated: false,
   pollStoppedBy: null,
   pollLetters: 0,
+  relinked: 0,
   byRules: 2,
   byModel: 1,
   review: 0,

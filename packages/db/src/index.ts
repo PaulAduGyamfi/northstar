@@ -401,6 +401,7 @@ export {
 // What `funnel inbox` still has to classify and grade (NS-238 item 1).
 export {
   countUngradedRecruiterMail,
+  readRecordedMessageIds,
   readUnclassifiedMail,
   type UnclassifiedMail,
 } from "./mail-loop-read.js";

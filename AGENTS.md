@@ -526,8 +526,9 @@ Exists now:
   breaker. A message that stops three polls in a run, or that can't be read, sorted or stored,
   becomes a dead letter (`mail.poll` / `mail.classify`, key `<kind>:<gmail id>:<n>`), and later
   runs pass over it unless Paul's newest resolution of it is Retry (`letterState`,
-  `readDeadLetterKeys`). A held-back call, the Claude API or Gmail not answering stops that part of
-  the run instead. No grading yet: the `recruiter-extract` route has no enable flag, so the run
+  `readDeadLetterKeys`); a retried one is read again by its id before the poll, since the poll never
+  lists it again (`readRecordedMessageIds`). A held-back call, the token, the Claude API or Gmail
+  not answering stops that part of the run instead, with no letter. No grading yet: the `recruiter-extract` route has no enable flag, so the run
   counts recruiter mail waiting for a grade (`countUngradedRecruiterMail`).
   Since NS-229 (slice 1) also Gmail labels (`src/labels/`, ADR-0027, **Rejected** 2026-11-27: `gmail.modify` held
   only by this writer, ADR-0014's per-run token, labels add-only and outside the Gate):

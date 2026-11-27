@@ -5,7 +5,11 @@ import { readDeadLetterKeys, recordDeadLetter, resolveDeadLetter } from "./dead-
 import { recordMailClassification } from "./mail-classification-write.js";
 import { decideQueuedThread } from "./mail-link-decision-write.js";
 import { recordMailLink } from "./mail-link-write.js";
-import { countUngradedRecruiterMail, readUnclassifiedMail } from "./mail-loop-read.js";
+import {
+  countUngradedRecruiterMail,
+  readRecordedMessageIds,
+  readUnclassifiedMail,
+} from "./mail-loop-read.js";
 import { recordRecruiterGrade } from "./recruiter-grade-write.js";
 import { candidate } from "./schema.js";
 import { createTestDb, seedApplication } from "./test/pglite.js";
@@ -71,6 +75,16 @@ describe("readUnclassifiedMail", () => {
     expect((await readUnclassifiedMail(db, candidateId, 25)).map((m) => m.gmailMessageId)).toEqual([
       M1,
     ]);
+  });
+});
+
+describe("readRecordedMessageIds", () => {
+  it("gives the given messages the loop recorded, the candidate's own only", async () => {
+    const [other] = await db.insert(candidate).values({ displayName: "Other" }).returning();
+    if (!other) throw new Error("no candidate");
+    await recorded(M1, 1, true);
+    await recorded(M2, 2, false, CandidateId.parse(other.id));
+    expect(await readRecordedMessageIds(db, candidateId, [M1, M2, M3])).toEqual(new Set([M1]));
   });
 });
 
