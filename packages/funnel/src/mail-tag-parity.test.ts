@@ -21,7 +21,7 @@ describe("mail tag parity", () => {
 
   it.each([
     ["candidate@example.com", "k3q2m7"],
-    ["first.last@mail.example.com", "a2b3c4"],
+    ["first.last@example.com", "a2b3c4"],
     ["candidate+jobs@example.com", "k3q2m7"],
     ["no-at-sign", "k3q2m7"],
     ["@example.com", "k3q2m7"],
