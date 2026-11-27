@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "./db.js";
 import { mailPollCursor } from "./mail-poll-schema.js";
-import { readMailCursor, saveMailCursor } from "./mail-poll-write.js";
+import { FutureCursorError, readMailCursor, saveMailCursor } from "./mail-poll-write.js";
 import { createTestDb, seedApplication, sqlState } from "./test/pglite.js";
 
 // The mail poll's stored cursor (NS-247 slice 2).
@@ -25,7 +25,10 @@ afterEach(async () => {
   await close();
 });
 
-const save = (since: Date, overlap = true) => saveMailCursor(db, { candidateId, since, overlap });
+// A fixed clock after both test times, so the future-cursor check never depends on the real date.
+const NOW = () => new Date("2026-11-28T00:00:00Z");
+const save = (since: Date, overlap = true) =>
+  saveMailCursor(db, { candidateId, since, overlap }, NOW);
 
 describe("readMailCursor and saveMailCursor", () => {
   it("reads nothing before the first save", async () => {
@@ -54,6 +57,25 @@ describe("readMailCursor and saveMailCursor", () => {
     await save(T1, true);
     expect((await save(T1, false)).saved).toBe(true);
     expect(await readMailCursor(db, candidateId)).toEqual({ since: T1, overlap: false });
+  });
+
+  it("refuses a cursor after now, beyond the clock skew, and stores nothing", async () => {
+    const now = () => T1;
+    await expect(
+      saveMailCursor(
+        db,
+        { candidateId, since: new Date(T1.getTime() + 6 * 60_000), overlap: true },
+        now,
+      ),
+    ).rejects.toBeInstanceOf(FutureCursorError);
+    expect(await readMailCursor(db, candidateId)).toBeNull();
+    // Within the skew it is stored.
+    const within = await saveMailCursor(
+      db,
+      { candidateId, since: new Date(T1.getTime() + 60_000), overlap: true },
+      now,
+    );
+    expect(within.saved).toBe(true);
   });
 
   it("keeps each candidate's cursor apart", async () => {

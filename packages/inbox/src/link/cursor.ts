@@ -12,6 +12,18 @@ export type CursorPort = {
   save: (cursor: MailCursor) => Promise<unknown>;
 };
 
+// How far ahead of the run's start a cursor may be, as in packages/db (CURSOR_SKEW_MS).
+const SKEW_MS = 5 * 60 * 1000;
+
+// A cursor after the run's start: Gmail would list nothing after it and mail would silently stop
+// being linked, so the tick fails visibly instead (security review of NS-247 slice 2).
+export class FutureCursorError extends Error {
+  constructor() {
+    super("mail cursor is in the future");
+    this.name = "FutureCursorError";
+  }
+}
+
 export async function pollFromCursor(
   deps: MailPollDeps & { cursor: CursorPort },
   // `firstSince`: where the very first run starts, before any cursor is stored.
@@ -19,8 +31,11 @@ export async function pollFromCursor(
   opts: { firstSince: Date; skip?: ReadonlySet<string> },
 ): Promise<MailPollReport> {
   const stored = await deps.cursor.read();
+  const since = stored?.since ?? opts.firstSince;
+  // Before Gmail is asked anything: a wrong `firstSince` or a stored future cursor fails here.
+  if (since.getTime() > deps.now().getTime() + SKEW_MS) throw new FutureCursorError();
   const report = await pollNewMail(deps, {
-    since: stored?.since ?? opts.firstSince,
+    since,
     overlap: stored?.overlap ?? true,
     ...(opts.skip ? { skip: opts.skip } : {}),
   });

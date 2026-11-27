@@ -9,6 +9,20 @@ import { inSpan } from "./resilience-event.js";
 
 export type MailCursor = { since: Date; overlap: boolean };
 
+// How far ahead of this machine's clock a cursor may be: room for clock skew between Gmail's
+// receive times and here, and no more.
+export const CURSOR_SKEW_MS = 5 * 60 * 1000;
+
+// A cursor after now (security review of NS-247 slice 2). Since it never moves backwards, a stored
+// future cursor would stick: Gmail lists nothing after it, and job mail would silently stop being
+// linked. So it is refused loudly, never stored.
+export class FutureCursorError extends Error {
+  constructor() {
+    super("mail cursor is in the future");
+    this.name = "FutureCursorError";
+  }
+}
+
 // The newest cursor, or null before the first poll saved one.
 export async function readMailCursor(
   db: Pick<Db, "select">,
@@ -30,7 +44,9 @@ export async function readMailCursor(
 export async function saveMailCursor(
   db: Db,
   input: { candidateId: CandidateId; since: Date; overlap: boolean },
+  now: () => Date = () => new Date(),
 ): Promise<{ saved: boolean; cursor: MailCursor }> {
+  if (input.since.getTime() > now().getTime() + CURSOR_SKEW_MS) throw new FutureCursorError();
   try {
     return await inSpan("mail.cursor_save", {}, (span) =>
       db.transaction(async (tx) => {

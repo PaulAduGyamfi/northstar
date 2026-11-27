@@ -485,9 +485,11 @@ Exists now:
     caller dead-letters a message that stops it tick after tick and passes its id back in `skip`.
   - Since NS-247 slice 2 the cursor is stored: append-only `mail_poll_cursor` (`packages/db`,
     `mail-poll-write.ts`: `readMailCursor`, `saveMailCursor`; an unchanged cursor stores nothing,
-    `since` never moves backwards, no domain event, a `mail.cursor_save` span), and
+    `since` never moves backwards, a cursor more than 5 minutes after now is refused with
+    `FutureCursorError`, no domain event, a `mail.cursor_save` span), and
     `pollFromCursor` (`src/link/cursor.ts`) reads it, polls from it (`firstSince` on the very first
-    run) and saves the report's `nextSince` and `nextOverlap`, even after a stop. No caller runs it
+    run; a future one throws `FutureCursorError` before Gmail is asked) and saves the report's
+    `nextSince` and `nextOverlap`, even after a stop. No caller runs it
     on a schedule yet (#230 calls `pollFromCursor` once per tick), and no gateway uses it.
   Since NS-164 also `classifyLinkedMail` (`src/triage.ts`, INB-003/012): one linked message to
   its classification by the backfill's rules (verified senders only) or the `mail-classify`

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MessageHeaders } from "../gmail.js";
-import { type MailCursor, pollFromCursor } from "./cursor.js";
+import { FutureCursorError, type MailCursor, pollFromCursor } from "./cursor.js";
 import { type MailPollDeps, newMailQuery } from "./poll.js";
 
 // One poll tick with a stored cursor (NS-247 slice 2) on a fake Gmail client and a fake store.
@@ -88,6 +88,18 @@ describe("pollFromCursor", () => {
     const { deps, saved } = setup([tagged(5), tagged(7), tagged(9)], null, "m7");
     const report = await pollFromCursor(deps, { firstSince: FIRST });
     expect([report.stoppedAt, saved]).toEqual(["m7", [{ since: minutes(5), overlap: true }]]);
+  });
+
+  it("fails visibly on a future first start or stored cursor, before asking Gmail anything", async () => {
+    const late = setup([tagged(5)], null);
+    await expect(pollFromCursor(late.deps, { firstSince: minutes(20_000) })).rejects.toBeInstanceOf(
+      FutureCursorError,
+    );
+    const stored = setup([tagged(5)], { since: minutes(20_000), overlap: true });
+    await expect(pollFromCursor(stored.deps, { firstSince: FIRST })).rejects.toBeInstanceOf(
+      FutureCursorError,
+    );
+    expect([late.queries, late.saved, stored.queries, stored.saved]).toEqual([[], [], [], []]);
   });
 
   it("throws a failed save, so the next tick reads the old cursor again", async () => {

@@ -26,6 +26,10 @@ a crash must neither skip mail nor read everything again.
   saves its cursor, which is the last message handled before the stop, so nothing after it is
   skipped. A failed save is thrown, and the next tick re-reads the old cursor; the step records
   nothing twice.
+- **A future cursor fails loudly:** `saveMailCursor` refuses a `since` more than 5 minutes
+  after now, and `pollFromCursor` throws `FutureCursorError` before asking Gmail when its cursor
+  or `firstSince` is in the future. Since the cursor never moves backwards, a stored future cursor
+  would otherwise stop all linking silently (security review).
 - **For #230:** call `pollFromCursor` once per tick, with `cursor: { read: () =>
   readMailCursor(db, id), save: (c) => saveMailCursor(db, { candidateId: id, ...c }) }` and the
   step's ports.
