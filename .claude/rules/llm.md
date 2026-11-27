@@ -35,7 +35,7 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
 - The `job-match` route (NS-138) lives in `packages/sources/src/fit/model-match.ts`. Call it
   only through `assistUnmatched`, which sends only what the rules left unmatched and keeps a
   proposal only when `checkJobMatches` finds its quote verbatim in a real atom. It is off by
-  default (`enabled: true` turns it on), its fixtures are real recordings since NS-266.
+  default (`enabled: true` turns it on); its fixtures are real recordings since NS-266.
 - The `positioning-thesis` route (NS-152) lives in `packages/profile/src/thesis-draft.ts`. Call
   it only through `draftTheses`, which keeps a candidate only when `thesisProblems` finds
   nothing. It is off by default (`enabled: true` turns it on); its fixtures are real
@@ -44,12 +44,12 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
   Use it only through `modelPick` and the catcher's `offerAssisted`: the model answers with an
   index into the candidates plain code found, never a code or link (VER-005), and the catcher
   checks the choice. Fixtures use placeholder codes (`111111`) and `example.com` links only. It is
-  off by default (`enabled: true` turns it on), its fixtures are real recordings since NS-266.
+  off by default (`enabled: true` turns it on); its fixtures are real recordings since NS-266.
 - The `question-confirm` route (NS-137) lives in `packages/profile/src/question-confirm.ts`.
   Use it only through `confirmQuestion`: it runs only for a question `matchQuestion` left new as
   `below_threshold` or `ambiguous`, never one nearest a factual question, and the model answers
   with an index into candidates code chose (`confirmCandidates`), which code checks. It is off
-  by default (`enabled: true` turns it on), its fixtures are real recordings since NS-266. A match it
+  by default (`enabled: true` turns it on); its fixtures are real recordings since NS-266. A match it
   returns carries `confirmedBy: "model"`: a caller must never count it as reuse for the Gate's
   policy (`bank_exact` or `bank_high_confidence`), whatever its confidence.
 - The `reply-draft` route (NS-166) lives in `packages/profile/src/reply/`. Call it only
@@ -57,12 +57,12 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
   only when `validateReplyDraft` passes: claims cite stories or atoms verbatim and add no
   commitment word, time, link or symbol, and framing is one of the fixed `framingSentences`.
   Keep the prompt's list of framing sentences and the code's the same (a test checks). It is off by default (`enabled: true`
-  turns it on), its fixtures are real recordings since NS-266. Nothing it drafts is ever sent
+  turns it on); its fixtures are real recordings since NS-266. Nothing it drafts is ever sent
   (ADR-0025).
 - The `recruiter-extract` route (NS-167) lives in `packages/inbox/src/recruiter/`. Call it only
   through `extractRecruiterFacts`, which keeps only values `checkRecruiterFacts` finds in the
   email. It never grades: `gradeRecruiterMessage` in `packages/sources` does, in plain code. It
-  is off by default (`enabled: true` turns it on), its fixtures are real recordings since NS-266.
+  is off by default (`enabled: true` turns it on); its fixtures are real recordings since NS-266.
 - A new route with no real recordings gets hand-written fixtures (ADR-0016 item 8). Write the
   expected outputs to `evals/<route>/handwritten.jsonl` and run
   `node evals/dist/handwrite-bin.js <route>` (after building `evals`). Each fixture is marked
