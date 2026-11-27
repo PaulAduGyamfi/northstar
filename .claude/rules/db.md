@@ -80,6 +80,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `ALERT_*` default, and the same values store nothing. Its CHECKs are NULL-safe (a CHECK that
   evaluates to NULL passes). `alerts.settings_changed` carries field names only, never a time zone
   (it says where Paul lives).
+  The mail poll's cursor (NS-247 slice 2) is `mail_poll_cursor`, append-only, written only through
+  `mail-poll-write.ts`: the newest row is current, `since` never moves backwards, and it holds no
+  message id, address or subject.
   A company's own mail domains (NS-252) are `company_domain`, append-only (a trigger), written
   only through `company-domain-write.ts`: per company and domain the newest row (`add` or
   `remove`) is current, the source is `paul` (a CHECK), and its composite foreign key keeps the

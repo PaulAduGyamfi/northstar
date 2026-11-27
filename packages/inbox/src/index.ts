@@ -56,6 +56,13 @@ export {
   LabelWriteError,
   type LabelWriter,
 } from "./labels/writer.js";
+// One poll tick with a stored cursor (NS-247 slice 2): what the worker (#230) calls.
+export {
+  type CursorPort,
+  FutureCursorError,
+  type MailCursor,
+  pollFromCursor,
+} from "./link/cursor.js";
 // Linking job mail to applications (NS-158): tags and the deterministic matcher.
 export {
   type LinkCandidate,
