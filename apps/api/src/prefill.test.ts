@@ -10,7 +10,7 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ApiConfig } from "./config.js";
-import { createPrefillGrants, GRANT_TTL_MS, prefillEndpoints } from "./prefill.js";
+import { createPrefillGrants, errorClassOf, GRANT_TTL_MS, prefillEndpoints } from "./prefill.js";
 import { createApi } from "./server.js";
 import { createSessions } from "./sessions.js";
 import { portOf, type Sent, send } from "./test/http.js";
@@ -48,12 +48,14 @@ let prefills: {
   grantKey: string;
 }[];
 let recordWorks: boolean;
+let recordThrows: Error | null;
 
 beforeEach(async () => {
   clock = 1_000_000;
   reads = [];
   prefills = [];
   recordWorks = true;
+  recordThrows = null;
   outcome = { ok: true, value: PACKAGE };
   grants = createPrefillGrants(() => clock);
   const sessions = createSessions(() => 0);
@@ -67,6 +69,7 @@ beforeEach(async () => {
       return handoffId === HANDOFF ? outcome : { ok: false, error: { kind: "NotFound" } };
     },
     recordPrefill: async (input) => {
+      if (recordThrows !== null) throw recordThrows;
       if (!recordWorks) return false;
       prefills.push(input);
       return true;
@@ -273,9 +276,42 @@ describe("POST /handoffs/package records the pre-fill", () => {
     expect([res.status, JSON.parse(res.body)]).toEqual([503, { error: "prefill_unrecorded" }]);
   });
 
+  it("puts the failed write's error class, never its message, on the span", async () => {
+    const exporter = new InMemorySpanExporter();
+    trace.setGlobalTracerProvider(
+      new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] }),
+    );
+    try {
+      const grant = await issued();
+      recordThrows = new TypeError("connection to db-host refused");
+      const res = await readPackage({ handoffId: HANDOFF, grant });
+      const read = exporter.getFinishedSpans().at(-1);
+      expect([
+        res.status,
+        read?.attributes["northstar.prefill.outcome"],
+        read?.attributes["northstar.prefill.record_error"],
+      ]).toEqual([503, "prefill_unrecorded", "TypeError"]);
+    } finally {
+      trace.disable();
+    }
+  });
+
   it("records nothing for a refused grant", async () => {
     await readPackage({ handoffId: HANDOFF, grant: "x".repeat(43) });
     expect(prefills).toEqual([]);
+  });
+});
+
+describe("errorClassOf", () => {
+  it("keeps a plain class name and turns anything else into Error", () => {
+    const crafted = new Error("x");
+    crafted.name = "Bad name: secret";
+    expect([
+      errorClassOf(new RangeError("x")),
+      errorClassOf(crafted),
+      errorClassOf("a string"),
+      errorClassOf(null),
+    ]).toEqual(["RangeError", "Error", "Error", "Error"]);
   });
 });
 
