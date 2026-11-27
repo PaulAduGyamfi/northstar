@@ -598,8 +598,15 @@ Exists now:
   free quarter hour inside working hours in Paul's time zone, ending at least an hour before) and a
   15-minute warm-up an hour before. It only uses free time after now, never shortens a block, and
   reports what it couldn't place (`missingPrep`, `warmUpMissing`). `reminderTimes` gives the
-  day-before and hour-before reminders, dropping any already past. It proposes only: no caller,
-  storage, calendar write (that goes through the Gate) or briefs yet.
+  day-before and hour-before reminders, dropping any already past.
+  Since NS-241 (slice 1) proposals are stored: `proposeInterviewPrep` (`packages/db`,
+  `interview-prep-write.ts`) checks that the detection is the candidate's, current and confirmed
+  by Paul, runs `planPrepBlocks` over the stored interview's times with the caller's busy time,
+  working hours, time zone and clock, and stores one append-only `interview_prep_proposal` per
+  detection with its `interview_prep_block` rows (`prep` or `warm_up`, times only) and one
+  `interview.prep_proposed` event (ids and counts; a fixed-word feed line). A second call stores
+  nothing and answers the first proposal. `readPrepProposal` reads it back. No caller, approval
+  card, calendar write (that goes through the Gate) or briefs yet.
 - Recruiter grading (NS-167, REC-001/002), slice 1:
   - The `recruiter-extract` route (`packages/inbox`, `src/recruiter/`) reads a recruiter email's
     stated facts: title, seniority, company, place, remote kind, pay range, agency or in-house,
