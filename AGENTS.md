@@ -262,6 +262,16 @@ Exists now:
   how many items it cites (`replyLines`). `POST /approvals/decide` never approves an `email_reply`
   with no stored draft (`missing_draft`, via `missingReplyDrafts`), nor one to another domain in
   a batch (`approve_alone`, via `otherDomainReplies`); a reject still clears one.
+  Since NS-203 (slice 1) Paul can edit a waiting reply's body first: `editReplyDraft`
+  (`reply-write.ts`) keeps the recipient, subject, thread headers, cites and follow-ups and calls
+  the Gate's `editRequest` (`approval-write.ts`), which in one transaction withdraws the old
+  request by `user` (its `approval.withdrawn` carries `edited: true`: "You edited a request; the
+  edited version is waiting for your approval"), files a new one with the same kind and subject
+  pinning the edited content, and links them in append-only `approval_edit`. Only a pending
+  `email_reply` can be edited (an allowlist in code and in the table's trigger; `editRequest` isn't
+  exported, so `editReplyDraft` is the only way in);
+  a decision that lands meanwhile rolls the edit back. The API's `POST /approvals/edit-reply`
+  (session only) serves it. No Edit button in the web app yet (slice 2).
   Since slice 3 also follow-up nudges (RPL-004), plain code:
   - `nudgesDue` (`packages/domain`, `follow-up.ts`) picks the applications in `applied`
     (`submitted`, `confirmed`) or `interview` (`in_process`) whose newest verified-sender linked
