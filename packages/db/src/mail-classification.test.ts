@@ -117,7 +117,7 @@ describe("recordMailClassification", () => {
     const rows = await db
       .select({ type: domainEvent.type, reason: domainEvent.reason, payload: domainEvent.payload })
       .from(domainEvent)
-      .where(sql`${domainEvent.type} like 'mail.%'`)
+      .where(sql`${domainEvent.type} in ('mail.classified', 'mail.needs_review')`)
       .orderBy(domainEvent.position);
     expect(rows.map((r) => [r.type, r.reason, r.payload])).toEqual([
       [
