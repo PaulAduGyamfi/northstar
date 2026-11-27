@@ -1,6 +1,7 @@
-import { type CandidateId, parsePackage } from "@northstar/domain";
+import { type CandidateId, packageSha256, parsePackage } from "@northstar/domain";
 import { and, eq } from "drizzle-orm";
 import { applicationPackage } from "./application-package-schema.js";
+import { approvalEdit, approvalRequest } from "./approval-schema.js";
 import { type EditError, type EditResult, editRequest } from "./approval-write.js";
 import type { Db } from "./db.js";
 import { derivePackage, storePackage } from "./package-approval.js";
@@ -60,13 +61,24 @@ export async function editPackage(
       return { ok: false as const, error: { kind: "InvalidRequest" as const, fields: refused } };
     }
     for (const [name, value] of edits) fields.set(name, value.replace(/\r\n/g, "\n"));
+    const editedInput = { ...stored.value, fields: Object.fromEntries(fields) };
+    // A repeat of an edit that already committed answers from the stored link first, so a newer
+    // resume or contact saved meanwhile (which derivePackage would refuse) can't hide it.
+    const [done] = await scoped
+      .select({ requestId: approvalEdit.requestId, sha: approvalRequest.contentSha256 })
+      .from(approvalEdit)
+      .innerJoin(approvalRequest, eq(approvalRequest.id, approvalEdit.requestId))
+      .where(eq(approvalEdit.previousRequestId, row.requestId));
+    if (done) {
+      const again = parsePackage(editedInput);
+      if (!again.ok || packageSha256(again.value) !== done.sha) {
+        return { ok: false as const, error: { kind: "NotPending" as const } };
+      }
+      const value = { requestId: done.requestId, previousRequestId: row.requestId, replayed: true };
+      return { ok: true as const, value };
+    }
     // No claims: every field of the edited package counts as `new` for the Gate's policy.
-    const derived = await derivePackage(
-      scoped,
-      input.candidateId,
-      { ...stored.value, fields: Object.fromEntries(fields) },
-      [],
-    );
+    const derived = await derivePackage(scoped, input.candidateId, editedInput, []);
     if (!derived.ok) {
       const invalid = derived.error.kind === "InvalidRequest" ? derived.error.fields : ["package"];
       return { ok: false as const, error: { kind: "InvalidRequest" as const, fields: invalid } };
