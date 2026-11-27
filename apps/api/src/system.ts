@@ -2,6 +2,7 @@ import type { FeedItem, FeedNames, SetKillSwitchResult } from "@northstar/db";
 import type { SystemHealth } from "@northstar/domain";
 import { z } from "zod";
 import { type AnyEndpoint, endpoint } from "./endpoint.js";
+import { errorClassOf } from "./prefill.js";
 
 // The System Health page, the activity feed and the kill switches (NS-153: RES-013, OBS-002,
 // RES-008). Every endpoint needs Paul's session: ADR-0002 allows only his authenticated path to
@@ -84,6 +85,33 @@ async function namesOf(ports: SystemPorts, items: FeedItem[]): Promise<Map<strin
   }
 }
 
+// An error's class and short code (a SQLSTATE such as "28P01", or a socket code such as
+// "ECONNREFUSED"), never its message: drizzle's DrizzleQueryError carries the SQL and its params
+// there. drizzle wraps the driver's error and keeps it on `cause`, so the code is looked for one
+// level down too, under the same checks; nothing else of either error is read.
+export function errorFacts(error: unknown): { error: string; code?: string; cause?: string } {
+  const facts: { error: string; code?: string; cause?: string } = { error: errorClassOf(error) };
+  const code = codeOf(error);
+  const cause = error instanceof Error ? error.cause : undefined;
+  if (code) facts.code = code;
+  else if (cause instanceof Error) {
+    facts.cause = errorClassOf(cause);
+    const causeCode = codeOf(cause);
+    if (causeCode) facts.code = causeCode;
+  }
+  return facts;
+}
+
+// A short plain code, or nothing; a getter that throws counts as none.
+function codeOf(error: unknown): string | undefined {
+  try {
+    const code = (error as { code?: unknown } | null)?.code;
+    return typeof code === "string" && /^[A-Z0-9_]{1,32}$/.test(code) ? code : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 const Flip = z.object({
   subsystem: z.string().min(1).max(100),
   enabled: z.boolean(),
@@ -106,8 +134,13 @@ export function systemEndpoints(ports: SystemPorts): AnyEndpoint[] {
       let h: SystemHealth;
       try {
         h = await ports.health();
-      } catch {
-        // The state can't be read (Postgres down): the page shows everything as down.
+      } catch (error) {
+        // The state can't be read (Postgres down): the page shows everything as down. Say why on
+        // the API's own output, as the error's class and Postgres code only (28P01 a wrong
+        // password, 42P01 a missing table): a message can quote a connection string.
+        console.error(
+          JSON.stringify({ level: "error", msg: "health read failed", ...errorFacts(error) }),
+        );
         return { ok: false, status: 503, error: "unavailable" };
       }
       const subsystems = h.subsystems.map((s) => ({

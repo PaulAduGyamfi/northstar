@@ -1,11 +1,11 @@
 import { createServer, type Server } from "node:http";
 import type { FeedItem, SetKillSwitchResult } from "@northstar/db";
 import type { SystemHealth } from "@northstar/domain";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApiConfig } from "./config.js";
 import { createApi } from "./server.js";
 import { createSessions } from "./sessions.js";
-import { type SystemPorts, systemEndpoints } from "./system.js";
+import { errorFacts, type SystemPorts, systemEndpoints } from "./system.js";
 import { portOf, type Sent, send } from "./test/http.js";
 
 // The System Health, feed and kill-switch endpoints over a real http server, with the database
@@ -158,6 +158,48 @@ describe("GET /system/health", () => {
     const res = await get("/system/health");
     expect(res.status).toBe(503);
     expect(JSON.parse(res.body)).toEqual({ error: "unavailable" });
+  });
+
+  it("logs why the state can't be read as the error's class and code, never its message", async () => {
+    health = async () => {
+      throw Object.assign(new Error("password for postgres://u:secret@host failed"), {
+        code: "28P01",
+      });
+    };
+    const lines: string[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((line: string) => {
+      lines.push(line);
+    });
+    try {
+      await get("/system/health");
+    } finally {
+      spy.mockRestore();
+    }
+    expect(lines.map((l) => JSON.parse(l))).toEqual([
+      { level: "error", msg: "health read failed", error: "Error", code: "28P01" },
+    ]);
+  });
+});
+
+describe("errorFacts", () => {
+  it("drops a code that isn't a short plain token", () => {
+    expect(errorFacts(Object.assign(new TypeError("x"), { code: "a b; secret" }))).toEqual({
+      error: "TypeError",
+    });
+  });
+
+  it("logs a crafted name as Error, never its text", () => {
+    const crafted = Object.assign(new Error("x"), { name: "postgres://u:secret@host\nfake" });
+    expect(errorFacts(crafted)).toEqual({ error: "Error" });
+  });
+
+  it("finds the driver's code one level down when drizzle wraps the error", () => {
+    const pg = Object.assign(new Error("password authentication failed"), {
+      name: "DatabaseError",
+      code: "28P01",
+    });
+    const wrapped = new Error("Failed query: select ... params: secret", { cause: pg });
+    expect(errorFacts(wrapped)).toEqual({ error: "Error", cause: "DatabaseError", code: "28P01" });
   });
 });
 
