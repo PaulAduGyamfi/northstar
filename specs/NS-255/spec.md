@@ -41,12 +41,12 @@ submission.
   list). `form_changed` it is, recorded under "Decisions made without Paul".
 
 ## Acceptance criteria
-- [ ] The recorded Greenhouse form, and a form like it with names but a combobox, open as no form.
-- [ ] A form whose only submit is hidden, tied to a CAPTCHA, or missing (`type="button"` only)
+- [x] The recorded Greenhouse form, and a form like it with names but a combobox, open as no form.
+- [x] A form whose only submit is hidden, tied to a CAPTCHA, or missing (`type="button"` only)
       opens as no form, and nothing is typed.
-- [ ] An invisible-marked `h-captcha` is a `captcha` challenge.
-- [ ] The synthetic Greenhouse, Lever and Ashby pages still open as forms (no regression).
-- [ ] lint, typecheck, test and build green for `@northstar/gateways`.
+- [x] An invisible-marked `h-captcha` is a `captcha` challenge.
+- [x] The synthetic Greenhouse, Lever and Ashby pages still open as forms (no regression).
+- [x] lint, typecheck, test and build green for `@northstar/gateways`.
 
 ## Out of scope
 - Reading fields by id, choosing react-select options, or pressing a `type="button"` submit.

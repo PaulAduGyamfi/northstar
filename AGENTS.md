@@ -774,8 +774,7 @@ Exists now:
   (`src/apply/test/recorded.ts`: structure only, all content synthetic; `recorded.test.ts`).
   Greenhouse's current board has ids and no names, react-select dropdowns, and a `method="get"` form that its own
   script sends; Lever's
-  only `type="submit"` is a hidden hCaptcha button. The driver can't read or press those safely
-  yet: #353 (NS-255). Ashby's page is JavaScript-only and SmartRecruiters wasn't fetched, so both
+  only `type="submit"` is a hidden hCaptcha button. Since NS-255 the driver refuses both (below). Ashby's page is JavaScript-only and SmartRecruiters wasn't fetched, so both
   stay hand-written, as do all confirmation markers (recording one needs a submission). The package schema and its hash
   are in `packages/domain` (`apply-package.ts`). Its tests run on fakes and, through `dbPorts`,
   on the real write paths: `@northstar/db/testing` exports `createTestDb` and friends for that.
@@ -793,6 +792,15 @@ Exists now:
     refuses any page that ends up off them (server redirects included).
   - It checks what the page reports (`checkCollected`), and after `close()` it takes no further
     browser action.
+  - Since NS-255 it refuses, never handles, the form shapes the recordings showed: `collectPage`
+    also reports per form its name-less answerable fields, comboboxes (`role="combobox"`) and
+    submit candidates (hidden, or tied to a CAPTCHA), and `formProblem` turns a form with
+    `unnamed_fields`, `combobox`, `no_submit` (a `type="button"`-only form), `several_submits`,
+    `hidden_submit` or `captcha_submit` into no form at `open`. So the gateway hands off with
+    `form_changed` before anything is typed or pressed; the code goes on the `apply.submit` span
+    (`northstar.apply.form_problem`). An `h-captcha` widget is a CAPTCHA even when marked
+    invisible (the conservative reading of ADR-0003; Paul may relax it). No new reason code: that
+    needs a migration.
 
   Its tests use a fake page and a stand-in DOM, with no browser. Its challenge markers are
   hand-written; `recordedPage` runs its in-page reader on the recorded Lever form (NS-142 slice 2). Nothing starts it until the worker process

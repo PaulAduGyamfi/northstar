@@ -49,24 +49,76 @@ export type ChallengeSignals = {
   signUpWords: boolean;
 };
 
-export type CollectedPage = { forms: RawControl[][]; signals: ChallengeSignals };
+// What else a form holds that the driver can't fill or press safely (NS-255, from recorded
+// Greenhouse and Lever forms). Counts and flags only.
+export type FormFacts = {
+  // Answerable controls (not hidden, not a button) with no name: the driver fills by name.
+  unnamedFields: number;
+  // react-select style dropdowns: an input with role="combobox", not a native select.
+  comboboxes: number;
+  // Every control `SUBMIT_SELECTOR` would match, in order.
+  submits: { hidden: boolean; captcha: boolean }[];
+};
+
+export type CollectedPage = {
+  forms: RawControl[][];
+  // One per form, in the same order.
+  facts: FormFacts[];
+  signals: ChallengeSignals;
+};
 
 // Runs in the page. `doc` is only for tests: in the browser it is undefined and `document` is used.
 export function collectPage(_arg: null, doc?: DomDocument): CollectedPage {
   const d = doc ?? document;
   const clean = (s: string | null | undefined): string => (s ?? "").replace(/\s+/g, " ").trim();
   const forms: RawControl[][] = [];
+  const facts: FormFacts[] = [];
+  // Hidden from sight: an attribute, a hiding class or an inline style (NS-255).
+  const hiddenClasses = [" hidden ", " visually-hidden ", " sr-only ", " d-none "];
+  const isHidden = (el: DomElement): boolean => {
+    const classes = ` ${clean(el.getAttribute("class")).toLowerCase()} `;
+    const style = clean(el.getAttribute("style")).toLowerCase().replace(/\s/g, "");
+    return (
+      el.hasAttribute("hidden") ||
+      el.getAttribute("aria-hidden") === "true" ||
+      hiddenClasses.some((c) => classes.includes(c)) ||
+      style.includes("display:none") ||
+      style.includes("visibility:hidden")
+    );
+  };
+  // Tied to a CAPTCHA: the word in its id, class or callback, or a site key.
+  const isCaptcha = (el: DomElement): boolean =>
+    /captcha/i.test(
+      `${el.getAttribute("id") ?? ""} ${el.getAttribute("class") ?? ""} ${el.getAttribute("data-callback") ?? ""}`,
+    ) || el.hasAttribute("data-sitekey");
   for (let f = 0; f < d.forms.length; f++) {
     const form = d.forms[f];
     if (!form) continue;
     const controls: RawControl[] = [];
+    const fact: FormFacts = { unnamedFields: 0, comboboxes: 0, submits: [] };
     for (let i = 0; i < form.elements.length; i++) {
       const el = form.elements[i];
       if (!el) continue;
-      const name = el.getAttribute("name");
-      if (!name) continue;
       const tag = el.tagName.toLowerCase();
-      const type = clean(el.getAttribute("type")).toLowerCase() || (tag === "input" ? "text" : tag);
+      const rawType = clean(el.getAttribute("type")).toLowerCase();
+      // The set SUBMIT_SELECTOR matches: button[type=submit], input[type=submit], button with no type.
+      if (
+        (tag === "button" && (rawType === "submit" || rawType === "")) ||
+        (tag === "input" && rawType === "submit")
+      ) {
+        fact.submits.push({ hidden: isHidden(el), captcha: isCaptcha(el) });
+      }
+      if (el.getAttribute("role") === "combobox") fact.comboboxes++;
+      const name = el.getAttribute("name");
+      if (!name) {
+        const answerable =
+          tag === "select" ||
+          tag === "textarea" ||
+          (tag === "input" && !["hidden", "submit", "button", "reset", "image"].includes(rawType));
+        if (answerable) fact.unnamedFields++;
+        continue;
+      }
+      const type = rawType || (tag === "input" ? "text" : tag);
       const options: string[] = [];
       if (tag === "select" && el.options) {
         for (let o = 0; o < el.options.length; o++) {
@@ -87,6 +139,7 @@ export function collectPage(_arg: null, doc?: DomDocument): CollectedPage {
       });
     }
     forms.push(controls);
+    facts.push(fact);
   }
   const all = d.getElementsByTagName("*");
   let visibleCaptcha = false;
@@ -98,10 +151,11 @@ export function collectPage(_arg: null, doc?: DomDocument): CollectedPage {
     if (!el) continue;
     const classes = ` ${clean(el.getAttribute("class"))} `;
     const invisible = el.getAttribute("data-size") === "invisible";
-    // A widget Paul would have to solve. Invisible reCAPTCHA shows nothing to solve.
-    if ((classes.includes(" g-recaptcha ") || classes.includes(" h-captcha ")) && !invisible) {
-      visibleCaptcha = true;
-    }
+    // A widget Paul would have to solve. Invisible reCAPTCHA shows nothing to solve. hCaptcha
+    // counts even when marked invisible: it can still put up a puzzle, and Lever sets its size by
+    // script, so the attribute can't be trusted (NS-255, the conservative reading of ADR-0003).
+    if (classes.includes(" g-recaptcha ") && !invisible) visibleCaptcha = true;
+    if (classes.includes(" h-captcha ")) visibleCaptcha = true;
     if (classes.includes(" cf-turnstile ")) visibleCaptcha = true;
     const id = el.getAttribute("id") ?? "";
     if (id === "challenge-form" || id === "cf-challenge-running") cloudflareInterstitial = true;
@@ -121,6 +175,7 @@ export function collectPage(_arg: null, doc?: DomDocument): CollectedPage {
   const signUpWords = /create (an |your )?account|sign up|register/i.test(text);
   return {
     forms,
+    facts,
     signals: { visibleCaptcha, cloudflareInterstitial, passwordFields, oneTimeCode, signUpWords },
   };
 }
@@ -196,8 +251,26 @@ export function checkCollected(value: unknown): CollectedPage {
       };
     }),
   );
+  const count = (v: unknown): number =>
+    typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= COLLECT_LIMITS.controls
+      ? v
+      : fail("a bad count");
+  const facts = list(page.facts, COLLECT_LIMITS.forms).map((raw): FormFacts => {
+    const f = obj(raw);
+    return {
+      unnamedFields: count(f.unnamedFields),
+      comboboxes: count(f.comboboxes),
+      submits: list(f.submits, COLLECT_LIMITS.controls).map((s) => {
+        const b = obj(s);
+        return { hidden: bool(b.hidden), captcha: bool(b.captcha) };
+      }),
+    };
+  });
+  // One set of facts per form, or the answer isn't the reader's own.
+  if (facts.length !== forms.length) fail("facts that don't match its forms");
   return {
     forms,
+    facts,
     signals: {
       visibleCaptcha: bool(signals.visibleCaptcha),
       cloudflareInterstitial: bool(signals.cloudflareInterstitial),
@@ -252,6 +325,30 @@ export function challengeOf(s: ChallengeSignals): Challenge | null {
   if (s.oneTimeCode) return "mfa";
   if (s.passwordFields >= 2 || (s.passwordFields === 1 && s.signUpWords)) return "account";
   if (s.passwordFields === 1) return "login";
+  return null;
+}
+
+// Why the driver must not fill or submit a form, or null (NS-255). Refuse, never handle: each of
+// these is a form shape the recorded Greenhouse or Lever pages showed, which the driver would
+// fill wrongly (a field it can't name, a dropdown that isn't a select) or submit through the wrong
+// button (a hidden one, one a CAPTCHA script presses, or a type="button" it doesn't press).
+export const FORM_PROBLEMS = [
+  "unnamed_fields",
+  "combobox",
+  "no_submit",
+  "several_submits",
+  "hidden_submit",
+  "captcha_submit",
+] as const;
+export type FormProblem = (typeof FORM_PROBLEMS)[number];
+
+export function formProblem(f: FormFacts): FormProblem | null {
+  if (f.unnamedFields > 0) return "unnamed_fields";
+  if (f.comboboxes > 0) return "combobox";
+  if (f.submits.some((s) => s.captcha)) return "captcha_submit";
+  if (f.submits.some((s) => s.hidden)) return "hidden_submit";
+  if (f.submits.length === 0) return "no_submit";
+  if (f.submits.length > 1) return "several_submits";
   return null;
 }
 
