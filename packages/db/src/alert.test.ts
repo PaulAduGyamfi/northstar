@@ -10,6 +10,8 @@ import { createTestDb } from "./test/pglite.js";
 
 // Synthetic jobs and boards only (invented company, example.com links).
 const NOW = new Date("2026-11-25T12:00:00Z");
+// The caller passes now less the 60-minute freshness window (packages/sources).
+const FRESH_SINCE = new Date("2026-11-25T11:00:00Z");
 
 let db: Db;
 let close: () => Promise<void>;
@@ -42,6 +44,10 @@ afterEach(async () => {
 async function seedScoredJob(
   scores: { score: number; band: "queue" | "suggest" | "skip"; at: Date }[],
   sourceUrl = "https://boards.greenhouse.io/globex/jobs/123",
+  times: { postedAt: Date | null; firstSeenAt: Date } = {
+    postedAt: new Date("2026-11-25T11:48:00Z"),
+    firstSeenAt: new Date("2026-11-25T11:50:00Z"),
+  },
 ): Promise<string> {
   const [co] = await db.insert(company).values({ candidateId, name: "Globex" }).returning();
   const [j] = await db
@@ -51,8 +57,8 @@ async function seedScoredJob(
       companyId: co?.id ?? null,
       title: "Backend Engineer",
       url: sourceUrl,
-      postedAt: new Date("2026-11-25T11:48:00Z"),
-      firstSeenAt: new Date("2026-11-25T11:50:00Z"),
+      postedAt: times.postedAt,
+      firstSeenAt: times.firstSeenAt,
     })
     .returning();
   if (!j) throw new Error("no job");
@@ -91,7 +97,7 @@ const alert = (jobId: string) => ({
 describe("readAlertCandidates", () => {
   it("lists a queue-band job with its times, score and source URLs", async () => {
     const jobId = await seedScoredJob([{ score: 88, band: "queue", at: NOW }]);
-    expect(await readAlertCandidates(db, candidateId)).toEqual([
+    expect(await readAlertCandidates(db, candidateId, FRESH_SINCE)).toEqual([
       {
         jobId,
         postedAt: new Date("2026-11-25T11:48:00Z"),
@@ -109,15 +115,80 @@ describe("readAlertCandidates", () => {
       { score: 88, band: "queue", at: new Date("2026-11-25T11:00:00Z") },
       { score: 70, band: "suggest", at: NOW },
     ]);
-    expect(await readAlertCandidates(db, candidateId)).toEqual([]);
+    expect(await readAlertCandidates(db, candidateId, FRESH_SINCE)).toEqual([]);
   });
 
   it("shows a job already alerted or held", async () => {
     const jobId = await seedScoredJob([{ score: 88, band: "queue", at: NOW }]);
     await recordAlertHeld(db, alert(jobId));
     await recordFreshAlert(db, { ...alert(jobId), wasHeld: true });
-    const [c] = await readAlertCandidates(db, candidateId);
+    const [c] = await readAlertCandidates(db, candidateId, FRESH_SINCE);
     expect([c?.alerted, c?.held]).toEqual([true, true]);
+  });
+});
+
+describe("readAlertCandidates' narrowing", () => {
+  const URL = "https://boards.greenhouse.io/globex/jobs/";
+  const old = {
+    postedAt: new Date("2026-11-25T10:00:00Z"),
+    firstSeenAt: new Date("2026-11-25T10:05:00Z"),
+  };
+  const ids = async () =>
+    (await readAlertCandidates(db, candidateId, FRESH_SINCE)).map((c) => c.jobId);
+
+  it("leaves out a queue-band job older than the window with no held alert", async () => {
+    await seedScoredJob([{ score: 88, band: "queue", at: NOW }], `${URL}1`, old);
+    expect(await ids()).toEqual([]);
+  });
+
+  it("still reads an old job whose held alert hasn't gone out, so it is sent after quiet hours", async () => {
+    const jobId = await seedScoredJob([{ score: 88, band: "queue", at: NOW }], `${URL}2`, old);
+    await recordAlertHeld(db, alert(jobId));
+    const [c] = await readAlertCandidates(db, candidateId, FRESH_SINCE);
+    expect([c?.jobId, c?.held, c?.alerted]).toEqual([jobId, true, false]);
+  });
+
+  it("leaves out an old job whose held alert was already sent", async () => {
+    const jobId = await seedScoredJob([{ score: 88, band: "queue", at: NOW }], `${URL}3`, old);
+    await recordAlertHeld(db, alert(jobId));
+    await recordFreshAlert(db, { ...alert(jobId), wasHeld: true });
+    expect(await ids()).toEqual([]);
+  });
+
+  it("judges a job with no posting date by when it was first seen", async () => {
+    const recent = await seedScoredJob([{ score: 88, band: "queue", at: NOW }], `${URL}4`, {
+      postedAt: null,
+      firstSeenAt: new Date("2026-11-25T11:30:00Z"),
+    });
+    await seedScoredJob([{ score: 88, band: "queue", at: NOW }], `${URL}5`, {
+      postedAt: null,
+      firstSeenAt: new Date("2026-11-25T10:30:00Z"),
+    });
+    expect(await ids()).toEqual([recent]);
+  });
+
+  it("judges a dated job by its posting date, not when it was first seen", async () => {
+    await seedScoredJob([{ score: 88, band: "queue", at: NOW }], `${URL}6`, {
+      postedAt: new Date("2026-11-24T09:00:00Z"),
+      firstSeenAt: new Date("2026-11-25T11:55:00Z"),
+    });
+    expect(await ids()).toEqual([]);
+  });
+
+  it("still reads a job posted in the future, which counts as just posted", async () => {
+    const jobId = await seedScoredJob([{ score: 88, band: "queue", at: NOW }], `${URL}7`, {
+      postedAt: new Date("2026-11-26T09:00:00Z"),
+      firstSeenAt: new Date("2026-11-25T09:00:00Z"),
+    });
+    expect(await ids()).toEqual([jobId]);
+  });
+
+  it("treats a job exactly at the window's start as not fresh, as the alert rule does", async () => {
+    await seedScoredJob([{ score: 88, band: "queue", at: NOW }], `${URL}8`, {
+      postedAt: FRESH_SINCE,
+      firstSeenAt: FRESH_SINCE,
+    });
+    expect(await ids()).toEqual([]);
   });
 });
 

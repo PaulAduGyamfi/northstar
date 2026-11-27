@@ -577,7 +577,10 @@ Exists now:
   quiet hours it is held (`job.fresh_alert_held`) and sent on the first pass after they end,
   unless it comes from a tier-1 watched board. Settings: `ALERT_QUIET_HOURS`, `ALERT_TIME_ZONE`,
   `ALERT_TIER1_IN_QUIET_HOURS` (`.env.example`). Events per job are stored once
-  (`packages/db`, `alert-write.ts`). No phone push yet: that needs the PWA.
+  (`packages/db`, `alert-write.ts`). Since NS-199 (#172, slice 1) `readAlertCandidates` takes a
+  `freshSince` (the caller passes now less `FRESH_MINUTES`) and reads only jobs that could still
+  alert: those whose posting date, or first-seen time when undated, is after it, and those with a
+  held alert not yet sent. No phone push yet: that needs the PWA.
 - The Approval Gate (NS-119, ADR-0002, ADR-0017): the auto-approve rules and their evaluator in
   `packages/domain` (`approval.ts`; only application packages can ever be auto-approved), and
   the append-only `approval_*` tables with the Gate's one write path in `packages/db`

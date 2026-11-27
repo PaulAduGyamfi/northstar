@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { CandidateId } from "@northstar/domain";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, notExists, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type { Db } from "./db.js";
 import { fitScore } from "./fit-schema.js";
 import { domainEvent, job, jobSource } from "./schema.js";
@@ -24,11 +25,46 @@ export type AlertCandidate = {
   held: boolean;
 };
 
-// Ready jobs whose latest fit score is in the queue band, with their alert state.
+// Ready jobs that could still alert, whose latest fit score is in the queue band, with their
+// alert state. Only two kinds of job can still alert (NS-199): one whose age time is after
+// `freshSince`, and one whose alert was held and hasn't gone out. Any other job could only be
+// "already alerted" or "not fresh", so it isn't read. The caller owns the window (packages/sources
+// passes now less FRESH_MINUTES), so the policy stays out of this package.
 export async function readAlertCandidates(
   db: Db,
   candidateId: CandidateId,
+  freshSince: Date,
 ): Promise<AlertCandidate[]> {
+  // Held alerts not yet sent: a held event with no alert event for the same `job:<id>`.
+  const held = alias(domainEvent, "held");
+  const heldRows = await db
+    .select({ aggregate: held.aggregate })
+    .from(held)
+    .where(
+      and(
+        eq(held.candidateId, candidateId),
+        eq(held.type, FRESH_ALERT_HELD),
+        notExists(
+          db
+            .select({ one: sql`1` })
+            .from(domainEvent)
+            .where(
+              and(
+                eq(domainEvent.candidateId, candidateId),
+                eq(domainEvent.type, FRESH_ALERT),
+                eq(domainEvent.aggregate, held.aggregate),
+              ),
+            ),
+        ),
+      ),
+    );
+  const heldIds = heldRows
+    .map((r) => r.aggregate)
+    .filter((a) => a.startsWith("job:"))
+    .map((a) => a.slice("job:".length));
+  // The age rule `ageHours` uses: the posting date, or when it was first seen if it has none.
+  // Strictly after the window's start, as "under an hour old" is (60 minutes is not fresh).
+  const fresh = gt(sql`coalesce(${job.postedAt}, ${job.firstSeenAt})`, freshSince);
   const scores = await db
     .select({
       jobId: fitScore.jobId,
@@ -39,7 +75,13 @@ export async function readAlertCandidates(
     })
     .from(fitScore)
     .innerJoin(job, eq(job.id, fitScore.jobId))
-    .where(and(eq(fitScore.candidateId, candidateId), eq(job.status, "ready")))
+    .where(
+      and(
+        eq(fitScore.candidateId, candidateId),
+        eq(job.status, "ready"),
+        heldIds.length === 0 ? fresh : or(fresh, inArray(job.id, heldIds)),
+      ),
+    )
     .orderBy(desc(fitScore.scoredAt));
   // The first row per job is its latest score (newest first above).
   const latest = new Map<string, (typeof scores)[number]>();
