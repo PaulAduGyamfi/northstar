@@ -35,9 +35,12 @@ export type JobsPorts = {
 };
 
 // A link the page may show: https only, so a stored `javascript:` or `http:` link never renders.
+// Normalized (`href`), the same form the page's safeHref gives, and never with a user name or
+// password in it.
 export function postingLink(url: string): string | null {
   try {
-    return new URL(url).protocol === "https:" ? url : null;
+    const u = new URL(url);
+    return u.protocol === "https:" && u.username === "" && u.password === "" ? u.href : null;
   } catch {
     return null;
   }

@@ -197,6 +197,15 @@ describe("postingLink", () => {
       postingLink("http://jobs.example.com/1"),
       postingLink("javascript:alert(1)"),
       postingLink("not a link"),
-    ]).toEqual(["https://jobs.example.com/1", null, null, null]);
+      postingLink("https://user:pass@jobs.example.com/1"),
+      postingLink("HTTPS://Jobs.Example.com/1"),
+    ]).toEqual([
+      "https://jobs.example.com/1",
+      null,
+      null,
+      null,
+      null,
+      "https://jobs.example.com/1",
+    ]);
   });
 });

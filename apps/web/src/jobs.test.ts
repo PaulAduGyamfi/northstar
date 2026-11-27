@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { fitWords, jobRow, jobsForRole, postedWords, reasonWords, safeLink } from "./jobs";
+import {
+  fitWords,
+  jobRow,
+  jobsForRole,
+  postedWords,
+  reasonWords,
+  roleHeading,
+  safeLink,
+} from "./jobs";
 
 // The jobs page's words (NS-130 slice 10). Invented companies only.
 describe("postedWords", () => {
@@ -112,5 +120,11 @@ describe("safeLink", () => {
 describe("jobsForRole", () => {
   it("links a direction to its jobs with the role encoded", () => {
     expect(jobsForRole("c++ engineer & lead")).toBe("/jobs?role=c%2B%2B%20engineer%20%26%20lead");
+  });
+});
+
+describe("roleHeading", () => {
+  it("names the role a filtered list shows", () => {
+    expect(roleHeading("backend engineer")).toBe("Jobs for backend engineer");
   });
 });
