@@ -796,7 +796,7 @@ Exists now:
   Manifest unchanged. Since slice 5 a parity test in `packages/gateways`
   (`apply/prefill-parity.test.ts`) checks the extension's exported `ADAPTERS` (hosts, contact and
   file fields) against the gateway's adapters, `fillForm` sets values through the prototype's
-  setter (framework-tracked inputs keep them), and a thrown `handoff.prefilled` write puts its
+  setter (a safety net for a shadowed `value`; the isolated world already reaches the native one), and a thrown `handoff.prefilled` write puts its
   class name on the span (`northstar.prefill.record_error`, `errorClassOf`), never its message.
 - Verification windows (NS-151, VER-001…006) in `packages/db` (`verification-schema.ts`,
   `verification-write.ts`, append-only): `verification_window`, one `verification_window_restart`

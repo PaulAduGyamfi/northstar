@@ -14,7 +14,9 @@ Issue #161. Slices 1–4: #318, #328, #333, #337.
   `northstar.prefill.record_error` to the error's class name (`errorClassOf`: a plain identifier,
   else `Error`; never the message). The answer stays `503 prefill_unrecorded`.
 - **Framework-tracked inputs.** `fillForm` sets a text input's or textarea's `value` through its
-  prototype's own setter when there is one, so a page whose framework shadows `value` keeps it.
+  prototype's own setter when there is one. A safety net: in Chrome's isolated world, where the
+  popup injects, assignment already reaches the native setter; it matters where a shadowed `value`
+  is visible (tests, or a future main-world injection).
 
 ## Acceptance criteria
 - [ ] The parity test fails if a host, contact field or file field differs.

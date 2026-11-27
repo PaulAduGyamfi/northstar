@@ -217,8 +217,11 @@ export function fillForm(
         done = true;
       } else if ((tag === "input" && !NEVER.includes(type)) || tag === "textarea") {
         if (values.length !== 1) continue;
-        // Through the prototype's own setter: a framework such as React shadows `value` on the
-        // element to track it, and a plain assignment would be undone on its next render.
+        // Through the prototype's own setter, a safety net: where a shadowed `value` is visible
+        // (a framework's tracker, as React installs, seen from the page's world) a plain
+        // assignment would only reach the tracker. The popup injects into Chrome's isolated world,
+        // where assignment already hits the native setter; the input event below is what tells
+        // the page's framework.
         const proto = Object.getPrototypeOf(el) as object | null;
         const setter = proto ? Object.getOwnPropertyDescriptor(proto, "value")?.set : undefined;
         if (setter) setter.call(el, values[0] ?? "");
