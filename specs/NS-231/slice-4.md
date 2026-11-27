@@ -19,10 +19,10 @@ resume with the section from one without it, or how much of it fit the page.
 - The event's `reason` sentence is unchanged.
 
 ## Acceptance criteria
-- [ ] A tailored resume with a section reports its entry and line counts in `resume.tailored`.
-- [ ] One without a section reports 0 and 0.
-- [ ] No title, line or link appears in the payload.
-- [ ] `pnpm turbo run lint typecheck test build` passes in `packages/db` and `packages/profile`.
+- [x] A tailored resume with a section reports its entry and line counts in `resume.tailored`.
+- [x] One without a section reports 0 and 0.
+- [x] No title, line or link appears in the payload.
+- [x] `pnpm turbo run lint typecheck test build` passes in `packages/db` and `packages/profile`.
 
 ## Out of scope
 - The database check for invisible characters (needs a migration; agent 1 holds the lane).
