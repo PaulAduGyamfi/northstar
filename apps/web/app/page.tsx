@@ -57,6 +57,10 @@ export default async function TodayPage() {
           <p>
             <Link href="/settings/accounts">Settings → Accounts</Link>
           </p>
+          {/* Settings → Search (NS-199 slice 3): quiet hours and the tier-1 rule for alerts. */}
+          <p>
+            <Link href="/settings/search">Settings → Search</Link>
+          </p>
           {/* Interviews found on the calendar (NS-240 slice 5): Paul confirms or dismisses each. */}
           <p>
             <Link href="/interviews">Interviews</Link>

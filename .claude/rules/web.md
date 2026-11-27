@@ -8,7 +8,8 @@ paths:
 
 `apps/web` exists since NS-156 (a Next.js shell; Today, `/health` since NS-153, the Queue,
 `/approvals`, since NS-139, the Pipeline, `/pipeline`, since NS-168, and Settings → Accounts,
-`/settings/accounts`, since NS-198, linked from Today because the nav's five tabs are fixed). `packages/ui` doesn't exist yet: if
+`/settings/accounts`, since NS-198, and Settings → Search, `/settings/search`, since NS-199, both
+linked from Today because the nav's five tabs are fixed). `packages/ui` doesn't exist yet: if
 you are about to create it outside its ticket, stop and ask Paul. Until it lands, the color tokens
 are CSS variables in `apps/web/app/globals.css`.
 

@@ -947,7 +947,9 @@ async function withdrawOnce(
           eq(approvalRequest.candidateId, input.candidateId),
         ),
       );
-    if (!request) return err({ kind: "NotFound" } as const);
+    // A reveal (ADR-0024) is approved and used in one transaction and is never in the queue:
+    // there is nothing to withdraw, for anyone (NS-246; migration 0095 refuses it too).
+    if (!request || request.kind === "vault_reveal") return err({ kind: "NotFound" } as const);
     span.setAttribute("northstar.approval.kind", request.kind);
     // Only an application can have a posting that closed (the trigger refuses it too).
     if (input.by === "system" && request.kind !== "application_package") {

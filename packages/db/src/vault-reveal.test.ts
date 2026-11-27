@@ -2,12 +2,13 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { CandidateId, revealContentSha256, UNDO_WINDOW_MS } from "@northstar/domain";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { approvalDecision, approvalRequest } from "./approval-schema.js";
+import { approvalDecision, approvalRequest, approvalWithdrawal } from "./approval-schema.js";
 import {
   decideApprovals,
   listPendingApprovals,
   requestApproval,
   undoDecision,
+  withdrawApproval,
 } from "./approval-write.js";
 import type { Db } from "./db.js";
 import { setKillSwitch } from "./kill-switch-write.js";
@@ -224,6 +225,81 @@ describe("a reveal can't be made or reused any other way", () => {
       decisionId,
     });
     expect(await sqlState(attempt)).toBe(CHECK_VIOLATION);
+  });
+
+  // NS-246 slice 2 (migration 0095): the reveal's database guards.
+  it("the database refuses an agent's access under a reveal decision", async () => {
+    const revealed = await reveal();
+    const { decisionId } = await revealDecision();
+    const attempt = db.insert(vaultAccess).values({
+      candidateId,
+      secretId: revealed.ok ? revealed.value.secretId : "",
+      actor: "agent:apply",
+      purpose: "sign_in",
+      decisionId,
+    });
+    expect(await sqlState(attempt)).toBe(CHECK_VIOLATION);
+  });
+
+  it("the database refuses a reveal under any approval but a reveal's own", async () => {
+    const revealed = await reveal();
+    const requested = await requestApproval(db, {
+      candidateId,
+      kind: "application_package",
+      subject: `application_package:${randomUUID()}`,
+      contentSha256: "c".repeat(64),
+      facts: null,
+      actor: "agent:apply",
+      idempotencyKey: randomUUID(),
+    });
+    if (!requested.ok) throw new Error(requested.error.kind);
+    const decided = await decideApprovals(db, {
+      candidateId,
+      requestIds: [requested.value.requestId],
+      decision: "approve",
+    });
+    const first = decided.ok ? decided.value[0]?.result : undefined;
+    const decisionId = first?.ok ? first.value.decisionId : "";
+    const attempt = db.insert(vaultAccess).values({
+      candidateId,
+      secretId: revealed.ok ? revealed.value.secretId : "",
+      actor: "user",
+      purpose: "reveal_to_user",
+      decisionId,
+    });
+    expect(await sqlState(attempt)).toBe(CHECK_VIOLATION);
+  });
+
+  it("nobody withdraws a reveal: withdrawApproval answers NotFound and the database refuses it", async () => {
+    await reveal();
+    const [request] = await db
+      .select({ id: approvalRequest.id })
+      .from(approvalRequest)
+      .where(eq(approvalRequest.kind, "vault_reveal"));
+    const requestId = request?.id ?? "";
+    await setGateClock(db, new Date(NOW.getTime() + UNDO_WINDOW_MS));
+    expect([
+      await withdrawApproval(db, { candidateId, requestId, by: "user" }),
+      await withdrawApproval(db, {
+        candidateId,
+        requestId,
+        by: "gateway",
+        newContentSha256: "d".repeat(64),
+      }),
+      await withdrawApproval(db, { candidateId, requestId, by: "system" }),
+    ]).toEqual([
+      { ok: false, error: { kind: "NotFound" } },
+      { ok: false, error: { kind: "NotFound" } },
+      { ok: false, error: { kind: "NotFound" } },
+    ]);
+    const direct = db.insert(approvalWithdrawal).values({
+      candidateId,
+      requestId,
+      withdrawnBy: "user",
+      reason: "paul",
+      withdrawnAt: NOW,
+    });
+    expect(await sqlState(direct)).toBe(CHECK_VIOLATION);
   });
 
   it("an application approval still waits out its undo window", async () => {

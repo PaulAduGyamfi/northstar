@@ -248,6 +248,9 @@ const TEMPLATES: Record<string, Template> = {
   },
   "approval.requested": (p) => {
     const kind = name(p, "kind");
+    // A reveal (NS-246, ADR-0024) is approved at once by Paul's passkey check; it never waits,
+    // so "waiting for your approval" would be wrong. Never names the tenant.
+    if (kind === "vault_reveal") return "You asked to see a saved password";
     return kind ? `Waiting for your approval: ${words(kind)}` : "Waiting for your approval";
   },
   "approval.decided": (p) => {

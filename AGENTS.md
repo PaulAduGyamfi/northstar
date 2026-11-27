@@ -596,7 +596,11 @@ Exists now:
   `recruiter.graded` event whose feed line is its fixed-word `reason` ("Graded a recruiter email:
   B"). `readInboxThreads` gives each thread its newest grade, `GET /inbox` passes it on, and the
   Inbox tab shows it in words (`gradeWords`). No caller grades mail yet (classifications aren't
-  stored), and there are no reply drafts by grade or learning from Paul's actions (REC-002/003).
+  stored). Since NS-238 slice 2 also replies by grade (REC-002), plain code built like a nudge:
+  `recruiterReplyPackage` (`packages/profile`, `reply/recruiter.ts`) gives A/B an interested
+  sentence, C a "share more" sentence and D a polite no (`RECRUITER_REPLY_SENTENCES`: no fact,
+  number, link or commitment word, so nothing to cite), filed by `fileReplyDraft`; an F gets no
+  reply (`ArchiveSuggested`). No caller yet, and no learning from Paul's actions (REC-003).
 - `packages/funnel/` (NS-113): the 9-month backfill, funnel records derived by plain code from
   `funnel_message` and `funnel_manual_row` (`packages/db`, `funnel-schema.ts`), the tracker CSV
   import, the funnel report (Wilson intervals, rejection latency) and the hypothesis board.
@@ -664,8 +668,12 @@ Exists now:
   the same values store nothing, `alerts.settings_changed` carries field names only;
   `readAlertSettings`), merged by `effectiveAlertConfig` (`alerts.ts`, with the env parsers
   shared) and read on every alert pass, and `jobs alerts` (`alerts-cli.ts`). A stored zone this
-  machine doesn't know falls back to the default. No Settings page yet. No phone push yet: that
-  needs the PWA.
+  machine doesn't know falls back to the default. Since NS-199 slice 3 also Settings → Search in
+  the app: the API's `GET` and `POST /settings/alerts` (session only, `apps/api/src/alert-settings.ts`;
+  a value is checked by `alertChange`, the same function as `jobs alerts set`, a null value resets
+  it, and bad `ALERT_*` defaults fail only these routes with `503 alert_defaults_invalid`) and the
+  web app's `/settings/search` (`src/search-settings.ts`, linked from Today): each setting in words,
+  "set here" or "default", with Save and "Use the default". No phone push yet: that needs the PWA.
 - The Approval Gate (NS-119, ADR-0002, ADR-0017): the auto-approve rules and their evaluator in
   `packages/domain` (`approval.ts`; only application packages can ever be auto-approved), and
   the append-only `approval_*` tables with the Gate's one write path in `packages/db`
@@ -911,7 +919,11 @@ Exists now:
   tenant on Settings → Accounts (`apps/web`, `src/reveal.ts`, `reveal-button.tsx`) runs the passkey
   prompt against those routes, shows the password once in that row's component state, and clears
   it after 30 seconds, on Hide or when Paul leaves the page; never storage, a cookie or the URL.
-  The three database guards from #290 are still to come.
+  Since NS-246 slice 2 also the reveal's database guards (migration 0095): a `vault_access` row
+  under a `vault_reveal` decision must be `reveal_to_user`, and a `reveal_to_user` row needs a
+  `vault_reveal` decision; nobody withdraws a reveal (`withdrawApproval` answers `NotFound`, the
+  withdrawal trigger refuses it); and its `approval.requested` reads "You asked to see a saved
+  password", never naming the tenant.
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write

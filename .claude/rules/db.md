@@ -203,7 +203,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   files a `vault_reveal` (by `system`), approves it for Paul (effective at once, migration 0057)
   and records one access by `user` for `reveal_to_user`. Never request, list or decide a
   `vault_reveal` anywhere else; `openSealedSecret` refuses that actor, purpose and kind, and the
-  database pairs `user` with `reveal_to_user` only and lets a reveal decision open once.
+  database pairs `user` with `reveal_to_user` only and lets a reveal decision open once. Since
+  NS-246 (migration 0095) the database also ties a reveal decision to `reveal_to_user` and
+  `reveal_to_user` to a reveal decision, and refuses any withdrawal of a reveal.
 - The positioning thesis (NS-127, stored since NS-155) is `positioning_thesis` and
   `positioning_thesis_atom`, append-only (a trigger), each version citing at least one atom (a
   deferred trigger), written only through `thesis-write.ts`, which also requires the atoms to be

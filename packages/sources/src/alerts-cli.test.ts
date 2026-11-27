@@ -8,7 +8,7 @@ import {
   parseTimeZone,
   settingsSource,
 } from "./alerts.js";
-import { alertsCommand } from "./alerts-cli.js";
+import { alertChange, alertReset, alertSettingsView, alertsCommand } from "./alerts-cli.js";
 
 // Fresh-job alert settings stored over the ALERT_* defaults (NS-199 slice 2). Synthetic values.
 
@@ -166,5 +166,47 @@ describe("jobs alerts", () => {
 
   it("leaves other commands to the caller", async () => {
     expect(await cli().run("form", "j1")).toBeNull();
+  });
+});
+
+// The CLI's checks and wording, shared with the API's Settings → Search route (NS-199 slice 3).
+describe("alertChange", () => {
+  it("turns each setting word and its text into the stored change", () => {
+    expect(alertChange("quiet", "23:00-06:30")).toEqual({ quiet: { start: 1380, end: 390 } });
+    expect(alertChange("quiet", "off")).toEqual({ quiet: "off" });
+    expect(alertChange("zone", "Europe/Berlin")).toEqual({ timeZone: "Europe/Berlin" });
+    expect(alertChange("tier1", "false")).toEqual({ tier1InQuietHours: false });
+  });
+
+  it("refuses what jobs alerts set refuses", () => {
+    expect(alertChange("quiet", "07:00-07:00")).toBeNull();
+    expect(alertChange("quiet", "25:00-01:00")).toBeNull();
+    expect(alertChange("zone", "Not/AZone")).toBeNull();
+    expect(alertChange("tier1", "yes")).toBeNull();
+  });
+
+  it("puts one field back to its default on a reset", () => {
+    expect(alertReset("zone")).toEqual({ timeZone: null });
+    expect(alertReset("tier1")).toEqual({ tier1InQuietHours: null });
+  });
+});
+
+describe("alertSettingsView", () => {
+  it("words the settings in effect and where each came from", () => {
+    const stored = { ...NONE, quiet: "off" as const, tier1InQuietHours: false };
+    expect(alertSettingsView(DEFAULTS, stored)).toEqual({
+      quiet: "off",
+      timeZone: "America/New_York",
+      tier1InQuietHours: false,
+      sources: { quiet: "stored", timeZone: "default", tier1: "stored" },
+      unknownStoredZone: false,
+    });
+    expect(alertSettingsView(DEFAULTS, null).quiet).toBe("22:00-07:00");
+  });
+
+  it("says when a stored zone isn't known here and the default is used", () => {
+    const v = alertSettingsView(DEFAULTS, { ...NONE, timeZone: "Nowhere/Gone" });
+    expect(v.timeZone).toBe("America/New_York");
+    expect(v.unknownStoredZone).toBe(true);
   });
 });

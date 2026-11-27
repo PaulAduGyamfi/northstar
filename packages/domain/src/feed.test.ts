@@ -260,6 +260,14 @@ describe("feedLine: applications and approvals", () => {
     ).toBe("You edited a request; the edited version is waiting for your approval");
   });
 
+  it("says Paul asked to see a password for a reveal, never that it waits or which tenant", () => {
+    expect(
+      feedLine(
+        ev("approval.requested", { kind: "vault_reveal", subject: "vault_reveal:workday-acme" }),
+      ),
+    ).toBe("You asked to see a saved password");
+  });
+
   it("describes approval requests, decisions, undo and policies", () => {
     expect(feedLine(ev("approval.requested", { kind: "application_package" }))).toBe(
       "Waiting for your approval: application package",

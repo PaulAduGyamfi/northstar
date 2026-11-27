@@ -34,6 +34,8 @@ export function nudgeBody(stage: NudgeStage, senderName: string | null): string 
 // optional +tag): a nudge there reaches no one, so it isn't filed.
 const NO_REPLY = /^(?:no-?reply|do-?not-?reply)(?:[+._-][^@]*)?@/i;
 export type NoReplyAddress = { kind: "NoReplyAddress" };
+// Shared with the recruiter replies by grade (NS-238 slice 2).
+export const isNoReplyAddress = (to: string): boolean => NO_REPLY.test(to);
 
 // The display name in a From header ('"Jo Recruiter" <jo@…>' or 'Jo Recruiter <jo@…>'), or null.
 // greetingName then keeps only a plain first name.
@@ -56,7 +58,7 @@ export function nudgePackage(input: {
 }): Result<ReplyPackage, InvalidReply | NoReplyAddress> {
   const envelope = replyEnvelope(input.inbound);
   if (!envelope.ok) return envelope;
-  if (NO_REPLY.test(envelope.value.to)) return { ok: false, error: { kind: "NoReplyAddress" } };
+  if (isNoReplyAddress(envelope.value.to)) return { ok: false, error: { kind: "NoReplyAddress" } };
   // The greeting greets the sender named in the From header the reply answers, never a name the
   // caller passes. With a Reply-To, the reply goes elsewhere, so no name is used.
   const from = input.inbound.from;

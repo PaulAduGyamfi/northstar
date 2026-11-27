@@ -19,6 +19,15 @@ export {
   scoreThenAlert,
   settingsSource,
 } from "./alerts.js";
+// Alert settings as `jobs alerts` checks and words them (NS-199), shared with the API.
+export {
+  ALERT_FIELD_WORDS,
+  type AlertFieldWord,
+  type AlertSettingsView,
+  alertChange,
+  alertReset,
+  alertSettingsView,
+} from "./alerts-cli.js";
 export { type AtsTarget, detectAts } from "./ats/detect.js";
 export { findDuplicate, type Match, nameKey, SIMILARITY, similarity } from "./dedupe.js";
 export { type Extraction, emptyFields, htmlToText } from "./extraction.js";
