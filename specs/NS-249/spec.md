@@ -21,8 +21,9 @@ or buggy producer could still pass facts that match one of Paul's auto-approve r
   facts, and only the facts it derived.
 - Tests that relied on caller facts now file a real package through `requestPackageApproval`,
   using a test-only fixture (`src/test/package-fixture.ts`) that stores what auto-approval needs:
-  the job's posting, Paul's contact, a tailored resume, the form, a fit score, a form sent before
-  and a banked answer. What each test checks stays the same.
+  the job's posting, Paul's contact, a tailored resume, the form, a fit score and a form sent
+  before. The package fills no fields, so every answer counts as reused. What each test checks
+  stays the same.
 
 ## Acceptance criteria
 - [x] `requestApproval` with non-null facts is refused for every kind, before anything is stored.
