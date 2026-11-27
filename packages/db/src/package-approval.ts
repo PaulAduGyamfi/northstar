@@ -95,7 +95,7 @@ export async function requestPackageApproval(
       idempotencyKey: input.idempotencyKey,
     });
     if (!filed.ok) return filed;
-    await storePackage(scoped, input.candidateId, filed.value.requestId, pkg, sha);
+    await storePackage(scoped, input.candidateId, filed.value.requestId, pkg);
     return filed;
   });
 }
@@ -202,14 +202,16 @@ export async function derivePackage(
   return { ok: true, value: { pkg, sha: packageSha256(pkg), facts } };
 }
 
-// Stores the package behind its Gate request, inside the caller's transaction (NS-192).
+// Stores the package behind its Gate request, inside the caller's transaction (NS-192). It hashes
+// the package itself, so the stored hash is always the package's own (the foreign key then ties it
+// to the request's pinned hash).
 export async function storePackage(
   scoped: Db,
   candidateId: CandidateId,
   requestId: string,
   pkg: ApplicationPackage,
-  sha: string,
 ): Promise<void> {
+  const sha = packageSha256(pkg);
   try {
     await scoped
       .insert(applicationPackage)

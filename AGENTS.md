@@ -283,7 +283,8 @@ Exists now:
   edited version is waiting for your approval"), files a new one with the same kind and subject
   pinning the edited content, and links them in append-only `approval_edit`. Only a pending
   `email_reply` can be edited (an allowlist in code and in the table's trigger; `editRequest` isn't
-  exported, so `editReplyDraft` is the only way in);
+  exported, so `editReplyDraft` is the only way in; since slice 4 also a package, through
+  `editPackage`, below);
   a decision that lands meanwhile rolls the edit back. The API's `POST /approvals/edit-reply`
   (session only) serves it. Since slice 2 the Queue's "Show the reply" has an Edit button
   (`approval-queue.tsx`): Paul edits the body, and Save sends it there after `editProblem`

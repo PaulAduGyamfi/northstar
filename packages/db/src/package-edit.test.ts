@@ -3,12 +3,19 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { applicationPackage } from "./application-package-schema.js";
 import { approvalEdit, approvalRequest, approvalWithdrawal } from "./approval-schema.js";
-import { decideApprovals, listPendingApprovals, setApprovalPolicies } from "./approval-write.js";
+import {
+  decideApprovals,
+  editRequest,
+  listPendingApprovals,
+  requestApproval,
+  setApprovalPolicies,
+} from "./approval-write.js";
 import type { Db } from "./db.js";
+import { saveJobForm } from "./job-form-write.js";
 import { editPackage } from "./package-edit.js";
 import { candidate } from "./schema.js";
-import { createTestDb } from "./test/pglite.js";
 import { type PackageFixture, packageFixture } from "./test/package-fixture.js";
+import { createTestDb } from "./test/pglite.js";
 
 // Paul's edit of a waiting application package (NS-203 slice 4) on PGlite. Synthetic data only.
 
@@ -99,7 +106,7 @@ describe("editPackage", () => {
     });
   });
 
-  it("never lets a policy approve the edit, even one that approved the package as filed", async () => {
+  it("keeps the edit waiting for Paul under a policy that approves a package with no new answers", async () => {
     await setApprovalPolicies(db, {
       candidateId,
       rules: [
@@ -155,6 +162,29 @@ describe("editPackage", () => {
     expect((await listPendingApprovals(db, candidateId)).map((p) => p.requestId)).toEqual([old]);
   });
 
+  it("refuses a choice field, whose value must be one of the form's options", async () => {
+    const old = await filed({ question_1: "Yes" });
+    await saveJobForm(db, {
+      candidateId,
+      jobId: fixture.jobId,
+      ats: "greenhouse",
+      questions: [
+        {
+          fieldName: "question_1",
+          label: "Are you open to relocation?",
+          required: true,
+          kind: "select",
+          choices: ["Yes", "No"],
+          group: 0,
+        },
+      ],
+    });
+    expect(await edit(old, { question_1: "Maybe later" })).toEqual({
+      ok: false,
+      error: { kind: "InvalidRequest", fields: ["fields.question_1"] },
+    });
+  });
+
   it("refuses a package Paul already decided", async () => {
     const old = await filed();
     const decided = await decideApprovals(db, {
@@ -188,5 +218,29 @@ describe("editPackage", () => {
       .from(applicationPackage)
       .where(eq(applicationPackage.candidateId, candidateId));
     expect(stored).toHaveLength(1);
+  });
+});
+
+describe("editRequest", () => {
+  it("refuses a reply edit that carries package facts", async () => {
+    const reply = await requestApproval(db, {
+      candidateId,
+      kind: "email_reply",
+      subject: "email_reply:00000000-0000-4000-8000-000000000003",
+      contentSha256: "a".repeat(64),
+      facts: null,
+      actor: "agent:inbox",
+      idempotencyKey: "reply-3",
+    });
+    if (!reply.ok) throw new Error(reply.error.kind);
+    const facts = { fit: 92, adapter: "known" as const, formSeenBefore: true, answers: [] };
+    expect(
+      await editRequest(db, {
+        candidateId,
+        requestId: reply.value.requestId,
+        newContentSha256: "b".repeat(64),
+        packageFacts: facts,
+      }),
+    ).toEqual({ ok: false, error: { kind: "NotEditable" } });
   });
 });
