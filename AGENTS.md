@@ -1074,7 +1074,7 @@ Exists now:
   exact/high split, are still the producer's. `requestApproval` still accepts facts for packages
   from other callers (#195).
   Since NS-248 (item 1) the package's email is the application's tagged address (VER-007):
-  `preparePackage` assigns the application's tag once a package can be built (`assignTag`, kept for
+  `preparePackage` assigns the application's tag once its inputs are complete (`assignTag`, kept for
   good, so a rerun builds the same package) and puts `taggedAddress(email, tag)` in the contact;
   an address with its own `+` part goes out as it is. The Gate accepts Paul's stored address or
   that address with this application's own tag (`readApplicationTag`), never another one's.

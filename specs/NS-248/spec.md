@@ -17,7 +17,7 @@ so step 1 of linking never fires.
   test in `packages/funnel`, which depends on both, keeps the two copies the same.
 - **`packages/db`** (`mail-link-write.ts`): `readApplicationTag(db, candidateId, applicationId)`
   reads the application's tag, or null. It is read-only.
-- **`preparePackage`** (`packages/pipeline`): once a package can be built, it assigns the
+- **`preparePackage`** (`packages/pipeline`): once its inputs are complete (source, form, contact, resume file), it assigns the
   application's tag (`assignTag`, which keeps the first tag) and puts
   `taggedAddress(contact.email, tag)` in the package's `contact.email`. A stored address that
   already has a `+` part goes out unchanged, so tags never stack. A rerun gets the same tag, so the
@@ -29,11 +29,11 @@ so step 1 of linking never fires.
   are Greenhouse only, which needs no account.
 
 ## Acceptance criteria
-- [ ] A filed package's email is the application's tagged address, and a rerun files the same
+- [x] A filed package's email is the application's tagged address, and a rerun files the same
       package with the same tag (PGlite).
-- [ ] The Gate accepts the tagged address and refuses another application's tag (PGlite).
-- [ ] `taggedAddress` matches `packages/inbox`'s for the same inputs (parity test).
-- [ ] lint, typecheck, test, build green (CI `checks`).
+- [x] The Gate accepts the tagged address and refuses another application's tag (PGlite).
+- [x] `taggedAddress` matches `packages/inbox`'s for the same inputs (parity test).
+- [x] lint, typecheck, test, build green (CI `checks`).
 
 ## Out of scope
 - Item 2 (the credit report's inbox stages).

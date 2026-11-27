@@ -110,8 +110,9 @@ export async function preparePackage(
   if (fields && fields.unsupported.length > 0) add("file_upload", fields.unsupported.length);
 
   // The form gets the application's tagged address (VER-007), so its mail links by tag first. The
-  // tag is assigned once a package can be built and kept for good, so a rerun builds the same
-  // package; a stored address with its own `+` part goes out as it is (tags never stack).
+  // tag is assigned once the package's inputs are complete (even if assembly then stops for
+  // Paul) and kept for good, so a rerun builds the same package; a stored address with its own
+  // `+` part goes out as it is (tags never stack).
   const buildable = Boolean(source?.postingId && form && contact && pdf && fields);
   const formContact =
     buildable && contact
