@@ -302,6 +302,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `mail-classification-write.ts`. CHECKs keep the kind, stage signal and review reason to their
   fixed lists and the shape consistent; never store the classification's company, role or
   requisition, a subject or an address.
+  `readInboxCreditReport` (`origin-write.ts`, NS-248 item 2, INB-010) is their read-only credit
+  report: per origin bucket (the same `originBucket` as `readCreditReport`), applications that
+  reached replied, screen and interview, from `classified` rows whose message belongs to the
+  application by `coalesce(mail_link.application_id, mail_link_decision.application_id)`. Counts
+  only.
   `readUnclassifiedMail` and `countUngradedRecruiterMail` (`mail-loop-read.ts`, NS-238 item 1) are
   `funnel inbox`'s read-only readers: recorded messages with no classification and no dismissal,
   newest first, classified recruiter mail with no grade (counted, and since slice 2 listed newest

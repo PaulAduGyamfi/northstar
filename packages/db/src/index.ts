@@ -420,8 +420,11 @@ export { readNudgeCandidates } from "./nudge-read.js";
 export {
   type CreditReport,
   createApplication,
+  type InboxCreditReport,
+  type InboxStageCounts,
   type Origin,
   readCreditReport,
+  readInboxCreditReport,
   readOrigin,
   type StageCounts,
 } from "./origin-write.js";
