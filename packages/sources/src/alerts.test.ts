@@ -266,6 +266,16 @@ describe("jobTier", () => {
       jobTier(["https://jobs.example.com/1"], watches),
     ]).toEqual([null, null]);
   });
+
+  // NS-260: a watched Workday site's postings carry its tier, with or without a locale.
+  it("gives a Workday posting its watched career site's tier", () => {
+    const wd: WatchedBoard[] = [{ ats: "workday", board: "initech.wd5/Careers", tier: 1 }];
+    expect([
+      jobTier(["https://initech.wd5.myworkdayjobs.com/Careers/job/Remote/Engineer_R-1"], wd),
+      jobTier(["https://initech.wd5.myworkdayjobs.com/en-US/careers/job/Remote/Engineer_R-1"], wd),
+      jobTier(["https://initech.wd5.myworkdayjobs.com/Other/job/Remote/Engineer_R-1"], wd),
+    ]).toEqual([1, 1, null]);
+  });
 });
 
 describe("loadAlertConfig", () => {

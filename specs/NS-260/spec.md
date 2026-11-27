@@ -37,6 +37,11 @@ JSON (`/wday/cxs/…`), the same endpoint the site loads for any visitor. No sig
   Busy sites post more; tier 1 polls every 10 minutes. Reading more pages is a later ticket.
 - No descriptions in the listing, so requirement matching sees only the title until Paul adds the
   posting with `jobs add` (which reads the full posting).
+- Workday gives a relative age. "Posted Today" dates a posting at the poll's time (the rule `jobs add`
+  already uses), so a site's first poll can alert on postings up to a day old as just posted. Later
+  polls see them within one cadence of posting.
+- Fresh-job alerts know a Workday posting's tier from its link (`jobTier`), so a tier-1 site may
+  alert during quiet hours like any tier-1 board.
 
 ## Tests
 

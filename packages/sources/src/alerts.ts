@@ -167,8 +167,8 @@ function boardOf(url: string): { ats: string; board: string } | null {
     case "workable":
       return { ats: t.ats, board: t.account };
     case "workday":
-      // Workday boards aren't watched (NS-115).
-      return null;
+      // A watched career site is `<tenant>.wd<N>/<site>` (NS-260); the host is the first part.
+      return { ats: t.ats, board: `${t.host.replace(/\.myworkdayjobs\.com$/, "")}/${t.site}` };
   }
 }
 
