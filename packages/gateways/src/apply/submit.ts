@@ -19,7 +19,7 @@ import { type AtsAdapter, adapterFor, hostAllowed } from "./adapters/index.js";
 import type { FormDriver, PageState, Upload } from "./driver.js";
 import { admit, atsDependency } from "./guard.js";
 import { mapPackage } from "./map.js";
-import type { ApplyPorts } from "./ports.js";
+import type { ApplyPorts, ApplyStep } from "./ports.js";
 import { ApplyInvariantError, applyMoveKey, closeStaleClaim } from "./stale.js";
 
 // The Apply Gateway (NS-120, ADR-0002): the only code that submits an application. It checks
@@ -318,7 +318,14 @@ async function submit(
   // 7. The browser: one session, closed whatever happens. Only the ATS's own trouble (a step
   // timeout) counts against its breaker; a page it served is it working; a browser crash isn't
   // its fault and isn't reported.
-  const driven = await drive(ports.openDriver(adapter.hosts), adapter, pkg, resume, coverLetter);
+  const driven = await drive(
+    ports.openDriver(adapter.hosts),
+    adapter,
+    pkg,
+    resume,
+    coverLetter,
+    stepReporter(ports.onStep),
+  );
   if (driven.ats !== "unknown") await report(driven.ats);
   if (driven.kind === "handoff") return handOff(driven.reason, "submitting");
 
@@ -378,10 +385,12 @@ async function drive(
   pkg: ApplicationPackage,
   resume: Uint8Array,
   coverLetter: Uint8Array | null,
+  step: (s: ApplyStep) => void,
 ): Promise<Driven> {
   // Every handoff below follows a page the ATS served, so it answered.
   const handoff = (reason: NeedsHumanReason): Driven => ({ kind: "handoff", reason, ats: OK });
   try {
+    step("open");
     const page = await within(OPEN_TIMEOUT_MS, driver.open(pkg.applyUrl));
     if (page.kind === "challenge") return handoff(page.challenge);
     // A form after a redirect off the ATS's hosts is not the form Paul approved sending to.
@@ -395,6 +404,7 @@ async function drive(
       if (file === null || bytes === null) return handoff("form_changed");
       uploads.push({ field: f.field, fileName: file.fileName, bytes });
     }
+    step("submit");
     const after = await within(SUBMIT_TIMEOUT_MS, driver.fillAndSubmit(plan.value.fills, uploads));
     if (after.kind === "challenge") return handoff(after.challenge);
     if (
@@ -421,8 +431,21 @@ async function drive(
       ats: timedOut ? { ok: false, error: "Timeout" } : "unknown",
     };
   } finally {
+    step("close");
     await closeQuietly(driver);
   }
+}
+
+// The `onStep` hook, made safe: it may only report. A missing hook is a no-op, and one that throws
+// never changes the submission (the worker's heartbeat is a convenience, never a decision).
+function stepReporter(hook: ((s: ApplyStep) => void) | undefined): (s: ApplyStep) => void {
+  return (s) => {
+    try {
+      hook?.(s);
+    } catch {
+      // Ignored on purpose: see above.
+    }
+  };
 }
 
 async function closeQuietly(driver: FormDriver): Promise<void> {

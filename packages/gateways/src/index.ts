@@ -16,7 +16,13 @@ export {
 } from "./apply/browser/launch.js";
 export type { Challenge, Fill, FormDriver, FormField, PageState, Upload } from "./apply/driver.js";
 export { type FieldPlan, type MapError, mapPackage } from "./apply/map.js";
-export { type ApplyPorts, dbPorts, dbSweepPorts, dbVaultPorts } from "./apply/ports.js";
+export {
+  type ApplyPorts,
+  type ApplyStep,
+  dbPorts,
+  dbSweepPorts,
+  dbVaultPorts,
+} from "./apply/ports.js";
 export { type SweepPorts, sweepStaleClaims } from "./apply/stale.js";
 export {
   ApplyInvariantError,

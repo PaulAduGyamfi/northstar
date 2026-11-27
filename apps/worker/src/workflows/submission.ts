@@ -37,6 +37,9 @@ export type SubmissionInput = { candidateId: string; applicationId: string; pack
 const { submitApplication } = proxyActivities<ApplyActivities>({
   taskQueue: APPLY_BROWSER_QUEUE,
   startToCloseTimeout: "10 minutes",
+  // The activity beats every 20 s (BEAT_MS, NS-225 slice 4): three missed beats mean the worker
+  // died mid-step, and the retry finds the gateway's claim instead of waiting out the 10 minutes.
+  heartbeatTimeout: "1 minute",
   retry: {
     initialInterval: "30 seconds",
     backoffCoefficient: 2,
