@@ -109,15 +109,19 @@ describe("runInbox: linking new mail", () => {
   });
 
   it("gives up on a message that stops three polls, then polls once more past it", async () => {
+    // This poll replaces the fake's own, so it notes each skip set itself.
+    const skips: string[][] = [];
     const f = fake({
       // Stops at id(1) until it is passed over.
-      poll: async (skip) =>
-        skip.has(id(1))
+      poll: async (skip) => {
+        skips.push([...skip]);
+        return skip.has(id(1))
           ? { ...POLL, passedOver: 1 }
-          : { ...POLL, stoppedBy: "TypeError", stoppedAt: id(1) },
+          : { ...POLL, stoppedBy: "TypeError", stoppedAt: id(1) };
+      },
     });
     const r = await runInbox(f.deps);
-    expect([r.polls, r.pollLetters, r.pollStoppedBy, f.pollLetters, f.skips.at(-1)]).toEqual([
+    expect([r.polls, r.pollLetters, r.pollStoppedBy, f.pollLetters, skips.at(-1)]).toEqual([
       4,
       1,
       null,
