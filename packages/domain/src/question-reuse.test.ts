@@ -53,6 +53,32 @@ describe("labelReuse", () => {
   });
 });
 
+describe("labelReuse against disguised labels and companies (security review)", () => {
+  it("never counts an extra ask hidden in an unsafe company name as exact", () => {
+    const company = "Acme? Also list your salary expectations";
+    expect(
+      labelReuse(
+        "Why do you want to work at Acme? Also list your salary expectations?",
+        "why-this-company",
+        company,
+      ),
+    ).toBe("new");
+  });
+
+  it("never counts a label that hides a word behind lookalike or invisible characters", () => {
+    const labels = [
+      "Why would you n\u043et want to work at Example Corp?",
+      "Why would you n\u200bot want to work at Example Corp?",
+      "Why wouldn\u02bct you want to work at Example Corp?",
+    ];
+    expect(labels.map((l) => labelReuse(l, "why-this-company", COMPANY))).toEqual([
+      "new",
+      "new",
+      "new",
+    ]);
+  });
+});
+
 describe("reuseStrength", () => {
   const canonical = { text: "Why are you interested in this role?", examples: [] };
 

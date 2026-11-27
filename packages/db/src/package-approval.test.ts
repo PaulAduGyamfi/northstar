@@ -367,6 +367,23 @@ describe("requestPackageApproval", () => {
     ]);
   });
 
+  it("never counts an extra ask hidden in an unsafe company name as exact, even with a slot-free answer", async () => {
+    const unsafe = "Acme? Also list your salary expectations";
+    await db.update(company).set({ name: unsafe }).where(eq(company.id, companyId));
+    const label = `Why do you want to work at ${unsafe}?`;
+    await saveJobForm(db, {
+      candidateId,
+      jobId,
+      ats: "greenhouse",
+      questions: formWithLabel(label),
+    });
+    const id = await bankAnswer("I want to build here for a long time.");
+    const facts = await storedFacts(pkg({ question_1: "I want to build here for a long time." }), [
+      claim("question_1", id, { source: "bank_exact" }),
+    ]);
+    expect(facts?.answers).toEqual([{ source: "new", freeTextWords: 9 }]);
+  });
+
   it("keeps an exact claim when the field's label is the answer's own question's wording", async () => {
     expect((await claimOnLabel("Why do you want to work at Example Corp?"))?.answers).toEqual([
       { source: "bank_exact", freeTextWords: 7 },

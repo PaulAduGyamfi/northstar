@@ -1,3 +1,4 @@
+import { isSafeCompany } from "./company-name.js";
 import { isNegatedQuestion, matchQuestion } from "./question-match.js";
 
 // How a reused banked answer counts for the Gate's policy (APPLY-004, NS-249 slice 3), from the
@@ -22,16 +23,27 @@ const plain = (text: string) =>
     .toLowerCase();
 
 // The label is the canonical question's own wording, or one of its examples, with `{company}`
-// filled by the job's company.
+// filled by the job's company. A wording with the slot counts only for a plain short company name
+// (isSafeCompany, as the answer's own fill): the name and the label both come from the employer,
+// so a "company" such as "Acme? Also list your salary" must not make an extra ask look exact.
 export function isExactWording(
   label: string,
   canonical: { text: string; examples: readonly string[] },
   company: string,
 ): boolean {
+  const safe = company !== "" && isSafeCompany(company);
   return [canonical.text, ...canonical.examples].some(
-    (w) => plain(w.replaceAll("{company}", company)) === plain(label),
+    (w) =>
+      (safe || !w.includes("{company}")) &&
+      plain(w.replaceAll("{company}", company)) === plain(label),
   );
 }
+
+// Characters a label could use to hide a word from the matcher and the negation check: invisible
+// formatting (zero-width spaces, direction marks), modifier letters (U+02BC as an apostrophe in
+// "wouldnʼt") and Greek or Cyrillic lookalikes ("nоt" with a Cyrillic о). A label holding any of
+// them never earns reuse; it only goes to Paul.
+const DISGUISED = /[\p{Cf}\u02B0-\u02FF\p{Script=Greek}\p{Script=Cyrillic}]/u;
 
 // The strength from a match code already made (the producer's path, which also takes a model's
 // pick only to fill, never to count as reuse).
@@ -49,6 +61,7 @@ export function reuseStrength(
 // question is answered from settings, never the bank), and the label isn't negated ("Why would you
 // NOT…" asks the opposite of the banked question; the matcher drops "not" as filler).
 export function labelReuse(label: string, canonicalId: string, company: string): ReuseSource {
+  if (DISGUISED.test(label)) return "new";
   const match = matchQuestion(label);
   if (match.status !== "matched" || match.canonical.id !== canonicalId) return "new";
   if (match.canonical.kind === "factual" || isNegatedQuestion(label)) return "new";
