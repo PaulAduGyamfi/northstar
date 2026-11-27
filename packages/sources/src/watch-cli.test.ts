@@ -49,6 +49,14 @@ function deps(argv: string[], over: Partial<BoardCliDeps> = {}, jobs: JobListIte
     list: async () => jobs,
     set: async () => ({ ok: true, value: { status: "ready", missingFields: [] } }),
     boards,
+    alerts: {
+      defaults: { quiet: null, timeZone: "UTC", tier1InQuietHours: true },
+      read: async () => null,
+      save: async () => ({
+        ok: true,
+        value: { saved: false, settings: { quiet: null, timeZone: null, tier1InQuietHours: null } },
+      }),
+    },
     form: {
       sources: async () => [],
       readGreenhouse: async () => null,

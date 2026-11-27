@@ -11,6 +11,7 @@ import {
   listWatches,
   loadDbConfig,
   readAlertCandidates,
+  readAlertSettings,
   readAtomTexts,
   readDedupeCandidates,
   readFitScore,
@@ -31,6 +32,7 @@ import {
   saveJobForm,
   savePollResult,
   savePreferences,
+  setAlertSettings,
   setJobField,
   soleCandidate,
   withdrawClosedApplications,
@@ -114,6 +116,7 @@ try {
     Intl.DateTimeFormat().resolvedOptions().timeZone,
   );
   if (!alertConfig.ok) throw new AlertSettingError(alertConfig.setting);
+  const defaults = alertConfig.value;
   const alerts = () => {
     // One clock for the pass: the read's window and every decision use the same now.
     const now = new Date();
@@ -124,9 +127,11 @@ try {
         watches: () => listWatches(db, candidateId),
         alert: (input) => recordFreshAlert(db, { ...input, candidateId }),
         hold: (input) => recordAlertHeld(db, { ...input, candidateId }),
+        // Paul's stored settings over the ALERT_* defaults, read each pass (NS-199 slice 2).
+        settings: () => readAlertSettings(db, candidateId),
       },
       now,
-      alertConfig.value,
+      defaults,
     );
   };
   // One scoring pass over the current preferences and resume import (NS-116), then the alert
@@ -154,6 +159,11 @@ try {
     readText: (path) => readFile(resolve(process.env.INIT_CWD ?? process.cwd(), path), "utf8"),
     list: () => listJobs(db, candidateId),
     set: (jobId, field, value) => setJobField(db, { candidateId, jobId, field, value }),
+    alerts: {
+      defaults,
+      read: () => readAlertSettings(db, candidateId),
+      save: (change) => setAlertSettings(db, { candidateId, change }),
+    },
     // A saved Greenhouse job's form (NS-227), read through the same safe fetcher as `jobs add`.
     form: {
       sources: (jobId) => readJobAtsSources(db, candidateId, jobId),

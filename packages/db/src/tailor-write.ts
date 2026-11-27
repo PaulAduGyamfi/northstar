@@ -186,6 +186,11 @@ export type TailorSummary = {
   atsPass: boolean;
   valid: boolean;
   failures: number;
+  // Independent-work entries and lines in the stored version (NS-231 slice 4, DX-010). Counts
+  // only, never a title, line or link. Optional so callers and fixtures that tailor no work
+  // needn't set them; `summarize` in packages/profile always does.
+  workEntries?: number;
+  workLines?: number;
 };
 
 export type SaveTailoredInput = {

@@ -7,11 +7,17 @@ export {
   type AlertStore,
   alertPass,
   decideAlert,
+  type EffectiveAlertConfig,
+  effectiveAlertConfig,
   FRESH_MINUTES,
   inQuietHours,
   jobTier,
   loadAlertConfig,
+  parseQuietHours,
+  parseTier1,
+  parseTimeZone,
   scoreThenAlert,
+  settingsSource,
 } from "./alerts.js";
 export { type AtsTarget, detectAts } from "./ats/detect.js";
 export { findDuplicate, type Match, nameKey, SIMILARITY, similarity } from "./dedupe.js";
