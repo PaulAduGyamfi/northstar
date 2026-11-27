@@ -38,6 +38,9 @@ importers:
       '@northstar/llm':
         specifier: workspace:*
         version: link:../../packages/llm
+      '@northstar/profile':
+        specifier: workspace:*
+        version: link:../../packages/profile
       '@northstar/sources':
         specifier: workspace:*
         version: link:../../packages/sources

@@ -15,6 +15,7 @@ import {
   loadDbConfig,
   readApplicationHistories,
   readApplicationTimeline,
+  readCareerDnaHistory,
   readCheckIns,
   readConsentPolicy,
   readConsentText,
@@ -70,6 +71,8 @@ import { accountsEndpoints } from "./accounts.js";
 import { dbApprovalPorts } from "./approval-ports.js";
 import { approvalEndpoints } from "./approvals.js";
 import { captureEndpoint } from "./capture.js";
+import { careerDnaEndpoints } from "./career-dna.js";
+import { careerDnaWording } from "./career-dna-wording.js";
 import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
 import { consentEndpoints } from "./consent.js";
 import { deadLetterEndpoints } from "./dead-letters.js";
@@ -252,6 +255,12 @@ try {
     caps: llmBudget,
     spent: dbSpendMeter(db, candidateId).spent,
   });
+  // The Career DNA page (NS-130 slice 8): the stored history, read-only, and the report's own
+  // diff wording and dimension names from packages/profile (career-dna-wording.ts).
+  const careerDna = careerDnaEndpoints({
+    history: async () => readCareerDnaHistory(db, await candidateId()),
+    ...careerDnaWording(),
+  });
   // One set of sessions for the sign-in key and passkeys, so both open the same kind of session
   // and their failures count toward one throttle (ADR-0022).
   const sessions = createSessions(Date.now);
@@ -292,6 +301,7 @@ try {
       ...pipeline,
       ...inbox,
       ...growth,
+      ...careerDna,
       ...deadLetters,
       ...spend,
       ...passkeys,

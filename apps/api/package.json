@@ -21,6 +21,7 @@
     "@northstar/domain": "workspace:*",
     "@northstar/gateways": "workspace:*",
     "@northstar/llm": "workspace:*",
+    "@northstar/profile": "workspace:*",
     "@northstar/sources": "workspace:*",
     "@opentelemetry/api": "1.9.1",
     "@simplewebauthn/server": "14.1.0",
