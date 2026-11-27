@@ -666,6 +666,13 @@
       "when": 1795758879571,
       "tag": "0094_reply_draft_ledger_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1795760556806,
+      "tag": "0095_vault_reveal_guards",
+      "breakpoints": true
     }
   ]
 }

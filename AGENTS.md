@@ -896,7 +896,11 @@ Exists now:
   tenant on Settings → Accounts (`apps/web`, `src/reveal.ts`, `reveal-button.tsx`) runs the passkey
   prompt against those routes, shows the password once in that row's component state, and clears
   it after 30 seconds, on Hide or when Paul leaves the page; never storage, a cookie or the URL.
-  The three database guards from #290 are still to come.
+  Since NS-246 slice 2 also the reveal's database guards (migration 0095): a `vault_access` row
+  under a `vault_reveal` decision must be `reveal_to_user`, and a `reveal_to_user` row needs a
+  `vault_reveal` decision; nobody withdraws a reveal (`withdrawApproval` answers `NotFound`, the
+  withdrawal trigger refuses it); and its `approval.requested` reads "You asked to see a saved
+  password", never naming the tenant.
 - `docker-compose.yml` + `.env.example` (NS-104): the local stack. Named volumes only, ports on
   127.0.0.1, images pinned by digest. No host bind mounts, `privileged` or `build:` in it, ever.
   Editing any compose file with the editor asks Paul. The sandboxed shell can't write
