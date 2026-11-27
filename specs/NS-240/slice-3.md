@@ -2,7 +2,7 @@
 
 Status: in progress (autonomous lane, ADR-0016)
 Requirements: CAL-001, CAL-002, NFR-SEC-002 · ADR-0026 (Accepted) items 1, 2 and 7 · ADR-0014
-Rules that apply: `.claude/rules/inbox.md`, `.claude/rules/tests.md`, AGENTS.md "Secrets".
+Rules that apply: `.claude/rules/tests.md`, AGENTS.md "Secrets" and "Product rules".
 Issue #271. Slices 1–2: #305, #320.
 
 ## Why
@@ -29,13 +29,13 @@ run, no refresh token).
   screen himself (ADR-0026 item 7).
 
 ## Acceptance criteria
-- [ ] The consent URL asks for `calendar.events.readonly` only, with PKCE S256, `access_type=online`
+- [x] The consent URL asks for `calendar.events.readonly` only, with PKCE S256, `access_type=online`
   and a `127.0.0.1` redirect.
-- [ ] A grant of exactly that scope returns a `CalendarAccess` that never prints its token.
-- [ ] A grant with a Gmail scope, a wider Calendar scope, several scopes or none is refused.
-- [ ] A forged `state`, a cancelled consent and a timeout are refused, as for Gmail.
-- [ ] Every existing `authorizeGmail` test still passes unchanged.
-- [ ] `pnpm turbo run lint typecheck test build` passes in `packages/inbox`.
+- [x] A grant of exactly that scope returns a `CalendarAccess` that never prints its token.
+- [x] A grant with a Gmail scope, a wider Calendar scope, several scopes or none is refused.
+- [x] A forged `state`, a cancelled consent and a timeout are refused, as for Gmail.
+- [x] Every existing `authorizeGmail` test still passes unchanged.
+- [x] `pnpm turbo run lint typecheck test build` passes in `packages/inbox`.
 
 ## Out of scope
 - The detection caller, the API and the page; free/busy (`calendar.freebusy`) and writes.

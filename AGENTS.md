@@ -494,7 +494,11 @@ Exists now:
     test). A boundary scan of `src/calendar/` refuses writes, other endpoints and calendars, and
     the excluded fields.
 
-  ADR-0026 is accepted; no consent flow yet (#271).
+  ADR-0026 is accepted. Since NS-240 slice 3 also its consent flow, `authorizeCalendar`
+  (`oauth.ts`): the same desktop PKCE flow as `authorizeGmail` (one private shared flow), asking
+  for `calendar.events.readonly` only, with no refresh token. A grant of anything but exactly that
+  scope (a Gmail scope, a wider Calendar scope, several) is refused, and it returns a
+  `CalendarAccess`. No caller yet.
   Since NS-240 slice 2 also storage and Paul's decision, in `packages/db` (`interview-schema.ts`,
   `interview-write.ts`, append-only):
   - `recordInterviewDetection` stores a detection once in `interview_detection`, with an
