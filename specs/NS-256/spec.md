@@ -11,14 +11,16 @@ afterwards: it can add a combobox or a name-less required field, or turn the sin
 CAPTCHA-tied one. `fillAndSubmit` re-checked only the form count and the number of submit buttons.
 
 ## Behavior
-- Just before counting and clicking the submit, `fillAndSubmit` re-runs
-  `checkCollected(await page.evaluate(collectPage, null))`. It throws a `DriverError`, before
-  pressing anything, if:
-  - a challenge now shows (`challengeOf`);
-  - the number of forms changed;
-  - `formProblem` of the picked form is no longer null (the code goes on the span as
-    `northstar.apply.form_problem`).
-- The gateway already turns a `DriverError` into a `driver_error` handoff.
+- Just before counting and clicking the submit, `fillAndSubmit` checks the page is still on the
+  adapter's hosts and re-runs `checkCollected(await page.evaluate(collectPage, null))`. Before
+  pressing anything:
+  - a challenge that now shows comes back as `{ kind: "challenge" }`, as at `open`, so the
+    gateway hands it to Paul with its deep link (a challenge reason), clearly unsent (review);
+  - a changed number of forms, or a picked form whose `formProblem` is no longer null, throws a
+    `DriverError` (the code goes on the span as `northstar.apply.form_problem`), which the
+    gateway turns into a `driver_error` handoff.
+- Known limit: the re-read checks the form's shape, not its identity; a script could swap in a
+  different form of the same count and shape.
 
 ## The assertion change (approved on #359)
 Two tests in `driver.test.ts` assert the driver's exact action list:

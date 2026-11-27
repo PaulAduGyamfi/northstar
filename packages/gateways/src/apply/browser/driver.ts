@@ -257,9 +257,14 @@ export function createPlaywrightDriver(options: DriverOptions): FormDriver {
       // before the one step that can't be taken back, and refuse a challenge, a different number
       // of forms, or a form that now has a problem. Nothing has been pressed yet.
       guard();
+      if (!onHosts(hosts, page.url())) throw new DriverError("the page left the adapter's hosts");
       const again = checkCollected(await page.evaluate(collectPage, null));
-      if (challengeOf(again.signals) !== null) {
-        throw new DriverError("a challenge appeared before submit");
+      // A challenge is reported as one, like `open` does: the gateway hands it to Paul with its
+      // deep link, and it is clear nothing was pressed (a DriverError would read "may have gone").
+      const challenge = challengeOf(again.signals);
+      if (challenge !== null) {
+        form = null;
+        return { kind: "challenge", challenge };
       }
       if (again.forms.length !== count) {
         throw new DriverError(`the page now has ${again.forms.length} forms, not ${count}`);

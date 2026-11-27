@@ -277,14 +277,12 @@ describe("fillAndSubmit re-reads the form just before submit (NS-256)", () => {
     expect(clicked(fake)).toBe(false);
   });
 
-  it("refuses when a CAPTCHA appears after open, and presses nothing", async () => {
+  it("reports a CAPTCHA that appears after open as a challenge, and presses nothing", async () => {
     const { page, fake, driver } = changing();
     await driver.open(URL_GH);
     const before = Array.from(page.getElementsByTagName("*"));
     page.getElementsByTagName = () => [...before, el("div", { class: "h-captcha" })];
-    await expect(driver.fillAndSubmit([], [])).rejects.toThrow(
-      new DriverError("a challenge appeared before submit"),
-    );
+    expect(await driver.fillAndSubmit([], [])).toEqual({ kind: "challenge", challenge: "captcha" });
     expect(clicked(fake)).toBe(false);
   });
 });
