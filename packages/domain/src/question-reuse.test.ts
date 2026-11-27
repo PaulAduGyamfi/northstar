@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { matchQuestion } from "./question-match.js";
 import {
+  isDisguisedLabel,
   isExactWording,
   labelReuse,
   REUSE_HIGH_CONFIDENCE,
@@ -76,6 +77,26 @@ describe("labelReuse against disguised labels and companies (security review)", 
       "new",
       "new",
     ]);
+  });
+});
+
+describe("isDisguisedLabel", () => {
+  it("flags the invisible, modifier, Greek and Cyrillic characters labelReuse refuses", () => {
+    const labels = [
+      "Why would you n\u043et want to work at Example Corp?",
+      "Why would you n\u200bot want to work at Example Corp?",
+      "Why wouldn\u02bct you want to work at Example Corp?",
+      "Why would you n\u03bft want to work at Example Corp?",
+    ];
+    expect(labels.map(isDisguisedLabel)).toEqual([true, true, true, true]);
+  });
+
+  it("leaves a plain label, curly apostrophe included, alone", () => {
+    expect(
+      ["Why do you want to work at Example Corp?", "Why wouldn\u2019t you join us?"].map(
+        isDisguisedLabel,
+      ),
+    ).toEqual([false, false]);
   });
 });
 

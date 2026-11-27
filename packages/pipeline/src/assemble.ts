@@ -3,6 +3,7 @@ import {
   type ApplyAts,
   err,
   type InvalidPackage,
+  isDisguisedLabel,
   isExactWording,
   ok,
   type PackageFacts,
@@ -156,7 +157,11 @@ function answer(q: FormQuestion, input: AssemblyInput): Answer {
     narrativeKindOf(match.canonical.id) === null ||
     // A negated label ("Why would you NOT…") asks the opposite of the banked question, and the
     // matcher drops "not" as filler: never reuse an answer for it (the shared check, NS-244).
-    isNegatedQuestion(q.label)
+    isNegatedQuestion(q.label) ||
+    // A label with invisible, modifier or Greek or Cyrillic characters may hide that "not" from
+    // both checks ("nоt" with a Cyrillic о): the Gate's own rule (NS-249), so the producer never
+    // drafts Paul's answer to what may be the opposite question (NS-272). A model's pick too.
+    isDisguisedLabel(q.label)
   ) {
     return { ok: false, reason: "not_matched" };
   }

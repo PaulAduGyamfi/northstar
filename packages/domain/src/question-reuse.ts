@@ -43,7 +43,11 @@ export function isExactWording(
 // formatting (zero-width spaces, direction marks), modifier letters (U+02BC as an apostrophe in
 // "wouldnʼt") and Greek or Cyrillic lookalikes ("nоt" with a Cyrillic о). A label holding any of
 // them never earns reuse; it only goes to Paul.
+// The producer (packages/pipeline) runs the same check, so it never drafts a banked answer for one
+// (NS-272).
 const DISGUISED = /[\p{Cf}\u02B0-\u02FF\p{Script=Greek}\p{Script=Cyrillic}]/u;
+
+export const isDisguisedLabel = (label: string): boolean => DISGUISED.test(label);
 
 // The strength from a match code already made (the producer's path, which also takes a model's
 // pick only to fill, never to count as reuse).
@@ -61,7 +65,7 @@ export function reuseStrength(
 // question is answered from settings, never the bank), and the label isn't negated ("Why would you
 // NOT…" asks the opposite of the banked question; the matcher drops "not" as filler).
 export function labelReuse(label: string, canonicalId: string, company: string): ReuseSource {
-  if (DISGUISED.test(label)) return "new";
+  if (isDisguisedLabel(label)) return "new";
   const match = matchQuestion(label);
   if (match.status !== "matched" || match.canonical.id !== canonicalId) return "new";
   if (match.canonical.kind === "factual" || isNegatedQuestion(label)) return "new";
