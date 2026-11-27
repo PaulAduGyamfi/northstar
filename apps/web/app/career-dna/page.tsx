@@ -97,8 +97,7 @@ export default async function CareerDnaPage() {
               ) : (
                 <ul>
                   {where.list.map(directionRow).map((d) => (
-                    // Each role family appears once in the list.
-                    <li key={d.role}>
+                    <li key={d.key}>
                       <strong>{d.role}</strong>: {d.coverage}. {d.evidence}. {d.fresh}.
                       {d.gaps.length === 0 ? null : (
                         <> Asked for, not yet proven: {d.gaps.join(", ")}.</>

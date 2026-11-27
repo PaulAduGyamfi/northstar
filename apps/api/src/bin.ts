@@ -72,7 +72,7 @@ import { accountsEndpoints } from "./accounts.js";
 import { dbApprovalPorts } from "./approval-ports.js";
 import { approvalEndpoints } from "./approvals.js";
 import { captureEndpoint } from "./capture.js";
-import { careerDirectionsEndpoints } from "./career-directions.js";
+import { careerDirectionsEndpoints, directionJobs } from "./career-directions.js";
 import { careerDnaEndpoints } from "./career-dna.js";
 import { careerDnaWording } from "./career-dna-wording.js";
 import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
@@ -271,14 +271,7 @@ try {
     jobs: async () => {
       const id = await candidateId();
       const [scorable, listed] = await Promise.all([readScorableJobs(db, id), listJobs(db, id)]);
-      // A job is fresh by its posting date, or by when it was first seen when the posting has none.
-      const dated = new Map(listed.map((j) => [j.id, j.postedAt ?? j.firstSeenAt]));
-      return scorable.map((j) => ({
-        id: j.id,
-        title: j.title,
-        requirements: j.requirements,
-        postedAt: dated.get(j.id) ?? null,
-      }));
+      return directionJobs(scorable, listed);
     },
     dimensions: async () => {
       const [newest] = await readCareerDnaHistory(db, await candidateId());

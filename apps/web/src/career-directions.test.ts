@@ -10,6 +10,7 @@ import {
 // roles and requirements only.
 
 const DIRECTION: CareerDirectionView = {
+  rank: 1,
   role: "backend engineer",
   jobCount: 4,
   coverage: 62,
@@ -24,6 +25,7 @@ const DIRECTION: CareerDirectionView = {
 describe("directionRow", () => {
   it("says a direction's coverage, evidence, fresh jobs and gaps in words", () => {
     expect(directionRow(DIRECTION)).toEqual({
+      key: "1",
       role: "backend engineer",
       coverage: "Your work covers 62% of what 4 jobs ask for",
       evidence: "Backed by 3 lines of your work",
@@ -45,16 +47,28 @@ describe("directionRow", () => {
 describe("gapLine", () => {
   it("suggests proof for a thin or low dimension, with its evidence count", () => {
     expect([
-      gapLine({ kind: "dimension", label: "Leadership", band: "not_enough", evidenceCount: 1 }),
-      gapLine({ kind: "dimension", label: "Communication", band: "low", evidenceCount: 4 }),
+      gapLine({
+        rank: 1,
+        kind: "dimension",
+        label: "Leadership",
+        band: "not_enough",
+        evidenceCount: 1,
+      }),
+      gapLine({
+        rank: 2,
+        kind: "dimension",
+        label: "Communication",
+        band: "low",
+        evidenceCount: 4,
+      }),
     ]).toEqual([
       {
-        key: "dimension:Leadership",
+        key: "1",
         what: "Build proof for Leadership",
         why: "Not enough evidence yet: 1 item",
       },
       {
-        key: "dimension:Communication",
+        key: "2",
         what: "Build proof for Communication",
         why: "Low evidence: 4 items",
       },
@@ -64,6 +78,7 @@ describe("gapLine", () => {
   it("suggests proof for a requirement, with the share of jobs that ask for it", () => {
     expect(
       gapLine({
+        rank: 3,
         kind: "requirement",
         requirement: "Kafka",
         role: "backend engineer",
@@ -71,7 +86,7 @@ describe("gapLine", () => {
         share: 75,
       }),
     ).toEqual({
-      key: "requirement:Kafka",
+      key: "3",
       what: "Build proof for Kafka",
       why: "75% of backend engineer jobs ask for it (3 jobs)",
     });

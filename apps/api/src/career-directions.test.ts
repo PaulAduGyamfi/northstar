@@ -6,6 +6,7 @@ import {
   careerDirectionsEndpoints,
   type DirectionDimension,
   type DirectionsPorts,
+  directionJobs,
   POSTING_TEXT_MAX,
   postingText,
 } from "./career-directions.js";
@@ -123,6 +124,7 @@ describe("GET /career-dna/directions", () => {
           hasReport: true,
           list: [
             {
+              rank: 1,
               role: "backend engineer",
               jobCount: 2,
               coverage: 50,
@@ -132,8 +134,15 @@ describe("GET /career-dna/directions", () => {
             },
           ],
           gaps: [
-            { kind: "dimension", label: "Leadership", band: "not_enough", evidenceCount: 1 },
             {
+              rank: 1,
+              kind: "dimension",
+              label: "Leadership",
+              band: "not_enough",
+              evidenceCount: 1,
+            },
+            {
+              rank: 2,
               kind: "requirement",
               requirement: "Kafka",
               role: "backend engineer",
@@ -150,7 +159,7 @@ describe("GET /career-dna/directions", () => {
     tracks = [{ name: "Kafka", status: "active" }];
     const body = JSON.parse((await get()).body);
     expect(body.directions.gaps).toEqual([
-      { kind: "dimension", label: "Leadership", band: "not_enough", evidenceCount: 1 },
+      { rank: 1, kind: "dimension", label: "Leadership", band: "not_enough", evidenceCount: 1 },
     ]);
   });
 
@@ -198,5 +207,26 @@ describe("postingText", () => {
   it("cuts by whole code points, never leaving half of a pair", () => {
     const shown = postingText("😀".repeat(POSTING_TEXT_MAX + 5));
     expect([Array.from(shown).length, shown.endsWith("😀")]).toEqual([POSTING_TEXT_MAX, true]);
+  });
+});
+
+describe("directionJobs", () => {
+  it("dates each job by its posting, else by when it was first seen, and an unlisted one not at all", () => {
+    const seen = daysAgo(3);
+    const posted = daysAgo(10);
+    const scorable = [
+      { id: JOB_A, title: "Backend Engineer", requirements: ["Go"] },
+      { id: JOB_B, title: "Backend Engineer", requirements: ["Kafka"] },
+      { id: ATOM, title: null, requirements: [] },
+    ];
+    const listed = [
+      { id: JOB_B, postedAt: null, firstSeenAt: seen },
+      { id: JOB_A, postedAt: posted, firstSeenAt: seen },
+    ];
+    expect(directionJobs(scorable, listed).map((j) => [j.id, j.postedAt])).toEqual([
+      [JOB_A, posted],
+      [JOB_B, seen],
+      [ATOM, null],
+    ]);
   });
 });

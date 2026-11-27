@@ -6,12 +6,15 @@ import { z } from "zod";
 
 const Gap = z.discriminatedUnion("kind", [
   z.object({
+    // Its place in the list, 1 first: the row key.
+    rank: z.number(),
     kind: z.literal("dimension"),
     label: z.string(),
     band: z.enum(["not_enough", "low"]),
     evidenceCount: z.number(),
   }),
   z.object({
+    rank: z.number(),
     kind: z.literal("requirement"),
     requirement: z.string(),
     role: z.string(),
@@ -22,6 +25,8 @@ const Gap = z.discriminatedUnion("kind", [
 export type ProofGap = z.infer<typeof Gap>;
 
 const Direction = z.object({
+  // Its place in the list, 1 first: the row key, since posting text can look the same twice.
+  rank: z.number(),
   role: z.string(),
   jobCount: z.number(),
   // Matched must-haves over all of them, a whole percent; null when its jobs list none.
@@ -48,6 +53,7 @@ const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : 
 const jobs = (n: number) => count(n, "job", "jobs");
 
 export type DirectionRow = {
+  key: string;
   role: string;
   coverage: string;
   evidence: string;
@@ -60,6 +66,7 @@ export type DirectionRow = {
 // prove yet.
 export function directionRow(d: CareerDirectionView): DirectionRow {
   return {
+    key: String(d.rank),
     role: d.role,
     coverage:
       d.coverage === null
@@ -74,12 +81,11 @@ export function directionRow(d: CareerDirectionView): DirectionRow {
   };
 }
 
-// One "proof to build" suggestion and why it is there. The key tells a dimension apart from a
-// requirement of the same name.
+// One "proof to build" suggestion and why it is there, keyed by its place in the list.
 export function gapLine(g: ProofGap): { key: string; what: string; why: string } {
   if (g.kind === "dimension") {
     return {
-      key: `dimension:${g.label}`,
+      key: String(g.rank),
       what: `Build proof for ${g.label}`,
       why:
         g.band === "not_enough"
@@ -88,7 +94,7 @@ export function gapLine(g: ProofGap): { key: string; what: string; why: string }
     };
   }
   return {
-    key: `requirement:${g.requirement}`,
+    key: String(g.rank),
     what: `Build proof for ${g.requirement}`,
     why: `${g.share}% of ${g.role} jobs ask for it (${jobs(g.jobs)})`,
   };

@@ -345,7 +345,8 @@ Exists now:
   `fit/directions.ts`, plain code) groups ready jobs into role families by title (seniority words
   and qualifiers dropped; at least 2 jobs), ranks them by how much of their must-haves Paul's atoms
   cover through the Fit Score's `matchRequirements`, and lists each one's matched atoms, its 5
-  most frequent unmatched must-haves and its jobs posted in the last 7 days. No caller yet.
+  most frequent unmatched must-haves and its jobs posted in the last 7 days. Its caller is the
+  Career DNA page's `GET /career-dna/directions` (slice 9).
 
   Since slice 3 also evidence gaps (DNA-006): `evidenceGaps` (`career-dna/gaps.ts`, plain code)
   suggests "Build proof for …" for each low or thin dimension and each must-have gap that 2+ jobs

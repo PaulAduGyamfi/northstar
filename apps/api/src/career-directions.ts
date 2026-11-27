@@ -33,6 +33,22 @@ export type DirectionsPorts = {
   now: () => Date;
 };
 
+// What directions read from a job: its id, title and must-haves, dated by its posting, or by when
+// it was first seen when the posting has none. `listed` gives the dates (listJobs); a scorable job
+// missing from it gets no date, so it never counts as fresh.
+export function directionJobs(
+  scorable: { id: string; title: string | null; requirements: string[] }[],
+  listed: { id: string; postedAt: Date | null; firstSeenAt: Date }[],
+): DirectionJob[] {
+  const dated = new Map(listed.map((j) => [j.id, j.postedAt ?? j.firstSeenAt]));
+  return scorable.map((j) => ({
+    id: j.id,
+    title: j.title,
+    requirements: j.requirements,
+    postedAt: dated.get(j.id) ?? null,
+  }));
+}
+
 // Control characters and invisible formatting characters (U+200B, U+202E…): a posting could use
 // them to make a line read as something else. Line and paragraph separators are listed too,
 // although the whitespace step below already turns them into spaces.
@@ -46,14 +62,17 @@ export function postingText(text: string): string {
   return Array.from(clean).slice(0, POSTING_TEXT_MAX).join("");
 }
 
+// Every suggestion carries its place in the list (1 first), the page's row key.
 const Gap = z.discriminatedUnion("kind", [
   z.object({
+    rank: z.number().int(),
     kind: z.literal("dimension"),
     label: z.string(),
     band: z.enum(["not_enough", "low"]),
     evidenceCount: z.number().int(),
   }),
   z.object({
+    rank: z.number().int(),
     kind: z.literal("requirement"),
     requirement: z.string(),
     role: z.string(),
@@ -69,6 +88,9 @@ const Output = z.object({
       hasReport: z.boolean(),
       list: z.array(
         z.object({
+          // 1 for the best-covered direction: its place in the list, also the page's row key (posting
+          // text can look the same after cleaning, so it can't be the key).
+          rank: z.number().int(),
           role: z.string(),
           jobCount: z.number().int(),
           coverage: z.number().int().nullable(),
@@ -117,9 +139,12 @@ export function careerDirectionsEndpoints(ports: DirectionsPorts): AnyEndpoint[]
         ok: true,
         body: {
           directions: {
+            // A stored report whose keys the current rubric no longer names counts as none: its
+            // dimensions can't be worded, so they can't be suggested from either.
             hasReport: dimensions.length > 0,
             // Field by field: matched atom ids and fresh job ids become counts.
-            list: directions.map((d) => ({
+            list: directions.map((d, i) => ({
+              rank: i + 1,
               role: postingText(d.role),
               jobCount: d.jobCount,
               coverage: d.coverage,
@@ -127,10 +152,17 @@ export function careerDirectionsEndpoints(ports: DirectionsPorts): AnyEndpoint[]
               gaps: d.gaps.map((g) => ({ requirement: postingText(g.requirement), jobs: g.jobs })),
               freshJobs: d.freshJobIds.length,
             })),
-            gaps: gaps.map((g) =>
+            gaps: gaps.map((g, i) =>
               g.kind === "dimension"
-                ? { kind: g.kind, label: g.label, band: g.band, evidenceCount: g.evidenceCount }
+                ? {
+                    rank: i + 1,
+                    kind: g.kind,
+                    label: g.label,
+                    band: g.band,
+                    evidenceCount: g.evidenceCount,
+                  }
                 : {
+                    rank: i + 1,
                     kind: g.kind,
                     requirement: postingText(g.requirement),
                     role: postingText(g.role),
