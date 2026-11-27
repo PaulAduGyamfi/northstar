@@ -2,12 +2,15 @@ import { createHash, randomBytes } from "node:crypto";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { inspect } from "node:util";
+import { CalendarAccess } from "./calendar/access.js";
 import type { GoogleConfig } from "./config.js";
 
-// Google's desktop OAuth flow for read-only Gmail (ADR-0014): authorization code + PKCE (S256),
-// redirected to a one-shot listener on 127.0.0.1. The token lives in memory for one run only.
+// Google's desktop OAuth flow for read-only Gmail (ADR-0014) and, since NS-240 slice 3, read-only
+// Calendar events on its own consent (ADR-0026): authorization code + PKCE (S256), redirected to a
+// one-shot listener on 127.0.0.1. The token lives in memory for one run only.
 
 export const GMAIL_READONLY = "https://www.googleapis.com/auth/gmail.readonly";
+export const CALENDAR_EVENTS_READONLY = "https://www.googleapis.com/auth/calendar.events.readonly";
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 
@@ -46,15 +49,40 @@ export class OAuthError extends Error {
   override name = "OAuthError";
 }
 
+// What one consent run asks for: the single scope, the words for the error when Google grants
+// anything else, and the line shown in the browser tab once connected.
+type ConsentFor = { scope: string; refusal: string; connected: string };
+
 // Runs the consent flow once and returns the in-memory token. Throws OAuthError (never quoting a
 // token or code) on a cancelled consent, a forged callback, a timeout or an over-broad grant.
 export async function authorizeGmail(deps: OAuthDeps): Promise<GmailAccess> {
+  const token = await consentToken(deps, {
+    scope: GMAIL_READONLY,
+    refusal: "Google granted more than gmail.readonly; revoke the app and retry",
+    connected: "Northstar is connected to Gmail (read only). You can close this tab.",
+  });
+  return new GmailAccess(token);
+}
+
+// The Calendar reader's consent (NS-240 slice 3, ADR-0026): `calendar.events.readonly` only, on its
+// own consent and token, never with a Gmail scope. Same refusals as authorizeGmail.
+export async function authorizeCalendar(deps: OAuthDeps): Promise<CalendarAccess> {
+  const token = await consentToken(deps, {
+    scope: CALENDAR_EVENTS_READONLY,
+    refusal: "Google granted more than calendar.events.readonly; revoke the app and retry",
+    connected: "Northstar is connected to Google Calendar (read only). You can close this tab.",
+  });
+  return new CalendarAccess(token);
+}
+
+// The shared flow. Not exported: the raw token leaves it only into a masked access type above.
+async function consentToken(deps: OAuthDeps, want: ConsentFor): Promise<string> {
   const verifier = randomBytes(32).toString("base64url");
   const challenge = createHash("sha256").update(verifier).digest("base64url");
   // A random state ties the callback to this run, so another page can't feed us a code.
   const state = randomBytes(16).toString("base64url");
 
-  const { code, redirectUri } = await waitForCode(deps, state, challenge);
+  const { code, redirectUri } = await waitForCode(deps, state, challenge, want);
   const json = await deps.fetchToken(
     new URLSearchParams({
       code,
@@ -69,12 +97,13 @@ export async function authorizeGmail(deps: OAuthDeps): Promise<GmailAccess> {
   if (typeof token !== "string" || token === "") {
     throw new OAuthError("Google's token response had no access token");
   }
-  // Refuse anything wider than read-only, even if Google remembered an older, broader grant.
+  // The grant decides, not the request: refuse anything but exactly the one scope asked for, even
+  // if Google remembered an older, broader grant.
   const granted = typeof json.scope === "string" ? json.scope.split(" ").filter(Boolean) : [];
-  if (granted.length !== 1 || granted[0] !== GMAIL_READONLY) {
-    throw new OAuthError("Google granted more than gmail.readonly; revoke the app and retry");
+  if (granted.length !== 1 || granted[0] !== want.scope) {
+    throw new OAuthError(want.refusal);
   }
-  return new GmailAccess(token);
+  return token;
 }
 
 // Starts the 127.0.0.1 listener, opens the consent page and waits for one valid callback.
@@ -82,6 +111,7 @@ function waitForCode(
   deps: OAuthDeps,
   state: string,
   challenge: string,
+  want: ConsentFor,
 ): Promise<{ code: string; redirectUri: string }> {
   return new Promise((resolve, reject) => {
     let redirectUri = "";
@@ -108,7 +138,7 @@ function waitForCode(
         done(400, "No code in the callback.");
         return finish(new OAuthError("The OAuth callback had no code"));
       }
-      done(200, "Northstar is connected to Gmail (read only). You can close this tab.");
+      done(200, want.connected);
       finish(null, code);
     });
     const timer = setTimeout(
@@ -135,7 +165,7 @@ function waitForCode(
         client_id: deps.config.clientId,
         redirect_uri: redirectUri,
         response_type: "code",
-        scope: GMAIL_READONLY,
+        scope: want.scope,
         code_challenge: challenge,
         code_challenge_method: "S256",
         state,

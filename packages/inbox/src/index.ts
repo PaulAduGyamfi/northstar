@@ -93,7 +93,9 @@ export {
 } from "./mail-classify-route.js";
 export { MAIL_KINDS, MailClassification, STAGE_SIGNALS } from "./mail-schema.js";
 export {
+  authorizeCalendar,
   authorizeGmail,
+  CALENDAR_EVENTS_READONLY,
   GMAIL_READONLY,
   GmailAccess,
   googleTokenEndpoint,
