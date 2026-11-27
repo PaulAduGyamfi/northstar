@@ -40,15 +40,17 @@ call (a `needs:paul` issue). This slice builds what every option shares.
 
   The fills are the adapter's standard contact fields (by the same names the gateway adapters use;
   no phone field when there is no phone), then the package's own fields. A package field that
-  reuses a standard field's name is refused (`form_changed`), as the gateway's `mapPackage` does.
+  reuses a standard or file field's name, or holds a control character, is refused
+  (`form_changed`), as the gateway's `mapPackage` does.
 - **`fillForm(fills)`** runs in the page (self-contained, so Chrome can serialise it). For each fill
   it finds the elements with that exact `name` and sets the value only on a visible, enabled
   `input` (not file, hidden, submit, button, image or reset), `textarea` or `select` whose options
-  include the value. A checkbox or radio is checked only when its value is one of the values. It
+  include the value. A checkbox or radio group is touched only when one of its visible boxes carries a chosen
+  value. It
   fires `input` and `change` events and never clicks, submits or focuses a button. It returns
   counts (filled, skipped), never values.
 - **`packageRequest(settings, handoffId, grant)`** builds the `POST /handoffs/package` request
-  with the extension's token and a 30-second time limit (RES-005). `prefillMessage(status, body)`
+  with the extension's token and a 30-second time limit (RES-005). `prefillMessage(code)` and `filledMessage(counts)`
   says what happened in plain words.
 
 Nothing calls `prefillPlan`, `fillForm` or `packageRequest` yet: the popup wiring waits on the

@@ -82,6 +82,10 @@ describe("prefillPlan", () => {
       ok: false,
       refusal: "form_changed",
     });
+    expect(prefillPlan({ ...PKG, fields: { "question\n1": "x" } }, PKG.applyUrl)).toEqual({
+      ok: false,
+      refusal: "form_changed",
+    });
   });
 });
 
@@ -191,6 +195,17 @@ describe("fillForm", () => {
     const { doc } = page({ where: [remote, onsite] });
     fillForm([{ name: "where", value: ["Remote"] }], doc);
     expect([remote.checked, onsite.checked]).toEqual([true, false]);
+  });
+
+  it("leaves a radio group untouched and counts it skipped when no option carries the value", () => {
+    const yes = el({ tagName: "INPUT", type: "radio", value: "Yes", checked: true });
+    const no = el({ tagName: "INPUT", type: "radio", value: "No", checked: false });
+    const { doc } = page({ q: [yes, no] });
+    expect([fillForm([{ name: "q", value: "Maybe" }], doc), yes.checked, no.checked]).toEqual([
+      { filled: 0, skipped: 1 },
+      true,
+      false,
+    ]);
   });
 
   it("asks for each field by its exact name, with quotes escaped", () => {

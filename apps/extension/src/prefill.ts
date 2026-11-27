@@ -102,9 +102,10 @@ export function prefillPlan(
     return { ok: false, refusal: "wrong_page" };
   }
   const standard = adapter.standard(pkg.contact);
-  // A package field may not take over a contact or file field (the gateway's mapPackage rule).
+  // A package field may not take over a contact or file field (the gateway's mapPackage rule),
+  // and a name with a control character is no form's (the gateway's driver refuses it too).
   for (const name of Object.keys(pkg.fields)) {
-    if (name in standard || adapter.files.includes(name)) {
+    if (name in standard || adapter.files.includes(name) || /\p{Cc}/u.test(name)) {
       return { ok: false, refusal: "form_changed" };
     }
   }
@@ -148,6 +149,15 @@ export function fillForm(fills: Fill[], doc: FillDocument = document as unknown 
   for (const fill of fills) {
     const values = Array.isArray(fill.value) ? fill.value : [fill.value];
     const els = Array.from(fill.name ? doc.querySelectorAll(selectorFor(fill.name)) : []);
+    const visible = (el: FillElement) => !el.disabled && !el.hidden && el.offsetParent !== null;
+    const isChoice = (el: FillElement) =>
+      el.tagName.toLowerCase() === "input" &&
+      ["checkbox", "radio"].includes((el.type ?? "").toLowerCase());
+    // A checkbox or radio group is touched only when one of its visible boxes carries a chosen
+    // value; otherwise Paul's or the page's choice stays as it is and the fill counts as skipped.
+    const choiceMatches = els.some(
+      (el) => isChoice(el) && visible(el) && values.includes(el.value),
+    );
     let done = false;
     for (const el of els) {
       const tag = el.tagName.toLowerCase();
@@ -155,6 +165,7 @@ export function fillForm(fills: Fill[], doc: FillDocument = document as unknown 
       // Hidden by the page or not laid out (offsetParent null): Paul couldn't see it.
       if (el.disabled || el.hidden || el.offsetParent === null) continue;
       if (tag === "input" && (type === "checkbox" || type === "radio")) {
+        if (!choiceMatches) continue;
         const on = values.includes(el.value);
         if (el.checked !== on) {
           el.checked = on;

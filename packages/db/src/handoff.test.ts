@@ -318,6 +318,35 @@ describe("recordHandoffPrefill", () => {
     expect([r, await prefilledEvents()]).toEqual([{ ok: false, error: { kind: "NotFound" } }, []]);
   });
 
+  it("refuses an application that isn't the handoff's own, and stores nothing", async () => {
+    const { handoffId } = await openOne();
+    const r = await recordHandoffPrefill(db, {
+      candidateId,
+      handoffId,
+      applicationId: randomUUID(),
+      ats: "greenhouse",
+      fieldCount: 3,
+      grantKey: "0123456789abcdef",
+    });
+    expect([r, await prefilledEvents()]).toEqual([{ ok: false, error: { kind: "NotFound" } }, []]);
+  });
+
+  it.each([-1, 2.5, 201])("refuses a field count of %s, and stores nothing", async (fieldCount) => {
+    const { handoffId, applicationId } = await openOne();
+    const r = await recordHandoffPrefill(db, {
+      candidateId,
+      handoffId,
+      applicationId,
+      ats: "greenhouse",
+      fieldCount,
+      grantKey: "0123456789abcdef",
+    });
+    expect([r, await prefilledEvents()]).toEqual([
+      { ok: false, error: { kind: "InvalidInput" } },
+      [],
+    ]);
+  });
+
   it("refuses a grant key that isn't 16 hex characters, and stores nothing", async () => {
     const { handoffId, applicationId } = await openOne();
     const r = await recordHandoffPrefill(db, {

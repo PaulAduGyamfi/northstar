@@ -277,13 +277,17 @@ export async function recordHandoffPrefill(
       if (input.fieldCount < 0 || input.fieldCount > 200) {
         return err({ kind: "InvalidInput" as const });
       }
+      // The candidate's own handoff, for this very application (through its submission), so the
+      // event's payload can't name another application.
       const [h] = await tx
         .select({ id: applyHandoff.id })
         .from(applyHandoff)
+        .innerJoin(applySubmission, eq(applySubmission.id, applyHandoff.submissionId))
         .where(
           and(
             eq(applyHandoff.id, input.handoffId),
             eq(applyHandoff.candidateId, input.candidateId),
+            eq(applySubmission.applicationId, input.applicationId),
           ),
         );
       if (!h) return err({ kind: "NotFound" as const });
