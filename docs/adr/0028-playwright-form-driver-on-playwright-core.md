@@ -1,6 +1,6 @@
 # ADR-0028 — The form driver runs on playwright-core with an installed Chromium
 
-**Status:** Proposed · **Date:** 2026-11-26
+**Status:** Accepted (Paul, by delegation to the orchestrator on 2026-11-27) · **Date:** 2026-11-26
 
 ## Context
 APPLY-008 asks for a browser that fills and submits application forms. NS-120 built the Apply
