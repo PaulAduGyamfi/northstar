@@ -280,3 +280,34 @@ describe("pre-fill messages", () => {
     );
   });
 });
+
+describe("fillForm on a page whose framework tracks the value", () => {
+  it("sets the value through the element's own prototype setter, not a shadowing one", () => {
+    // React-style: the prototype holds the real setter and the element shadows `value` to track it.
+    const proto = {
+      real: "",
+      set value(v: string) {
+        this.real = v;
+      },
+      get value() {
+        return this.real;
+      },
+    };
+    const tracked: string[] = [];
+    const el = Object.create(proto) as FillElement & { real: string };
+    Object.defineProperty(el, "value", {
+      configurable: true,
+      get: () => el.real,
+      set: (v: string) => tracked.push(v),
+    });
+    Object.assign(el, {
+      tagName: "INPUT",
+      type: "text",
+      offsetParent: {},
+      dispatchEvent: () => true,
+    });
+    const doc: FillDocument = { querySelectorAll: () => [el] };
+    fillForm([{ name: "first_name", value: "Jo" }], doc);
+    expect([el.real, tracked]).toEqual(["Jo", []]);
+  });
+});
