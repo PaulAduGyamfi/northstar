@@ -90,12 +90,51 @@ describe("isDisguisedLabel", () => {
     expect(isDisguisedLabel(label)).toBe(true);
   });
 
+  it.each([
+    "Why would you n\u0585t want to work at Example Corp?",
+    "Why would you no\u0301t want to work at Example Corp?",
+    "Why would you no\u034ft want to work at Example Corp?",
+    "Why would you no\ufe0ft want to work at Example Corp?",
+    "Why would you n\u2800ot want to work at Example Corp?",
+    "Why would you n\u13a4t want to work at Example Corp?",
+    "Why would you n\u3164ot want to work at Example Corp?",
+  ])("flags another script's letter or a hidden mark or blank (%s, NS-273)", (label) => {
+    expect(isDisguisedLabel(label)).toBe(true);
+  });
+
+  it("leaves accented Latin letters, dashes and symbols alone", () => {
+    expect(
+      [
+        "Why do you want to work at Soci\u00e9t\u00e9 G\u00e9n\u00e9rale?",
+        "Why do you want to work at Example Corp? \u2014 2\u20133 sentences, 100%",
+      ].map(isDisguisedLabel),
+    ).toEqual([false, false]);
+  });
+
   it("leaves a plain label, curly apostrophe included, alone", () => {
     expect(
       ["Why do you want to work at Example Corp?", "Why wouldn\u2019t you join us?"].map(
         isDisguisedLabel,
       ),
     ).toEqual([false, false]);
+  });
+});
+
+describe("labelReuse against other-script lookalikes and hidden marks (NS-273)", () => {
+  it.each([
+    "Why would you n\u0585t want to work at Example Corp?",
+    "Why would you no\u0301t want to work at Example Corp?",
+    "Why would you n\u2800ot want to work at Example Corp?",
+    "Why would you n\u13a4t want to work at Example Corp?",
+  ])("never counts reuse for %s", (label) => {
+    expect(labelReuse(label, "why-this-company", COMPANY)).toBe("new");
+  });
+
+  it("still counts an accented company name's own wording as exact", () => {
+    const company = "Soci\u00e9t\u00e9 G\u00e9n\u00e9rale";
+    expect(labelReuse(`Why do you want to work at ${company}?`, "why-this-company", company)).toBe(
+      "bank_exact",
+    );
   });
 });
 

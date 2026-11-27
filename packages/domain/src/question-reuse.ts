@@ -39,15 +39,21 @@ export function isExactWording(
   );
 }
 
-// Characters a label could use to hide a word from the matcher and the negation check: invisible
-// formatting (zero-width spaces, direction marks), modifier letters (U+02BC as an apostrophe in
-// "wouldnʼt") and Greek or Cyrillic lookalikes ("nоt" with a Cyrillic о). A label holding any of
-// them never earns reuse; it only goes to Paul.
-// The producer (packages/pipeline) runs the same check, so it never drafts a banked answer for one
-// (NS-272).
-const DISGUISED = /[\p{Cf}\u02B0-\u02FF\p{Script=Greek}\p{Script=Cyrillic}]/u;
+// Characters a label could use to hide a word from the matcher and the negation check. A label
+// holding any of them never earns reuse; it only goes to Paul:
+// - invisible formatting (zero-width spaces, direction marks: \p{Cf});
+// - nonspacing marks (\p{Mn}): a combining accent ("no\u0301t": NFKC composes it, so "not" no
+//   longer reads as a word), the grapheme joiner U+034F and variation selectors (NS-273);
+// - modifier letters (U+02BC as an apostrophe in "wouldnʼt") and the braille blank U+2800;
+// - any letter outside the Latin, Common and Inherited scripts: Greek or Cyrillic lookalikes
+//   ("nоt" with a Cyrillic о), and since NS-273 Armenian "օ", Cherokee and Coptic letters and
+//   Hangul fillers. A label in another script is refused whole: conservative, it goes to Paul.
+// The producer (packages/pipeline) runs the same check, so it never answers one (NS-272, NS-273).
+const HIDING = /[\p{Cf}\p{Mn}\u02B0-\u02FF\u2800]/u;
+const OTHER_SCRIPT = /(?![\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}])\p{L}/u;
 
-export const isDisguisedLabel = (label: string): boolean => DISGUISED.test(label);
+export const isDisguisedLabel = (label: string): boolean =>
+  HIDING.test(label) || OTHER_SCRIPT.test(label);
 
 // The strength from a match code already made (the producer's path, which also takes a model's
 // pick only to fill, never to count as reuse).
