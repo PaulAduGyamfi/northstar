@@ -54,15 +54,19 @@ describe("changeSummary", () => {
     expect(changeSummary(REPORT)).toEqual(["Engineering moved up from Medium to High."]);
   });
 
-  it("says when this is the first report", () => {
-    expect(changeSummary({ ...REPORT, first: true, changes: [] })).toEqual([
-      "This is your first report.",
-    ]);
+  it("keeps the report's own first-report sentence instead of writing its own", () => {
+    expect(
+      changeSummary({ ...REPORT, first: true, changes: ["This is your first Career DNA report."] }),
+    ).toEqual(["This is your first Career DNA report."]);
   });
 
-  it("says when nothing changed since the last version", () => {
-    expect(changeSummary({ ...REPORT, changes: [] })).toEqual([
-      "Nothing changed since the last version.",
+  it("still says something when the list is empty, for a first report and for a later one", () => {
+    expect([
+      changeSummary({ ...REPORT, first: true, changes: [] }),
+      changeSummary({ ...REPORT, changes: [] }),
+    ]).toEqual([
+      ["This is your first Career DNA report."],
+      ["Nothing changed since your last report."],
     ]);
   });
 });

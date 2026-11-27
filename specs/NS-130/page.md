@@ -22,7 +22,7 @@ terminal. DNA-008 says "what changed" is the reason to come back; it belongs in 
   `changeLines` and `CAREER_DNA_RUBRIC` (one place for the wording; never a copy).
 - A read-only page at `/career-dna` (`apps/web`, new files only) says the report in words: the
   label, each dimension as "High · 12 items", "Not enough evidence yet · 2 items", and the changed
-  lines, or "Your first report" / "Nothing changed since the last version". Without a report it
+  lines (the report's own sentences, including its first-report and nothing-changed ones). Without a report it
   says how to build one (`profile dna`). No chart (radar or bars is Paul's call) and no nav link
   in this slice (another agent is in `apps/web`'s shared files).
 
@@ -35,8 +35,9 @@ terminal. DNA-008 says "what changed" is the reason to come back; it belongs in 
 - [x] `node_modules/.bin/turbo run lint typecheck test build --force` green for touched packages.
 
 ## Failure modes
-- The database read fails: the endpoint answers 500 by the shared pattern and the page says the
-  report couldn't load; nothing else on the page breaks.
+- The database read fails: the endpoint answers 503 `unavailable` (never `{ report: null }`, which
+  would read as "no report yet") and the page says the report can't be read; nothing else on the
+  page breaks.
 - A stored snapshot with a dimension the current rubric doesn't know: shown by its key, never
   dropped.
 

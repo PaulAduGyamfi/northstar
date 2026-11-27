@@ -60,7 +60,6 @@ import {
   loadLlmBudget,
   loadLlmConfig,
 } from "@northstar/llm";
-import { CAREER_DNA_RUBRIC, careerDnaChangeLines, diffCareerDna } from "@northstar/profile";
 import {
   type IngestDeps,
   ingestText,
@@ -73,6 +72,7 @@ import { dbApprovalPorts } from "./approval-ports.js";
 import { approvalEndpoints } from "./approvals.js";
 import { captureEndpoint } from "./capture.js";
 import { careerDnaEndpoints } from "./career-dna.js";
+import { careerDnaWording } from "./career-dna-wording.js";
 import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
 import { consentEndpoints } from "./consent.js";
 import { deadLetterEndpoints } from "./dead-letters.js";
@@ -256,14 +256,10 @@ try {
     spent: dbSpendMeter(db, candidateId).spent,
   });
   // The Career DNA page (NS-130 slice 8): the stored history, read-only, and the report's own
-  // diff wording and dimension names from packages/profile (never a copy here).
+  // diff wording and dimension names from packages/profile (career-dna-wording.ts).
   const careerDna = careerDnaEndpoints({
     history: async () => readCareerDnaHistory(db, await candidateId()),
-    describe: (previous, next) => {
-      const diff = diffCareerDna(previous, next);
-      return { first: diff.first, changes: careerDnaChangeLines(diff) };
-    },
-    labelOf: (key) => CAREER_DNA_RUBRIC.dimensions.find((d) => d.key === key)?.label ?? null,
+    ...careerDnaWording(),
   });
   // One set of sessions for the sign-in key and passkeys, so both open the same kind of session
   // and their failures count toward one throttle (ADR-0022).

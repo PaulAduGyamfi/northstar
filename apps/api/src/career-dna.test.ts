@@ -153,6 +153,8 @@ describe("GET /career-dna", () => {
     expect([body.report.first, body.report.changes, described[0]?.[0]]).toEqual([true, [], null]);
   });
 
+  // The server re-parses every answer through the output schema, which drops unknown keys, so this
+  // guards that layer as well as the handler's field-by-field copy.
   it("never sends a stored atom or story id", async () => {
     history = [stored(3, "high", 11), stored(2, "medium", 7)];
     const res = await get();

@@ -370,8 +370,8 @@ Exists now:
   The report still needs a resume import.
 
   Since slice 8 also a read-only page: the API's `GET /career-dna` (session only,
-  `apps/api/src/career-dna.ts`; `@northstar/api` depends on `@northstar/profile` for
-  `diffCareerDna`, `careerDnaChangeLines` and `CAREER_DNA_RUBRIC`) serves the newest stored
+  `apps/api/src/career-dna.ts`, wording in `career-dna-wording.ts`; `@northstar/api` depends on
+  `@northstar/profile` for `diffCareerDna`, `careerDnaChangeLines` and `CAREER_DNA_RUBRIC`) serves the newest stored
   version's label and each dimension's band, points and evidence count, field by field (never an
   atom or story id), and what changed since the version before it; the web app's `/career-dna`
   (`src/career-dna.ts`) says it in words. No nav link (the five tabs are fixed) or chart yet.

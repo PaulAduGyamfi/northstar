@@ -53,12 +53,16 @@ export function dimensionRow(d: CareerDnaDimension): DimensionRow {
   };
 }
 
-// The "what changed" lines: the first report says so, an unchanged one says so, otherwise the
-// report's own sentences.
+// The "what changed" lines: the report's own sentences (changeLines in packages/profile), which
+// already say when it is the first report or nothing changed. Only an empty list, which the API
+// never sends, gets a line here, so the page never shows a blank section.
 export function changeSummary(report: NonNullable<CareerDnaView["report"]>): string[] {
-  if (report.first) return ["This is your first report."];
-  if (report.changes.length === 0) return ["Nothing changed since the last version."];
-  return report.changes;
+  if (report.changes.length > 0) return report.changes;
+  return [
+    report.first
+      ? "This is your first Career DNA report."
+      : "Nothing changed since your last report.",
+  ];
 }
 
 // The header line: the version and the day it was built (the ISO date only, never a time zone
