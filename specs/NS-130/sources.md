@@ -30,12 +30,12 @@ atoms, but nothing reads them into the report, and importing them doesn't rebuil
 - Snapshots stay ids and numbers only (`career_dna_report`); no text goes into events or spans.
 
 ## Acceptance criteria
-- [ ] The reader returns the current LinkedIn (or site) import's atoms and never resume atoms.
-- [ ] A LinkedIn atom with a rubric term adds its point and is cited; the check accepts it.
-- [ ] A LinkedIn line that repeats a resume line (case and spacing aside) adds nothing.
-- [ ] Without the port the report is exactly as before.
-- [ ] A new LinkedIn or site import refreshes the report; an unchanged one doesn't.
-- [ ] `pnpm turbo run lint typecheck test build` passes in `packages/db` and `packages/profile`.
+- [x] The reader returns the current LinkedIn (or site) import's atoms and never resume atoms.
+- [x] A LinkedIn atom with a rubric term adds its point and is cited; the check accepts it.
+- [x] A LinkedIn line that repeats a resume line (case and spacing aside) adds nothing.
+- [x] Without the port the report is exactly as before.
+- [x] A new LinkedIn or site import refreshes the report; an unchanged one doesn't.
+- [x] `pnpm turbo run lint typecheck test build` passes in `packages/db` and `packages/profile`.
 
 ## Out of scope
 - Employment facts and growth tracks as inputs; GitHub (no importer yet).

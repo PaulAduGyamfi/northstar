@@ -144,6 +144,57 @@ describe("profile dna", () => {
   });
 });
 
+// NS-130 slice 7 (DNA-001): Paul's LinkedIn and site lines are evidence too, each line once.
+describe("profile dna with LinkedIn and site lines", () => {
+  const LI = "00000000-0000-4000-8000-0000000000a1";
+  const SITE = "00000000-0000-4000-8000-0000000000a2";
+  const atom = (atomId: string, quote: string) => ({ id: atomId, what: quote, how: [], quote });
+
+  it("scores a LinkedIn line and a site line, and cites them in the stored version", async () => {
+    const h = harness({
+      readSourceAtoms: async (kind) =>
+        kind === "linkedin"
+          ? [atom(LI, "Refactored the billing service.")]
+          : [atom(SITE, "Developed a budgeting app.")],
+    });
+    expect(await dnaCommand(h.deps, [])).toBe(0);
+    expect(h.lines).toContain("Engineering: low confidence, 5 pieces of evidence.");
+    const cited = JSON.stringify(h.versions[0]?.dimensions);
+    expect([cited.includes(LI), cited.includes(SITE)]).toEqual([true, true]);
+  });
+
+  it("counts a LinkedIn line that repeats a resume line once, whatever its case and spacing", async () => {
+    const h = harness({
+      readSourceAtoms: async (kind) =>
+        kind === "linkedin" ? [atom(LI, "  shipped a CLAIMS   triage service. ")] : [],
+    });
+    await dnaCommand(h.deps, []);
+    expect(h.lines).toContain("Engineering: low confidence, 3 pieces of evidence.");
+    expect(JSON.stringify(h.versions[0]?.dimensions).includes(LI)).toBe(false);
+  });
+
+  it("counts a line on both LinkedIn and the site once, citing the LinkedIn atom", async () => {
+    const h = harness({
+      readSourceAtoms: async (kind) =>
+        kind === "linkedin"
+          ? [atom(LI, "Refactored the billing service.")]
+          : [atom(SITE, "refactored the billing service.")],
+    });
+    await dnaCommand(h.deps, []);
+    expect(h.lines).toContain("Engineering: low confidence, 4 pieces of evidence.");
+    const cited = JSON.stringify(h.versions[0]?.dimensions);
+    expect([cited.includes(LI), cited.includes(SITE)]).toEqual([true, false]);
+  });
+
+  it("still needs a resume import: LinkedIn lines alone build nothing", async () => {
+    const h = harness({
+      readScoringProfile: async () => null,
+      readSourceAtoms: async () => [atom(LI, "Refactored the billing service.")],
+    });
+    expect([await dnaCommand(h.deps, []), h.versions]).toEqual([1, []]);
+  });
+});
+
 describe("refreshing after a profile change", () => {
   it("prints the saved version and what changed", async () => {
     const h = harness();

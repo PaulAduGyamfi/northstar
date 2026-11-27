@@ -837,6 +837,50 @@ describe("profile cli refreshes Career DNA after a profile change", () => {
     expect(printed.at(-1)).toBe("Career DNA not refreshed: run profile dna to try again.");
   });
 
+  it("a new LinkedIn export saves the report after its import lines", async () => {
+    const { d, printed } = deps(["import-linkedin", "data/linkedin"], new Error("unused"));
+    d.readLinkedinExport = async () => ({
+      positions:
+        "Company Name,Title,Description,Location,Started On,Finished On\nSample Labs,Engineer,Shipped agents.,Remote,Jun 2025,",
+    });
+    d.storeImport = async () => ({
+      status: "imported",
+      sourceId: "s2",
+      counts: { roles: 1, education: 0, atoms: 1, skills: 0, certifications: 0, links: 0 },
+    });
+    const saves = withDna(d);
+    expect(await main(d)).toBe(0);
+    expect([saves, printed.slice(2)]).toEqual([
+      [1],
+      ["Career DNA: saved as version 1.", "  This is your first Career DNA report."],
+    ]);
+  });
+
+  it("an unchanged LinkedIn export doesn't refresh the report", async () => {
+    const { d } = deps(["import-linkedin", "data/linkedin"], new Error("unused"));
+    d.readLinkedinExport = async () => ({
+      positions:
+        "Company Name,Title,Description,Location,Started On,Finished On\nSample Labs,Engineer,Shipped agents.,Remote,Jun 2025,",
+    });
+    const saves = withDna(d);
+    expect(await main(d)).toBe(0);
+    expect(saves).toEqual([]);
+  });
+
+  it("a new site file saves the report, and an unchanged one doesn't", async () => {
+    const { d, printed } = deps(["import-site", "data/site.md"], new Error("unused"));
+    d.readText = async () => "## Ledgerline\n- Built a budgeting app\n";
+    const saves = withDna(d);
+    expect(await main(d)).toBe(0);
+    d.storeImport = async () => ({
+      status: "imported",
+      sourceId: "s3",
+      counts: { roles: 0, education: 0, atoms: 1, skills: 0, certifications: 0, links: 0 },
+    });
+    expect(await main(d)).toBe(0);
+    expect([saves, printed.at(-2)]).toEqual([[1], "Career DNA: saved as version 1."]);
+  });
+
   it("a rejected resume import doesn't refresh the report", async () => {
     const { d } = deps(["import-resume", "data/resume.pdf"], {
       kind: "rejected",
