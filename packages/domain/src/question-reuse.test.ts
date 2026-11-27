@@ -160,6 +160,18 @@ describe("labelReuse against other-script lookalikes and hidden marks (NS-273)",
   });
 });
 
+describe("labelReuse against negations behind lookalikes the disguise rule allows (NS-274)", () => {
+  it.each([
+    "Why wouldn`t you want to work at Example Corp?",
+    "Why would you n0t want to work at Example Corp?",
+    "Why would you n\u00f3t want to work at Example Corp?",
+    "Why would you n\u00f8t want to work at Example Corp?",
+    "Why would you n\ua74bt want to work at Example Corp?",
+  ])("never counts reuse for %s", (label) => {
+    expect(labelReuse(label, "why-this-company", COMPANY)).toBe("new");
+  });
+});
+
 describe("reuseStrength", () => {
   const canonical = { text: "Why are you interested in this role?", examples: [] };
 

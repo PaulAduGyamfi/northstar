@@ -3,6 +3,7 @@ import { CANONICAL_QUESTIONS } from "./question-canon.js";
 import {
   classifyQuestion,
   isNegatedQuestion,
+  negationSkeleton,
   matchQuestion,
   questionConcepts,
 } from "./question-match.js";
@@ -241,5 +242,38 @@ describe("isNegatedQuestion", () => {
     ["a word that only contains no", "Do you know Node?", false],
   ])("reads %s", (_name, label, negated) => {
     expect(isNegatedQuestion(label)).toBe(negated);
+  });
+
+  it.each([
+    ["a backtick as the apostrophe", "Why wouldn`t you join us?"],
+    ["an acute accent as the apostrophe", "Why wouldn\u00b4t you join us?"],
+    ["a zero for the o", "Why would you n0t join us?"],
+    ["a precomposed accent", "Why would you n\u00f3t join us?"],
+    ["an ogonek", "Why would you n\u01ebt join us?"],
+    ["a slashed o", "Why would you n\u00f8t join us?"],
+    ["an o with a long stroke", "Why would you n\ua74bt join us?"],
+    ["a t with a stroke", "Why would you no\u0167 join us?"],
+    ["a one for the i", "Can you start w1thout notice?"],
+    ["a three for the e", "Would you n3ver relocate?"],
+  ])("reads through %s (NS-274)", (_name, label) => {
+    expect(isNegatedQuestion(label)).toBe(true);
+  });
+
+  it.each([
+    "Why do you want to work at Soci\u00e9t\u00e9 G\u00e9n\u00e9rale?",
+    "Why do you want to work at N\u00f8rdisk?",
+    "Do you have 10+ years of experience with Node.js?",
+    "Rate yourself 0-10 on Python.",
+    "What is your notice period?",
+  ])("leaves a label with accents or digits but no negation alone (%s)", (label) => {
+    expect(isNegatedQuestion(label)).toBe(false);
+  });
+});
+
+describe("negationSkeleton", () => {
+  it("strips marks, lowercases and maps lookalikes to their letters", () => {
+    expect(negationSkeleton("Why WOULDN`T y\u00f8u n0t j\u00f3in?")).toBe(
+      "why wouldn't you not join?",
+    );
   });
 });

@@ -89,9 +89,39 @@ const CONCEPTS: Record<string, readonly string[]> = {
 // matching, confirming and package assembly all ask `isNegatedQuestion` (NS-244).
 const NEGATION = /\b(?:without|not|no|never)\b|n't\b/i;
 
+// Characters that stand in for a letter or the apostrophe of a negation and that no other rule
+// refuses (NS-274): an employer's label could write "wouldn`t", "n0t" or "nøt" to hide the word
+// from NEGATION while the matcher still reads the rest. They are ASCII or Latin letters that real
+// labels and company names need, so the disguise rule (question-reuse.ts) can't refuse them; the
+// negation check reads through them instead.
+const APOSTROPHE_LIKE = /[`\u00b4]/g;
+const LOOKALIKE: Readonly<Record<string, string>> = {
+  "0": "o",
+  "1": "i",
+  "3": "e",
+  "\u00f8": "o", // ø
+  "\ua74b": "o", // ꝋ, o with a long stroke
+  "\ua74d": "o", // ꝍ, o with a loop
+  "\u0167": "t", // ŧ
+  "\u0131": "i", // ı, dotless i
+  "\u0142": "l", // ł
+};
+const LOOKALIKE_CHARS = new RegExp(`[${Object.keys(LOOKALIKE).join("")}]`, "g");
+
+// The label as the negation check reads it: apostrophe stand-ins as "'", normalized (NFKC, curly
+// quotes), accents and other marks stripped ("nót" and "nǫt" read "not"), lowercase, then each
+// lookalike above as its letter. Only NEGATION reads it, never the matcher or a company name.
+export function negationSkeleton(label: string): string {
+  const marked = normalize(label.replace(APOSTROPHE_LIKE, "'"));
+  const bare = marked.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
+  return bare.replace(LOOKALIKE_CHARS, (c) => LOOKALIKE[c] ?? c);
+}
+
 // Is this question negated? Normalized first (NFKC, curly quotes), so "wouldn’t" and
-// full-width letters count the same as plain ASCII.
-export const isNegatedQuestion = (label: string): boolean => NEGATION.test(normalize(label));
+// full-width letters count the same as plain ASCII; since NS-274 also read through lookalikes
+// (negationSkeleton). Either reading counts, so the skeleton only ever adds negations.
+export const isNegatedQuestion = (label: string): boolean =>
+  NEGATION.test(normalize(label)) || NEGATION.test(negationSkeleton(label));
 
 // "us" after these verbs is the reader of the form ("Tell us about…"), not the company ("Why us?").
 const ADDRESS_VERBS = new Set(["tell", "give", "show", "send", "let"]);
