@@ -395,8 +395,16 @@ Exists now:
   `evidenceGaps` over the newest report's dimensions, those directions and Paul's growth tracks.
   It answers counts, coverage and gap words only (never an atom or job id); posting text passes
   `postingText` (hidden characters removed, at most 200 characters). The page's "Directions" and
-  "Proof to build" sections word it (`src/career-directions.ts`). Fresh jobs are a count: there's
-  no jobs page to link to yet.
+  "Proof to build" sections word it (`src/career-directions.ts`).
+  Since slice 10 also a jobs page: the API's `GET /jobs` (session only, `apps/api/src/jobs.ts`,
+  read-only) answers ready jobs whose posting isn't known closed (`readScorableJobs`), in the
+  queue's freshness × fit order (`queueScore`, at most 100), each with its title, company and place
+  through `postingText`, remote kind, age in hours, newest fit score, band, reason code and stretch
+  flag, and its link only when https (`listJobs` now gives `url`). `?role=` keeps one role family
+  (`roleFamily`, the directions' own grouping). The web app's `/jobs` (`src/jobs.ts`) words each
+  job (`jobRow`, the reason through `reasonWords`; an unknown code is left out) with the posting's
+  link through `safeHref`, and each direction on `/career-dna` links to `/jobs?role=<role>`. No
+  nav link.
 
   No Profile Grade handoff or share card yet; the share card waits
   on a Publish gateway ADR and Q-10.

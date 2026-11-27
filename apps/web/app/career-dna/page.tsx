@@ -17,6 +17,7 @@ import {
   versionLine,
 } from "../../src/career-dna";
 import { webConfig } from "../../src/config";
+import { jobsForRole } from "../../src/jobs";
 import { PillNav } from "../../src/pill-nav";
 import { SESSION_COOKIE } from "../../src/session";
 import { dotStatus, HealthBody, readApi } from "../../src/system";
@@ -98,7 +99,10 @@ export default async function CareerDnaPage() {
                 <ul>
                   {where.list.map(directionRow).map((d) => (
                     <li key={d.key}>
-                      <strong>{d.role}</strong>: {d.coverage}. {d.evidence}. {d.fresh}.
+                      <a href={jobsForRole(d.role)}>
+                        <strong>{d.role}</strong>
+                      </a>
+                      : {d.coverage}. {d.evidence}. {d.fresh}.
                       {d.gaps.length === 0 ? null : (
                         <> Asked for, not yet proven: {d.gaps.join(", ")}.</>
                       )}

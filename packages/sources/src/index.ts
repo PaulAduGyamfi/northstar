@@ -39,6 +39,7 @@ export {
   type DirectionJob,
   FRESH_DIRECTION_DAYS,
   MIN_DIRECTION_JOBS,
+  roleFamily,
 } from "./fit/directions.js";
 // Model-assisted requirement matching (NS-138): the job-match route, its provenance check and the
 // assist step scorePending can take. Off by default.
@@ -72,6 +73,8 @@ export {
 } from "./job-extract-route.js";
 export { JobExtract } from "./job-extract-schema.js";
 export { findJobPosting, fromJsonLd } from "./jsonld.js";
+// The queue's fresh-first order (SRC-013), for the jobs page (NS-130 slice 10).
+export { ageHours, freshness, queueScore } from "./queue.js";
 // Recruiter grading (NS-167, REC-001): A–F from the checked facts and the search preferences.
 export {
   type Grade,

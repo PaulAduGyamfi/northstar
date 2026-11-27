@@ -295,6 +295,8 @@ export type JobListItem = {
   location: string | null;
   postedAt: Date | null;
   firstSeenAt: Date;
+  // The job's canonical link, as stored (NS-130 slice 10: the jobs page links to it).
+  url: string;
   sources: number;
   missingFields: string[];
   // The latest fit score (NS-116), or null before the job is scored.
@@ -317,6 +319,7 @@ export async function listJobs(db: Db, candidateId: CandidateId): Promise<JobLis
       location: job.location,
       postedAt: job.postedAt,
       firstSeenAt: job.firstSeenAt,
+      url: job.url,
       missingFields: job.missingFields,
       sources: sql<number>`(select count(*)::int from ${jobSource} where ${jobSource.jobId} = ${job.id})`,
       fit: sql<
