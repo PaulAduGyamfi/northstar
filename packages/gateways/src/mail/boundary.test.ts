@@ -34,6 +34,11 @@ async function sources(dir: string): Promise<string[]> {
 
 const rel = (file: string) => relative(repoRoot, file).split(sep).join("/");
 
+// Source without its comments, so a comment that mentions the global fetch never trips a rule.
+// Rough (a `//` inside a string is cut too), which only ever hides text, never adds a match.
+const withoutComments = (code: string) =>
+  code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+
 // An import, re-export or require of a path ending in mail/drafts, mail/message, mail/access or
 // (NS-237 slice 5) mail/consent, whose test seam takes a token exchange that sees the raw token.
 const IMPORTS_PRIVATE =
@@ -88,12 +93,33 @@ describe("the draft writer's boundary (ADR-0025 item 4)", () => {
   });
 
   it("no code under src/mail/ takes a fetch from its caller, which would see the compose token", async () => {
+    // Any fetch-shaped port, whatever its name: `typeof fetch`, or a function returning a Response.
+    const FETCH_PORT = [/\btypeof\s+(globalThis\.)?fetch\b/, /=>\s*Promise<\s*Response\s*>/];
     const found: string[] = [];
     for (const file of await sources(join(repoRoot, MAIL_DIR))) {
       const path = rel(file);
       // Tests stand fakes in for the global fetch.
       if (path.endsWith(".test.ts") || path.startsWith(`${MAIL_DIR}test/`)) continue;
-      if (/\bfetch\s*[?]?:/.test(await readFile(file, "utf8"))) found.push(path);
+      const code = withoutComments(await readFile(file, "utf8"));
+      for (const pattern of FETCH_PORT) if (pattern.test(code)) found.push(`${path}: ${pattern}`);
+    }
+    expect(found).toEqual([]);
+  });
+
+  it("no code outside tests replaces the global fetch, which sees the compose token's requests", async () => {
+    // The writer's requests go through the global fetch, so code in the same process that swaps it
+    // could read the token (review of NS-237 slice 5). Only tests may stand a fake in for it.
+    const PATCHES = [
+      /globalThis\.fetch\s*=(?!=)/,
+      /stubGlobal\(\s*["'`]fetch["'`]/,
+      /defineProperty\(\s*globalThis\s*,\s*["'`]fetch["'`]/,
+    ];
+    const found: string[] = [];
+    for (const file of await sources(repoRoot)) {
+      const path = rel(file);
+      if (/\.test\.[a-z]+$/.test(path) || path.includes("/test/")) continue;
+      const code = withoutComments(await readFile(file, "utf8"));
+      for (const pattern of PATCHES) if (pattern.test(code)) found.push(`${path}: ${pattern}`);
     }
     expect(found).toEqual([]);
   });

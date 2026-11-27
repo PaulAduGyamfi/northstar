@@ -17,9 +17,11 @@ memory for one run, and no refresh token.
   callback, then stops. It times out after `timeoutMs`.
 - Requests `https://www.googleapis.com/auth/gmail.compose` only, with `access_type=online`, so it
   gets no refresh token.
-- Exchanges the code at Google's token endpoint inside the module (a 30 s limit). Nothing outside
-  `src/mail/` ever sees the raw answer: ADR-0025 item 4 lets only the draft writer hold the
-  token, so no caller can pass its own exchange (security review). Tests use
+- Exchanges the code at Google's token endpoint inside the module (a 30 s limit). No function hands
+  its caller the raw answer: ADR-0025 item 4 lets only the draft writer hold the token, so no
+  caller can pass its own exchange (security review). This guards against misuse, not code in
+  the same process that replaces the global `fetch`; the boundary test refuses such a replacement
+  outside tests, and review covers the rest. Tests use
   `authorizeComposeWith(deps, exchange)`, which the package entry doesn't export, and the boundary
   test refuses any import of `consent.ts` from outside `src/mail/` but the package entry. A
   non-2xx answer is reported by status only, and one that isn't JSON by that fact only. The
@@ -47,8 +49,11 @@ Closing the same path in the writer (security re-review): `writeReplyDraft`'s `M
 `createDraftsClient` no longer take a `fetch`. Every request carries the token in its
 Authorization header, so a caller-supplied fetch could keep it and call Gmail's send around the
 writer's allowlist. The writer uses the global `fetch`, and its tests stand the fake Gmail in for
-it. The boundary test refuses any `fetch` port under `src/mail/`, any `export *` of a mail module
-from the package entry, and checks at run time that the entry doesn't export the consent seam.
+it. The boundary test refuses any `fetch`-shaped port under `src/mail/` (`typeof fetch`, or a function
+returning a `Response`, whatever its name), any replacement of the global `fetch` outside tests
+anywhere in the repo, and any `export *` of a mail module from the package entry, and checks at
+run time that the entry doesn't export the consent seam. The "no exchange" test checks the deps
+type itself (`expectTypeOf`), so widening it fails the typecheck.
 
 ## Acceptance criteria
 - [ ] The consent URL asks for `gmail.compose` only, with S256 PKCE, `access_type=online` and a 127.0.0.1 redirect (test).

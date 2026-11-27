@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { inspect } from "node:util";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { GMAIL_COMPOSE_SCOPE } from "./access.js";
 import {
   authorizeCompose,
@@ -290,9 +290,12 @@ describe("authorizeCompose", () => {
   };
 
   it("takes no token exchange from its caller, so no caller can keep a copy of the token", () => {
-    // ADR-0025 item 4: only the draft writer holds the compose token.
-    expect(Object.keys(consenting).sort()).toEqual(["config", "openBrowser", "timeoutMs"]);
-    expect(authorizeCompose.length).toBe(1);
+    // ADR-0025 item 4: only the draft writer holds the compose token. Checked on the type itself,
+    // so a widened deps type (say an optional `exchange`) fails the package's typecheck.
+    expectTypeOf<keyof ComposeConsentDeps>().toEqualTypeOf<
+      "config" | "openBrowser" | "timeoutMs"
+    >();
+    expectTypeOf(authorizeCompose).parameters.toEqualTypeOf<[ComposeConsentDeps]>();
   });
 
   it("exchanges the code at Google's own token endpoint, with a time limit", async () => {
