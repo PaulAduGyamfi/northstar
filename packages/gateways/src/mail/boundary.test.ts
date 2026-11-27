@@ -89,8 +89,13 @@ describe("the draft writer's boundary (ADR-0025 item 4)", () => {
     // `export *` would re-export it without naming it: refuse it for every mail module, and check
     // what the entry really exports at run time.
     expect(entry).not.toMatch(/export\s*\*[^;]*mail\//);
-    expect(Object.keys(await import("../index.js"))).not.toContain("authorizeComposeWith");
   });
+
+  // Loading the whole package entry (the database, the browser driver and the rest) took over the
+  // default 5 s on CI's busy runners, so this one check gets its own, longer limit.
+  it("the package entry's run-time exports don't include the consent flow's test seam", async () => {
+    expect(Object.keys(await import("../index.js"))).not.toContain("authorizeComposeWith");
+  }, 30_000);
 
   it("no code under src/mail/ takes a fetch from its caller, which would see the compose token", async () => {
     // Any fetch-shaped port, whatever its name: `typeof fetch`, or a function returning a Response.
