@@ -60,6 +60,9 @@ or calendar write can follow. This slice stores one proposal per confirmed inter
   `prepBlocks`, `missingPrep`, `warmUp` (boolean). Feed line from its fixed `reason`.
 - Span `db.interview.prep_propose` with the block and missing counts.
 
+## Next
+- Writing approved blocks to Calendar: ADR-0031 (Proposed), for Paul to decide.
+
 ## Out of scope
 - Reading busy time from Calendar and growth blocks, and calling this on confirm (the caller).
 - The approval card, calendar writes, reminders (CAL-004), working-hours settings, briefs,
