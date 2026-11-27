@@ -1074,7 +1074,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm -r lint` / `pnpm -r typecheck` / `pnpm -r test` | checks in every package |
 | repo root | `pnpm turbo run lint typecheck test build` | all checks with Turborepo caching (what CI runs, with `--force`) |
 | repo root | `pnpm --filter evals eval <route>` | replay a route's eval set from recorded fixtures (free, offline) and fail below `baseline.json` |
-| repo root | `pnpm --filter evals eval <route> --live [--update-baseline]` | run it against the real API (costs money; Paul only, needs `ANTHROPIC_API_KEY` in `.env`) |
+| repo root | `pnpm --filter evals eval <route> --live [--update-baseline]` | run it against the real API (costs money; Paul only, needs `ANTHROPIC_API_KEY` in `.env.app`) |
 | repo root | `pnpm --filter evals eval <route> --record` | call the real API and save fixtures for replay (costs money; Paul only; synthetic inputs only) |
 | repo root | `pnpm --filter evals eval --all` | replay every registered eval against its baseline (what CI runs) |
 | repo root | `pnpm turbo run build --filter=evals... && node evals/dist/handwrite-bin.js <route>` | write a new route's hand-written fixtures from `evals/<route>/handwritten.jsonl` (offline and free; refuses where recorded fixtures exist; ADR-0016 item 8) |
@@ -1181,8 +1181,9 @@ version on a release at least 14 days old (cooldown against hijacked releases) a
 
 ## Secrets
 
-`.env` holds secrets (Anthropic key, Google OAuth client, database URLs). Never read, print, copy
-or edit it. New settings go in `.env.example` with a placeholder. Never put a token, key or
+`.env` (the database owner's credentials) and `.env.app` (the apps' secrets: Anthropic key, Google
+OAuth client, the app's database URL; NS-235) hold secrets. Never read, print, copy or edit
+either. New settings go in `.env.example`, in its `.env` or "Apps" part, with a placeholder. Never put a token, key or
 password in code, tests, docs, commit messages or chat.
 
 ## Git and pull requests

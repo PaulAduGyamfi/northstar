@@ -14,10 +14,18 @@ const badUrl = (name: string) =>
     `${name} is missing or is not a postgres:// URL (percent-encode # / ? @ % in the password)`,
   );
 
-// The database owner's credentials (NS-235). They belong only to compose and `db:migrate` (the
-// root .env); an app holding them could connect as the owner and disable the append-only
-// triggers that the northstar_app role can't. Apps load .env.app instead.
-export const OWNER_SETTINGS = ["DATABASE_MIGRATION_URL", "POSTGRES_PASSWORD"] as const;
+// The database owner's credentials (NS-235), and libpq's fallbacks that pg would use to fill in a
+// password or user missing from DATABASE_URL. They belong only to compose and `db:migrate` (the
+// root .env); in an app's environment they could let it connect as the owner and disable the
+// append-only triggers that the northstar_app role can't. Apps load .env.app instead. This keeps
+// them out of the process environment; it is not a file boundary (the app runs as Paul's user).
+export const OWNER_SETTINGS = [
+  "DATABASE_MIGRATION_URL",
+  "POSTGRES_PASSWORD",
+  "PGPASSWORD",
+  "PGUSER",
+  "PGPASSFILE",
+] as const;
 
 // The one place this package reads settings. Callers pass the environment in, so only the entry
 // point (src/migrate.ts) touches process.env (AGENTS.md: one typed config module). Every app

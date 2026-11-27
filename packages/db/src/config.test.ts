@@ -30,7 +30,7 @@ describe("loadDbConfig", () => {
   });
 
   // NS-235: an app never runs with the database owner's credentials in its environment.
-  it.each(["DATABASE_MIGRATION_URL", "POSTGRES_PASSWORD"])(
+  it.each(["DATABASE_MIGRATION_URL", "POSTGRES_PASSWORD", "PGPASSWORD", "PGUSER", "PGPASSFILE"])(
     "refuses to start while %s is set, naming it but never its value",
     (name) => {
       let message = "";

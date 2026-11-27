@@ -64,7 +64,8 @@ import { dbPollGuard } from "./poll-guard.js";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Entry point for `pnpm --filter @northstar/sources jobs …`. The only place in this package that
-// reads process.env (DATABASE_URL, and ANTHROPIC_API_KEY only when a page needs the model).
+// reads process.env (DATABASE_URL, and ANTHROPIC_API_KEY only when a page needs the model; from
+// .env.app, NS-235).
 const { db, close } = connectDb(loadDbConfig(process.env));
 // The LLM spend caps, read at startup so a bad value shows at once (NS-176, ADR-0021).
 const llmBudget = loadLlmBudget({
