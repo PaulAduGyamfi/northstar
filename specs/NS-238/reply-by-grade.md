@@ -1,6 +1,6 @@
 # NS-238 slice 2: a reply draft by recruiter grade
 
-Status: in progress (autonomous lane, ADR-0016)
+Status: done, in review (autonomous lane, ADR-0016)
 Issue: #266, item 2
 Requirements: REC-002 (A/B interested, C more info, D/F decline or archive), RPL-002 (Gate filing)
 Rules that apply: ADR-0002 (nothing sent; Paul approves), ADR-0004 (no claim without a cite),
@@ -27,10 +27,10 @@ text that states nothing to cite. A reply by grade fits the same shape.
 - No caller yet: grades are recorded only once classifications are stored (#224/#293).
 
 ## Acceptance criteria
-- [ ] Each grade maps to its kind, and F never yields a package (tests).
-- [ ] The package's envelope, greeting and body for each replying kind (tests).
-- [ ] No sentence holds a commitment word, digit, link or address (test).
-- [ ] A no-reply recipient is refused (test); a package files with the Gate (PGlite test).
+- [x] Each grade maps to its kind, and F never yields a package (tests).
+- [x] The package's envelope, greeting and body for each replying kind (tests).
+- [x] No sentence holds a commitment word, digit, link or address (test).
+- [x] A no-reply recipient is refused (test); a package files with the Gate (PGlite test).
 - [ ] `packages/profile` lint, typecheck, test, build green (CI `checks`: this container's Node 22
       can't install the workspace, which pins Node 24).
 

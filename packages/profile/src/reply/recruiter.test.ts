@@ -99,8 +99,10 @@ describe("recruiterReplyPackage", () => {
     ]).toEqual([`Hi, Thank you for reaching out. ${RECRUITER_REPLY_SENTENCES.decline}`, "Hi,"]);
   });
 
-  it("holds no commitment word, digit, link or address in any sentence", () => {
-    const sentences = Object.values(RECRUITER_REPLY_SENTENCES);
+  it("holds no commitment word, digit, link or address in any whole body", () => {
+    const sentences = (["interested", "more_info", "decline"] as const).map((k) =>
+      recruiterReplyBody(k, null),
+    );
     const words = sentences.flatMap((t) => t.split(/[^A-Za-z']+/));
     expect([
       words.filter((w) => w !== "" && isCommitmentWord(w)),
