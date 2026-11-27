@@ -58,6 +58,14 @@ export type PrefillGrants = ReturnType<typeof createPrefillGrants>;
 export type PrefillPorts = {
   // readHandoffPackage for the candidate (bin.ts wires packages/db; tests fake it).
   readPackage: (handoffId: string) => Promise<Result<HandoffPackage, HandoffPackageError>>;
+  // Writes handoff.prefilled (recordHandoffPrefill, NS-192 slice 3): true once it is stored.
+  recordPrefill: (input: {
+    handoffId: string;
+    applicationId: string;
+    ats: HandoffPackage["ats"];
+    fieldCount: number;
+    grantKey: string;
+  }) => Promise<boolean>;
   grants: PrefillGrants;
 };
 
@@ -125,8 +133,24 @@ export function prefillEndpoints(ports: PrefillPorts): AnyEndpoint[] {
         span.setAttribute(OUTCOME, REFUSAL[pkg.error.kind].error);
         return { ok: false, ...REFUSAL[pkg.error.kind] };
       }
-      span.setAttribute(OUTCOME, "served");
       const p = pkg.value;
+      // The pre-fill is in the feed before the package leaves (ADR-0029, OBS-001), keyed by this
+      // grant so a retry stores one event. If it can't be written, nothing is served; the grant
+      // is already used, so Paul clicks again.
+      const recorded = await ports
+        .recordPrefill({
+          handoffId: p.handoffId,
+          applicationId: p.applicationId,
+          ats: p.ats,
+          fieldCount: Object.keys(p.fields).length,
+          grantKey: sha256(given ?? "").slice(0, 16),
+        })
+        .catch(() => false);
+      if (!recorded) {
+        span.setAttribute(OUTCOME, "prefill_unrecorded");
+        return { ok: false, status: 503, error: "prefill_unrecorded" };
+      }
+      span.setAttribute(OUTCOME, "served");
       // Field by field: never spread a row into a response.
       return {
         ok: true,
