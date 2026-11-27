@@ -1127,8 +1127,14 @@ Exists now:
   `enabled: false` while off) into `worker_heartbeat` (`packages/db`, migration 0099: one row per
   candidate and queue, state not history; `recordWorkerHeartbeat`, `readWorkerHeartbeats`; the
   last-seen time and its age on the database's clock, `started_at` the worker's own), and `systemHealth` shows each pool as `worker:<queue>`: running, down
-  after 180 s of silence ("Not running: last seen …"), or turned off. No heartbeat for the browser
-  steps yet (slice 4).
+  after 180 s of silence ("Not running: last seen …"), or turned off. Since slice 4 the
+  `submitApplication` activity also heartbeats Temporal (`beat`, bound to
+  `Context.current().heartbeat`; the step name only) at once, on each browser step the gateway
+  reports through its optional, side-effect-free `onStep` port (`open`, `submit`, `close`; a
+  throwing hook is ignored) and every 20 s (`BEAT_MS`; the SDK sends at most one per 96 s), and the
+  workflow gives it a 2-minute `heartbeatTimeout`, so a worker that dies mid-step is retried in
+  about two minutes and the retry finds the gateway's live claim. A failed beat logs its error
+  class once per call.
   Since slice 2 also the client helper (`src/client.ts`, over a narrow `TemporalPort`, bound by
   `temporalPort`): `startSubmission` starts `submission:<applicationId>:<packageSha256>`, one run
   per package round (`REJECT_DUPLICATE`, conflict `FAIL`: a repeated start for the round starts

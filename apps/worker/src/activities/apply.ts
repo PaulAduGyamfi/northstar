@@ -1,5 +1,6 @@
 import { type ApplicationPackage, CandidateId, type Result } from "@northstar/domain";
 import {
+  type ApplyStep,
   NotApprovedError,
   type SubmitInput,
   type SubmitOutcome,
@@ -28,7 +29,21 @@ export type SubmitArgs = {
 
 const ARG_KEYS = ["applicationId", "candidateId", "decisionId", "packageSha256"] as const;
 
-type Submit = (input: SubmitInput) => Promise<Result<SubmitOutcome, SubmitRefusal>>;
+// The gateway, told where to report its browser steps (NS-225 slice 4).
+type Submit = (
+  input: SubmitInput,
+  onStep: (step: ApplyStep) => void,
+) => Promise<Result<SubmitOutcome, SubmitRefusal>>;
+
+// How often the activity offers Temporal a heartbeat (RES-005). Temporal's SDK sends at most one
+// every 0.8 × the workflow's 2-minute heartbeat timeout (about every 96 s), so this mostly keeps
+// the latest step ready to send; a worker that dies mid-step is noticed within the timeout
+// instead of after the 10-minute start-to-close, and a 5-minute submit isn't taken for a dead one.
+export const BEAT_MS = 20_000;
+
+// What the heartbeat says: the step running now. Never a field value, URL or page. `load` covers
+// everything before the browser: loading the package and the gateway's own checks and claim.
+export type BeatStep = "load" | ApplyStep;
 
 // Loads the package stored behind the decision, refusing one that isn't the package named
 // (readDecisionPackage in packages/db, bound by the worker process).
@@ -46,80 +61,115 @@ const LOAD_REASONS = { NoPackage: "NoPackage", Mismatch: "PackageMismatch" } as 
 
 // `submit` is the gateway bound to its ports (submitApplication with dbPorts); `load` reads the
 // approved package; `now` is the activity's clock, used only to turn a refusal's retryAt into a
-// wait.
+// wait; `beat` is Temporal's activity heartbeat (bound by the worker), told the current step at
+// once, on every step and every BEAT_MS until the call ends.
 export function createApplyActivities(
   submit: Submit,
   load: LoadPackage,
   now: () => Date = () => new Date(),
+  beat: (step: BeatStep) => void = () => {},
+  // Told the error's class once per call when a beat can't be sent (ADR-0007: never silent).
+  onBeatError: (errorClass: string) => void = () => {},
 ) {
   return {
     async submitApplication(args: SubmitArgs): Promise<SubmitStep> {
-      // Bad input never gets better on a retry: the same checks as the workflow's input, plus
-      // the decision id (the database reader reads a malformed one as no package).
-      // Not an object at all: refused here rather than thrown as a TypeError and retried.
-      if (typeof args !== "object" || args === null) {
-        throw ApplicationFailure.nonRetryable("arguments are not an object", "InvalidInput");
-      }
-      const { decisionId, ...rest } = args;
-      const problem =
-        extraKeyProblem(args, ARG_KEYS) ??
-        (typeof decisionId === "string" ? inputProblem(rest) : "decisionId is not a string");
-      if (problem !== null) throw ApplicationFailure.nonRetryable(problem, "InvalidInput");
-      const candidateId = CandidateId.parse(args.candidateId);
-      // A database error here is thrown and retried by the activity's retry policy.
-      const loaded = await load(candidateId, {
-        decisionId,
-        applicationId: args.applicationId,
-        contentSha256: args.packageSha256,
-      });
-      if (!loaded.ok) {
-        throw ApplicationFailure.nonRetryable(LOAD_REASONS[loaded.error.kind], NOT_APPROVED);
-      }
-      const input: SubmitInput = { candidateId, decisionId, package: loaded.value };
-      let result: Result<SubmitOutcome, SubmitRefusal>;
+      let current: BeatStep = "load";
+      let reported = false;
+      const tick = () => {
+        try {
+          beat(current);
+        } catch (error) {
+          // A heartbeat that can't be sent never changes the submission, but it is said once:
+          // a binding that broke would otherwise slow every submission without a word.
+          if (!reported) {
+            reported = true;
+            const name = error instanceof Error ? error.name : "";
+            onBeatError(/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(name) ? name : "unknown");
+          }
+        }
+      };
+      tick();
+      const handle = setInterval(tick, BEAT_MS);
       try {
-        result = await submit(input);
-      } catch (error) {
-        // Approved, but inside the 2-minute undo window (ADR-0017): not a refusal for good. The
-        // workflow waits it out and asks again (.claude/rules/gateways.md: never a silent drop).
-        if (error instanceof NotApprovedError && error.reason === UNDO_WINDOW_OPEN) {
-          return { kind: "refused", refusal: UNDO_WINDOW_OPEN, waitMs: null };
-        }
-        // The package changed inside the undo window (NS-234): the gateway's withdrawal was
-        // refused until the window ends, so wait for it and call again. The next call withdraws
-        // the approval, then ends as not_approved, which NS-226 records as a dead letter.
-        if (
-          error instanceof NotApprovedError &&
-          error.reason === "ContentChanged" &&
-          error.retryAt instanceof Date
-        ) {
-          // A second past the window: the Gate decides by the database's clock, and a worker
-          // clock running ahead would otherwise come back just before the window ends.
-          const waitMs = Math.max(0, error.retryAt.getTime() - now().getTime()) + CLOCK_MARGIN_MS;
-          return { kind: "refused", refusal: UNDO_WINDOW_OPEN, waitMs };
-        }
-        if (error instanceof NotApprovedError) {
-          // The message is the Gate's refusal kind (Rejected, Undone...), which the workflow
-          // returns as its not_approved reason.
-          throw ApplicationFailure.nonRetryable(error.reason, NOT_APPROVED);
-        }
-        // Anything else (database down, an invariant) is retried by the activity's retry
-        // policy: a repeat is safe because the gateway's claim finds the earlier attempt.
-        throw error;
+        return await submitOnce(args, (step) => {
+          current = step;
+          tick();
+        });
+      } finally {
+        clearInterval(handle);
       }
-      if (result.ok) {
-        const v = result.value;
-        return {
-          kind: "done",
-          outcome: v.outcome,
-          submissionId: v.submissionId,
-          reason: v.outcome === "needs_human" ? v.reason : null,
-          replayed: v.replayed,
-        };
-      }
-      return { kind: "refused", refusal: result.error.kind, waitMs: waitFor(result.error, now()) };
     },
   };
+
+  async function submitOnce(
+    args: SubmitArgs,
+    onStep: (step: ApplyStep) => void,
+  ): Promise<SubmitStep> {
+    // Bad input never gets better on a retry: the same checks as the workflow's input, plus
+    // the decision id (the database reader reads a malformed one as no package).
+    // Not an object at all: refused here rather than thrown as a TypeError and retried.
+    if (typeof args !== "object" || args === null) {
+      throw ApplicationFailure.nonRetryable("arguments are not an object", "InvalidInput");
+    }
+    const { decisionId, ...rest } = args;
+    const problem =
+      extraKeyProblem(args, ARG_KEYS) ??
+      (typeof decisionId === "string" ? inputProblem(rest) : "decisionId is not a string");
+    if (problem !== null) throw ApplicationFailure.nonRetryable(problem, "InvalidInput");
+    const candidateId = CandidateId.parse(args.candidateId);
+    // A database error here is thrown and retried by the activity's retry policy.
+    const loaded = await load(candidateId, {
+      decisionId,
+      applicationId: args.applicationId,
+      contentSha256: args.packageSha256,
+    });
+    if (!loaded.ok) {
+      throw ApplicationFailure.nonRetryable(LOAD_REASONS[loaded.error.kind], NOT_APPROVED);
+    }
+    const input: SubmitInput = { candidateId, decisionId, package: loaded.value };
+    let result: Result<SubmitOutcome, SubmitRefusal>;
+    try {
+      result = await submit(input, onStep);
+    } catch (error) {
+      // Approved, but inside the 2-minute undo window (ADR-0017): not a refusal for good. The
+      // workflow waits it out and asks again (.claude/rules/gateways.md: never a silent drop).
+      if (error instanceof NotApprovedError && error.reason === UNDO_WINDOW_OPEN) {
+        return { kind: "refused", refusal: UNDO_WINDOW_OPEN, waitMs: null };
+      }
+      // The package changed inside the undo window (NS-234): the gateway's withdrawal was
+      // refused until the window ends, so wait for it and call again. The next call withdraws
+      // the approval, then ends as not_approved, which NS-226 records as a dead letter.
+      if (
+        error instanceof NotApprovedError &&
+        error.reason === "ContentChanged" &&
+        error.retryAt instanceof Date
+      ) {
+        // A second past the window: the Gate decides by the database's clock, and a worker
+        // clock running ahead would otherwise come back just before the window ends.
+        const waitMs = Math.max(0, error.retryAt.getTime() - now().getTime()) + CLOCK_MARGIN_MS;
+        return { kind: "refused", refusal: UNDO_WINDOW_OPEN, waitMs };
+      }
+      if (error instanceof NotApprovedError) {
+        // The message is the Gate's refusal kind (Rejected, Undone...), which the workflow
+        // returns as its not_approved reason.
+        throw ApplicationFailure.nonRetryable(error.reason, NOT_APPROVED);
+      }
+      // Anything else (database down, an invariant) is retried by the activity's retry
+      // policy: a repeat is safe because the gateway's claim finds the earlier attempt.
+      throw error;
+    }
+    if (result.ok) {
+      const v = result.value;
+      return {
+        kind: "done",
+        outcome: v.outcome,
+        submissionId: v.submissionId,
+        reason: v.outcome === "needs_human" ? v.reason : null,
+        replayed: v.replayed,
+      };
+    }
+    return { kind: "refused", refusal: result.error.kind, waitMs: waitFor(result.error, now()) };
+  }
 }
 
 export type ApplyActivities = ReturnType<typeof createApplyActivities>;

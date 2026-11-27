@@ -250,6 +250,31 @@ describe("submitting", () => {
     expect(asked).toEqual([adapterFor("greenhouse").hosts]);
   });
 
+  it("reports each browser step to the onStep hook, in order (NS-225 slice 4)", async () => {
+    const world = fakeWorld({ open: form, submit: confirmed });
+    const steps: string[] = [];
+    world.ports.onStep = (step) => steps.push(step);
+    await run(world);
+    expect(steps).toEqual(["open", "submit", "close"]);
+  });
+
+  it("reports open and close only when the form shows a challenge", async () => {
+    const world = fakeWorld({ open: async () => ({ kind: "challenge", challenge: "captcha" }) });
+    const steps: string[] = [];
+    world.ports.onStep = (step) => steps.push(step);
+    await run(world);
+    expect(steps).toEqual(["open", "close"]);
+  });
+
+  it("submits the same way when the onStep hook throws", async () => {
+    const world = fakeWorld({ open: form, submit: confirmed });
+    world.ports.onStep = () => {
+      throw new Error("heartbeat failed");
+    };
+    const result = await run(world);
+    expect([result.ok && result.value.outcome, world.status()]).toEqual(["submitted", "submitted"]);
+  });
+
   it("submitting twice sends one application and returns the first proof", async () => {
     const world = fakeWorld({ open: form, submit: confirmed });
     const decisionId = world.approve(pkg);

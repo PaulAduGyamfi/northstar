@@ -37,6 +37,12 @@ export type SubmissionInput = { candidateId: string; applicationId: string; pack
 const { submitApplication } = proxyActivities<ApplyActivities>({
   taskQueue: APPLY_BROWSER_QUEUE,
   startToCloseTimeout: "10 minutes",
+  // The activity heartbeats through each browser step (NS-225 slice 4); the SDK sends one at most
+  // every 0.8 × this (about 96 s), leaving about 24 s of margin. A worker that died mid-step is
+  // retried after this instead of the 10 minutes, and the retry finds the gateway's live claim
+  // (InProgress, stale only after 15 minutes), which is what stops a second submission: never
+  // loosen it, since the old attempt may still be in its browser steps (at most about 6.5 min).
+  heartbeatTimeout: "2 minutes",
   retry: {
     initialInterval: "30 seconds",
     backoffCoefficient: 2,

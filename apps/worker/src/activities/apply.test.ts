@@ -1,9 +1,9 @@
 import { type ApplicationPackage, err, ok } from "@northstar/domain";
 import { NotApprovedError } from "@northstar/gateways";
 import { ApplicationFailure } from "@temporalio/common";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { NOT_APPROVED } from "../workflows/types.js";
-import { createApplyActivities, type LoadPackage } from "./apply.js";
+import { BEAT_MS, createApplyActivities, type LoadPackage } from "./apply.js";
 
 const args = {
   candidateId: "00000000-0000-4000-8000-000000000001",
@@ -261,5 +261,96 @@ describe("the submitApplication activity", () => {
       nonRetryable: true,
       message: "arguments are not an object",
     });
+  });
+});
+
+describe("heartbeats while the gateway works (NS-225 slice 4)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("beats at once, on each step the gateway reports, and every 20 s during a long step", async () => {
+    vi.useFakeTimers();
+    const beats: string[] = [];
+    let finish: () => void = () => {};
+    const activities = createApplyActivities(
+      async (_input, onStep) => {
+        onStep("open");
+        onStep("submit");
+        // A long submit step: the activity keeps beating while it runs.
+        await new Promise<void>((r) => (finish = r));
+        onStep("close");
+        return ok({ outcome: "submitted", submissionId: "s1", proofId: "p1", replayed: false });
+      },
+      loaded,
+      now,
+      (step) => beats.push(step),
+    );
+    const running = activities.submitApplication(args);
+    await vi.advanceTimersByTimeAsync(BEAT_MS * 2);
+    finish();
+    await running;
+    await vi.advanceTimersByTimeAsync(BEAT_MS * 3);
+    expect(beats).toEqual(["load", "open", "submit", "submit", "submit", "close"]);
+  });
+
+  it("stops beating once the call ends, even when it fails", async () => {
+    vi.useFakeTimers();
+    const beats: string[] = [];
+    const activities = createApplyActivities(
+      async () => {
+        throw new Error("database down");
+      },
+      loaded,
+      now,
+      (step) => beats.push(step),
+    );
+    await expect(activities.submitApplication(args)).rejects.toThrow("database down");
+    await vi.advanceTimersByTimeAsync(BEAT_MS * 3);
+    expect(beats).toEqual(["load"]);
+  });
+
+  it("submits the same way when a heartbeat can't be sent", async () => {
+    const activities = createApplyActivities(
+      async (_input, onStep) => {
+        onStep("open");
+        return ok({ outcome: "submitted", submissionId: "s1", proofId: "p1", replayed: false });
+      },
+      loaded,
+      now,
+      () => {
+        throw new Error("heartbeat failed");
+      },
+    );
+    await expect(activities.submitApplication(args)).resolves.toMatchObject({
+      kind: "done",
+      outcome: "submitted",
+    });
+  });
+
+  it("says a heartbeat failed once per call, by its error class only", async () => {
+    vi.useFakeTimers();
+    const said: string[] = [];
+    let finish: () => void = () => {};
+    const activities = createApplyActivities(
+      async (_input, onStep) => {
+        onStep("open");
+        await new Promise<void>((r) => (finish = r));
+        return ok({ outcome: "submitted", submissionId: "s1", proofId: "p1", replayed: false });
+      },
+      loaded,
+      now,
+      () => {
+        const e = new Error("no activity context for postgres://user:secret@host");
+        e.name = "IllegalStateError";
+        throw e;
+      },
+      (errorClass) => said.push(errorClass),
+    );
+    const running = activities.submitApplication(args);
+    await vi.advanceTimersByTimeAsync(BEAT_MS * 3);
+    finish();
+    await running;
+    expect(said).toEqual(["IllegalStateError"]);
   });
 });

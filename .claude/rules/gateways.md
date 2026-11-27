@@ -60,7 +60,9 @@ and never hand its `gmail.modify` token to code that reads mail.
   imports `playwright-core`, and it never downloads a browser: the worker passes the installed
   one's path. `openDriver(hosts)` gets the adapter's own hosts, and the worker hands the gateway
   a `deferredFormDriver` (NS-225) that launches only on the first open and does nothing after
-  `close()`. The driver only reports what it sees: a challenge is never solved, and there is no
+  `close()`. The optional `onStep` port (NS-225 slice 4) only reports which browser step starts:
+  never pass it a value, URL or page, never let it decide anything, and keep a throwing hook
+  ignored. The driver only reports what it sees: a challenge is never solved, and there is no
   stealth or fingerprint change. A form it can't fill or submit safely (`formProblem`, NS-255:
   name-less fields, comboboxes, no single visible submit, a hidden or CAPTCHA-tied submit) is no
   form: refuse, never type into or press around it. Handling one of those needs its own spec.

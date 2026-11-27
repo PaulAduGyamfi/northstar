@@ -2,6 +2,7 @@ import { type Db, readDecisionPackage, readStoredFile } from "@northstar/db";
 import type { CandidateId } from "@northstar/domain";
 import {
   type ApplyPorts,
+  type ApplyStep,
   dbPorts,
   dbSweepPorts,
   deferredFormDriver,
@@ -10,7 +11,8 @@ import {
   submitApplication,
   sweepStaleClaims,
 } from "@northstar/gateways";
-import { createApplyActivities } from "./activities/apply.js";
+import { Context } from "@temporalio/activity";
+import { type BeatStep, createApplyActivities } from "./activities/apply.js";
 import { createEndingActivities } from "./activities/ending.js";
 import { createSweepActivities } from "./activities/sweep.js";
 import type { WorkerConfig } from "./config.js";
@@ -26,11 +28,13 @@ export type PoolActivities = {
   applyBrowser: ReturnType<typeof createApplyActivities> | null;
 };
 
-// `launch` is launchFormDriver; a test passes a fake so no browser starts.
+// `launch` is launchFormDriver and `beat` Temporal's activity heartbeat (the step name is its
+// only detail, never a value); a test passes fakes so no browser starts.
 export function workerActivities(
   db: Db,
   config: Pick<WorkerConfig, "applyBrowser" | "applyLimits">,
   launch: typeof launchFormDriver = launchFormDriver,
+  beat: (step: BeatStep) => void = (step) => Context.current().heartbeat(step),
 ): PoolActivities {
   const pipeline = {
     ...createEndingActivities(db),
@@ -40,20 +44,32 @@ export function workerActivities(
   if (!browser.on) return { pipeline, applyBrowser: null };
 
   // The gateway with its ports, bound per call (browserPorts).
-  const submit = (input: SubmitInput) =>
+  // The gateway reports its browser steps through onStep, which the activity turns into
+  // heartbeats (NS-225 slice 4).
+  const submit = (input: SubmitInput, onStep: (step: ApplyStep) => void) =>
     submitApplication(
       dbPorts(
         db,
-        browserPorts(input.candidateId, browser.chromiumPath, {
-          readFile: (c, sha256) => readStoredFile(db, c, sha256),
-          launch,
-        }),
+        {
+          ...browserPorts(input.candidateId, browser.chromiumPath, {
+            readFile: (c, sha256) => readStoredFile(db, c, sha256),
+            launch,
+          }),
+          onStep,
+        },
         config.applyLimits,
       ),
       input,
     );
-  const applyBrowser = createApplyActivities(submit, (candidateId, named) =>
-    readDecisionPackage(db, candidateId, named),
+  const applyBrowser = createApplyActivities(
+    submit,
+    (candidateId, named) => readDecisionPackage(db, candidateId, named),
+    undefined,
+    beat,
+    (errorClass) =>
+      console.error(
+        JSON.stringify({ level: "warn", msg: "activity heartbeat failed", errorClass }),
+      ),
   );
   return { pipeline, applyBrowser };
 }
