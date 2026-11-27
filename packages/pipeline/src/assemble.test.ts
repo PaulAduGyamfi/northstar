@@ -147,6 +147,31 @@ describe("assemblePackage", () => {
     });
   });
 
+  it.each([
+    "Why would you n\u0585t want to work at Example Co?",
+    "Why would you no\u0301t want to work at Example Co?",
+    "Why would you n\u2800ot want to work at Example Co?",
+    "Why would you n\u13a4t want to work at Example Co?",
+    "Why would you n\u20ddot want to work at Example Co?",
+    "Why would you n\u1d0ft want to work at Example Co?",
+    "Why wouldn\u0384t you want to work at Example Co?",
+  ])("sends another script's lookalike or a hidden mark to Paul, never the bank (%s)", (label) => {
+    expect(assemblePackage(base({ questions: [q("question_2", label)] }))).toMatchObject({
+      ok: false,
+      error: { unanswered: [{ fieldName: "question_2", reason: "not_matched" }] },
+    });
+  });
+
+  it("never answers a disguised factual label from settings (NS-273)", () => {
+    // Matches work-authorization for Canada, which the base settings answer "yes".
+    const label = "Are you legally n\u043et authorized to work in Canada?";
+    const questions = [q("question_1", label, { choices: ["Yes", "No"] })];
+    expect(assemblePackage(base({ questions }))).toMatchObject({
+      ok: false,
+      error: { unanswered: [{ fieldName: "question_1", reason: "not_matched" }] },
+    });
+  });
+
   it("leaves an optional disguised label blank instead of answering it from the bank", () => {
     const label = DISGUISED[0] ?? "";
     const result = assemblePackage(

@@ -1199,7 +1199,11 @@ Exists now:
   an `isSafeCompany` name, and the Gate counts a label with invisible formatting characters,
   modifier letters or Greek or Cyrillic letters as `new` (a disguised "not"). Since NS-272 the producer
   applies the same rule (`isDisguisedLabel`): `assemblePackage` never answers such a label from the
-  bank (`not_matched`, like a negated label), a model's pick included. Since NS-249 (slice 1) `requestApproval` refuses
+  bank (`not_matched`, like a negated label), a model's pick included. Since NS-273 the rule also
+  refuses every combining mark (so a decomposed label too), IPA and phonetic letters ("nᴏt"), the
+  braille blank, private-use and unassigned code points and any character outside the Latin, Common
+  and Inherited scripts (Armenian, Cherokee, Hangul fillers…), on the label and its NFKC form, and the producer checks it before the factual path,
+  so a disguised label is never answered from settings either. Since NS-249 (slice 1) `requestApproval` refuses
   facts from every caller (`InvalidRequest` on `facts`; its input says `facts: null`): a package
   filed there waits for Paul and, with no stored package, can't be submitted. Only
   `requestPackageApproval` passes facts, through `requestApprovalWithFacts`, which

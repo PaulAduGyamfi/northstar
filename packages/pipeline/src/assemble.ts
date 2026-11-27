@@ -136,6 +136,11 @@ type Answer =
   | { ok: false; reason: Unanswered["reason"] };
 
 function answer(q: FormQuestion, input: AssemblyInput): Answer {
+  // A label with characters that can hide a "not" from the matcher and the negation check
+  // ("nоt" with a Cyrillic о) is never answered, from settings or the bank: it may ask the
+  // opposite of the question it seems to match. The Gate's own rule (NS-249); the producer has
+  // applied it to the bank since NS-272, and to settings since NS-273. A model's pick too.
+  if (isDisguisedLabel(q.label)) return { ok: false, reason: "not_matched" };
   const factual = answerFactual(q.label, input.settings);
   if (factual.status === "answered") {
     const { field, qualifier } = factual.setting;
@@ -157,11 +162,7 @@ function answer(q: FormQuestion, input: AssemblyInput): Answer {
     narrativeKindOf(match.canonical.id) === null ||
     // A negated label ("Why would you NOT…") asks the opposite of the banked question, and the
     // matcher drops "not" as filler: never reuse an answer for it (the shared check, NS-244).
-    isNegatedQuestion(q.label) ||
-    // A label with invisible, modifier or Greek or Cyrillic characters may hide that "not" from
-    // both checks ("nоt" with a Cyrillic о): the Gate's own rule (NS-249), so the producer never
-    // drafts Paul's answer to what may be the opposite question (NS-272). A model's pick too.
-    isDisguisedLabel(q.label)
+    isNegatedQuestion(q.label)
   ) {
     return { ok: false, reason: "not_matched" };
   }

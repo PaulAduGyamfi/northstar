@@ -90,12 +90,73 @@ describe("isDisguisedLabel", () => {
     expect(isDisguisedLabel(label)).toBe(true);
   });
 
+  it.each([
+    "Why would you n\u0585t want to work at Example Corp?",
+    "Why would you no\u0301t want to work at Example Corp?",
+    "Why would you no\u034ft want to work at Example Corp?",
+    "Why would you no\ufe0ft want to work at Example Corp?",
+    "Why would you n\u2800ot want to work at Example Corp?",
+    "Why would you n\u13a4t want to work at Example Corp?",
+    "Why would you n\u3164ot want to work at Example Corp?",
+    "Why would you n\u20ddot want to work at Example Corp?",
+    "Why would you n\u1d0ft want to work at Example Corp?",
+    "Why would you n\u0275t want to work at Example Corp?",
+    "Why wouldn\u0384t you want to work at Example Corp?",
+    "Why wouldn\u1fbft you want to work at Example Corp?",
+    "Why wouldn\u00b4t you want to work at Example Corp?",
+    "Why would you n\ue000t want to work at Example Corp?",
+  ])("flags another script's letter or a hidden mark or blank (%s, NS-273)", (label) => {
+    expect(isDisguisedLabel(label)).toBe(true);
+  });
+
+  it("still flags every code point the NS-249 rule flagged (security review, NS-273)", () => {
+    // The rule before NS-273, verbatim: widening it must never let one of these through.
+    const before = /[\p{Cf}\u02B0-\u02FF\p{Script=Greek}\p{Script=Cyrillic}]/u;
+    const missed: number[] = [];
+    for (let cp = 0; cp <= 0x10ffff; cp++) {
+      if (cp >= 0xd800 && cp <= 0xdfff) continue;
+      const c = String.fromCodePoint(cp);
+      if (before.test(c) && !isDisguisedLabel(`a${c}b`)) missed.push(cp);
+    }
+    expect(missed).toEqual([]);
+  });
+
+  it("leaves accented Latin letters, dashes and symbols alone", () => {
+    expect(
+      [
+        "Why do you want to work at Soci\u00e9t\u00e9 G\u00e9n\u00e9rale?",
+        "Why do you want to work at Example Corp? \u2014 2\u20133 sentences, 100%",
+        "Why do you want to work at Vi\u1ec7t Nam Example Corp?",
+      ].map(isDisguisedLabel),
+    ).toEqual([false, false, false]);
+  });
+
   it("leaves a plain label, curly apostrophe included, alone", () => {
     expect(
       ["Why do you want to work at Example Corp?", "Why wouldn\u2019t you join us?"].map(
         isDisguisedLabel,
       ),
     ).toEqual([false, false]);
+  });
+});
+
+describe("labelReuse against other-script lookalikes and hidden marks (NS-273)", () => {
+  it.each([
+    "Why would you n\u0585t want to work at Example Corp?",
+    "Why would you no\u0301t want to work at Example Corp?",
+    "Why would you n\u2800ot want to work at Example Corp?",
+    "Why would you n\u13a4t want to work at Example Corp?",
+    "Why wouldn\u0384t you want to work at Example Corp?",
+    "Why wouldn\u1fbft you want to work at Example Corp?",
+  ])("never counts reuse for %s", (label) => {
+    expect(labelReuse(label, "why-this-company", COMPANY)).toBe("new");
+  });
+
+  it("still counts an accented company name's own wording as exact", () => {
+    const company = "Soci\u00e9t\u00e9 G\u00e9n\u00e9rale";
+    expect(labelReuse(`Why do you want to work at ${company}?`, "why-this-company", company)).toBe(
+      "bank_exact",
+    );
   });
 });
 
