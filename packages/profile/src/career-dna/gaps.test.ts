@@ -99,6 +99,37 @@ describe("evidenceGaps", () => {
     expect(evidenceGaps([], [big], [])).toEqual([]);
   });
 
+  it("leaves out a share that only rounds up to a quarter, such as 49 of 200 jobs", () => {
+    const big: GapDirection = {
+      role: "platform engineer",
+      jobCount: 200,
+      gaps: [
+        { requirement: "Kafka", jobs: 49 },
+        { requirement: "AWS", jobs: 50 },
+      ],
+    };
+    expect(
+      evidenceGaps([], [big], []).map((g) => (g.kind === "requirement" ? g.requirement : "")),
+    ).toEqual(["AWS"]);
+  });
+
+  it("orders gaps with the same share by how many jobs ask for them", () => {
+    const a: GapDirection = { role: "a", jobCount: 4, gaps: [{ requirement: "Rust", jobs: 2 }] };
+    const b: GapDirection = { role: "b", jobCount: 8, gaps: [{ requirement: "Kafka", jobs: 4 }] };
+    expect(
+      evidenceGaps([], [a, b], []).map((g) => (g.kind === "requirement" ? g.requirement : "")),
+    ).toEqual(["Kafka", "Rust"]);
+  });
+
+  it("skips a gap whose text holds a track's whole name, such as Experience with AWS and a track AWS", () => {
+    const dir: GapDirection = {
+      role: "x",
+      jobCount: 2,
+      gaps: [{ requirement: "Experience with AWS", jobs: 2 }],
+    };
+    expect(evidenceGaps([], [dir], [{ name: "AWS", status: "active" }])).toEqual([]);
+  });
+
   it("lists a requirement two directions share once, from the direction where its share is largest", () => {
     const data: GapDirection = {
       role: "data engineer",

@@ -13,7 +13,8 @@ export const GAP_MIN_SHARE = 25;
 // Only this much of a requirement is compared with track names: postings are unbounded.
 const REQUIREMENT_MAX = 200;
 
-// What evidenceGaps reads from a career direction (packages/sources' careerDirections).
+// What evidenceGaps reads from a career direction (packages/sources' careerDirections, which
+// passes on only each direction's top gaps).
 export type GapDirection = {
   role: string;
   jobCount: number;
@@ -76,28 +77,38 @@ export function evidenceGaps(
     });
   }
   // Then requirement gaps, once each, from the direction where they weigh most.
-  const best = new Map<string, Extract<EvidenceGap, { kind: "requirement" }>>();
+  // Shares are compared exactly (49 of 200 is under 25 %); only the reported share is rounded.
+  const best = new Map<
+    string,
+    { gap: Extract<EvidenceGap, { kind: "requirement" }>; exact: number }
+  >();
   for (const dir of directions) {
     if (dir.jobCount === 0) continue;
     for (const g of dir.gaps) {
-      const share = Math.round((g.jobs / dir.jobCount) * 100);
-      if (g.jobs < GAP_MIN_JOBS || share < GAP_MIN_SHARE) continue;
+      if (g.jobs < GAP_MIN_JOBS || g.jobs * 100 < GAP_MIN_SHARE * dir.jobCount) continue;
+      const exact = g.jobs / dir.jobCount;
       const k = key(g.requirement);
       const seen = best.get(k);
-      if (seen && (seen.share > share || (seen.share === share && seen.jobs >= g.jobs))) continue;
+      if (seen && (seen.exact > exact || (seen.exact === exact && seen.gap.jobs >= g.jobs))) {
+        continue;
+      }
       best.set(k, {
-        kind: "requirement",
-        requirement: g.requirement,
-        role: dir.role,
-        jobs: g.jobs,
-        share,
-        suggestion: `Build proof for ${g.requirement}`,
+        exact,
+        gap: {
+          kind: "requirement",
+          requirement: g.requirement,
+          role: dir.role,
+          jobs: g.jobs,
+          share: Math.round(exact * 100),
+          suggestion: `Build proof for ${g.requirement}`,
+        },
       });
     }
   }
   const requirements = [...best.values()]
-    .filter((g) => !covered(g.requirement, tracks))
+    .filter((b) => !covered(b.gap.requirement, tracks))
     // Array.sort is stable: equal ones keep the order they were first seen in.
-    .sort((a, b) => b.share - a.share || b.jobs - a.jobs);
+    .sort((a, b) => b.exact - a.exact || b.gap.jobs - a.gap.jobs)
+    .map((b) => b.gap);
   return [...out, ...requirements];
 }
