@@ -35,7 +35,12 @@ export function doc(
   const all = [...forms.flat(), ...(options.others ?? [])];
   return {
     title: options.title ?? "Apply",
-    forms: forms.map((elements) => ({ elements })),
+    // A stand-in form's descendants are its elements; a test that needs them apart builds its own.
+    forms: forms.map((elements) => ({
+      elements,
+      getElementsByTagName: (name: string) =>
+        elements.filter((e) => e.tagName === name.toUpperCase()),
+    })),
     getElementsByTagName: () => all,
     body: { textContent: options.text ?? "Apply for this job" },
   };

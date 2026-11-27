@@ -19,7 +19,13 @@ export type DomElement = {
   checked?: boolean;
   click?(): void;
 };
-export type DomForm = { elements: ArrayLike<DomElement> };
+// `getElementsByTagName` finds the form's descendants: the same buttons the driver's click locator
+// searches (a CSS search inside the form), which `elements` may not be (a `form="…"` attribute
+// moves a button in or out of `elements` without moving it in the page).
+export type DomForm = {
+  elements: ArrayLike<DomElement>;
+  getElementsByTagName(name: string): ArrayLike<DomElement>;
+};
 export type DomDocument = {
   title: string;
   forms: ArrayLike<DomForm>;
@@ -73,7 +79,9 @@ export function collectPage(_arg: null, doc?: DomDocument): CollectedPage {
   const clean = (s: string | null | undefined): string => (s ?? "").replace(/\s+/g, " ").trim();
   const forms: RawControl[][] = [];
   const facts: FormFacts[] = [];
-  // Hidden from sight: an attribute, a hiding class or an inline style (NS-255).
+  // Hidden from sight: an attribute, a hiding class or an inline style (NS-255). Attributes only:
+  // hiding by an ancestor or a stylesheet isn't seen here (Playwright's click then waits on a
+  // display:none button and times out, a handoff), and opacity or off-screen placement isn't.
   const hiddenClasses = [" hidden ", " visually-hidden ", " sr-only ", " d-none "];
   const isHidden = (el: DomElement): boolean => {
     const classes = ` ${clean(el.getAttribute("class")).toLowerCase()} `;
@@ -101,13 +109,6 @@ export function collectPage(_arg: null, doc?: DomDocument): CollectedPage {
       if (!el) continue;
       const tag = el.tagName.toLowerCase();
       const rawType = clean(el.getAttribute("type")).toLowerCase();
-      // The set SUBMIT_SELECTOR matches: button[type=submit], input[type=submit], button with no type.
-      if (
-        (tag === "button" && (rawType === "submit" || rawType === "")) ||
-        (tag === "input" && rawType === "submit")
-      ) {
-        fact.submits.push({ hidden: isHidden(el), captcha: isCaptcha(el) });
-      }
       if (el.getAttribute("role") === "combobox") fact.comboboxes++;
       const name = el.getAttribute("name");
       if (!name) {
@@ -137,6 +138,21 @@ export function collectPage(_arg: null, doc?: DomDocument): CollectedPage {
         required: el.hasAttribute("required") || el.getAttribute("aria-required") === "true",
         options,
       });
+    }
+    // Submit candidates from the form's descendants, the place the driver's click locator searches,
+    // so the button judged here is the button that would be pressed. At least SUBMIT_SELECTOR's set
+    // (button[type=submit], input[type=submit], a button with no type), conservatively: an empty
+    // type counts too, which can only refuse more.
+    for (const tagName of ["button", "input"]) {
+      const found = form.getElementsByTagName(tagName);
+      for (let i = 0; i < found.length; i++) {
+        const el = found[i];
+        if (!el) continue;
+        const type = clean(el.getAttribute("type")).toLowerCase();
+        if (tagName === "button" ? type === "submit" || type === "" : type === "submit") {
+          fact.submits.push({ hidden: isHidden(el), captcha: isCaptcha(el) });
+        }
+      }
     }
     forms.push(controls);
     facts.push(fact);
@@ -255,12 +271,16 @@ export function checkCollected(value: unknown): CollectedPage {
     typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= COLLECT_LIMITS.controls
       ? v
       : fail("a bad count");
+  let submitTotal = 0;
   const facts = list(page.facts, COLLECT_LIMITS.forms).map((raw): FormFacts => {
     const f = obj(raw);
     return {
       unnamedFields: count(f.unnamedFields),
       comboboxes: count(f.comboboxes),
       submits: list(f.submits, COLLECT_LIMITS.controls).map((s) => {
+        // A total across every form, as for controls.
+        submitTotal++;
+        if (submitTotal > COLLECT_LIMITS.controls) fail("too many submit buttons");
         const b = obj(s);
         return { hidden: bool(b.hidden), captcha: bool(b.captcha) };
       }),

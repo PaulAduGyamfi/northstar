@@ -1,10 +1,23 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+import {
+  type Context,
+  type ContextManager,
+  context,
+  ROOT_CONTEXT,
+  trace,
+} from "@opentelemetry/api";
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
 import { describe, expect, it } from "vitest";
 import { greenhouse } from "../adapters/greenhouse.js";
 import { lever } from "../adapters/lever.js";
 import { RECORDED, recordedPage } from "../test/recorded.js";
 import { collectPage, type FormFacts, formProblem } from "./collect.js";
 import { createPlaywrightDriver, DriverError } from "./driver.js";
-import { doc, el } from "./test/dom.js";
+import { doc, el, type FakeElement } from "./test/dom.js";
 import { fakePage } from "./test/page.js";
 
 // NS-255 (#353): the driver refuses form shapes the recorded Greenhouse and Lever pages showed it
@@ -141,5 +154,93 @@ describe("open refuses a form it can't fill or submit safely", () => {
     const page = fakePage({ pages: { [URL_LV]: () => recordedPage(RECORDED.lever) } });
     const driver = createPlaywrightDriver({ page, hosts: lever.hosts });
     expect(await driver.open(URL_LV)).toEqual({ kind: "challenge", challenge: "captcha" });
+  });
+});
+
+describe("refusals the driver must see in a named form", () => {
+  it("opens a named form with a combobox as no form, and types nothing", async () => {
+    const url = URL_GH;
+    const page = fakePage({
+      pages: { [url]: () => form(el("input", { name: "country", role: "combobox" }), SUBMIT) },
+    });
+    const driver = createPlaywrightDriver({ page, hosts: greenhouse.hosts });
+    const opened = await driver.open(url);
+    expect([opened.kind, page.actions.filter((a) => a.action === "fill")]).toEqual(["page", []]);
+  });
+
+  it("judges the buttons inside the form, as the click locator does, not the form's elements list", () => {
+    // A hostile page: a clean submit outside the form joined to it by form="…", and inside it a
+    // CAPTCHA-tied submit that belongs to another form. The click locator would find the inside one.
+    const fields: FakeElement[] = [el("input", { name: "email", type: "email" })];
+    const outside = el("button", { type: "submit", form: "apply" });
+    const inside = el("button", { type: "submit", form: "other", id: "captchaGo" });
+    const hostile = {
+      ...doc([]),
+      forms: [
+        {
+          elements: [...fields, outside],
+          getElementsByTagName: (name: string) =>
+            [...fields, inside].filter((e) => e.tagName === name.toUpperCase()),
+        },
+      ],
+    };
+    const f = collectPage(null, hostile).facts[0];
+    expect(f && formProblem(f)).toBe("captcha_submit");
+  });
+});
+
+// A context manager over Node's AsyncLocalStorage, so the span stays active across the driver's
+// awaits (the package has no OpenTelemetry context manager of its own).
+class StoreContextManager implements ContextManager {
+  private store = new AsyncLocalStorage<Context>();
+  active(): Context {
+    return this.store.getStore() ?? ROOT_CONTEXT;
+  }
+  with<A extends unknown[], F extends (...args: A) => ReturnType<F>>(
+    ctx: Context,
+    fn: F,
+    thisArg?: ThisParameterType<F>,
+    ...args: A
+  ): ReturnType<F> {
+    return this.store.run(ctx, () => fn.call(thisArg, ...args));
+  }
+  bind<T>(_ctx: Context, target: T): T {
+    return target;
+  }
+  enable(): this {
+    return this;
+  }
+  disable(): this {
+    return this;
+  }
+}
+
+describe("the refusal on the span", () => {
+  it("puts the problem code, and nothing from the page, on the active span", async () => {
+    const exporter = new InMemorySpanExporter();
+    const provider = new BasicTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(exporter)],
+    });
+    context.setGlobalContextManager(new StoreContextManager());
+    try {
+      // The recorded Greenhouse form with its ids as names, so a form is picked; its stand-in
+      // required input still has no name, so it is refused as unnamed_fields.
+      const named = {
+        ...RECORDED.greenhouse,
+        controls: RECORDED.greenhouse.controls.map((c) =>
+          c.id === undefined ? c : { ...c, name: c.id },
+        ),
+      };
+      const namedPage = fakePage({ pages: { [URL_GH]: () => recordedPage(named) } });
+      const tracer = provider.getTracer("test");
+      await tracer.startActiveSpan("apply.submit", async (span) => {
+        await createPlaywrightDriver({ page: namedPage, hosts: greenhouse.hosts }).open(URL_GH);
+        span.end();
+      });
+      const [span] = exporter.getFinishedSpans();
+      expect(span?.attributes).toEqual({ "northstar.apply.form_problem": "unnamed_fields" });
+    } finally {
+      context.disable();
+    }
   });
 });

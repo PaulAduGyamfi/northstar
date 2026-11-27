@@ -36,7 +36,11 @@ submission.
   The problem code goes on the driver's span, never page text.
 - An `h-captcha` widget counts as a CAPTCHA even when marked invisible: the conservative reading
   of ADR-0003. Paul may relax it later. Invisible reCAPTCHA is unchanged.
+- Submit candidates come from the form's descendants (`getElementsByTagName`), where the click
+  locator searches, not `form.elements` (a `form="…"` attribute could make them differ).
 - `fillAndSubmit`'s own "exactly one submit button" check stays as a second guard.
+- Not in this PR: re-reading the form right before the click. It changes two existing tests'
+  exact action lists, an assertion change, so it waits for Paul (#359, NS-256).
 - No new `NeedsHumanReason`: a dedicated code would need a migration (the database CHECKs the
   list). `form_changed` it is, recorded under "Decisions made without Paul".
 
