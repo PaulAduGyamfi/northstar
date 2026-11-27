@@ -1,6 +1,6 @@
 # ADR-0022 — Passkey sign-in, with the sign-in key as the recovery path
 
-**Status:** Proposed · **Date:** 2026-11-26
+**Status:** Accepted (Paul, by delegation to the orchestrator on 2026-11-27) · **Date:** 2026-11-26
 
 ## Context
 ADR-0018 signs Paul in with a random key whose SHA-256 is in `.env`, and leaves passkeys, and what

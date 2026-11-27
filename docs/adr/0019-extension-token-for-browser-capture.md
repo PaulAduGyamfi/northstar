@@ -1,6 +1,8 @@
 # ADR-0019 — The browser extension's own token, scoped to its endpoints
 
-**Status:** Accepted (agent, under ADR-0016) · **Date:** 2026-11-25
+**Status:** Accepted (agent, under ADR-0016) · **Date:** 2026-11-25 · **Amended by:** ADR-0029
+(option 2): the extension token can read one open handoff's approved package, but only with a
+one-time, 2-minute grant that Paul's own session issues. A leaked token alone still reads nothing.
 
 ## Context
 NS-128 adds "Save to Northstar" (SRC-002), a Chrome MV3 extension that sends the page Paul is

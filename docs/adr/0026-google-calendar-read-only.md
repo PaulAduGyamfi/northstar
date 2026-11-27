@@ -1,6 +1,6 @@
 # ADR-0026 — Google Calendar read-only first, with an in-memory token; writes later through the Gate
 
-**Status:** Proposed · **Date:** 2026-11-26
+**Status:** Accepted (Paul, by delegation to the orchestrator on 2026-11-27) · **Date:** 2026-11-26
 
 ## Context
 CAL-001 asks Northstar to connect Google Calendar, read free and busy time, and create events on
