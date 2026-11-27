@@ -351,8 +351,9 @@ Exists now:
   append-only `profile_contact` in `packages/db` (`contact-schema.ts`, `contact-write.ts`:
   `setContact`, `readContact`; newest wins, the same details store nothing), checked with the
   package's own `ContactDetails` schema (`packages/domain`), and `profile contact set|show`
-  (`contact-cli.ts`). `profile.contact_set` carries a phone flag only. Its reader is
-  `preparePackage` (slice 6), through `readPackageInputs`, which has no caller yet (#230).
+  (`contact-cli.ts`). `profile.contact_set` carries a phone flag only. It is read by
+  `preparePackage` (slice 6, through `readPackageInputs`; no caller yet, #230) and by the Gate's
+  `requestPackageApproval`, which checks a package's contact against it.
 - Career DNA (NS-130, DNA-001…003), slice 1, plain code in `packages/profile/src/career-dna/`, no
   model, database or caller yet:
   - `CAREER_DNA_RUBRIC` (version 1, software engineering): six dimensions (engineering,
