@@ -35,7 +35,7 @@ export function loadDbConfig(env: Record<string, string | undefined>): DbConfig 
   if (owner) {
     // Names the setting, never its value.
     throw new Error(
-      `${owner} is set for an app: the owner's credentials belong only to .env (compose and db:migrate); apps load .env.app`,
+      `${owner} is set for an app: remove it from .env.app (and the shell). The owner's credentials belong only in .env, for compose and db:migrate`,
     );
   }
   const parsed = Env.safeParse(env);

@@ -43,7 +43,7 @@ describe("loadDbConfig", () => {
         message = (error as Error).message;
       }
       expect([message, message.includes("owner-test-key")]).toEqual([
-        `${name} is set for an app: the owner's credentials belong only to .env (compose and db:migrate); apps load .env.app`,
+        `${name} is set for an app: remove it from .env.app (and the shell). The owner's credentials belong only in .env, for compose and db:migrate`,
         false,
       ]);
     },
