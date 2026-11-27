@@ -298,7 +298,12 @@ Exists now:
   it back (`bearerOf`). Every request passes a runtime allowlist, the
   `gmail_drafts` kill switch and the `gmail` breaker. `src/mail/drafts.ts` is never imported from
   outside `src/mail/`, and nothing there names a send, update or delete (a boundary test). It
-  never sends. No database ledger (it needs a migration), consent flow or caller yet.
+  never sends. Since slice 5 also its own consent flow, `authorizeCompose` (`src/mail/consent.ts`):
+  desktop OAuth with PKCE to a one-shot `127.0.0.1` listener, `gmail.compose` only, no refresh
+  token, the token in memory for one run (ADR-0014). The scopes come from Google's answer: a grant
+  holding any other scope is refused, and one without compose gives a token whose
+  `hasComposeScope()` is false (`scope_missing`). No database ledger (it needs a migration) or
+  caller yet.
 - Factual answers (NS-141, ANS-001) from Paul's profile settings, plain code, no model:
   `profile_setting` in `packages/db` (`settings-write.ts`: `setProfileSetting`,
   `readProfileSettings`, `recordFactualAnswer`; append-only, newest wins, setting the same value
