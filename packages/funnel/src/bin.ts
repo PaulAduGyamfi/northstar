@@ -10,20 +10,26 @@ import {
   latestFactsCheck,
   loadDbConfig,
   readFunnelMessages,
+  readLinkCandidates,
   readManualRows,
   recordCallOutcome,
+  recordDeadLetter,
   recordFunnelEvent,
+  recordInterviewDetection,
   resolveReview,
   saveFunnelMessages,
   setManualRows,
   soleCandidate,
 } from "@northstar/db";
 import {
+  authorizeCalendar,
   authorizeGmail,
+  createCalendarClient,
   createGmailClient,
   googleTokenEndpoint,
   loadGoogleConfig,
   mailClassifyRoute,
+  runInterviewDetection,
 } from "@northstar/inbox";
 import {
   type CallGuard,
@@ -36,11 +42,12 @@ import { sql } from "drizzle-orm";
 import { createAsker } from "./ask.js";
 import { runBackfill } from "./backfill.js";
 import { main } from "./cli.js";
+import { toInterviewCandidates } from "./interviews.js";
 import { Baselines } from "./report.js";
 
 // Entry point for `pnpm --filter @northstar/funnel funnel …`. The only place in this package that
 // reads process.env (DATABASE_URL, GOOGLE_OAUTH_CLIENT_*, ANTHROPIC_API_KEY from .env.app, NS-235). Paul runs
-// it; agents never do (it reads his real mail and prints his real funnel).
+// it; agents never do (it reads his real mail and calendar and prints his real funnel).
 const { db, close } = connectDb(loadDbConfig(process.env));
 // Paul's keyboard, opened only when `review` asks (an open readline keeps the process waiting).
 let asker: ReturnType<typeof createAsker> | undefined;
@@ -119,6 +126,43 @@ try {
         options,
         counts,
       );
+    },
+    runInterviews: async () => {
+      // ADR-0026: consent on this run, the token in memory until the process ends, never stored.
+      const access = await authorizeCalendar({
+        config: loadGoogleConfig(process.env),
+        fetchToken: googleTokenEndpoint(fetch),
+        timeoutMs: 120_000,
+        openBrowser: async (url) => {
+          print("Opening Google's consent page (read-only Calendar). If it doesn't open, visit:");
+          print(url);
+          openInBrowser(url);
+        },
+      });
+      // Stays null when the run stops before reading the applications (the calendar read is first).
+      let applications: number | null = null;
+      let withDomains: number | null = null;
+      const report = await runInterviewDetection({
+        // Every read goes through the stored `calendar` breaker.
+        calendar: createCalendarClient({
+          access,
+          fetch,
+          sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+          random: Math.random,
+          guard,
+        }),
+        candidateId,
+        candidates: async () => {
+          const rows = await readLinkCandidates(db, candidateId);
+          applications = rows.length;
+          withDomains = rows.filter((r) => (r.companyDomains ?? []).length > 0).length;
+          return toInterviewCandidates(rows);
+        },
+        record: (detection) => recordInterviewDetection(db, { candidateId, detection }),
+        deadLetter: (letter) => recordDeadLetter(db, { candidateId, ...letter }),
+        now: () => new Date(),
+      });
+      return { report, applications, withDomains };
     },
     // pnpm runs scripts from the package folder; resolve the path from where Paul ran pnpm.
     readText: (path) => readFile(resolve(process.env.INIT_CWD ?? process.cwd(), path), "utf8"),

@@ -14,10 +14,11 @@ import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
 import { type BackfillCounts, emptyCounts } from "./backfill.js";
 import { parseTracker } from "./csv.js";
 import { judgeHypotheses, summarize } from "./hypotheses.js";
+import { type InterviewsRun, interviewsCommand } from "./interviews.js";
 import { gmailRecords, mergeRecords } from "./records.js";
 import { type Baselines, buildReport, renderReport } from "./report.js";
 
-// `funnel backfill | import | review | report | hypotheses` (NS-113). Everything is injected, so
+// `funnel backfill | import | review | report | hypotheses` (NS-113) and `interviews` (NS-240). Everything is injected, so
 // tests run with no database, Gmail or model. Output shows Paul's own job data back to Paul only.
 export type CliDeps = {
   argv: string[];
@@ -43,6 +44,8 @@ export type CliDeps = {
     messageId: string,
     decision: ReviewDecision,
   ) => Promise<Result<{ status: "classified" | "discarded" }, ReviewError>>;
+  // Calendar consent and one detection run (NS-240 slice 6): the token lives only inside it.
+  runInterviews: () => Promise<InterviewsRun>;
   recordEvent: (
     type: "funnel.backfilled" | "funnel.reported",
     reason: string,
@@ -51,7 +54,7 @@ export type CliDeps = {
 };
 
 const USAGE =
-  "usage: funnel backfill [--since YYYY-MM-DD] [--max-messages N] | funnel import <file.csv> | funnel review | funnel report | funnel hypotheses";
+  "usage: funnel backfill [--since YYYY-MM-DD] [--max-messages N] | funnel import <file.csv> | funnel review | funnel report | funnel hypotheses | funnel interviews";
 
 export async function main(deps: CliDeps): Promise<number> {
   const [command, ...rest] = deps.argv;
@@ -63,6 +66,7 @@ export async function main(deps: CliDeps): Promise<number> {
   if (command === "review" && rest.length === 0) return reviewCommand(deps);
   if (command === "report" && rest.length === 0) return reportCommand(deps);
   if (command === "hypotheses" && rest.length === 0) return hypothesesCommand(deps);
+  if (command === "interviews" && rest.length === 0) return interviewsCommand(deps);
   deps.print(USAGE);
   return 1;
 }

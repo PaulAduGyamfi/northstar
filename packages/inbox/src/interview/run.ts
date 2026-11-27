@@ -5,8 +5,8 @@ import { detectInterview, type InterviewCandidate, type InterviewFormat } from "
 
 // The interview detection run (NS-240 slice 4, CAL-002): read one window of calendar events,
 // detect interviews against the open applications and store each one through a port
-// (recordInterviewDetection in @northstar/db). Plain code with ports, no caller yet (the worker
-// process, #230). Detections are proposals for Paul (invites aren't authenticated); nothing here
+// (recordInterviewDetection in @northstar/db). Plain code with ports; its caller is the one-shot
+// `funnel interviews` (NS-240 slice 6), with no schedule yet (#400). Detections are proposals for Paul (invites aren't authenticated); nothing here
 // moves a status. Ids, a format, times and a count cross the ports: never a title, address or name.
 
 // How far ahead one run looks. The client refuses a window over 60 days.
@@ -57,7 +57,7 @@ export type DetectionRunDeps = {
   calendar: Pick<CalendarClient, "listEvents">;
   candidateId: string;
   // Open applications with their company domains: Paul enters those with `jobs domains`
-  // (NS-252); the caller (#230) reads them through readLinkCandidates.
+  // (NS-252); the caller (`funnel interviews`) reads them through readLinkCandidates.
   candidates: () => Promise<readonly InterviewCandidate[]>;
   record: (detection: StoredDetection) => Promise<DetectionRecordResult>;
   // The caller adds the candidate id and passes the rest to recordDeadLetter unchanged.

@@ -562,7 +562,7 @@ Exists now:
   (`oauth.ts`): the same desktop PKCE flow as `authorizeGmail` (one private shared flow), asking
   for `calendar.events.readonly` only, with no refresh token. A grant of anything but exactly that
   scope (a Gmail scope, a wider Calendar scope, several) is refused, and it returns a
-  `CalendarAccess`. No caller yet.
+  `CalendarAccess`. Its caller is `funnel interviews` (slice 6).
   Since NS-240 slice 2 also storage and Paul's decision, in `packages/db` (`interview-schema.ts`,
   `interview-write.ts`, append-only):
   - `recordInterviewDetection` stores a detection once in `interview_detection`, with an
@@ -587,7 +587,7 @@ Exists now:
   `calendar.interview_detection`; keys hold a SHA-256 prefix of the event id). It
   returns counts on a `calendar.detect` span; a failed read, store or letter stops it
   (`stoppedBy`). It matches only companies whose mail domains Paul entered (`jobs domains`,
-  NS-252); its caller (#230) passes them in from `readLinkCandidates`.
+  NS-252); its caller, `funnel interviews` (slice 6), passes them in from `readLinkCandidates`.
 
   Since slice 5 also Paul's confirm step in the app: the API's `GET /interviews` (each current
   detection's format, times, interviewer count, decision and the job's own title and company from
@@ -596,7 +596,14 @@ Exists now:
   `decideInterview`; `not_found`, `superseded`, `already_decided`), session only
   (`apps/api/src/interviews.ts`), and the web app's `/interviews` (`src/interviews.ts`, linked
   from Today): waiting detections marked "Not verified" with Confirm and Dismiss, then decided
-  ones. Neither choice moves a status. The run has no caller yet (#230).
+  ones. Neither choice moves a status.
+  Since slice 6 the run's caller is a command Paul runs, `funnel interviews` (`packages/funnel`,
+  `interviews.ts`; the one package that already depends on both `inbox` and `db`): consent on that
+  run (`authorizeCalendar`, the token in memory only), `runInterviewDetection` over the next 30
+  days with the stored `calendar` breaker, candidates from `readLinkCandidates`
+  (`toInterviewCandidates`: active from creation, Paul's company domains only), `recordInterviewDetection`
+  and `recordDeadLetter`; it prints counts only. Scheduled detection in the worker needs a stored
+  refresh token (ADR-0026), which is Paul's decision.
 - Interview prep (NS-170, CAL-003/004), slice 1, plain code in `packages/domain`
   (`interview-prep.ts`): `planPrepBlocks` proposes CAL-003's default prep for one interview, two
   45-minute blocks in the 3 days before (one per day where it can, nearest days first, earliest
@@ -1230,6 +1237,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/funnel funnel backfill [--since YYYY-MM-DD] [--max-messages N]` | sign in to Gmail read-only (browser consent every run), rebuild the funnel from job mail since `--since` (default 2026-02-01); prints the model-call count and estimated cost first and stops at `--max-messages` (default 500). Safe to rerun. Paul only: his real mail, needs `DATABASE_URL`, `GOOGLE_OAUTH_CLIENT_*` and `ANTHROPIC_API_KEY`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel import data/<file>.csv` | import a tracker export (`company, role, applied_on, stage_reached, outcome` plus optional `outcome_on, channel, notes`); a file with any bad row stores nothing. Paul only |
 | repo root | `pnpm --filter @northstar/funnel funnel review` | place or discard the messages the backfill couldn't decide, with a link to each in Gmail. Paul only |
+| repo root | `pnpm --filter @northstar/funnel funnel interviews` | sign in to Google Calendar read-only (browser consent every run, no stored token), detect interviews in the next 30 days against open applications whose company domains you entered (`jobs domains`), store them for `/interviews` and print counts only. Safe to rerun. Paul only: his real calendar, needs `DATABASE_URL` and `GOOGLE_OAUTH_CLIENT_*`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel report` / `funnel hypotheses` | the funnel report and the hypothesis board. Paul only: they print his real applications; agents never run them |
 | repo root | `pnpm --filter @northstar/sources jobs add <url>` | add a job from a link: ATS API, then the page's JSON-LD, then the `job-extract` model (needs `ANTHROPIC_API_KEY` only then). A job without a title or company is stored as a draft. LinkedIn, Indeed and Glassdoor links are refused. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs add --text data/<file> --url <url>` | add a job from a description Paul saved himself (sign-in sites such as LinkedIn); nothing is fetched |
