@@ -180,6 +180,7 @@ export {
   type DeadLetterView,
   type InvalidDeadLetter,
   listOpenDeadLetters,
+  readDeadLetterKeys,
   recordDeadLetter,
   resolveDeadLetter,
 } from "./dead-letter-write.js";
@@ -397,6 +398,13 @@ export {
   type TagTarget,
   type TagView,
 } from "./mail-link-write.js";
+// What `funnel inbox` still has to classify and grade (NS-238 item 1).
+export {
+  countUngradedRecruiterMail,
+  readRecordedMessageIds,
+  readUnclassifiedMail,
+  type UnclassifiedMail,
+} from "./mail-loop-read.js";
 // The mail poll's stored cursor (NS-247 slice 2).
 export {
   CURSOR_SKEW_MS,
