@@ -63,8 +63,9 @@ export type ApplyPorts = {
   isPostingClosed: (candidateId: CandidateId, applicationId: string) => Promise<boolean>;
   // The bytes of an approved file by its SHA-256, or null if it is gone.
   readFile: (sha256: string) => Promise<Uint8Array | null>;
-  // A fresh browser session for one submission.
-  openDriver: () => FormDriver;
+  // A fresh browser session for one submission, bound to the adapter's own hosts (NS-225): the
+  // ones the apply URL was already checked against.
+  openDriver: (hosts: readonly string[]) => FormDriver;
   // The stored kill switches and breakers (NS-206, RES-002/008), asked at the moment it acts.
   isSubsystemOn: (candidateId: CandidateId, subsystem: string) => Promise<boolean>;
   acquireCall: (candidateId: CandidateId, dependency: string) => Promise<CallDecision>;
