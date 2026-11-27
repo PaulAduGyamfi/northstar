@@ -38,6 +38,8 @@ recorded copies can check the names offline.
 - A test reads each recording's form controls (plain code over the HTML: `input`, `select` and
   `textarea` names, types and required flags) and checks that the adapter's `standardFields`
   names, `resumeField` and `coverLetterField` are fields on the recorded form.
+- Outcome: Greenhouse (ids, no names) and Lever recorded; Ashby JavaScript-only, skipped. No
+  adapter name was wrong. What the driver can't yet do with these forms is #353 (NS-255).
 - Where a recording shows a hand-written name is wrong, the adapter is corrected (with the
   prefill parity table in `apps/extension/src/prefill.ts`, which must match) and its comment says
   "recorded" instead of "hand-written".
@@ -45,12 +47,12 @@ recorded copies can check the names offline.
 - Tests stay offline: nothing in a test fetches.
 
 ## Acceptance criteria
-- [ ] At least one recorded form per ATS (Greenhouse, Lever, Ashby) whose form is in the served
+- [x] At least one recorded form per ATS (Greenhouse, Lever, Ashby) whose form is in the served
       HTML, or a note saying why not. SmartRecruiters: skipped (host not allowed).
-- [ ] A test fails if an adapter names a standard, resume or cover-letter field the recording
+- [x] A test fails if an adapter names a standard, resume or cover-letter field the recording
       doesn't have.
-- [ ] No personal data in the recordings (pre-commit check plus a read by eye, recorded in the PR).
-- [ ] lint, typecheck, test and build green for `@northstar/gateways` (and `@northstar/extension`
+- [x] No personal data in the recordings (pre-commit check plus a read by eye, recorded in the PR).
+- [x] lint, typecheck, test and build green for `@northstar/gateways` (and `@northstar/extension`
       if its table changes).
 
 ## Out of scope

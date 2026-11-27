@@ -1,7 +1,9 @@
 import { type AtsAdapter, capture, pageText } from "./adapter.js";
 
 // Lever hosted postings (`jobs.lever.co/<company>/<posting>/apply`). Lever asks for one full
-// name and has no cover letter upload. Markers are hand-written (follow-up: record real pages).
+// name and has no cover letter upload. The field names were checked against a recorded form
+// (NS-142 slice 2, `test/recorded.ts`); its submit button and hCaptcha are #353. The confirmation
+// markers are still hand-written: recording a confirmation page needs a submission.
 export const lever: AtsAdapter = {
   ats: "lever",
   hosts: ["jobs.lever.co"],

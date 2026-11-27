@@ -25,7 +25,8 @@ export const FORMS: Record<ApplyAts, FormField[]> = {
   lever: [
     { name: "name", type: "text", required: true },
     { name: "email", type: "email", required: true },
-    { name: "phone", type: "tel", required: false },
+    // Lever's phone input is type=text on the recorded form (`recorded.ts`).
+    { name: "phone", type: "text", required: false },
     { name: "resume", type: "file", required: true },
     { name: "urls[LinkedIn]", type: "text", required: false },
     { name: "cards[aaaa][field0]", type: "radio", required: true, options: ["Yes", "No"] },

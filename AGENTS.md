@@ -756,7 +756,13 @@ Exists now:
   `APPLY_MIN_GAP_SECONDS`, which may lower APPLY-007's 25 a day and 90 s but never raise them),
   passed to `dbPorts`. Greenhouse, Lever, Ashby and (NS-173)
   SmartRecruiters adapters map the package onto the form and recognize the confirmation page
-  (hand-written markers until NS-142 records real pages). The package schema and its hash
+  (hand-written markers until NS-142 records real pages). Since NS-142 slice 2 the Greenhouse
+  and Lever adapters' field names are checked against recorded form structures
+  (`src/apply/test/recorded.ts`: structure only, all content synthetic; `recorded.test.ts`).
+  Greenhouse's current board has ids and no names, react-select dropdowns and a JS submit; Lever's
+  only `type="submit"` is a hidden hCaptcha button. The driver can't read or press those safely
+  yet: #353 (NS-255). Ashby's page is JavaScript-only and SmartRecruiters wasn't fetched, so both
+  stay hand-written, as do all confirmation markers (recording one needs a submission). The package schema and its hash
   are in `packages/domain` (`apply-package.ts`). Its tests run on fakes and, through `dbPorts`,
   on the real write paths: `@northstar/db/testing` exports `createTestDb` and friends for that.
   Since NS-142 (slice 1, ADR-0028, Accepted) also the browser driver, `src/apply/browser/`:
@@ -774,8 +780,8 @@ Exists now:
   - It checks what the page reports (`checkCollected`), and after `close()` it takes no further
     browser action.
 
-  Its tests use a fake page and a stand-in DOM, with no browser. Its markers are hand-written
-  until recorded pages confirm them (Paul, #76). Nothing starts it until the worker process
+  Its tests use a fake page and a stand-in DOM, with no browser. Its challenge markers are
+  hand-written; `recordedPage` runs its in-page reader on the recorded Lever form (NS-142 slice 2). Nothing starts it until the worker process
   (#230), so nothing can be submitted yet.
   Since NS-211 a Gate `ContentChanged` (the package changed after approval) also withdraws that
   approval (`requestOfDecision`, then `withdrawApproval` by `gateway` with the new package hash),
