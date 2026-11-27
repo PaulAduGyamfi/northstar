@@ -1,6 +1,6 @@
 # NS-241 slice 4: prep plans through the Gate, the write ledger and the writer
 
-Status: in progress
+Status: in review (PR)
 Requirements: CAL-001 (a dedicated Northstar calendar), CAL-003 (prep blocks, one approval per
 interview), RES-006 (safe to repeat), OBS-001 (in the feed)
 Rules that apply: ADR-0031 (Accepted) items 3–8, ADR-0002, ADR-0014, ADR-0026, ADR-0007,
@@ -73,19 +73,19 @@ requests. This slice joins them through the Approval Gate: a stored proposal bec
 Held-back requests (kill switch, breaker) are the `HeldBack` refusal.
 
 ## Acceptance criteria
-- [ ] The hash changes with any block, the detection version or the proposal; event ids are valid
+- [x] The hash changes with any block, the detection version or the proposal; event ids are valid
       base32hex and differ per index.
-- [ ] `requestPrepPlanApproval` files once, a replay stores nothing, and it refuses superseded,
+- [x] `requestPrepPlanApproval` files once, a replay stores nothing, and it refuses superseded,
       unconfirmed, unknown and empty plans.
-- [ ] The foreign key refuses a row whose request has another kind or hash.
-- [ ] Claims: `new`, then `in_progress` for this decision and for another decision of the same
+- [x] The foreign key refuses a row whose request has another kind or hash.
+- [x] Claims: `new`, then `in_progress` for this decision and for another decision of the same
       candidate, then `unknown` after the lease, then `done` after recording. A different second
       record or calendar id is refused.
-- [ ] The tables are append-only, and `app-role.test.ts` passes.
-- [ ] The writer refuses an unapproved plan, waits out the undo window with `retryAt`, withdraws
+- [x] The tables are append-only, and `app-role.test.ts` passes.
+- [x] The writer refuses an unapproved plan, waits out the undo window with `retryAt`, withdraws
       on a reschedule, gives `scope_missing`, writes each block once across a retry (409), reuses
       the stored calendar, finds the marked one after an unknown outcome, and records the write.
-- [ ] `pnpm --filter @northstar/domain --filter @northstar/db --filter @northstar/gateways
+- [x] `pnpm --filter @northstar/domain --filter @northstar/db --filter @northstar/gateways
       --filter @northstar/web lint typecheck test` pass.
 
 ## Out of scope

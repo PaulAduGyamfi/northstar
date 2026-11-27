@@ -30,8 +30,8 @@ export const NORTHSTAR_CALENDAR_MARKER = "Northstar prep blocks [northstar:prep-
 export const PREP_EVENT_TITLES = PREP_BLOCK_TITLES;
 export type PrepEventKind = keyof typeof PREP_EVENT_TITLES;
 
-// One block as the writer sends it. The id is client-chosen (from the Gate decision and the
-// block's index, next slice), so a repeated insert answers 409 instead of making a second event.
+// One block as the writer sends it. The id is client-chosen (prepEventId, packages/domain: the
+// Gate decision and the block's index), so a repeated insert answers 409 instead of a second event.
 export type PrepEvent = { id: string; kind: PrepEventKind; start: Date; end: Date };
 
 // Google's rules for a client-chosen event id: lowercase base32hex, 5 to 1024 characters.

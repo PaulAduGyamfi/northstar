@@ -12,7 +12,8 @@ import { appendEvent, inSpan } from "./resilience-event.js";
 // ports in @northstar/gateways. Ids, counts and times only.
 
 // How long a claim counts as a live run: longer than the writer's 30 s request timeout times the
-// requests one run makes (a lookup, a create, three inserts), with room to spare.
+// requests one run makes (a lookup, a create and at most three inserts, the record's CHECK), with
+// room to spare.
 export const PREP_CLAIM_LEASE_MS = 5 * 60_000;
 // The schema's attempt bound: a claim past it is refused by name, never as a raw CHECK error.
 export const MAX_PREP_CLAIMS = 100;
@@ -143,7 +144,7 @@ export async function recordPrepWrite(
   if (!Uuid.safeParse(input.decisionId).success || !Uuid.safeParse(input.proposalId).success) {
     throw new Error("invalid id");
   }
-  if (!Number.isInteger(input.blockCount) || input.blockCount < 1 || input.blockCount > 10) {
+  if (!Number.isInteger(input.blockCount) || input.blockCount < 1 || input.blockCount > 3) {
     throw new Error("invalid block count");
   }
   await inSpan("db.prep_write.record", {}, (span) =>

@@ -10,7 +10,6 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { approvalRequest } from "./approval-schema.js";
-import { interviewPrepProposal } from "./interview-schema.js";
 import { candidate } from "./schema.js";
 
 // Prep plans through the Approval Gate and the Calendar writer's ledger (NS-241 slice 4,
@@ -20,7 +19,10 @@ import { candidate } from "./schema.js";
 
 // One row per `prep_plan` Gate request, filed from a stored proposal only. The composite foreign
 // key pins the request's id, candidate, kind and content hash, as reply_draft's does, so a
-// request someone else files for the same subject can never be written.
+// request someone else files for the same subject can never be written. The proposal is checked in
+// requestPrepPlanApproval's transaction, not by a foreign key: one would make TRUNCATE on the
+// append-only interview_prep_proposal fail with Postgres's foreign-key error before its trigger's
+// refusal (as interview_decision does for interview_detection).
 export const prepPlanRequest = pgTable(
   "prep_plan_request",
   {
@@ -52,12 +54,6 @@ export const prepPlanRequest = pgTable(
         approvalRequest.kind,
         approvalRequest.contentSha256,
       ],
-    }),
-    // The proposal must be the candidate's own.
-    foreignKey({
-      name: "prep_plan_request_proposal_same_candidate_fk",
-      columns: [t.proposalId, t.candidateId],
-      foreignColumns: [interviewPrepProposal.id, interviewPrepProposal.candidateId],
     }),
     check("prep_plan_request_kind", sql`${t.requestKind} = 'prep_plan'`),
     check("prep_plan_request_version_range", sql`${t.detectionVersion} between 1 and 10`),
@@ -101,7 +97,7 @@ export const prepWriteRecord = pgTable(
   },
   (t) => [
     unique("prep_write_record_one_per_decision").on(t.candidateId, t.decisionId),
-    check("prep_write_record_block_count_range", sql`${t.blockCount} between 1 and 10`),
+    check("prep_write_record_block_count_range", sql`${t.blockCount} between 1 and 3`),
   ],
 );
 

@@ -42,13 +42,12 @@ CREATE TABLE "prep_write_record" (
 	"block_count" integer NOT NULL,
 	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "prep_write_record_one_per_decision" UNIQUE("candidate_id","decision_id"),
-	CONSTRAINT "prep_write_record_block_count_range" CHECK ("prep_write_record"."block_count" between 1 and 10)
+	CONSTRAINT "prep_write_record_block_count_range" CHECK ("prep_write_record"."block_count" between 1 and 3)
 );
 --> statement-breakpoint
 ALTER TABLE "northstar_calendar" ADD CONSTRAINT "northstar_calendar_candidate_id_candidate_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidate"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "prep_plan_request" ADD CONSTRAINT "prep_plan_request_candidate_id_candidate_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidate"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "prep_plan_request" ADD CONSTRAINT "prep_plan_request_request_same_candidate_fk" FOREIGN KEY ("request_id","candidate_id","request_kind","content_sha256") REFERENCES "public"."approval_request"("id","candidate_id","kind","content_sha256") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "prep_plan_request" ADD CONSTRAINT "prep_plan_request_proposal_same_candidate_fk" FOREIGN KEY ("proposal_id","candidate_id") REFERENCES "public"."interview_prep_proposal"("id","candidate_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "prep_write_claim" ADD CONSTRAINT "prep_write_claim_candidate_id_candidate_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidate"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "prep_write_record" ADD CONSTRAINT "prep_write_record_candidate_id_candidate_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidate"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 -- Prep plans and the Calendar writer's ledger are append-only (NS-241 slice 4, ADR-0012,

@@ -7455,21 +7455,6 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
-        },
-        "prep_plan_request_proposal_same_candidate_fk": {
-          "name": "prep_plan_request_proposal_same_candidate_fk",
-          "tableFrom": "prep_plan_request",
-          "tableTo": "interview_prep_proposal",
-          "columnsFrom": [
-            "proposal_id",
-            "candidate_id"
-          ],
-          "columnsTo": [
-            "id",
-            "candidate_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -7654,7 +7639,7 @@
       "checkConstraints": {
         "prep_write_record_block_count_range": {
           "name": "prep_write_record_block_count_range",
-          "value": "\"prep_write_record\".\"block_count\" between 1 and 10"
+          "value": "\"prep_write_record\".\"block_count\" between 1 and 3"
         }
       },
       "isRLSEnabled": false

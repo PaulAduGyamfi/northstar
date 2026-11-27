@@ -2,9 +2,10 @@ import { CandidateId, prepPlanContentSha256, prepPlanSubject } from "@northstar/
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { approvalRequest } from "./approval-schema.js";
-import { requestApproval } from "./approval-write.js";
+import { requestApproval, withdrawApproval } from "./approval-write.js";
 import type { Db } from "./db.js";
 import { proposeInterviewPrep } from "./interview-prep-write.js";
+import { interviewPrepProposal } from "./interview-schema.js";
 import { decideInterview, recordInterviewDetection } from "./interview-write.js";
 import {
   claimPrepWrite,
@@ -135,6 +136,24 @@ describe("requestPrepPlanApproval", () => {
     ]).toEqual([true, true, false, true, 1, 1]);
   });
 
+  it("answers the first request when filed again after Paul withdrew it, filing nothing new", async () => {
+    const { proposalId } = await proposal();
+    const first = await file(proposalId);
+    if (!first.ok) throw new Error(first.error.kind);
+    const closed = await withdrawApproval(db, {
+      candidateId,
+      requestId: first.value.requestId,
+      by: "user",
+    });
+    if (!closed.ok) throw new Error(closed.error.kind);
+    const again = await file(proposalId);
+    expect([
+      again.ok && again.value.requestId === first.value.requestId,
+      again.ok && again.value.stored,
+      (await db.select().from(approvalRequest)).length,
+    ]).toEqual([true, false, 1]);
+  });
+
   it("refuses an unknown proposal", async () => {
     expect(await file("8b2e3d7a-4f6c-4e0a-9d9c-3a4b5c6d7e8f")).toEqual({
       ok: false,
@@ -146,6 +165,16 @@ describe("requestPrepPlanApproval", () => {
     const { proposalId } = await proposal();
     await detect(new Date("2026-12-02T15:00:00Z"), new Date("2026-12-02T16:00:00Z"));
     expect(await file(proposalId)).toEqual({ ok: false, error: { kind: "Superseded" } });
+  });
+
+  it("refuses a proposal whose interview Paul hasn't confirmed", async () => {
+    const detectionId = await detect();
+    // Stored directly: the proposer itself only plans for confirmed interviews.
+    const [row] = await db
+      .insert(interviewPrepProposal)
+      .values({ candidateId, detectionId, missingPrep: 0, warmUpMissing: true })
+      .returning({ id: interviewPrepProposal.id });
+    expect(await file(row?.id ?? "")).toEqual({ ok: false, error: { kind: "NotConfirmed" } });
   });
 
   it("refuses an empty plan, since there is nothing to approve", async () => {

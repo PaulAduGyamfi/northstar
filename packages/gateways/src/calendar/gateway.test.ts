@@ -207,6 +207,32 @@ describe("writePrepPlan (NS-241 slice 4, ADR-0031)", () => {
     expect([verified, google.calls]).toEqual([[], []]);
   });
 
+  it("refuses a stored plan with more blocks than the planner makes, even if its hash fits", async () => {
+    const google = fakeGoogle();
+    const extra = {
+      kind: "prep" as const,
+      start: at("2026-11-29T09:00:00Z"),
+      end: at("2026-11-29T09:45:00Z"),
+    };
+    const blocks = [extra, ...BLOCKS];
+    const big = {
+      ...PLAN,
+      blocks,
+      contentSha256: prepPlanContentSha256({
+        proposalId: PROPOSAL,
+        detectionId: DETECTION,
+        detectionVersion: 1,
+        blocks,
+      }),
+    };
+    const { ports } = fakePorts({ plan: big });
+    expect(await writePrepPlan(ports, access(), input)).toEqual({
+      ok: false,
+      error: { kind: "ContentMismatch" },
+    });
+    expect(google.calls).toEqual([]);
+  });
+
   it("answers NotFound for a request with no stored plan", async () => {
     fakeGoogle();
     const { ports } = fakePorts({ plan: null });

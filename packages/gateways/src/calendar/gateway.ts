@@ -23,6 +23,8 @@ import { createCalendarWriteClient } from "./requests.js";
 // The Calendar Gateway's writer (NS-241 slice 4, ADR-0031): an approved prep plan goes onto the
 // Northstar calendar, each block once. It only inserts: Paul moves or removes a block himself.
 
+const MAX_PREP_BLOCKS = 3;
+
 // The type lives with the stored ledger (`packages/db`, `prep-ledger-write.ts`) so the two can't
 // drift.
 export type { PrepClaim };
@@ -96,7 +98,13 @@ export async function writePrepPlan(
       const plan = await ports.readPrepPlan(candidateId, input.requestId);
       if (!plan) return done(err({ kind: "NotFound" as const }), "not_found");
       const contentSha256 = hashOver(plan, plan.filedFor);
-      if (contentSha256 !== plan.contentSha256 || plan.blocks.length === 0) {
+      // At most the planner's three blocks (two prep, one warm-up): the ledger's lease is sized for
+      // that many inserts, and the record's CHECK allows no more.
+      if (
+        contentSha256 !== plan.contentSha256 ||
+        plan.blocks.length === 0 ||
+        plan.blocks.length > MAX_PREP_BLOCKS
+      ) {
         return done(err({ kind: "ContentMismatch" as const }), "content_mismatch");
       }
       // 2. The Gate, at the moment it acts (ADR-0002 item 3).
