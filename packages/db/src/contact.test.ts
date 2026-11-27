@@ -120,7 +120,9 @@ describe("setContact and readContact", () => {
     expect([
       (event?.payload as Record<string, unknown> | undefined)?.phone,
       event?.reason,
-      ["Test", "Person", "example.com", "555"].some((s) => text.includes(s)),
+      // Whole values only: the event's contactId is a random UUID, so a short digit run such as
+      // "555" can appear in it by chance (it did, on main) and isn't evidence of a leaked phone.
+      ["Test", "Person", "example.com", "+1 555 0100", "5550100"].some((s) => text.includes(s)),
     ]).toEqual([true, "You updated your contact details", false]);
   });
 
