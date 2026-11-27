@@ -39,18 +39,29 @@ const withoutComments = (code: string) =>
   code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
 // An import, re-export or require of this package's calendar/requests, calendar/access or
-// calendar/consent (whose test seam takes a token exchange that sees the raw token). Inside
-// packages/gateways that is a relative `calendar/...` path; anywhere else it names the package's
-// own src or dist folder. packages/inbox has a calendar/ folder of its own (the read-only client),
-// which this doesn't match.
+// calendar/consent (whose test seam takes a token exchange that sees the raw token). Anywhere in
+// packages/gateways (src/, a config file, a future test/ or scripts/ folder) that is any relative
+// `calendar/...` path; anywhere else it names the package's own src or dist folder.
+// packages/inbox has a calendar/ folder of its own (the read-only client), which this doesn't
+// match.
 const PRIVATE = "calendar\\/(requests|access|consent)(\\.[a-z]+)?[\"']";
-const IMPORT = "(from\\s+|import\\s*\\(\\s*|require\\s*\\(\\s*)[\"']";
+// `from "…"`, `import("…")`, a bare `import "…"` and `require("…")`.
+const IMPORT = "(from\\s+|import\\s*\\(\\s*|import\\s+|require\\s*\\(\\s*)[\"']";
 const IMPORTS_PRIVATE_HERE = new RegExp(`${IMPORT}[^"']*${PRIVATE}`, "g");
 const IMPORTS_PRIVATE_ELSEWHERE = new RegExp(
   `${IMPORT}[^"']*gateways\\/(src|dist)\\/${PRIVATE}`,
   "g",
 );
-const GATEWAYS_SRC = "packages/gateways/src/";
+const GATEWAYS_PKG = "packages/gateways/";
+
+// The private imports one file makes, other than the package entry's allowed exports (the token
+// type and the consent entry point).
+function privateImports(path: string, text: string): string[] {
+  const pattern = path.startsWith(GATEWAYS_PKG) ? IMPORTS_PRIVATE_HERE : IMPORTS_PRIVATE_ELSEWHERE;
+  const matches = text.match(pattern) ?? [];
+  if (path !== ENTRY) return matches;
+  return matches.filter((m) => !/calendar\/(access|consent)(\.js)?["']$/.test(m));
+}
 
 // Calendar calls beyond insert, and event fields outside the hash (ADR-0031 item 6).
 const BEYOND_INSERT = [
@@ -76,19 +87,31 @@ describe("the Calendar writer's boundary (ADR-0031)", () => {
       for (const file of await sources(repoRoot)) {
         const path = rel(file);
         if (path.startsWith(CALENDAR_DIR)) continue;
-        const text = await readFile(file, "utf8");
-        const pattern = path.startsWith(GATEWAYS_SRC)
-          ? IMPORTS_PRIVATE_HERE
-          : IMPORTS_PRIVATE_ELSEWHERE;
-        const matches = text.match(pattern) ?? [];
-        const allowed = path === ENTRY;
-        if (matches.some((m) => !(allowed && /calendar\/(access|consent)(\.js)?["']$/.test(m))))
-          found.push(path);
+        if (privateImports(path, await readFile(file, "utf8")).length > 0) found.push(path);
       }
       expect(found).toEqual([]);
     },
     REPO_WALK_TIMEOUT_MS,
   );
+
+  it("catches a private import from anywhere in the gateways package or the repo, never inbox's own calendar folder", () => {
+    const req = 'import { createCalendarWriteClient } from "../src/calendar/requests.js";';
+    expect([
+      privateImports("packages/gateways/vitest.config.ts", req).length,
+      privateImports("packages/gateways/scripts/x.ts", req).length,
+      privateImports("packages/gateways/src/apply/x.ts", 'import "../calendar/consent.js";').length,
+      privateImports(
+        "apps/api/src/x.ts",
+        'import "@northstar/x/../../packages/gateways/dist/calendar/requests.js";',
+      ).length,
+      privateImports(ENTRY, 'export { CalendarWriteAccess } from "./calendar/access.js";').length,
+      privateImports(ENTRY, 'export { x } from "./calendar/requests.js";').length,
+      privateImports(
+        "packages/inbox/src/index.ts",
+        'export { CalendarAccess } from "./calendar/access.js";',
+      ).length,
+    ]).toEqual([1, 1, 1, 1, 0, 1, 0]);
+  });
 
   it("no code under src/calendar/ names an update, move or delete, or an unhashed event field", async () => {
     const found: string[] = [];

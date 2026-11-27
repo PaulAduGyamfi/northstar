@@ -148,7 +148,7 @@ function waitForCode(
         client_id: deps.config.clientId,
         redirect_uri: redirectUri,
         response_type: "code",
-        // Compose only: never include_granted_scopes, so older grants aren't folded in.
+        // calendar.app.created only: never include_granted_scopes, so older grants aren't folded in.
         scope: CALENDAR_APP_CREATED_SCOPE,
         code_challenge: challenge,
         code_challenge_method: "S256",
