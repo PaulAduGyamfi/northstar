@@ -430,8 +430,10 @@ export {
   claimDraft,
   DRAFT_CLAIM_LEASE_MS,
   type DraftClaim,
+  DraftClaimsExhausted,
   DraftRecordConflict,
   dbMailLedger,
+  MAX_DRAFT_CLAIMS,
   recordDraft,
 } from "./reply-ledger-write.js";
 export * as replySchema from "./reply-schema.js";

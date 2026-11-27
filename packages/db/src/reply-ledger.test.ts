@@ -6,12 +6,14 @@ import { replyDraftClaim } from "./reply-ledger-schema.js";
 import {
   claimDraft,
   DRAFT_CLAIM_LEASE_MS,
+  DraftClaimsExhausted,
   DraftRecordConflict,
   dbMailLedger,
+  MAX_DRAFT_CLAIMS,
   recordDraft,
 } from "./reply-ledger-write.js";
 import { domainEvent } from "./schema.js";
-import { createTestDb, seedApplication, sqlState } from "./test/pglite.js";
+import { createTestDb, seedApplication, setGateClock, sqlState } from "./test/pglite.js";
 
 // The Gmail draft writer's ledger (NS-237 slice 6, ADR-0025 item 5). Synthetic ids only.
 
@@ -20,7 +22,16 @@ const CHECK_VIOLATION = "23514";
 const DECISION = "6f0c1b5e-2d4a-4c8e-9b7a-1e2f3a4b5c6d";
 const OTHER_DECISION = "7a1d2c6f-3e5b-4d9f-8c8b-2f3a4b5c6d7e";
 const T0 = new Date("2026-11-27T06:00:00.000Z");
-const at = (ms: number) => () => new Date(T0.getTime() + ms);
+// Moves the database clock the ledger reads (northstar_gate_now) to T0 + ms.
+const clock = (ms: number) => setGateClock(db, new Date(T0.getTime() + ms));
+const claimAt = async (ms: number, decisionId: string) => {
+  await clock(ms);
+  return claimDraft(db, candidateId, decisionId);
+};
+const recordAt = async (ms: number, decisionId: string, draftMessageId: string) => {
+  await clock(ms);
+  return recordDraft(db, candidateId, decisionId, draftMessageId);
+};
 
 let db: Db;
 let close: () => Promise<void>;
@@ -43,33 +54,30 @@ const events = () =>
 
 describe("claimDraft", () => {
   it("answers new for the first run on a decision", async () => {
-    expect(await claimDraft(db, candidateId, DECISION, at(0))).toEqual({ state: "new" });
+    expect(await claimAt(0, DECISION)).toEqual({ state: "new" });
   });
 
   it("answers in_progress with the lease's end while the first run's claim is live", async () => {
-    await claimDraft(db, candidateId, DECISION, at(0));
-    expect(await claimDraft(db, candidateId, DECISION, at(DRAFT_CLAIM_LEASE_MS - 1))).toEqual({
+    await claimAt(0, DECISION);
+    expect(await claimAt(DRAFT_CLAIM_LEASE_MS - 1, DECISION)).toEqual({
       state: "in_progress",
       retryAt: new Date(T0.getTime() + DRAFT_CLAIM_LEASE_MS),
     });
   });
 
   it("answers unknown after the lease and takes a fresh claim, so the next run waits again", async () => {
-    await claimDraft(db, candidateId, DECISION, at(0));
+    await claimAt(0, DECISION);
     const later = DRAFT_CLAIM_LEASE_MS + 1;
-    expect([
-      await claimDraft(db, candidateId, DECISION, at(later)),
-      await claimDraft(db, candidateId, DECISION, at(later + 1)),
-    ]).toEqual([
+    expect([await claimAt(later, DECISION), await claimAt(later + 1, DECISION)]).toEqual([
       { state: "unknown" },
       { state: "in_progress", retryAt: new Date(T0.getTime() + later + DRAFT_CLAIM_LEASE_MS) },
     ]);
   });
 
   it("answers done with the recorded draft's id once one is recorded", async () => {
-    await claimDraft(db, candidateId, DECISION, at(0));
-    await recordDraft(db, candidateId, DECISION, "18c0ffee", at(1));
-    expect(await claimDraft(db, candidateId, DECISION, at(2))).toEqual({
+    await claimAt(0, DECISION);
+    await recordAt(1, DECISION, "18c0ffee");
+    expect(await claimAt(2, DECISION)).toEqual({
       state: "done",
       draftMessageId: "18c0ffee",
     });
@@ -78,23 +86,33 @@ describe("claimDraft", () => {
   // PGlite runs one transaction at a time, so this checks the outcome of two runs, not the advisory
   // lock itself; on Postgres the lock serialises them the same way.
   it("gives two racing first runs one claim between them", async () => {
-    const results = await Promise.all([
-      claimDraft(db, candidateId, DECISION, at(0)),
-      claimDraft(db, candidateId, DECISION, at(0)),
-    ]);
+    const results = await Promise.all([claimAt(0, DECISION), claimAt(0, DECISION)]);
     expect(results.map((r) => r.state).sort()).toEqual(["in_progress", "new"]);
   });
 
   it("keeps each decision's claims apart", async () => {
-    await claimDraft(db, candidateId, DECISION, at(0));
-    expect(await claimDraft(db, candidateId, OTHER_DECISION, at(1))).toEqual({ state: "new" });
+    await claimAt(0, DECISION);
+    expect(await claimAt(1, OTHER_DECISION)).toEqual({ state: "new" });
+  });
+
+  it("refuses a claim past the attempt bound by name, not as a database error", async () => {
+    await db.insert(replyDraftClaim).values({
+      candidateId,
+      decisionId: DECISION,
+      attempt: MAX_DRAFT_CLAIMS,
+      claimedAt: T0,
+    });
+    await clock(DRAFT_CLAIM_LEASE_MS + 1);
+    await expect(claimDraft(db, candidateId, DECISION)).rejects.toBeInstanceOf(
+      DraftClaimsExhausted,
+    );
   });
 });
 
 describe("recordDraft", () => {
   it("records the draft with a reply.draft_created event carrying ids and fixed words only", async () => {
-    await claimDraft(db, candidateId, DECISION, at(0));
-    await recordDraft(db, candidateId, DECISION, "18c0ffee", at(1));
+    await claimAt(0, DECISION);
+    await recordAt(1, DECISION, "18c0ffee");
     expect(await events()).toEqual([
       {
         payload: { decisionId: DECISION, draftMessageId: "18c0ffee" },
@@ -104,22 +122,18 @@ describe("recordDraft", () => {
   });
 
   it("stores nothing more when the same draft is recorded twice", async () => {
-    await recordDraft(db, candidateId, DECISION, "18c0ffee", at(1));
-    await recordDraft(db, candidateId, DECISION, "18c0ffee", at(2));
+    await recordAt(1, DECISION, "18c0ffee");
+    await recordAt(2, DECISION, "18c0ffee");
     expect((await events()).length).toBe(1);
   });
 
   it("refuses a second, different draft for the same decision", async () => {
-    await recordDraft(db, candidateId, DECISION, "18c0ffee", at(1));
-    await expect(recordDraft(db, candidateId, DECISION, "18c0ffef", at(2))).rejects.toBeInstanceOf(
-      DraftRecordConflict,
-    );
+    await recordAt(1, DECISION, "18c0ffee");
+    await expect(recordAt(2, DECISION, "18c0ffef")).rejects.toBeInstanceOf(DraftRecordConflict);
   });
 
   it("refuses a draft id that isn't Gmail's hex", async () => {
-    await expect(recordDraft(db, candidateId, DECISION, "r-123", at(1))).rejects.toThrow(
-      "invalid draft message id",
-    );
+    await expect(recordAt(1, DECISION, "r-123")).rejects.toThrow("invalid draft message id");
   });
 });
 
@@ -137,8 +151,8 @@ describe("dbMailLedger", () => {
 
 describe("the ledger's tables", () => {
   it("refuse updates and deletes of claims and records", async () => {
-    await claimDraft(db, candidateId, DECISION, at(0));
-    await recordDraft(db, candidateId, DECISION, "18c0ffee", at(1));
+    await claimAt(0, DECISION);
+    await recordAt(1, DECISION, "18c0ffee");
     expect([
       await sqlState(db.execute(sql`UPDATE reply_draft_claim SET attempt = 2`)),
       await sqlState(db.execute(sql`DELETE FROM reply_draft_claim`)),

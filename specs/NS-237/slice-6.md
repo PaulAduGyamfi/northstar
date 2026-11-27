@@ -9,18 +9,23 @@ Issue #263. Slice 4 (#325) built `writeReplyDraft` against `claimDraft` / `recor
 - **`reply_draft_claim`** (append-only): one row per attempt, per candidate and decision
   (`attempt` 1–100, unique). **`reply_draft_record`** (append-only): at most one per candidate and
   decision, with Gmail's hex message id (CHECK).
-- **`claimDraft(db, candidateId, decisionId, now?)`**, in one transaction under a per-decision
+- **`claimDraft(db, candidateId, decisionId)`**, in one transaction under a per-decision
   advisory lock:
   - a recorded draft → `done` with its id;
   - no claim → takes attempt 1 → `new`;
   - newest claim younger than `DRAFT_CLAIM_LEASE_MS` (5 minutes, longer than a run's 30 s
     requests) → `in_progress` with the lease's end;
-  - otherwise takes the next attempt → `unknown` (the writer looks for a marked draft first).
-- **`recordDraft(db, candidateId, decisionId, draftMessageId, now?)`**: inserts the record and a
+  - otherwise takes the next attempt → `unknown` (the writer looks for a marked draft first);
+  - past `MAX_DRAFT_CLAIMS` (100) lapsed claims → throws `DraftClaimsExhausted` (the caller
+    dead-letters it for Paul).
+  - Times come from the database clock (`northstar_gate_now()`, as apply-write's claims), so
+    workers whose clocks disagree still agree on a lease.
+- **`recordDraft(db, candidateId, decisionId, draftMessageId)`**: inserts the record and a
   `reply.draft_created` event (payload: decision and message ids; fixed-word `reason`) in one
   transaction. The same id again stores nothing; a different id throws `DraftRecordConflict`; a
   non-hex id is refused before insert.
-- **`dbMailLedger(db)`** binds both to `MailPorts`.
+- **`dbMailLedger(db)`** binds both to `MailPorts`; `DraftClaim` is exported from here and the
+  gateway imports it.
 - No caller yet (the worker, #230).
 
 ## Acceptance criteria

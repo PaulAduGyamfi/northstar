@@ -1,5 +1,6 @@
 import type { CandidateId } from "@northstar/domain";
 import { and, desc, eq, sql } from "drizzle-orm";
+import { gateNow } from "./apply-write.js";
 import type { Db } from "./db.js";
 import { replyDraftClaim, replyDraftRecord } from "./reply-ledger-schema.js";
 import { appendEvent, inSpan } from "./resilience-event.js";
@@ -13,15 +14,27 @@ import { appendEvent, inSpan } from "./resilience-event.js";
 // spare; a crashed run's claim lapses after it and the next run looks for its draft first.
 export const DRAFT_CLAIM_LEASE_MS = 5 * 60_000;
 
-// Mirrors the gateway's DraftClaim (packages/gateways/src/mail/gateway.ts).
+// The claim's answer, shared with the gateway's MailPorts (packages/gateways imports this type).
 export type DraftClaim =
   | { state: "new" }
   | { state: "done"; draftMessageId: string }
   | { state: "in_progress"; retryAt: Date }
   | { state: "unknown" };
 
+// The schema's attempt bound: a claim past it is refused by name, never as a raw CHECK error.
+export const MAX_DRAFT_CLAIMS = 100;
+
 // Gmail message ids are hex; anything else is refused before it reaches the table's CHECK.
 const DRAFT_ID = /^[0-9a-f]{1,32}$/;
+
+// A decision whose runs have lapsed MAX_DRAFT_CLAIMS times (hours of crashes): the caller stops
+// and hands it to Paul (a dead letter) instead of trying forever.
+export class DraftClaimsExhausted extends Error {
+  constructor() {
+    super("too many lapsed claims on this decision");
+    this.name = "DraftClaimsExhausted";
+  }
+}
 
 export class DraftRecordConflict extends Error {
   constructor() {
@@ -37,7 +50,6 @@ export async function claimDraft(
   db: Db,
   candidateId: CandidateId,
   decisionId: string,
-  now: () => Date = () => new Date(),
 ): Promise<DraftClaim> {
   return inSpan("db.reply_draft.claim", {}, (span) =>
     db.transaction(async (tx) => {
@@ -69,7 +81,9 @@ export async function claimDraft(
         )
         .orderBy(desc(replyDraftClaim.attempt))
         .limit(1);
-      const at = now();
+      // The database's clock, as apply-write's live claim uses: workers on hosts whose clocks
+      // disagree must still agree on whether a claim's lease has lapsed.
+      const at = await gateNow(tx);
       if (latest) {
         const leaseEnd = new Date(latest.claimedAt.getTime() + DRAFT_CLAIM_LEASE_MS);
         if (at < leaseEnd) {
@@ -77,6 +91,7 @@ export async function claimDraft(
           return { state: "in_progress" as const, retryAt: leaseEnd };
         }
       }
+      if ((latest?.attempt ?? 0) >= MAX_DRAFT_CLAIMS) throw new DraftClaimsExhausted();
       await tx.insert(replyDraftClaim).values({
         candidateId,
         decisionId,
@@ -98,14 +113,13 @@ export async function recordDraft(
   candidateId: CandidateId,
   decisionId: string,
   draftMessageId: string,
-  now: () => Date = () => new Date(),
 ): Promise<void> {
   if (!DRAFT_ID.test(draftMessageId)) throw new Error("invalid draft message id");
   await inSpan("db.reply_draft.record", {}, (span) =>
     db.transaction(async (tx) => {
       const [row] = await tx
         .insert(replyDraftRecord)
-        .values({ candidateId, decisionId, draftMessageId, recordedAt: now() })
+        .values({ candidateId, decisionId, draftMessageId, recordedAt: await gateNow(tx) })
         .onConflictDoNothing({
           target: [replyDraftRecord.candidateId, replyDraftRecord.decisionId],
         })

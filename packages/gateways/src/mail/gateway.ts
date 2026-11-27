@@ -1,4 +1,4 @@
-import type { readReplyDraft, VerifyError, verifyApproval } from "@northstar/db";
+import type { DraftClaim, readReplyDraft, VerifyError, verifyApproval } from "@northstar/db";
 import {
   type CandidateId,
   err,
@@ -21,11 +21,8 @@ import { buildDraftMessage } from "./message.js";
 // message id once recorded, `in_progress` while an earlier claim is young enough to still be
 // running (the ledger decides the cutoff, as apply-write's live claim does), and `unknown` once an
 // earlier claim is past that cutoff with no outcome recorded.
-export type DraftClaim =
-  | { state: "new" }
-  | { state: "done"; draftMessageId: string }
-  | { state: "in_progress"; retryAt: Date }
-  | { state: "unknown" };
+// The type lives with the stored ledger (`packages/db`, `reply-ledger-write.ts`) so the two can't drift.
+export type { DraftClaim };
 
 export type MailPorts = {
   readReplyDraft: (
