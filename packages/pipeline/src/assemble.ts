@@ -3,11 +3,13 @@ import {
   type ApplyAts,
   err,
   type InvalidPackage,
+  isExactWording,
   ok,
   type PackageFacts,
   type PackageFile,
   packageSha256,
   parsePackage,
+  REUSE_HIGH_CONFIDENCE,
   type Result,
 } from "@northstar/domain";
 import {
@@ -106,22 +108,9 @@ export type Assembled = {
 };
 export type NeedsHuman = { kind: "NeedsHuman"; unanswered: Unanswered[] };
 
-// How a reused banked answer counts for the Gate's policy (APPLY-004). The form's label is the
-// employer's text, so only a close match may let an answer skip Paul's review:
-// - bank_exact: the label is the canonical question's own wording (or one of its examples),
-//   company name aside;
-// - bank_high_confidence: a match at HIGH_CONFIDENCE or above;
-// - new: a weaker match (the 0.6 matching floor is not "high confidence"). It still fills the
-//   field, but Paul reviews it.
-const HIGH_CONFIDENCE = 0.8;
-
-// Lowercase, single spaces, no trailing punctuation: how two wordings are compared.
-const plain = (text: string) =>
-  text
-    .trim()
-    .replace(/\s+/g, " ")
-    .replace(/[?.!:\s]+$/, "")
-    .toLowerCase();
+// How a reused banked answer counts for the Gate's policy (APPLY-004): one rule in packages/domain
+// (`question-reuse.ts`, NS-249), which the Gate applies again to the stored form's label, so the
+// producer and the Gate can't count reuse differently.
 
 // The model's pick for this field (NS-233), only where it could be one: code's own match of the
 // label left it new, and the chosen question is one the confirm step offers for this label. Any
@@ -172,9 +161,7 @@ function answer(q: FormQuestion, input: AssemblyInput): Answer {
     return { ok: false, reason: "not_matched" };
   }
   const company = input.company ?? "";
-  const exactWording = [match.canonical.text, ...match.canonical.examples].some(
-    (w) => plain(w.replaceAll("{company}", company)) === plain(q.label),
-  );
+  const exactWording = isExactWording(q.label, match.canonical, company);
   const entry = input.bank.get(match.canonical.id);
   if (entry === undefined) return { ok: false, reason: "no_bank_answer" };
   const adapted = adaptAnswer(entry, { company: input.company, maxLength: q.maxLength });
@@ -202,7 +189,7 @@ function pickChoice(choices: readonly string[], value: string): string | null {
   return choices.find((c) => norm(c) === norm(value)) ?? null;
 }
 
-// The policy source of one answer (see HIGH_CONFIDENCE).
+// The policy source of one answer (see REUSE_HIGH_CONFIDENCE, packages/domain).
 export function bankSource(source: AnswerSource): PackageFacts["answers"][number]["source"] {
   // Factual settings are marked for Paul's review (NS-141), so they never count as reuse.
   if (source.from === "setting") return "new";
@@ -210,7 +197,7 @@ export function bankSource(source: AnswerSource): PackageFacts["answers"][number
   // Paul's review, whatever its confidence or wording.
   if (source.confirmedBy === "model") return "new";
   if (source.exactWording) return "bank_exact";
-  return source.confidence >= HIGH_CONFIDENCE ? "bank_high_confidence" : "new";
+  return source.confidence >= REUSE_HIGH_CONFIDENCE ? "bank_high_confidence" : "new";
 }
 
 const words = (text: string) => text.split(/\s+/).filter((w) => w.length > 0).length;

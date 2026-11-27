@@ -2,11 +2,13 @@ import {
   type CandidateId,
   isSafeCompany,
   isTaggableAddress,
+  labelReuse,
   type PackageFacts,
   packageSha256,
   packageSubject,
   parsePackage,
   taggedAddress,
+  weakerReuse,
 } from "@northstar/domain";
 import { applicationPackage } from "./application-package-schema.js";
 import {
@@ -23,8 +25,9 @@ import { readPackageInputs } from "./package-read.js";
 // confused producer can't make a package match one of Paul's auto-approve rules.
 
 // A producer's claim that one filled field reuses a banked answer, with its own reading of how
-// closely the form's question matched (the question canon lives in packages/profile). Which
-// question the answer belongs to is the producer's too: the Gate checks the text, not the match.
+// closely the form's question matched. Since NS-249 slice 3 the Gate checks both itself: the
+// answer must be banked for the question code's match of the stored form label names, and the
+// claim counts no more than the Gate's own reading of that label (labelReuse, packages/domain).
 export type BankClaim = {
   fieldName: string;
   answerId: string;
@@ -107,19 +110,27 @@ export async function requestPackageApproval(
   // this package's form.
   const form = inputs.form?.ats === pkg.ats ? inputs.form : null;
   const kinds = new Map(form?.questions.map((q) => [q.fieldName, q.kind]) ?? []);
+  const labels = new Map(form?.questions.map((q) => [q.fieldName, q.label]) ?? []);
   const company = inputs.companyName?.trim() ?? "";
 
   // A claim counts only when the field's value is exactly Paul's approved text for it, in the
-  // newest version of that answer (inputs.bank holds only the newest per canonical question).
-  const verified = (fieldName: string, value: string | string[], claim: BankClaim): boolean => {
+  // newest version of that answer (inputs.bank holds only the newest per canonical question), and
+  // only as far as the stored label earns that answer's question (NS-249 slice 3): the weaker of
+  // the producer's reading and the Gate's own. Anything else is `new`.
+  const claimSource = (fieldName: string, value: string | string[], claim: BankClaim) => {
     // A banked answer is one text: a list of picked choices is never one.
     if (typeof value !== "string" || !ANSWERABLE_KINDS.has(kinds.get(fieldName) ?? ""))
-      return false;
+      return "new";
     const row = inputs.bank.find(
       (b) => b.answerId === claim.answerId && b.version === claim.version,
     );
     const template = claim.variant === "long" ? row?.longText : row?.shortText;
-    return typeof template === "string" && fill(template, company) === value;
+    if (row === undefined || typeof template !== "string" || fill(template, company) !== value)
+      return "new";
+    return weakerReuse(
+      claim.source,
+      labelReuse(labels.get(fieldName) ?? "", row.canonicalId, company),
+    );
   };
 
   const answers: PackageFacts["answers"] = [];
@@ -128,7 +139,7 @@ export async function requestPackageApproval(
   for (const [fieldName, value] of Object.entries(pkg.fields)) {
     const claim = claims.get(fieldName);
     answers.push({
-      source: claim && verified(fieldName, value, claim) ? claim.source : "new",
+      source: claim ? claimSource(fieldName, value, claim) : "new",
       // A choice (or a list of picked choices) is no free text; any other field, or one the form
       // doesn't list, counts its words. A factual setting's value counts too: it is `new` anyway,
       // so it never auto-approves either way.

@@ -332,6 +332,47 @@ describe("requestPackageApproval", () => {
     expect(facts?.answers).toEqual([{ source: "bank_high_confidence", freeTextWords: 11 }]);
   });
 
+  // NS-249 slice 3: the stored label must earn the banked answer's own question.
+  const formWithLabel = (label: string): JobFormQuestion[] => [
+    { fieldName: "question_1", label, required: true, kind: "textarea", choices: null, group: 0 },
+  ];
+  const claimOnLabel = async (label: string) => {
+    await saveJobForm(db, {
+      candidateId,
+      jobId,
+      ats: "greenhouse",
+      questions: formWithLabel(label),
+    });
+    const id = await bankAnswer("I want to build at {company}.");
+    return storedFacts(pkg({ question_1: "I want to build at Example Corp." }), [
+      claim("question_1", id, { source: "bank_exact" }),
+    ]);
+  };
+
+  it("counts a claim as new when the field's label asks another question than the answer's", async () => {
+    expect((await claimOnLabel("Why are you interested in this role?"))?.answers).toEqual([
+      { source: "new", freeTextWords: 7 },
+    ]);
+  });
+
+  it("counts a claim as new when the field's label is negated", async () => {
+    expect(
+      (await claimOnLabel("Why would you NOT want to work at Example Corp?"))?.answers,
+    ).toEqual([{ source: "new", freeTextWords: 7 }]);
+  });
+
+  it("counts a claim as new when code matches the field's label to no question", async () => {
+    expect((await claimOnLabel("Describe your favourite sandwich."))?.answers).toEqual([
+      { source: "new", freeTextWords: 7 },
+    ]);
+  });
+
+  it("keeps an exact claim when the field's label is the answer's own question's wording", async () => {
+    expect((await claimOnLabel("Why do you want to work at Example Corp?"))?.answers).toEqual([
+      { source: "bank_exact", freeTextWords: 7 },
+    ]);
+  });
+
   it("counts a claim whose text differs from the banked answer as new", async () => {
     await saveJobForm(db, { candidateId, jobId, ats: "greenhouse", questions: FORM });
     const id = await bankAnswer("I want to build at {company}.");
