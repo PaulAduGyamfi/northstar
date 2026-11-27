@@ -73,3 +73,7 @@ are CSS variables in `apps/web/app/globals.css`.
   paused kind of work in words (`spendView`), from the API's `GET /system/spend`, whose paused
   list comes from `pausedPriorities`, the gateway's own rule. Unreadable spend says so, never
   "nothing is paused".
+- The Career DNA page (NS-130 slice 8, `/career-dna`, `src/career-dna.ts`) is read-only: each
+  dimension's band in words with its evidence count (`dimensionRow`) and what changed
+  (`changeSummary`). The report holds scores and counts only: never fetch or show atom or story
+  text or ids on it.
