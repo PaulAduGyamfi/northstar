@@ -302,6 +302,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `readLinkCandidates` (NS-223) is their read-only candidates reader: applications not in a
   terminal status, with their creation time and the job's and sources' ATS names, never a name or
   address.
+  Paul's regrades (NS-238 item 3) are `recruiter_regrade`, append-only, one row per change of his
+  letter (the newest per message is current), written only through `regradeRecruiterMessage`,
+  which checks the message's `recruiter_grade` first. Letters and ids only.
 - Detected interviews (NS-240 slice 2, CAL-002) are `interview_detection` (one row per candidate,
   calendar event id, application and version, 1–10 by a CHECK; the highest version is current;
   writers lock the candidate row first; at most 50 new rows a day per candidate;

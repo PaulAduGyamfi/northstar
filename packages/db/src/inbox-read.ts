@@ -6,6 +6,7 @@ import { mailLinkDecision } from "./mail-link-decision-schema.js";
 import { type MATCH_STEPS, mailLink, type QUEUE_REASONS } from "./mail-link-schema.js";
 import { type Origin, readOrigins } from "./origin-write.js";
 import { recruiterGrade } from "./recruiter-grade-schema.js";
+import { readRegrades } from "./recruiter-regrade-write.js";
 import { inSpan } from "./resilience-event.js";
 import { application, company, job } from "./schema.js";
 
@@ -28,8 +29,14 @@ export type InboxThread = {
   recruiterGrade?: ThreadGrade;
 };
 
-// A recruiter grade as the inbox shows it: codes only, never email text.
-export type ThreadGrade = { grade: string; reasons: string[]; confidence: string };
+// A recruiter grade as the inbox shows it: codes only, never email text. `paulGrade` is Paul's own
+// newest letter for that message (NS-238 item 3), absent until he regrades it.
+export type ThreadGrade = {
+  grade: string;
+  reasons: string[];
+  confidence: string;
+  paulGrade?: string;
+};
 
 export type InboxApplication = {
   applicationId: string;
@@ -122,6 +129,7 @@ export async function readInboxThreads(db: Db, candidateId: CandidateId): Promis
     const gradeRows = await db
       .select({
         gmailThreadId: mailLink.gmailThreadId,
+        gmailMessageId: mailLink.gmailMessageId,
         applicationId: linkedTo,
         // A dismissed message leaves the queue, so its grade belongs to no thread shown.
         dismissed: sql<boolean>`${mailLinkDecision.decision} = 'dismissed'`,
@@ -149,11 +157,23 @@ export async function readInboxThreads(db: Db, candidateId: CandidateId): Promis
         ),
       )
       .orderBy(desc(mailLink.receivedAt), desc(mailLink.gmailMessageId));
+    // Paul's own letters (NS-238 item 3) for the graded messages this read shows.
+    const regrades = await readRegrades(
+      db,
+      candidateId,
+      gradeRows.map((g) => g.gmailMessageId),
+    );
     for (const g of gradeRows) {
       if (g.dismissed === true) continue;
       const key = `${g.gmailThreadId}:${g.applicationId ?? ""}`;
       if (!grades.has(key)) {
-        grades.set(key, { grade: g.grade, reasons: g.reasons, confidence: g.confidence });
+        const paul = regrades.get(g.gmailMessageId);
+        grades.set(key, {
+          grade: g.grade,
+          reasons: g.reasons,
+          confidence: g.confidence,
+          ...(paul === undefined ? {} : { paulGrade: paul }),
+        });
       }
     }
 

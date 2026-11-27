@@ -102,3 +102,6 @@ are CSS variables in `apps/web/app/globals.css`.
   `POST /inbox/decide`. The choice of application comes from `GET /inbox/link-targets`; when it
   can't be read there is no Link choice, never a guessed one. The answer is worded by
   `decidedMessage` and `decideProblem` (`src/inbox.ts`), and a linked thread reads "Linked by you".
+- Paul's regrade of a recruiter email (NS-238 item 3) goes only through `POST /inbox/regrade`. The
+  Regrade picker shows only on a graded thread and starts at his own letter, else the system's; it
+  records his letter and nothing else (`regradedMessage`, `regradeProblem` in `src/inbox.ts`).

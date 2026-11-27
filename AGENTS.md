@@ -644,7 +644,17 @@ Exists now:
   `recruiterReplyPackage` (`packages/profile`, `reply/recruiter.ts`) gives A/B an interested
   sentence, C a "share more" sentence and D a polite no (`RECRUITER_REPLY_SENTENCES`: no fact,
   number, link or commitment word, so nothing to cite), filed by `fileReplyDraft`; an F gets no
-  reply (`ArchiveSuggested`). No caller yet, and no learning from Paul's actions (REC-003).
+  reply (`ArchiveSuggested`). No caller yet.
+  Since NS-238 item 3 (slice 1, REC-003) Paul can regrade a graded recruiter email: append-only
+  `recruiter_regrade` (`packages/db`, `recruiter-regrade-write.ts`: `regradeRecruiterMessage`, one
+  row per change of his letter, the newest current; the same letter again stores nothing; an
+  ungraded message is refused; `recruiter.regraded` by `user` with both letters, feed "You regraded
+  a recruiter email: B to D"; the newest by an identity `position`; `regradeThread` regrades the
+  newest graded message the Inbox shows for that row, dismissed messages left out;
+  `readRegrades`). `readInboxThreads` adds his letter as `recruiterGrade.paulGrade`, the API's
+  `POST /inbox/regrade` (session only) records it, and the Inbox shows "You graded it D" with a
+  Regrade picker on each graded thread. A regrade drafts, sends and archives nothing; grading doesn't
+  learn from regrades yet (slice 2).
 - `packages/funnel/` (NS-113): the 9-month backfill, funnel records derived by plain code from
   `funnel_message` and `funnel_manual_row` (`packages/db`, `funnel-schema.ts`), the tracker CSV
   import, the funnel report (Wilson intervals, rejection latency) and the hypothesis board.
