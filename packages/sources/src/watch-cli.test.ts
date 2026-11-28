@@ -128,6 +128,7 @@ describe("jobs watch", () => {
   it("refuses a feed on a site whose terms forbid automated reads, or an ATS board as a feed", async () => {
     for (const url of [
       "https://www.linkedin.com/jobs/feed.rss",
+      "https://www.workatastartup.com/jobs.rss",
       "https://jobs.lever.co/initech",
       "https://news.ycombinator.com/rss",
       "http://jobs.example.com/feed.xml",

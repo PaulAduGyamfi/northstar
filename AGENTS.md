@@ -893,7 +893,11 @@ Exists now:
   refused). Each item with an https link not on a prohibited site is one posting, with its date
   and body (`cleanHtml`), and its title read by `readTitle` ("Role at Company", "Company: Role");
   anything else keeps no company and is saved as a draft. No model reads it. The text rules HN and
-  feeds share are in `boards/text.ts`. Behind `source:feed`. YC comes in a later slice.
+  feeds share are in `boards/text.ts`. Behind `source:feed`. Since NS-288 (#477, slice 3 decided
+  as "won't read") YC's own site (`ycombinator.com`, `www.ycombinator.com`) and Work at a Startup
+  are `prohibited` in `terms.ts`: their terms haven't been read and Work at a Startup needs a
+  sign-in, so `jobs add`, watches and feed item links refuse them and Paul saves a posting himself
+  (`jobs add --text`). `news.ycombinator.com` is not covered.
   Since NS-116 also fit scoring (`fit/`): versioned search preferences (`search_preference`) and
   a Fit Score per ready job (`fit_score`, `fit-write.ts` in `packages/db`) computed by plain code
   (no model): requirements matched to experience atoms by the technologies they name, preference

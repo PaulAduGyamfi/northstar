@@ -51,6 +51,12 @@ the same save path as a board posting (dedupe SRC-006, scoring, freshness order)
    `WATCH_KINDS`. Behind `source:feed`.
 3. **YC jobs**, only if YC's terms allow automated reads of a public listing. If they don't, the
    source is declared `prohibited` and refused, and this slice closes as "won't read".
+   **Outcome (NS-288, #477):** the agents' environment couldn't reach YC's hosts to read the terms,
+   and the decision recorded on #477 under Paul's delegation was "won't read" for now:
+   `ycombinator.com`, `www.ycombinator.com` and every `workatastartup.com` host are `prohibited` in
+   `terms.ts`, refused by `jobs add`, watches and feed item links, with `jobs add --text` as Paul's
+   way in. `news.ycombinator.com` stays readable (slice 1's posting links). A follow-up can change
+   this once the terms are read and quoted on #477.
 
 ## Acceptance criteria
 - [ ] Slice 1: `detectBoard` takes the HN `whoishiring` URL (and nothing else on HN) as

@@ -12,6 +12,11 @@ const PROHIBITED = [
   /(^|\.)lnkd\.in$/,
   /(^|\.)indeed\.[a-z.]+$/,
   /(^|\.)glassdoor\.[a-z.]+$/,
+  // YC's own job pages and Work at a Startup (NS-288, #477): their terms haven't been read, and Work
+  // at a Startup needs a sign-in, so Paul saves a posting himself (`jobs add --text`). Only YC's
+  // main site: `news.ycombinator.com` (the HN thread's posting links, NS-282) is not covered.
+  /^(www\.)?ycombinator\.com$/,
+  /(^|\.)workatastartup\.com$/,
 ];
 
 const ATS_HOSTS: [RegExp, string][] = [

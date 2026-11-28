@@ -240,17 +240,29 @@ describe("ingestUrl", () => {
     expect(store.saves[0]?.source).toMatchObject({ ats: "ashby", atsPostingId: id });
   });
 
-  it("refuses LinkedIn, Indeed and Glassdoor links without any network call", async () => {
+  it("refuses LinkedIn, Indeed, Glassdoor, YC and Work at a Startup links without any network call", async () => {
     const { deps, asked } = setup({});
     for (const url of [
       "https://www.linkedin.com/jobs/view/1",
       "https://www.indeed.com/viewjob?jk=1",
       "https://www.glassdoor.co.uk/job-listing/x",
       "https://lnkd.in/abc123",
+      "https://www.ycombinator.com/companies/globex/jobs/abc123-backend-engineer",
+      "https://ycombinator.com/jobs",
+      "https://www.workatastartup.com/jobs/12345",
     ]) {
       expect((await ingestUrl(deps, url)).status).toBe("refused");
     }
     expect(asked).toEqual([]);
+  });
+
+  it("tells Paul to save a Work at a Startup posting himself and use jobs add --text (NS-288)", async () => {
+    const { deps } = setup({});
+    expect(await ingestUrl(deps, "https://www.workatastartup.com/jobs/12345")).toEqual({
+      status: "refused",
+      reason:
+        "www.workatastartup.com doesn't allow automated reading; save the description to a file and use jobs add --text",
+    });
   });
 
   it("refuses a link to a private address with the fetcher's reason", async () => {
