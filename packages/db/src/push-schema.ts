@@ -13,7 +13,8 @@ import {
 import { candidate } from "./schema.js";
 
 // Web push (NS-193, ADR-0032 items 5 and 6). All four tables are append-only (migration
-// triggers), written only through push-write.ts. They hold a browser's endpoint and keys, item
+// triggers), written only through push-write.ts (the notification claim and result: slice 3's
+// writer, in the same file). They hold a browser's endpoint and keys, item
 // keys, counts and outcomes: never a payload's words, a URL Paul opened, a company or a title.
 
 // The push services ADR-0032 allows (packages/gateways endpoint.ts): https only. The exact host

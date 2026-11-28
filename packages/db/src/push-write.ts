@@ -43,7 +43,9 @@ export async function subscribePush(
   if (field !== null) return { ok: false, error: { kind: "InvalidSubscription", field } };
   return inSpan("db.push.subscribe", {}, (span) =>
     db.transaction(async (tx) => {
-      // One subscribe per candidate at a time, so two racing clicks store one row.
+      // One subscribe per candidate at a time, so two racing clicks store one row. "One live row per
+      // endpoint" is kept here in code under this lock, not by a constraint (a removed endpoint may
+      // come back as a new row).
       await tx.execute(
         sql`select pg_advisory_xact_lock(hashtext(${`push_subscribe:${candidateId}`}))`,
       );

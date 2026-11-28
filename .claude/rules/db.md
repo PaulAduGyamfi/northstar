@@ -388,8 +388,8 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
 - Web push (NS-193, ADR-0032, migration 0108) is `push_subscription` (a browser's endpoint and
   keys; live while it has no removal), `push_subscription_removal` (one per subscription, `user`
   or `gone`), `push_notification` (one claim per candidate and item key, before any push) and
-  `push_notification_result` (one outcome per claim), append-only (triggers), written only
-  through `push-write.ts`. The endpoint must pass `endpointAllowed` (`packages/domain`) before it
+  `push_notification_result` (one outcome per claim; their writer arrives with slice 3),
+  append-only (triggers), written only through `push-write.ts`. The endpoint must pass `endpointAllowed` (`packages/domain`) before it
   is stored. Never put an endpoint, key or a push's words in an event or span: events carry row
   ids only.
 - Human handoffs (NS-121) are `apply_handoff` (one per submission a challenge stopped, with its

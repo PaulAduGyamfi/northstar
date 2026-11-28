@@ -2,7 +2,8 @@ import { CandidateId } from "@northstar/domain";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "./db.js";
-import { pushSubscription } from "./push-schema.js";
+import { isSubsystemOn, setKillSwitch } from "./kill-switch-write.js";
+import { pushNotification, pushNotificationResult, pushSubscription } from "./push-schema.js";
 import {
   countLivePushSubscriptions,
   readLivePushSubscriptions,
@@ -136,5 +137,67 @@ describe("removePushSubscription (NS-193 slice 2)", () => {
       await sqlState(db.execute(sql`DELETE FROM push_subscription_removal`)),
       await sqlState(db.execute(sql`TRUNCATE push_subscription_removal`)),
     ]).toEqual([RESTRICT_VIOLATION, RESTRICT_VIOLATION, RESTRICT_VIOLATION]);
+  });
+});
+
+describe("the push kill switch (NS-193 slice 2)", () => {
+  it("is a subsystem Paul can turn off and on, which the sender's check reads", async () => {
+    expect(await isSubsystemOn(db, candidateId, "push")).toBe(true);
+    const off = await setKillSwitch(db, {
+      candidateId,
+      subsystem: "push",
+      enabled: false,
+      actor: "user",
+      reason: "Too many notifications",
+    });
+    expect([off, await isSubsystemOn(db, candidateId, "push")]).toEqual([
+      { ok: true, changed: true },
+      false,
+    ]);
+  });
+});
+
+describe("the notification claim and result tables (NS-193, slice 3's writer)", () => {
+  const KEY = "apply_handoff:1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed:notify";
+
+  it("hold one claim per item key, and only item keys of the known shape", async () => {
+    await db.insert(pushNotification).values({ candidateId, itemKey: KEY });
+    expect([
+      await sqlState(db.insert(pushNotification).values({ candidateId, itemKey: KEY })),
+      await sqlState(
+        db.insert(pushNotification).values({ candidateId, itemKey: "https://example.com/x" }),
+      ),
+    ]).toEqual(["23505", CHECK_VIOLATION]);
+  });
+
+  it("call an outcome sent only when some browser took it", async () => {
+    const [claim] = await db
+      .insert(pushNotification)
+      .values({ candidateId, itemKey: KEY })
+      .returning({ id: pushNotification.id });
+    if (!claim) throw new Error("no claim");
+    const result = (outcome: string, sentCount: number) =>
+      sqlState(
+        db.insert(pushNotificationResult).values({
+          candidateId,
+          notificationId: claim.id,
+          outcome,
+          sentCount,
+          goneCount: 0,
+          rejectedCount: 0,
+        }),
+      );
+    expect([await result("sent", 0), await result("failed", 1)]).toEqual([
+      CHECK_VIOLATION,
+      CHECK_VIOLATION,
+    ]);
+  });
+
+  it("keep claims append-only", async () => {
+    await db.insert(pushNotification).values({ candidateId, itemKey: KEY });
+    expect([
+      await sqlState(db.execute(sql`DELETE FROM push_notification`)),
+      await sqlState(db.execute(sql`TRUNCATE push_notification_result`)),
+    ]).toEqual([RESTRICT_VIOLATION, RESTRICT_VIOLATION]);
   });
 });

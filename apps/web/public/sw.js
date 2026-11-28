@@ -26,7 +26,9 @@ function words(data) {
     data.kind === "handoff" &&
     typeof data.id === "string" &&
     UUID.test(data.id) &&
+    typeof data.ats === "string" &&
     Object.hasOwn(ATS_FORM, data.ats) &&
+    typeof data.reason === "string" &&
     Object.hasOwn(CHALLENGE, data.reason)
   ) {
     return {
@@ -56,7 +58,11 @@ self.addEventListener("notificationclick", (event) => {
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
       for (const w of windows) {
         if (new URL(w.url).origin === self.location.origin && "focus" in w) {
-          return w.navigate("/").then((c) => (c ? c.focus() : w.focus()));
+          // navigate() refuses a tab this worker doesn't control yet: then just focus it.
+          return w
+            .navigate("/")
+            .then((c) => (c ? c.focus() : w.focus()))
+            .catch(() => w.focus());
         }
       }
       return self.clients.openWindow("/");

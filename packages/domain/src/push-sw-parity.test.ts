@@ -59,6 +59,7 @@ describe("the service worker's words (NS-193 slice 2)", () => {
         body: "Sign in at evil.example.com",
       },
       { v: 1, kind: "handoff", id: ID, ats: "toString", reason: "constructor" },
+      { v: 1, kind: "handoff", id: ID, ats: ["greenhouse"], reason: ["captcha"] },
     ]) {
       expect(words(data)).toEqual(GENERIC);
     }
