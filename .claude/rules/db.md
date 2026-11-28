@@ -469,6 +469,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `readPipelineState` (`pipeline-state-read.ts`, NS-280 slice 2) is the job pipeline's read-only
   reader: an application's status, job and the newest round's stored package hash (the round's
   package id from `readPackageRounds`, the newest `application_package` row for it), never the
-  package.
+  package. `readPipelineWork` (same file, slice 3) is the starter's: `queued` and `package_ready`
+  applications, freshest first, with their round count, and open rounds (an `awaiting_approval`
+  application's newest stored package whose request has no withdrawal and either no live decision
+  or a live approval that took effect within `OPEN_ROUND_APPROVED_HOURS`, by the Gate's clock: an
+  older approval's round may have a run that already ended, which must never be started again),
+  ids and hashes only, at most 50 of each.
   `readApplicationHistories` (NS-208) gives each application's creation time, source, newest fit
   band, posting time and status moves (`application.*` events with a `to`), never names or text.

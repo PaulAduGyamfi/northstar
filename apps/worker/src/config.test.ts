@@ -76,4 +76,33 @@ describe("loadWorkerConfig", () => {
     const c = loadWorkerConfig({ WORKER_PIPELINE_CONCURRENCY: "2", APPLY_DAILY_CAP: "10" });
     expect([c.pools.pipeline, c.applyLimits.dailyCap]).toEqual([2, 10]);
   });
+
+  it("keeps the job pipeline off by default, and on takes a daily cap of 5 unless set (NS-280)", () => {
+    expect([
+      loadWorkerConfig({}).jobPipeline,
+      loadWorkerConfig({ WORKER_JOB_PIPELINE: "on" }).jobPipeline,
+      loadWorkerConfig({ WORKER_JOB_PIPELINE: "on", WORKER_QUEUE_DAILY_CAP: "25" }).jobPipeline,
+      loadWorkerConfig({ WORKER_JOB_PIPELINE: "off", WORKER_QUEUE_DAILY_CAP: "99" }).jobPipeline,
+    ]).toEqual([
+      { on: false },
+      { on: true, dailyCap: 5 },
+      { on: true, dailyCap: 25 },
+      { on: false },
+    ]);
+  });
+
+  it.each(["0", "26", "2.5", "-1", "five"])(
+    "refuses a daily cap outside 1 to 25 (%s), without echoing it",
+    (WORKER_QUEUE_DAILY_CAP) => {
+      expect(() => loadWorkerConfig({ WORKER_JOB_PIPELINE: "on", WORKER_QUEUE_DAILY_CAP })).toThrow(
+        /^WORKER_QUEUE_DAILY_CAP: a whole number from 1 to 25$/,
+      );
+    },
+  );
+
+  it("refuses any other value for the job pipeline", () => {
+    expect(() => loadWorkerConfig({ WORKER_JOB_PIPELINE: "yes" })).toThrow(
+      /^WORKER_JOB_PIPELINE: on or off$/,
+    );
+  });
 });

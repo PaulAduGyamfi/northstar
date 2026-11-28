@@ -12,11 +12,11 @@ nothing starts `submissionWorkflow`, and scoring, tailoring and the Gate only ru
 
 ## Slices (one PR each)
 1. **Queue a job (merged, #466).** Plain code turns a ready job into a `queued` application.
-2. **`jobPipelineWorkflow` on `pipeline` (this PR).** For a queued application: tailor and store the resume
+2. **`jobPipelineWorkflow` on `pipeline` (merged, #467).** For a queued application: tailor and store the resume
    (`tailorForJob`), read the form (Greenhouse first), run `preparePackage` (files with the Gate),
    then start `submissionWorkflow` for that round (`startSubmission`). `NeedsHuman` from any step is
    the existing visible `package.needs_human`. Ids only in workflow history.
-3. **A starter.** The worker ensures one schedule that queues jobs and starts a pipeline run per
+3. **A starter (this PR).** The worker ensures one schedule that queues jobs and starts a pipeline run per
    newly queued application, only while a setting is on (off by default). The `auto_apply` kill
    switch and the Apply Gateway's pacing caps stay authoritative.
 
@@ -83,3 +83,30 @@ nothing starts `submissionWorkflow`, and scoring, tailoring and the Gate only ru
 - [x] A refusal or a step out of attempts records one dead letter and fails the run; Paul's
       needs-you line, a skip or a cancellation records none.
 - [x] lint, typecheck, test and build green for every touched package.
+
+## Slice 3: the starter
+- Settings (`loadWorkerConfig`): `WORKER_JOB_PIPELINE` (`on`/`off`, default off) and
+  `WORKER_QUEUE_DAILY_CAP` (1–25, default 5), in `.env.example`.
+- `jobPipelineStarterWorkflow` (`workflows/starter.ts`, on `pipeline`, every 10 minutes, continue as
+  new after 100 passes) runs `startPipelines` per candidate; a pass failing its 3 attempts is a
+  `pipeline.start` dead letter (one per run). `main.ts` ensures it only while the setting is on, and
+  the activity does nothing while it is off.
+- A pass: `queueReadyJobs` at the cap, then `readPipelineWork` (`packages/db`):
+  - each `queued` or `package_ready` application (freshest first) gets a pipeline run, id
+    `pipeline:<id>:<round>:<UTC day>`: one Paul unblocked (needs-you) runs again the next day; at
+    most 10 new runs a pass. Nothing moves a rejected application back to `queued` yet, so the
+    round only matters once something does (follow-up);
+  - each open round (awaiting approval, newest stored package's request not withdrawn, and either
+    waiting for a decision or approved within the last hour) gets its submission run started, so an
+    edited package's round runs (answers the slice 2 gap). An older approval is left alone: its run
+    may have ended (gave up, failed), and restarting it after Temporal forgets the closed run could
+    submit twice.
+- One start failing doesn't stop the others; the attempt fails afterwards with class names only.
+
+## Acceptance criteria (slice 3)
+- [x] Off by default; off, a pass queues and starts nothing.
+- [x] A test drives a synthetic ready job to a filed package and a started submission run on fakes,
+      and a second pass and run file and start nothing new (#458 "Done when").
+- [x] A withdrawn or rejected round is never started again, nor an approved round past the hour; a
+      later day gets its own run.
+- [x] AGENTS.md and the README describe the loop and the setting.

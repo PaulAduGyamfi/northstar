@@ -28,7 +28,7 @@ One system that **finds jobs, applies to them, runs your inbox, and keeps your p
 | [apps/api/](apps/api/) | The local API the web app and extension talk to (127.0.0.1, Paul's sign-in and passkeys) |
 | [apps/web/](apps/web/) | The web app: Today, Queue, Pipeline, Inbox, Grow, Jobs, Interviews, Career DNA, Health, Settings |
 | [apps/extension/](apps/extension/) | "Save to Northstar" Chrome extension: save a job page, pre-fill a handed-off form |
-| [apps/worker/](apps/worker/) | The worker process: Temporal workflows (submission, the stale-claim sweep, the decision relay) and their pools |
+| [apps/worker/](apps/worker/) | The worker process: Temporal workflows (the job pipeline and its starter, submission, the stale-claim sweep, the decision relay) and their pools |
 | [packages/domain/](packages/domain/) | Pure rules: application states, approval policy, growth planner, interview prep, metrics |
 | [packages/db/](packages/db/) | Postgres schema, migrations and the append-only write paths |
 | [packages/llm/](packages/llm/) · [packages/prompts/](packages/prompts/) | The only LLM gateway, and versioned, hash-locked prompts |
@@ -72,11 +72,18 @@ One system that **finds jobs, applies to them, runs your inbox, and keeps your p
 
 Phase 1 is being built ticket by ticket from the GitHub issues, mostly by agents working under
 ADR-0016 (the autonomous lane, see [docs/adr/](docs/adr/)). The building blocks exist and are
-tested on synthetic data, but **nothing runs on a schedule yet**. The worker process exists
+tested on synthetic data, but **nothing runs on a schedule unless you turn it on**. The worker process exists
 (`pnpm --filter @northstar/worker start`, NS-225), runs the stale-claim sweep and the relay that passes your approval decisions to waiting
 submissions, and shows each pool
-on the Health page (a stopped pool reads "Not running"), but nothing
-starts submission workflows yet, so no application is submitted and no mail is polled
+on the Health page (a stopped pool reads "Not running"). With `WORKER_JOB_PIPELINE=on` (off by
+default; NS-280) it also runs the job pipeline every 10 minutes: ready jobs whose newest Fit
+Score is in the queue band become queued applications (at most `WORKER_QUEUE_DAILY_CAP` a day,
+default 5, never over 25), and each one's resume is tailored, its Greenhouse form read, its
+package filed to your Queue and its submission run started, waiting for your approval (or one by
+an approval policy you set). A job that needs something from you (a missing setting, answer or
+file) says so on its timeline instead, and is tried again the next day. Off, nothing new is queued
+or started; runs already started finish (stop them in Temporal's UI if you need to), and the
+`auto_apply` switch on the Health page stops any submission at once. No mail is polled
 automatically. Its browser pool
 is off unless you turn it on (`WORKER_APPLY_BROWSER=on`); while it is off, a submission waits in
 Temporal's queue (it isn't dropped) and still needs your approval when the pool comes on. Interviews on your calendar are found when you run `pnpm --filter @northstar/funnel funnel
