@@ -1420,6 +1420,14 @@ Exists now:
   `MAIL_TAG_PATTERN`, `generateMailTag`, `isTaggableAddress` and `taggedAddress` live in
   `packages/domain` (`mail-tag.ts`), a copy of `packages/inbox`'s rules held equal by a parity test
   in `packages/funnel`. No per-tenant tags yet (no account creation).
+  Since NS-280 (slice 1) also the queueing rule, `queueReadyJobs` (`queue.ts`, plain code): a
+  ready job whose newest Fit Score (by `scored_at`) is in the `queue` band, with no application yet
+  and a posting not known closed (`readQueueCandidates`, `packages/db`, `queue-read.ts`, freshest
+  first, at most 50 a pass), becomes a `queued` application through `createApplication`
+  (`startedBy: northstar`, key `job:<jobId>:queue`, so a repeat replays the first), at most the
+  caller's `dailyCap` a UTC day by the Gate's clock (`countQueuedToday`; never over APPLY-007's 25,
+  `MAX_QUEUE_DAILY_CAP`). It submits nothing. No caller yet: the pipeline workflow and its
+  off-by-default starter are NS-280 slices 2 and 3.
 - `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
   (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
   decision as an `approval` signal (or `withdrawn`), then runs the `submitApplication` activity

@@ -15,3 +15,5 @@ export { filePackage } from "./file.js";
 export { type FormQuestions, formQuestions } from "./form.js";
 // The caller that assembles and files a package (NS-227).
 export { type PrepareResult, packageIdFor, preparePackage, resumeFileName } from "./prepare.js";
+// The queueing rule: a ready job in the queue band becomes a queued application (NS-280).
+export { MAX_QUEUE_DAILY_CAP, type QueueResult, queueKey, queueReadyJobs } from "./queue.js";
