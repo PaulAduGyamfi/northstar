@@ -55,20 +55,85 @@ export function decodeEntities(s: string): string {
   });
 }
 
-// HTML as readable text: scripts and styles dropped, block ends as line breaks, entities decoded.
+// HTML as readable text: scripts and styles dropped, block ends as line breaks, list items as
+// "- ", other tags as a space, entities decoded. The page is untrusted (a pasted link, a capture,
+// a feed item), so it is walked once, forward only (NS-289, #484): the earlier chain of regexes
+// rescanned the rest of the page for every unclosed `<script>` and every `<` with no `>` after
+// it, so a hostile 2 MB page could stall the run. Output on well-formed pages is unchanged.
 export function htmlToText(html: string): string {
-  return decodeEntities(
-    html
-      .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, " ")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<\/(p|div|li|h[1-6]|ul|ol|tr|section)>/gi, "\n")
-      .replace(/<li[^>]*>/gi, "- ")
-      .replace(/<[^>]+>/g, " "),
-  )
+  return decodeEntities(stripTags(html))
     .replace(/[ \t\f\v]+/g, " ")
     .replace(/ *\n */g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+// Elements dropped whole with their content, up to their own closing tag.
+const DROPPED = ["script", "style", "noscript"] as const;
+// Closing tags that end a line.
+const LINE_ENDS = /^<\/(p|div|li|h[1-6]|ul|ol|tr|section)>/i;
+const BREAK = /^<br\s*\/?>/i;
+
+// The tags out of the page, in one forward pass. A tag is "<" up to its next ">"; a "<" with no
+// ">" after it stays as text. Each search starts at or after the current position, and a search
+// that found nothing is remembered, so no part of the page is scanned twice for the same thing.
+function stripTags(html: string): string {
+  const lower = asciiLower(html);
+  const out: string[] = [];
+  // The next ">" at or after a position; -1 once none is left.
+  let nextGt = -2;
+  // Per dropped element, whether a closing tag is still ahead (false once a search found none).
+  const closeAhead: Record<(typeof DROPPED)[number], boolean> = {
+    script: true,
+    style: true,
+    noscript: true,
+  };
+  let i = 0;
+  while (i < html.length) {
+    const lt = html.indexOf("<", i);
+    if (lt < 0) {
+      out.push(html.slice(i));
+      break;
+    }
+    out.push(html.slice(i, lt));
+    // A dropped element: its content up to its closing tag goes, replaced by a space. With no
+    // closing tag ahead it is an ordinary tag, as before.
+    const dropped = DROPPED.find((name) => lower.startsWith(`<${name}`, lt));
+    if (dropped && closeAhead[dropped]) {
+      const close = lower.indexOf(`</${dropped}>`, lt);
+      if (close >= 0) {
+        out.push(" ");
+        i = close + dropped.length + 3;
+        continue;
+      }
+      closeAhead[dropped] = false;
+    }
+    if (nextGt !== -1 && nextGt <= lt) nextGt = html.indexOf(">", lt + 1);
+    // No ">" left: this "<" and the rest of the page are text.
+    if (nextGt < 0) {
+      out.push(html.slice(lt));
+      break;
+    }
+    // "<>" isn't a tag.
+    if (nextGt === lt + 1) {
+      out.push("<");
+      i = lt + 1;
+      continue;
+    }
+    const tag = html.slice(lt, nextGt + 1);
+    if (BREAK.test(tag)) out.push("\n");
+    else if (LINE_ENDS.test(tag)) out.push("\n");
+    else if (lower.startsWith("<li", lt)) out.push("- ");
+    else out.push(" ");
+    i = nextGt + 1;
+  }
+  return out.join("");
+}
+
+// ASCII letters lower-cased, every other character as it is, so indexes stay the same as the
+// page's (toLowerCase can change a string's length for some letters).
+function asciiLower(s: string): string {
+  return s.replace(/[A-Z]+/g, (m) => m.toLowerCase());
 }
 
 // "Remote", "Hybrid" or an office location, from the words a posting uses. null if unclear.
