@@ -10,6 +10,7 @@ import {
   editableAnswers,
   editProblem,
   editResultWords,
+  initialSelection,
   KIND_WORDS,
   MAX_ANSWER,
   MAX_BATCH,
@@ -54,9 +55,13 @@ export function ApprovalQueue({
   focusId?: string | null;
 }) {
   const router = useRouter();
-  const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(focusId !== null && items.some((i) => i.requestId === focusId) ? [focusId] : []),
-  );
+  const [selected, setSelected] = useState<Set<string>>(() => initialSelection(items, focusId));
+
+  // Bring the notification's request into view, so Paul sees what "Approve selected" covers.
+  useEffect(() => {
+    if (focusId === null) return;
+    document.getElementById(`request-${focusId}`)?.scrollIntoView({ block: "center" });
+  }, [focusId]);
   const [rejecting, setRejecting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -221,7 +226,11 @@ export function ApprovalQueue({
       ) : null}
       <ul className="switch-list">
         {items.map((item) => (
-          <li key={item.requestId} aria-current={item.requestId === focusId ? "true" : undefined}>
+          <li
+            key={item.requestId}
+            id={`request-${item.requestId}`}
+            aria-current={item.requestId === focusId ? "true" : undefined}
+          >
             <label>
               <input
                 type="checkbox"

@@ -7,6 +7,7 @@ import {
   editResultWords,
   focusLine,
   focusRequestId,
+  initialSelection,
   KIND_WORDS,
   MAX_ANSWER,
   MAX_REPLY_BODY,
@@ -322,6 +323,15 @@ describe("a request a notification opened (NS-204)", () => {
       focusRequestId("../approvals/decide"),
       focusRequestId(`${ID}x`),
     ]).toEqual([ID, null, null, null, null]);
+  });
+
+  it("selects the notification's request only while it waits, and nothing otherwise", () => {
+    const other = "2c9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed";
+    expect([
+      [...initialSelection([{ requestId: ID }, { requestId: other }], ID)],
+      [...initialSelection([{ requestId: other }], ID)],
+      [...initialSelection([{ requestId: ID }], null)],
+    ]).toEqual([[ID], [], []]);
   });
 
   it("says the request is selected when it waits, and that nothing was decided when it doesn't", () => {

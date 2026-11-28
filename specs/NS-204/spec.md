@@ -2,7 +2,7 @@
 
 Status: in progress (autonomous lane, ADR-0016)
 Issue: #180 (parent #68) · Requirements: APR-003 · ADR-0002, ADR-0032; decision on #162
-Rules that apply: `.claude/rules/web.md`, `.claude/rules/db.md`, `.claude/rules/worker.md`
+Rules that apply: `.claude/rules/web.md` (slice 2 adds `.claude/rules/db.md` and `.claude/rules/worker.md`)
 
 ## The rule this is built around
 A push alone never approves anything (decision on #162, the orchestrator's assignment):

@@ -26,6 +26,8 @@ export default async function ApprovalsPage({
     readApi(deps, "/system/health", HealthBody),
   ]);
   if (queue.kind === "signed_out") redirect("/sign-in");
+  // What to say about the request a notification opened, if one did.
+  const focus = queue.kind === "ok" ? focusLine(queue.body.items, focusId) : null;
   return (
     <>
       <PillNav current="/approvals" health={dotStatus(health)} />
@@ -40,7 +42,7 @@ export default async function ApprovalsPage({
             </p>
           ) : queue.body.items.length === 0 ? (
             <p className="muted" role="status">
-              {focusLine([], focusId) ?? "Queue clear. Nothing is waiting for you."}
+              {focus ?? "Queue clear. Nothing is waiting for you."}
             </p>
           ) : (
             <>
@@ -48,11 +50,11 @@ export default async function ApprovalsPage({
                 Nothing here goes out until you approve it. A decision can be undone for two
                 minutes.
               </p>
-              {focusLine(queue.body.items, focusId) !== null ? (
+              {focus === null ? null : (
                 <p className="muted" role="status">
-                  {focusLine(queue.body.items, focusId)}
+                  {focus}
                 </p>
-              ) : null}
+              )}
               <ApprovalQueue items={queue.body.items} focusId={focusId} />
             </>
           )}

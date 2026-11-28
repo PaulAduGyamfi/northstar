@@ -299,3 +299,12 @@ export function focusLine(
     ? "From your notification: it's selected below. Review it, then approve or reject it."
     : "The request from your notification isn't waiting any more. Nothing was decided from the notification.";
 }
+
+// The Queue's starting selection (NS-204): the request a notification named, only while it waits;
+// otherwise nothing is selected. Selection never decides anything: Paul still clicks Approve.
+export function initialSelection(
+  items: readonly { requestId: string }[],
+  id: string | null,
+): Set<string> {
+  return new Set(id !== null && items.some((i) => i.requestId === id) ? [id] : []);
+}
