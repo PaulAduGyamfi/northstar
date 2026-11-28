@@ -104,6 +104,30 @@ describe("listBoard for hn_hiring (NS-282)", () => {
     );
   });
 
+  it("never stores a bidi override or control character a commenter typed as an entity", async () => {
+    const { deps } = web([
+      comment(
+        1001,
+        "Glo&amp;#x202E;bex | Backend&#x200B; Engineer | Remote&amp;#27;<p>About\u202Eus",
+      ),
+    ]);
+    const [p] = await listBoard(deps, { ats: "hn_hiring", board: "whoishiring" });
+    expect(p?.extraction.fields).toMatchObject({
+      company: "Glo&#x202E;bex",
+      title: "Backend Engineer",
+      location: "Remote&#27;",
+    });
+    expect(p?.extraction.fields.description).not.toMatch(/[\u202E\u200B\u001B]/);
+  });
+
+  it("gives a comment with an impossible time no posted date", async () => {
+    const { deps } = web([
+      comment(1001, "Globex | Backend Engineer | Remote", { created_at_i: 1e15 }),
+    ]);
+    const [p] = await listBoard(deps, { ats: "hn_hiring", board: "whoishiring" });
+    expect(p?.extraction.fields.postedAt).toBeNull();
+  });
+
   it("skips deleted, dead and authorless comments, and never reads replies", async () => {
     const { deps } = web([
       comment(1001, null),

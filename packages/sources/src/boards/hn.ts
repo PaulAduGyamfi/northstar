@@ -1,11 +1,5 @@
 import { z } from "zod";
-import {
-  decodeEntities,
-  type Extraction,
-  emptyFields,
-  htmlToText,
-  remoteFrom,
-} from "../extraction.js";
+import { type Extraction, emptyFields, htmlToText, remoteFrom } from "../extraction.js";
 import { type BoardPosting, BoardUnavailable, MAX_POSTINGS } from "./list.js";
 
 // The monthly Hacker News "Ask HN: Who is hiring?" thread (NS-282 slice 1), read through HN's
@@ -88,14 +82,27 @@ export function postingFrom(c: Comment): BoardPosting | null {
   fields.location = read.location;
   fields.remote = remoteFrom(head);
   fields.description = text.slice(0, MAX_DESCRIPTION);
-  fields.postedAt = typeof c.created_at_i === "number" ? new Date(c.created_at_i * 1000) : null;
+  fields.postedAt = postedAt(c.created_at_i);
   const extraction: Extraction = { fields, method: "text", ats: null, atsPostingId: null };
   return { url: `https://news.ycombinator.com/item?id=${c.id}`, extraction };
 }
 
 // HN writes paragraphs as bare `<p>` with no closing tag: each starts a new line.
 function commentText(html: string): string {
-  return htmlToText(html.replace(/<p>/gi, "\n\n"));
+  return htmlToText(html.replace(/<p>/gi, "\n\n")).replace(INVISIBLE, "");
+}
+
+// Control, formatting and blank-looking characters (bidi overrides, zero-width joiners, Hangul
+// fillers, the braille blank, variation selectors): anyone can post on HN, and these would let a
+// comment reorder or hide text where its company or title is shown. Newlines and tabs stay.
+const INVISIBLE =
+  /(?![\n\t])[\p{Cc}\p{Cf}\u2028\u2029\u115F\u1160\u3164\uFFA0\u2800\u034F\uFE00-\uFE0F]/gu;
+
+// HN's own time for the comment, in seconds; anything outside 2007 to 2100 is no date.
+function postedAt(seconds: number | null | undefined): Date | null {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds)) return null;
+  if (seconds < 1_170_000_000 || seconds > 4_102_444_800) return null;
+  return new Date(seconds * 1000);
 }
 
 const firstLine = (text: string) => (text.split("\n")[0] ?? "").trim();
@@ -117,7 +124,9 @@ export function readHead(head: string): {
 } {
   const parts = head
     .split("|")
-    .map((p) => decodeEntities(p).trim())
+    // Already decoded once by htmlToText: a second decode would turn a commenter's literal
+    // `&#x202E;` into the real character.
+    .map((p) => p.trim())
     .filter((p) => p !== "");
   const none = { company: null, title: null, location: null };
   if (parts.length < 2) return none;
