@@ -1116,7 +1116,20 @@ Exists now:
   in fixed words, and `pushPath` says where a tap opens (`/approvals?request=<id>`, else Today).
   The Queue selects and marks that request (`initialSelection`, `focusLine` in
   `apps/web/src/approvals.ts`); a push never approves, and the notification has no approve
-  button. Nothing sends approval pushes yet (slice 2). A push never acts on anything.
+  button. A push never acts on anything.
+  Since NS-204 slice 2 (migration 0110, `approval_request:<id>:notify` claim keys) the worker's
+  notifier pushes each request newly waiting in the Queue once, after the handoffs and before
+  fresh jobs (`apps/worker/src/activities/notify-approvals.ts`). `readApprovalsToNotify`
+  (`packages/db`, `push-approval-write.ts`) lists requests with no live decision, not withdrawn,
+  never a `vault_reveal` or the request Paul's own edit filed, with no claim (a policy's approval
+  is a decision at filing, so it is never pushed), at most 205 a pass. `claimApprovalNotification`
+  claims one under the request's row lock (the lock deciding takes). The first 5 a pass
+  (`MAX_APPROVAL_PUSHES_PER_PASS`) are pushed alone; the rest are claimed too and share one
+  `{ v, kind: "approvals_waiting", more }` push ("N more requests are waiting in the Queue",
+  opening `/approvals`, one replacing tag), so none is pushed twice. `recordApprovalPushResult`
+  records one push's outcome for every claim it covered with one fixed-word feed line. Stale
+  claims, held-back and undelivered pushes are `push.notify` dead letters (`approval:<id>`, or
+  `candidate:<id>` for the overflow push).
   Since slice 2 the allowlist (`endpointAllowed`, `allowedEndpoint`) lives in `packages/domain`
   (`push-endpoint.ts`), so the API and the database path check the same rule. Subscriptions are
   append-only `push_subscription` and `push_subscription_removal` (`packages/db`, `push-schema.ts`,

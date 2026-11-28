@@ -80,9 +80,11 @@ export const pushSubscriptionRemoval = pgTable(
 
 // The item key a notification claims: one push per item, ever (ADR-0032 item 6). NS-193's is
 // `apply_handoff:<uuid>:notify`, NS-199's `job_fresh_alert:<job uuid>:notify` (one per job, as
-// the alert itself is); later kinds add their own prefix here and in the CHECK.
+// the alert itself is), NS-204's `approval_request:<request uuid>:notify` (one per Gate request,
+// whether it went out alone or in an overflow push); later kinds add their own prefix here and in
+// the CHECK.
 export const PUSH_ITEM_KEY_PATTERN =
-  "^(apply_handoff|job_fresh_alert):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:notify$";
+  "^(apply_handoff|job_fresh_alert|approval_request):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:notify$";
 
 // The claim, written before any push goes out, so a second run sends nothing (at most once).
 export const pushNotification = pgTable(

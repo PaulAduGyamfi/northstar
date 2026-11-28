@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { APPLY_ATS } from "./apply-package.js";
 import {
   MAX_FRESH_AGE_MINUTES,
+  MAX_WAITING_MORE,
   PUSH_CHALLENGES,
   PUSH_REQUEST_KINDS,
   pushPath,
@@ -128,5 +129,29 @@ describe("the service worker and approval pushes (NS-204)", () => {
   it("open Today for a handoff push", () => {
     const p = { v: 1, kind: "handoff", id: ID, ats: "lever", reason: "login" } as const;
     expect([serviceWorker().path(p), pushPath(p)]).toEqual(["/", "/"]);
+  });
+});
+
+describe("the service worker and the overflow push (NS-204 slice 2)", () => {
+  it("matches pushWords and pushPath for every count", () => {
+    const sw = serviceWorker();
+    for (let more = 1; more <= MAX_WAITING_MORE; more++) {
+      const p = { v: 1, kind: "approvals_waiting", more } as const;
+      expect([sw.words(p), sw.path(p)]).toEqual([pushWords(p), pushPath(p)]);
+    }
+  });
+
+  it("opens Today and shows the generic line for a bad overflow push, never its text", () => {
+    const sw = serviceWorker();
+    for (const data of [
+      { v: 1, kind: "approvals_waiting", more: 0 },
+      { v: 1, kind: "approvals_waiting", more: MAX_WAITING_MORE + 1 },
+      { v: 1, kind: "approvals_waiting", more: 2.5 },
+      { v: 1, kind: "approvals_waiting", more: "3 at evil.example.com" },
+      { v: 1, kind: "approvals_waiting", more: 3, id: ID },
+      { v: 2, kind: "approvals_waiting", more: 3 },
+    ]) {
+      expect([sw.words(data), sw.path(data)]).toEqual([GENERIC, "/"]);
+    }
   });
 });

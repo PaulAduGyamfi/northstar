@@ -6,6 +6,7 @@ import {
   encodePushPayload,
   MAX_FRESH_AGE_MINUTES,
   MAX_PUSH_PAYLOAD_BYTES,
+  MAX_WAITING_MORE,
   PUSH_CHALLENGES,
   PUSH_REQUEST_KINDS,
   type PushPayload,
@@ -120,6 +121,44 @@ describe("approval pushes (NS-204)", () => {
         tag: `approval:${ID}`,
       },
       `/approvals?request=${ID}`,
+    ]);
+  });
+});
+
+describe("the overflow push (NS-204 slice 2)", () => {
+  it("encodes as its kind and a count only", () => {
+    expect(encodePushPayload({ v: 1, kind: "approvals_waiting", more: 7 })).toBe(
+      '{"v":1,"kind":"approvals_waiting","more":7}',
+    );
+  });
+
+  it("refuses an id, a request kind, text, fractions and counts out of range", () => {
+    const base = { v: 1, kind: "approvals_waiting", more: 3 };
+    expect([
+      encodePushPayload({ ...base, id: ID }),
+      encodePushPayload({ ...base, request: "answer" }),
+      encodePushPayload({ ...base, more: "3 at evil.example.com" }),
+      encodePushPayload({ ...base, more: 2.5 }),
+      encodePushPayload({ ...base, more: 0 }),
+      encodePushPayload({ ...base, more: MAX_WAITING_MORE + 1 }),
+    ]).toEqual([null, null, null, null, null, null]);
+  });
+
+  it("says how many more wait, in one replacing notification, and opens the Queue", () => {
+    const one = { v: 1, kind: "approvals_waiting", more: 1 } as const;
+    const many = { v: 1, kind: "approvals_waiting", more: 12 } as const;
+    expect([pushWords(one), pushWords(many), pushPath(many)]).toEqual([
+      {
+        title: "Waiting for your approval",
+        body: "1 more request is waiting in the Queue. Open it to review them.",
+        tag: "approvals_waiting",
+      },
+      {
+        title: "Waiting for your approval",
+        body: "12 more requests are waiting in the Queue. Open it to review them.",
+        tag: "approvals_waiting",
+      },
+      "/approvals",
     ]);
   });
 });

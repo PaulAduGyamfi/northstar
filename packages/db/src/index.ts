@@ -522,6 +522,15 @@ export {
   writeProfileImport,
 } from "./profile-write.js";
 export {
+  type ApprovalToNotify,
+  approvalNotifyKey,
+  claimApprovalNotification,
+  MAX_APPROVAL_PUSHES_PER_PASS,
+  MAX_APPROVALS_READ,
+  readApprovalsToNotify,
+  recordApprovalPushResult,
+} from "./push-approval-write.js";
+export {
   type ClaimResult,
   claimFreshJobNotification,
   claimHandoffNotification,

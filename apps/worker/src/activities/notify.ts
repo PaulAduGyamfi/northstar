@@ -1,4 +1,5 @@
 import type {
+  ApprovalToNotify,
   ClaimResult,
   FreshAlertToNotify,
   HandoffToNotify,
@@ -16,11 +17,13 @@ import {
 import { PushHeldBack, PushRequestError, type PushResult } from "@northstar/gateways";
 import { ApplicationFailure } from "@temporalio/common";
 import { NOTIFY_ATTEMPTS } from "../workflows/types.js";
+import { pushApprovals } from "./notify-approvals.js";
 
-// The notifier's activities (NS-193 slice 3, ADR-0032 item 6; NS-199 item 1 slice 2): one pass
-// that pushes each new open handoff and each new fresh-job alert to Paul's browsers, at most
-// once, and the dead letter for a pass that kept failing (RES-007). A push only shows fixed words
-// and opens Today: it acts on nothing.
+// The notifier's activities (NS-193 slice 3, ADR-0032 item 6; NS-199 item 1 slice 2; NS-204
+// slice 2): one pass that pushes each new open handoff, each request newly waiting in the Queue
+// and each new fresh-job alert to Paul's browsers, at most once, and the dead letter for a pass
+// that kept failing (RES-007). A push only shows fixed words and opens Today or the Queue: it
+// acts on nothing, and never approves.
 //
 // At most once: an item's claim is taken before any push goes out, so a repeated pass, a retried
 // activity or a second worker sends nothing more. A claim whose result was never recorded (the
@@ -43,6 +46,18 @@ export type NotifyPorts = {
   // Fresh-job alerts (NS-199): the reader keeps quiet hours (never a held alert) and the window.
   freshToNotify: (candidateId: CandidateId) => Promise<FreshAlertToNotify[]>;
   claimFresh: (candidateId: CandidateId, jobId: string) => Promise<ClaimResult>;
+  // Requests waiting in the Queue (NS-204): the reader leaves out reveals, policy approvals and
+  // anything Paul decided, withdrew or edited.
+  approvalsToNotify: (candidateId: CandidateId) => Promise<ApprovalToNotify[]>;
+  claimApproval: (candidateId: CandidateId, requestId: string) => Promise<ClaimResult>;
+  // One push's outcome, for every claim it covered (one for a request's own push).
+  recordApproval: (
+    candidateId: CandidateId,
+    input: {
+      covered: Array<{ notificationId: string; requestId: string }>;
+      overflow: boolean;
+    } & PushCounts,
+  ) => Promise<void>;
   removeGone: (candidateId: CandidateId, subscriptionId: string) => Promise<void>;
   record: (
     candidateId: CandidateId,
@@ -65,10 +80,11 @@ export type NotifyCounts = {
 
 const CHALLENGES: ReadonlySet<string> = new Set(PUSH_CHALLENGES);
 // A claim's key names what it was for (PUSH_ITEM_KEY_PATTERN in packages/db): the dead letter's
-// subject is that entity, `apply_handoff:<id>` or `job:<id>`.
+// subject is that entity, `apply_handoff:<id>`, `job:<id>` or `approval:<id>`.
 const STALE_SUBJECT: ReadonlyArray<readonly [RegExp, string]> = [
   [/^apply_handoff:([0-9a-f-]{36}):notify$/, "apply_handoff"],
   [/^job_fresh_alert:([0-9a-f-]{36}):notify$/, "job"],
+  [/^approval_request:([0-9a-f-]{36}):notify$/, "approval"],
 ];
 
 function staleSubject(itemKey: string): string | null {
@@ -87,14 +103,22 @@ function candidate(raw: string): CandidateId {
   return parsed.data;
 }
 
-// One item to push, after its claim: what to send, and what to record it against.
-type ClaimedItem = {
+// One item to push, after its claim: what to send, and how to record what it came to.
+export type ClaimedItem = {
+  // The claim the push's dead letter is keyed by (the first one, for an overflow push).
   notificationId: string;
   payload: PushPayload;
-  subject: PushSubject;
-  // The dead letter's subject (`apply_handoff:<id>` or `job:<id>`).
+  record: (counts: PushCounts) => Promise<void>;
+  // The dead letter's subject (`apply_handoff:<id>`, `job:<id>`, `approval:<id>` or, for an
+  // overflow push, `candidate:<id>`).
   letterSubject: string;
 };
+
+// A handoff's or a fresh job's record: one claim, through recordPushResult.
+const recordOne =
+  (ports: NotifyPorts, candidateId: CandidateId, notificationId: string, subject: PushSubject) =>
+  (counts: PushCounts) =>
+    ports.record(candidateId, { notificationId, ...subject, ...counts });
 
 // Pushes one claimed item to every browser, records it once, and reports a push no browser took.
 // Answers "held" when every send was held back (the breaker opened, or the switch flipped between
@@ -137,11 +161,7 @@ async function pushClaimed(
       attempts: subscriptions.length,
     });
   }
-  await ports.record(candidateId, {
-    notificationId: item.notificationId,
-    ...item.subject,
-    ...result,
-  });
+  await item.record(result);
   if (result.sent > 0) return "sent";
   return allHeld ? "held" : "undelivered";
 }
@@ -202,11 +222,18 @@ export async function notifyPass(
         ats: handoff.ats,
         reason: handoff.reason as PushChallenge,
       },
-      subject: { handoffId: handoff.handoffId },
+      record: recordOne(ports, candidateId, claim.notificationId, {
+        handoffId: handoff.handoffId,
+      }),
       letterSubject: `apply_handoff:${handoff.handoffId}`,
     });
     if (!go) return counts;
   }
+
+  // Then requests waiting in the Queue (NS-204): a few alone, the rest in one overflow push.
+  const approvals = await pushApprovals(ports, candidateId, pushOne);
+  if (approvals !== "done")
+    return approvals === "switched_off" ? { ...counts, idle: "switched_off" } : counts;
 
   // Then fresh-job alerts (NS-199): only alerts the alert pass sent (never a held one), from the
   // last hour, so quiet hours stay exactly what that pass decided.
@@ -217,7 +244,7 @@ export async function notifyPass(
     const go = await pushOne({
       notificationId: claim.notificationId,
       payload: { v: 1, kind: "fresh_job", id: alert.jobId, age: alert.age, fit: alert.fit },
-      subject: { jobId: alert.jobId },
+      record: recordOne(ports, candidateId, claim.notificationId, { jobId: alert.jobId }),
       letterSubject: `job:${alert.jobId}`,
     });
     if (!go) return counts;
