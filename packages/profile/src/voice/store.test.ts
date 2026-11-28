@@ -1,7 +1,7 @@
 import { type Db, reviewVoiceProfile, saveVoiceProfile, schema, voiceSchema } from "@northstar/db";
 import { createTestDb } from "@northstar/db/testing";
 import { CandidateId } from "@northstar/domain";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { avoidedFromDeleted, deletedPhrases } from "./edits.js";
 import { measureVoice } from "./measure.js";
 import { loadVoice, recordEdit } from "./store.js";
@@ -12,8 +12,13 @@ let db: Db;
 let close: () => Promise<void>;
 let candidateId: CandidateId;
 
-beforeEach(async () => {
+// One database per file (NS-287): opening a PGlite copy per test passed Vitest's hook limit under
+// CI's parallel load. Each test makes its own candidate, so tests still see only their own rows.
+beforeAll(async () => {
   ({ db, close } = await createTestDb());
+});
+
+beforeEach(async () => {
   const [c] = await db
     .insert(schema.candidate)
     .values({ displayName: "Test Candidate" })
@@ -22,7 +27,7 @@ beforeEach(async () => {
   candidateId = CandidateId.parse(c.id);
 });
 
-afterEach(async () => {
+afterAll(async () => {
   await close();
 });
 
@@ -95,7 +100,8 @@ describe("recordEdit and the avoid list", () => {
       approved: "We use data daily.",
     });
     const rows = await db.select().from(voiceSchema.voiceEdit);
-    expect(rows.map((r) => r.deleted)).toEqual([
+    // This test's candidate only: the file shares one database.
+    expect(rows.filter((r) => r.candidateId === candidateId).map((r) => r.deleted)).toEqual([
       deletedPhrases("We leverage our data daily.", "We use data daily."),
     ]);
   });
