@@ -723,8 +723,8 @@ Exists now:
   times in order, and `rescheduled` when a newer version of the interview is stored. It never
   answers the event id, calendar id or hash. "Show the plan"
   (`app/approvals/prep-plan-preview.tsx`) words it in the browser's own zone (`prepPlanLines`,
-  `src/prep-plan.ts`), with a line telling Paul to reject a rescheduled plan; the Queue doesn't
-  render it on a `prep_plan` item yet (a follow-up, after the Queue edit work).
+  `src/prep-plan.ts`), with a line telling Paul to reject a rescheduled plan; since its follow-up
+  the Queue renders it on every `prep_plan` item (`hasPlanPreview`).
 
   A write that throws becomes a `calendar.prep_write` dead letter (`write_failed`,
   `claims_exhausted`), and so does a refusal no later run clears (`plan_not_found`,
