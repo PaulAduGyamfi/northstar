@@ -2,20 +2,21 @@
 // comes from the browser, so the sender checks it against the push services Northstar knows
 // before any request: a stored endpoint can never point the worker at an internal or other host.
 
-// The push services of Chrome/Edge-on-Android (FCM), Firefox, Safari and Windows. A host must be
-// one of these or under one (`web.push.apple.com`, `wns2-par02p.notify.windows.com`).
+// The push services of Chrome/Edge (FCM), Firefox, Safari and Windows. FCM, Mozilla and Apple
+// are matched exactly; Windows hands out per-region hosts, so only subdomains of its name count
+// (`wns2-par02p.notify.windows.com`), never the bare name.
 export const PUSH_SERVICE_HOSTS = [
   "fcm.googleapis.com",
   "updates.push.services.mozilla.com",
-  "push.apple.com",
-  "notify.windows.com",
+  "web.push.apple.com",
 ] as const;
+export const PUSH_SERVICE_SUFFIXES = [".notify.windows.com"] as const;
 
 // An endpoint is at most this long; real ones are a few hundred characters.
 const MAX_ENDPOINT_LENGTH = 1024;
 
 // The endpoint as a URL when the sender may call it, else null: https, the default port, no
-// user info or fragment, and a host under a known push service (never an IP literal, which
+// user info or fragment, and a known push service's host (never an IP literal, which
 // `URL` keeps in brackets or as dotted digits, neither of which can end with these names).
 export function allowedEndpoint(endpoint: string): URL | null {
   if (endpoint.length > MAX_ENDPOINT_LENGTH) return null;
@@ -31,7 +32,9 @@ export function allowedEndpoint(endpoint: string): URL | null {
   if (url.username !== "" || url.password !== "" || url.hash !== "") return null;
   // `URL` lower-cases the host and turns a trailing-dot or IDN form into its canonical one.
   const host = url.hostname;
-  const known = PUSH_SERVICE_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
+  const known =
+    (PUSH_SERVICE_HOSTS as readonly string[]).includes(host) ||
+    PUSH_SERVICE_SUFFIXES.some((suffix) => host.endsWith(suffix));
   return known ? url : null;
 }
 

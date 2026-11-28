@@ -1092,9 +1092,9 @@ Exists now:
   endpoint's origin, 12 h) from Paul's own key pair, loaded by `loadVapidConfig`
   (`PUSH_VAPID_PUBLIC_KEY`, `PUSH_VAPID_PRIVATE_KEY`, `PUSH_VAPID_SUBJECT` in `.env.app`; none set
   means push is off; a partial set, a placeholder or a mismatched pair is refused by name).
-  `createPushSender(...).send` refuses any endpoint `endpointAllowed` rejects (https, default port,
-  under FCM, Mozilla, Apple or Windows push hosts, never an IP), then asks the `push` kill switch
-  and breaker, and posts through the global `fetch` (10 s, no redirects): `sent`, `gone` (404/410)
+  `createPushSender(...).send` refuses any endpoint `endpointAllowed` rejects (https, default
+  port, exactly FCM's, Mozilla's or `web.push.apple.com`, or under `notify.windows.com`; never an
+  IP), then asks the `push` kill switch and breaker, and posts through the global `fetch` (10 s, no redirects): `sent`, `gone` (404/410)
   or `rejected`; only no answer, 429 and 5xx count against the breaker. Its span holds the host,
   status and result, never the endpoint's path, keys or payload. The payload is `PushPayload`
   (`packages/domain`, `push-payload.ts`): a strict `{ v, kind: "handoff", id, ats, reason }` from

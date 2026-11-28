@@ -26,10 +26,18 @@ threat model and where subscriptions live.
    key's own. No settings means no push: nothing else breaks.
 2. **No library: Northstar's own sender on `node:crypto`.** `packages/gateways/src/push/`:
    - `encryptPayload` (`encrypt.ts`): RFC 8291 message encryption with RFC 8188 `aes128gcm`, one
-     record, a fresh ECDH key and salt per message. Tested byte for byte against RFC 8291
-     Appendix A.
+     record, a fresh ECDH key and salt per message.
    - `vapidAuthorization` (`vapid.ts`): an ES256 JWT (`aud` the endpoint's origin, `exp` 12 h,
-     `sub` the configured contact) in the `vapid t=…, k=…` header.
+     `sub` the configured contact) in the `vapid t=…, k=…` header. It refuses an audience that
+     isn't https.
+
+   Conditions on this hand-written crypto (the orchestrator's, 2026-11-28), kept as tests:
+   - a test reproduces RFC 8291 Appendix A exactly (its keys, salt, plaintext and message, byte
+     for byte): the gate for any change to `encrypt.ts`;
+   - a test verifies the VAPID signature with the public key, checks `aud`, `exp` (at most 24 h)
+     and `sub`, and one refuses a non-https audience;
+   - only allowlisted https endpoints are ever called (item 3);
+   - the security reviewer reviews the crypto module itself in every PR that changes it.
    - `endpointAllowed` (`endpoint.ts`) and the sender (`send.ts`, `createPushSender`), below.
 
    The `web-push` package was the obvious choice. 3.6.7 (January 2024) brings five transitive
@@ -41,9 +49,10 @@ threat model and where subscriptions live.
    is no new dependency and no supply-chain surface.
 3. **The sender.** `createPushSender({ vapid, guard }).send(subscription, payload, span)`:
    - Refuses any endpoint `endpointAllowed` rejects, before anything else: https, the default
-     port, no user info, a hostname (never an IP literal) equal to or under one of
-     `fcm.googleapis.com`, `updates.push.services.mozilla.com`, `push.apple.com`,
-     `notify.windows.com`. A stored subscription can't point the worker at an internal host.
+     port, no user info or fragment, and a host that is exactly `fcm.googleapis.com`,
+     `updates.push.services.mozilla.com` or `web.push.apple.com`, or a subdomain of
+     `notify.windows.com` (Windows' per-region hosts). Never an IP literal. A stored subscription
+     can't point the worker at an internal host.
    - Checks the `push` kill switch, then the `push` breaker (ADR-0007), at the moment it sends.
      A check that throws holds the push back.
    - POSTs through the global `fetch` with a 10 s limit, `TTL: 86400` and `Urgency: high`.

@@ -14,6 +14,10 @@ describe("endpointAllowed (NS-193, ADR-0032 item 3)", () => {
   it.each([
     ["plain http", "http://fcm.googleapis.com/fcm/send/abc"],
     ["another host", "https://example.com/push"],
+    ["a subdomain of FCM", "https://x.fcm.googleapis.com/fcm/send/abc"],
+    ["another Apple host", "https://api.push.apple.com/3/device/abc"],
+    ["the bare Windows name", "https://notify.windows.com/w/?token=B"],
+    ["a lookalike Windows suffix", "https://evilnotify.windows.com/w/?token=B"],
     ["a lookalike suffix", "https://evilfcm.googleapis.com.example.com/x"],
     ["a host that only ends with the name", "https://notfcm.googleapis.com/x"],
     ["a non-default port", "https://fcm.googleapis.com:8443/fcm/send/abc"],

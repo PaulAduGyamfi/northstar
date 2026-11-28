@@ -96,6 +96,8 @@ export function loadVapidConfig(
 // The Authorization header for one push: `vapid t=<ES256 JWT>, k=<public key>`, the token naming
 // the endpoint's origin (`aud`) so it is good for that push service only.
 export function vapidAuthorization(config: VapidConfig, endpoint: URL, now: Date): string {
+  // A token for a non-https origin is never made: push services are https only (RFC 8030).
+  if (endpoint.protocol !== "https:") throw new VapidConfigError("audience must be https");
   const header = Buffer.from(JSON.stringify({ typ: "JWT", alg: "ES256" })).toString("base64url");
   const claims = Buffer.from(
     JSON.stringify({

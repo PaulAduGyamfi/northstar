@@ -112,4 +112,12 @@ describe("vapidAuthorization (NS-193, RFC 8292)", () => {
     );
     expect(ok).toBe(true);
   });
+
+  it("refuses to sign for an audience that isn't https", () => {
+    const config = loadVapidConfig(env());
+    if (!config) throw new Error("no config");
+    expect(() =>
+      vapidAuthorization(config, new URL("http://fcm.googleapis.com/fcm/send/abc"), new Date()),
+    ).toThrow("audience must be https");
+  });
 });
