@@ -240,6 +240,23 @@ describe("readReplyCandidates", () => {
     expect(await rows()).toEqual([{ gmailMessageId: M2, threadId: M2, grade: "C" }]);
   });
 
+  it("follows the weighted letter the Inbox shows, so a weighted F gets no reply (NS-238 item 3 slice 3)", async () => {
+    const weighted = async (id: string, day: number, grade: string, w: string) => {
+      await recorded(id, day, false);
+      await classify(id, "recruiter_inbound");
+      const r = await recordRecruiterGrade(db, {
+        candidateId,
+        gmailMessageId: id,
+        grade: { grade, points: 0, reasons: ["title:exact"], confidence: "normal" },
+        weighted: { grade: w, points: -1, weightsPosition: 1n },
+      });
+      if (!r.ok) throw new Error(r.error.kind);
+    };
+    await weighted(M2, 2, "D", "F");
+    await weighted(M3, 3, "D", "C");
+    expect(await rows()).toEqual([{ gmailMessageId: M3, threadId: M3, grade: "C" }]);
+  });
+
   it("leaves out mail Paul dismissed", async () => {
     await graded(M2, 2, "B");
     await decideQueuedThread(db, { candidateId, gmailThreadId: M2, decision: { kind: "dismiss" } });

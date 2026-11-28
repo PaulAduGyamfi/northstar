@@ -97,6 +97,16 @@ describe("runGrading", () => {
     expect([r.enabled, r.graded, read, f.extracted]).toEqual([false, 0, false, []]);
   });
 
+  it("passes the weighted grade to the store beside the grader's own (NS-238 item 3 slice 3)", async () => {
+    const weighted: StoredGrade = {
+      ...GRADE,
+      weighted: { grade: "A", points: 5, weightsPosition: 3n },
+    };
+    const f = fake({ grade: async () => weighted });
+    await runGrading(f.deps);
+    expect(f.saved).toEqual([{ id: row(1).gmailMessageId, grade: weighted }]);
+  });
+
   it("grades a recruiter email from its body and stores the grader's own grade", async () => {
     const f = fake();
     const r = await runGrading(f.deps);

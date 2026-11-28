@@ -165,3 +165,45 @@ describe("the recruiter_weight table", () => {
     ]);
   });
 });
+
+describe("learning stays on the grader's unweighted letter (NS-238 item 3 slice 3)", () => {
+  const W1 = "18c3f0a2b4d6e811";
+  const W2 = "18c3f0a2b4d6e812";
+  const W3 = "18c3f0a2b4d6e813";
+
+  // Graded B by the grader, shown as A after weights (version 1) Paul saw in the Inbox.
+  async function weightedMail(id: string) {
+    await recordMailLink(db, {
+      candidateId,
+      message: { id, threadId: id, receivedAt: new Date(Date.UTC(2026, 10, 2, 12)) },
+      decision: { kind: "queued", reason: "no_match" },
+    });
+    const graded = await recordRecruiterGrade(db, {
+      candidateId,
+      gmailMessageId: id,
+      grade: { grade: "B", points: 4, reasons: ["pay:ok", "place:ok"], confidence: "normal" },
+      weighted: { grade: "A", points: 5, weightsPosition: 1n },
+    });
+    if (!graded.ok) throw new Error(graded.error.kind);
+  }
+
+  it("learns from Paul's letter against the grader's B, even when he picks the A he was shown", async () => {
+    for (const id of [W1, W2, W3]) await weightedMail(id);
+    for (const id of [W1, W2, W3]) await regrade(id, "A");
+    // Against the shown A the delta would be 0 and nothing learned; against B it is +1.
+    expect(await readRecruiterWeights(db, candidateId)).toEqual({ "pay:ok": 1, "place:ok": 1 });
+  });
+
+  it("records the regrade event against the grader's letter, not the weighted one", async () => {
+    await weightedMail(W1);
+    await regrade(W1, "C");
+    const [event] = await db
+      .select({ reason: domainEvent.reason, payload: domainEvent.payload })
+      .from(domainEvent)
+      .where(sql`${domainEvent.type} = 'recruiter.regraded'`);
+    expect(event).toEqual({
+      reason: "You regraded a recruiter email: B to C",
+      payload: { gmailMessageId: W1, systemGrade: "B", grade: "C" },
+    });
+  });
+});

@@ -222,4 +222,23 @@ describe("readInboxThreads", () => {
       { applications: [], queued: [] },
     ]);
   });
+
+  it("shows the weighted letter with the grader's own beside it, and Paul's letter above both (NS-238 item 3 slice 3)", async () => {
+    const weighted = (id: string, grade: string, w: string | null) =>
+      recordRecruiterGrade(db, {
+        candidateId,
+        gmailMessageId: id,
+        grade: { grade, points: 2, reasons: ["title:partial"], confidence: "normal" },
+        ...(w === null ? {} : { weighted: { grade: w, points: 3, weightsPosition: 1n } }),
+      });
+    await link(candidateId, "dd01", "ef01", 1, { kind: "queued", reason: "no_match" });
+    await link(candidateId, "dd02", "ef02", 2, { kind: "queued", reason: "no_match" });
+    await weighted("dd01", "C", "B");
+    await weighted("dd02", "C", "C");
+    const inbox = await readInboxThreads(db, candidateId);
+    expect(inbox.queued.map((q) => [q.gmailThreadId, q.recruiterGrade])).toEqual([
+      ["ef02", { grade: "C", reasons: ["title:partial"], confidence: "normal" }],
+      ["ef01", { grade: "B", systemGrade: "C", reasons: ["title:partial"], confidence: "normal" }],
+    ]);
+  });
 });
