@@ -47,7 +47,7 @@ describe("PrepPlanBody", () => {
 describe("hasPlanPreview", () => {
   it("gives the plan view to a prep plan's request only", () => {
     expect(
-      ["prep_plan", "email_reply", "application_package", "answer"].map(hasPlanPreview),
+      (["prep_plan", "email_reply", "application_package", "answer"] as const).map(hasPlanPreview),
     ).toEqual([true, false, false, false]);
   });
 });

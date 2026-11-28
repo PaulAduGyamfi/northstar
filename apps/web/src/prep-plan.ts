@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { QueueItem } from "./approvals";
 
 // A prep plan as the Queue shows it before Paul approves it (NS-241 slice 6, CAL-003): the API's
 // GET /approvals/prep-plan answer, and its lines in words. Times are shown in the zone given
@@ -15,7 +16,8 @@ export const PrepPlanBody = z.object({
 export type PrepPlanBody = z.infer<typeof PrepPlanBody>;
 
 // Which Queue items get "Show the plan": only a prep plan's request (slice 6's follow-up).
-export function hasPlanPreview(kind: string): boolean {
+// Typed by the queue's own kinds, so a renamed kind fails to compile instead of hiding the view.
+export function hasPlanPreview(kind: QueueItem["kind"]): boolean {
   return kind === "prep_plan";
 }
 
