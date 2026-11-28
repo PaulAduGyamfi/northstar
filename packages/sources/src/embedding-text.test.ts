@@ -27,9 +27,26 @@ describe("embeddingText (NS-129)", () => {
     expect([text.includes("https://"), text.includes("150000")]).toEqual([false, false]);
   });
 
+  it("drops a requirement line holding a link or an address, so no URL is ever sent", () => {
+    const linky = {
+      ...job,
+      requirements: [
+        "TypeScript",
+        "See https://jobs.example.com/1 for details",
+        "www.example.com/careers",
+        "Email jobs@example.com",
+      ],
+    };
+    expect(embeddingText(linky)).toBe("Backend Engineer\nExample Corp\nTypeScript");
+  });
+
   it("is null without a title or a company", () => {
     expect(embeddingText({ ...job, title: null })).toBeNull();
     expect(embeddingText({ ...job, company: "  " })).toBeNull();
+  });
+
+  it("is null when the title and company don't fit in its limit", () => {
+    expect(embeddingText({ ...job, title: "x".repeat(MAX_EMBEDDING_TEXT) })).toBeNull();
   });
 
   it("keeps whole lines up to its limit", () => {

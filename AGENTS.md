@@ -93,7 +93,7 @@ Exists now:
   Since NS-129 (#52, slice 1, ADR-0033, Proposed) also the one non-Anthropic model call:
   `createEmbedClient` (`src/embed/`), OpenAI `text-embedding-3-small` at 512 dimensions through
   plain `fetch` to `https://api.openai.com/v1/embeddings` only (no SDK, no redirect, 20 s), behind
-  the `agent:job-embed` switch, the `openai` breaker (no answer, 429 and 5xx count) and the shared
+  the `agent:job-embed` switch, the `openai` breaker (no answer, a cut-off body, 408, 409, 429 and 5xx count) and the shared
   spend cap (route `job-embed`, priority `low`, its cost in `llm_spend`); its `llm.embed` span holds
   counts, tokens and status, never text or the key. `loadEmbedConfig` reads `JOB_EMBEDDINGS`
   (default off) and `OPENAI_API_KEY` (`.env.app` only). The text sent is only `embeddingText(job)`

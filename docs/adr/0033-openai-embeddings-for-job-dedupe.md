@@ -32,7 +32,7 @@ migration (`0000_extensions.sql`) and runs in the PGlite tests.
 4. **Off by default.** `JOB_EMBEDDINGS=on` turns it on; anything else, or no key, sends nothing.
    `on` without a key, or with the placeholder, refuses to start and names the setting.
 5. **Guarded like a model route.** Every call runs behind the `agent:job-embed` kill switch, the
-   `openai` breaker (ADR-0007: only no answer, 429 and 5xx count; a 400 or 401 means it answered)
+   `openai` breaker (ADR-0007: only no answer, a cut-off body, 408, 409, 429 and 5xx count; a 400 or 401 means it answered)
    and the shared LLM spend cap (ADR-0021: route `job-embed`, priority `low`, its cost recorded in
    `llm_spend`). A held-back call never goes out.
 6. **Suggestions only.** An embedding match never merges, edits or deletes a job. `findDuplicate`

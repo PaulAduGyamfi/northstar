@@ -66,8 +66,10 @@ export type EmbedClient = {
 
 export function createEmbedClient(deps: {
   apiKey: string;
-  guard?: CallGuard;
-  budget?: { caps: LlmBudget; meter: SpendMeter };
+  // Required, never optional: a caller that forgot them would send with no kill switch, breaker
+  // or spend cap (fail closed). A budget with no caps set checks nothing but still records spend.
+  guard: CallGuard;
+  budget: { caps: LlmBudget; meter: SpendMeter };
   // The global fetch unless a test passes its own; it is only ever called with EMBED_URL.
   fetch?: EmbedFetch;
 }): EmbedClient {
@@ -93,7 +95,6 @@ export function createEmbedClient(deps: {
       return tracer.startActiveSpan("llm.embed", async (span) => {
         let probeToken: string | null = null;
         const report = async (outcome: GuardOutcome) => {
-          if (!deps.guard) return;
           try {
             await deps.guard.report(OPENAI_DEPENDENCY, outcome, probeToken);
           } catch {
@@ -115,7 +116,7 @@ export function createEmbedClient(deps: {
           }
           // The spend cap first: a held-back call takes no probe. A meter that throws holds the
           // call back (fail safe), as the chat gateway does.
-          if (deps.budget) {
+          {
             const { caps, meter } = deps.budget;
             if (caps.dailyUsd !== null || caps.monthlyUsd !== null) {
               let cap: string | null;
@@ -131,12 +132,15 @@ export function createEmbedClient(deps: {
                 );
               }
               if (cap !== null) {
-                span.setAttribute("northstar.llm.held_by", "budget");
+                span.setAttributes({
+                  "northstar.llm.held_by": "budget",
+                  "northstar.llm.priority": EMBED_PRIORITY,
+                });
                 throw new HeldBack("budget", cap);
               }
             }
           }
-          if (deps.guard) {
+          {
             const admission = await admit(deps.guard, {
               subsystem: `agent:${EMBED_ROUTE}`,
               dependency: OPENAI_DEPENDENCY,
@@ -175,28 +179,45 @@ export function createEmbedClient(deps: {
           }
           span.setAttribute("http.response.status_code", response.status);
           if (!response.ok) {
+            // The body is never read (it could quote the request), only released. Not awaited:
+            // a cancel can wait on a stream nobody else reads.
+            void response.body?.cancel().catch(() => undefined);
             const retryable = isRetryableStatus(response.status);
             // Only the API's own trouble counts against it: a 400 or 401 means it answered.
             await report(retryable ? { ok: false, error: "EmbedTransportError" } : { ok: true });
             throw new EmbedTransportError(response.status, retryable);
           }
+          let body: unknown;
+          try {
+            body = await response.json();
+          } catch {
+            // A body cut off or not JSON: the answer never fully arrived, so it counts.
+            await report({ ok: false, error: "EmbedTransportError" });
+            throw new EmbedTransportError(response.status, true);
+          }
           await report({ ok: true });
-          const parsed = Reply.safeParse(await response.json().catch(() => null));
-          if (!parsed.success) throw new EmbedResponseError("embeddings reply has the wrong shape");
-          const reply = parsed.data;
-          const usd = reply.usage.prompt_tokens * EMBED_USD_PER_TOKEN;
-          span.setAttributes({
-            "northstar.llm.input_tokens": reply.usage.prompt_tokens,
-            "northstar.llm.cost_usd": usd,
-          });
-          // Billed whatever comes next, so recorded before the reply is checked further.
-          if (deps.budget) {
+          // The cost first, from the usage alone: billed whatever the rest of the reply holds.
+          const usage = z.object({ usage: Reply.shape.usage }).safeParse(body);
+          if (usage.success) {
+            const tokens = usage.data.usage.prompt_tokens;
+            const usd = tokens * EMBED_USD_PER_TOKEN;
+            span.setAttributes({
+              "northstar.llm.input_tokens": tokens,
+              "northstar.llm.cost_usd": usd,
+            });
             try {
               await deps.budget.meter.record(EMBED_ROUTE, usd);
             } catch {
               unrecorded.push(usd);
               span.setAttribute("northstar.llm.spend_record_failed", true);
             }
+          }
+          const parsed = Reply.safeParse(body);
+          if (!parsed.success) throw new EmbedResponseError("embeddings reply has the wrong shape");
+          const reply = parsed.data;
+          // A vector from another model can't be compared with the stored ones.
+          if (reply.model !== EMBED_MODEL && !reply.model.startsWith(`${EMBED_MODEL}-`)) {
+            throw new EmbedResponseError("embeddings reply is from another model");
           }
           // One vector per text, each index once: anything else is never guessed into order.
           const vectors: (number[] | undefined)[] = new Array(texts.length).fill(undefined);

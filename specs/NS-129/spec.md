@@ -28,7 +28,7 @@ Built in slices, each its own PR:
    - `packages/llm/src/embed/`: `embedText(texts)` through plain `fetch` to
      `https://api.openai.com/v1/embeddings` (no SDK, no new dependency). It refuses any other
      host, sends no redirects, has a 20 s limit, and runs behind the `agent:job-embed` kill switch,
-     the `openai` breaker (only no answer, 429 and 5xx count) and the LLM spend cap (route
+     the `openai` breaker (only no answer, a cut-off body, 408, 409, 429 and 5xx count) and the LLM spend cap (route
      `job-embed`, priority `low`; its cost is recorded in `llm_spend` like a model reply). Its span
      holds the model, the input count, token usage and the status, never the text.
    - `loadEmbedConfig`: `JOB_EMBEDDINGS` (`on` / `off`, default off) and `OPENAI_API_KEY` (in
@@ -51,7 +51,7 @@ Built in slices, each its own PR:
       one host, refuses a redirect, and sends nothing while the switch is off, the breaker is
       open, the spend cap holds `low` back or `JOB_EMBEDDINGS` is off (tests with a fake `fetch`;
       no test calls the network).
-- [ ] Slice 1: only no answer, 429 and 5xx count against the breaker; a 400 or 401 doesn't.
+- [ ] Slice 1: only no answer, a cut-off body, 408, 409, 429 and 5xx count against the breaker; a 400 or 401 doesn't.
 - [ ] Slice 1: the cost of each call is recorded through the spend meter.
 - [ ] Slice 1: `embeddingText` holds the title, company and requirements only (a test).
 - [ ] AGENTS.md, README and `.env.example` describe each slice.
