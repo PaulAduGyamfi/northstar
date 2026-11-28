@@ -371,7 +371,19 @@ Exists now:
   with the lease's end inside `DRAFT_CLAIM_LEASE_MS`, 5 min; `unknown`, with a fresh claim, after
   it; `done` once recorded), `recordDraft` writes one `reply_draft_record` per decision with a
   `reply.draft_created` event (decision and message ids; a fixed-word feed line), refusing a
-  different second id, and `dbMailLedger(db)` binds both to the writer's ports. No caller yet (#230).
+  different second id, and `dbMailLedger(db)` binds both to the writer's ports.
+  Since NS-281 (slice 1) its caller is a command Paul runs, `funnel drafts` (`packages/funnel`,
+  `drafts.ts`): it lists the approved replies not yet written (`readApprovedReplies`,
+  `packages/db`, `reply-approved-read.ts`: `email_reply` requests with a stored draft whose newest
+  live decision is an approval past its undo window by the Gate's clock, not undone or withdrawn,
+  with no `reply_draft_record` for that decision; ids only, at most 50), and only then asks
+  `authorizeCompose` (consent that run, the token in memory, #400). Each goes through
+  `writeReplyDraft` with `dbMailLedger`, `verifyApproval` and the stored switch and breaker; it
+  prints counts only. A write that throws, or a refusal no later run clears (`draft_not_found`,
+  `draft_changed`, `approval_not_valid`, `claims_exhausted`, `draft_conflict`), is a
+  `mail.draft_write` dead letter, passed over until Paul retries it; another run's claim, the undo
+  window and a held-back request wait for a later run; Gmail not answering (no answer, 429, 5xx)
+  stops the run with no letter. Nothing is ever sent.
 - Factual answers (NS-141, ANS-001) from Paul's profile settings, plain code, no model:
   `profile_setting` in `packages/db` (`settings-write.ts`: `setProfileSetting`,
   `readProfileSettings`, `recordFactualAnswer`; append-only, newest wins, setting the same value
@@ -984,8 +996,8 @@ Exists now:
   Hand off buttons that say what happens next (`src/dead-letters.ts`). Since NS-236
   `recordDeadLetter` takes only a kind on `DEAD_LETTER_KINDS` (`apply.stale_sweep`,
   `apply.submission`, `calendar.interview_detection`, since NS-213 slice 2
-  `apply.signal_relay`, since NS-241 slice 4 `calendar.prep_write`, and since NS-193 slice 3
-  `push.notify`); a new producer adds its own.
+  `apply.signal_relay`, since NS-241 slice 4 `calendar.prep_write`, since NS-193 slice 3
+  `push.notify`, and since NS-281 `mail.draft_write`); a new producer adds its own.
 - Health and feed (NS-125, RES-013, OBS-002): `systemHealth` (`packages/domain`, `health.ts`)
   turns breakers, kill switches and board watches into `healthy / degraded / down` per subsystem
   with a plain reason, and `feedLine` (`feed.ts`) turns an event into one plain sentence from
@@ -1567,6 +1579,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/funnel funnel interviews` | sign in to Google Calendar read-only (browser consent every run, no stored token), detect interviews in the next 30 days against open applications whose company domains you entered (`jobs domains`), store them for `/interviews` and print counts only. Safe to rerun. Paul only: his real calendar, needs `DATABASE_URL` and `GOOGLE_OAUTH_CLIENT_*`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel inbox` | sign in to Gmail read-only (browser consent every run, no stored token), link new job mail from the stored cursor (the first run reads 7 days back), sort up to 25 recorded emails with the rules or the `mail-classify` model behind its switch, breaker and the spend cap, grade up to 10 recruiter emails when `RECRUITER_EXTRACT=on` (off by default), send up to 10 reply drafts by grade to your Queue for approval when `RECRUITER_REPLIES=on` (off by default; nothing is sent), and print counts only; emails that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real mail, needs `DATABASE_URL`, `GOOGLE_OAUTH_CLIENT_*` and `ANTHROPIC_API_KEY`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel prep [--busy-from-calendar]` | plan prep blocks for each confirmed, upcoming interview inside your working hours (`PREP_TIME_ZONE` or `ALERT_TIME_ZONE`, `PREP_WORKING_HOURS`), around your other interviews and their prep (with `--busy-from-calendar`, also around your calendar's events: a second, read-only Google consent that run, only when something is to be planned; times only, nothing kept), send each plan to your Queue, and, when one is approved, sign in to Google for your Northstar calendar only (browser consent that run, no stored token) and add its blocks once each; prints counts only, and plans that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real calendar, needs `DATABASE_URL` and `GOOGLE_OAUTH_CLIENT_*` with `calendar.app.created` on the consent screen (and `calendar.events.readonly`, as for `funnel interviews`, with `--busy-from-calendar`); agents never run it |
+| repo root | `pnpm --filter @northstar/funnel funnel drafts` | put each reply you approved in the Queue into your Gmail drafts, once per approval: only when one is waiting, sign in to Google for Gmail drafts only (browser consent that run, no stored token); it never sends, so you send each draft from Gmail yourself; prints counts only, and replies that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real mail, needs `DATABASE_URL` and `GOOGLE_OAUTH_CLIENT_*` with `gmail.compose` on the consent screen; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel report` / `funnel hypotheses` | the funnel report and the hypothesis board. Paul only: they print his real applications; agents never run them |
 | repo root | `pnpm --filter @northstar/sources jobs add <url>` | add a job from a link: ATS API, then the page's JSON-LD, then the `job-extract` model (needs `ANTHROPIC_API_KEY` only then). A job without a title or company is stored as a draft. LinkedIn, Indeed and Glassdoor links are refused. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs add --text data/<file> --url <url>` | add a job from a description Paul saved himself (sign-in sites such as LinkedIn); nothing is fetched |

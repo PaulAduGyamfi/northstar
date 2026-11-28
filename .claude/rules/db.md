@@ -298,6 +298,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   written only through `reply-ledger-write.ts` (`claimDraft` under a per-decision advisory lock;
   `recordDraft`, which refuses a different second id). Ids and times only; `reply.draft_created`
   carries the decision and draft message ids, and its feed line is a fixed-word `reason`.
+  `readApprovedReplies` (`reply-approved-read.ts`, NS-281 slice 1) is `funnel drafts`' read-only
+  list of what to write, by `readApprovedPrepPlans`' rule: `email_reply` requests with a stored
+  `reply_draft` whose newest live decision is an approval past its undo window by the Gate's clock,
+  not undone, the request not withdrawn, and no `reply_draft_record` for that decision. Ids only,
+  at most 50.
   `readNudgeCandidates` (`nudge-read.ts`, NS-237 slice 3) is the follow-up nudge check's
   read-only reader: applications in a nudge stage, their last move, newest linked message from a
   verified sender and whether a `reply_draft` is filed for it; ids and times only.

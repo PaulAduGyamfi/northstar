@@ -13,6 +13,7 @@ import { GmailError, MAIL_KINDS, OAuthError, STAGE_SIGNALS } from "@northstar/in
 import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
 import { type BackfillCounts, emptyCounts } from "./backfill.js";
 import { parseTracker } from "./csv.js";
+import { type DraftsRunReport, draftsCommand } from "./drafts.js";
 import { judgeHypotheses, summarize } from "./hypotheses.js";
 import { type InboxRunReport, inboxCommand } from "./inbox.js";
 import { type InterviewsRun, interviewsCommand } from "./interviews.js";
@@ -21,7 +22,7 @@ import { gmailRecords, mergeRecords } from "./records.js";
 import { type Baselines, buildReport, renderReport } from "./report.js";
 
 // `funnel backfill | import | review | report | hypotheses` (NS-113), `interviews` (NS-240),
-// `inbox` (NS-238) and `prep` (NS-241). Everything is injected, so
+// `inbox` (NS-238), `prep` (NS-241) and `drafts` (NS-281). Everything is injected, so
 // tests run with no database, Gmail or model. Output shows Paul's own job data back to Paul only.
 export type CliDeps = {
   argv: string[];
@@ -54,6 +55,8 @@ export type CliDeps = {
   // Prep plans and, when one is approved, Calendar write consent for this run (NS-241 slice 5);
   // with busyFromCalendar, read-only Calendar consent too, for busy time (slice 7).
   runPrep: (options: { busyFromCalendar: boolean }) => Promise<PrepRunReport>;
+  // Approved replies and, when one is waiting, gmail.compose consent for this run (NS-281 slice 1).
+  runDrafts: () => Promise<DraftsRunReport>;
   recordEvent: (
     type: "funnel.backfilled" | "funnel.reported",
     reason: string,
@@ -62,7 +65,7 @@ export type CliDeps = {
 };
 
 const USAGE =
-  "usage: funnel backfill [--since YYYY-MM-DD] [--max-messages N] | funnel import <file.csv> | funnel review | funnel report | funnel hypotheses | funnel interviews | funnel inbox | funnel prep [--busy-from-calendar]";
+  "usage: funnel backfill [--since YYYY-MM-DD] [--max-messages N] | funnel import <file.csv> | funnel review | funnel report | funnel hypotheses | funnel interviews | funnel inbox | funnel prep [--busy-from-calendar] | funnel drafts";
 
 export async function main(deps: CliDeps): Promise<number> {
   const [command, ...rest] = deps.argv;
@@ -79,6 +82,9 @@ export async function main(deps: CliDeps): Promise<number> {
   if (command === "prep" && (rest.length === 0 || (rest.length === 1 && rest[0] === BUSY_FLAG))) {
     const busyFromCalendar = rest.length === 1;
     return prepCommand({ print: deps.print, runPrep: () => deps.runPrep({ busyFromCalendar }) });
+  }
+  if (command === "drafts" && rest.length === 0) {
+    return draftsCommand({ print: deps.print, runDrafts: deps.runDrafts });
   }
   deps.print(USAGE);
   return 1;

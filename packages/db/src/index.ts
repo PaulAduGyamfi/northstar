@@ -615,6 +615,12 @@ export {
   readRecruiterWeightsVersion,
   refreshRecruiterWeights,
 } from "./recruiter-weight-write.js";
+// The approved replies not yet written as Gmail drafts, for `funnel drafts` (NS-281 slice 1).
+export {
+  APPROVED_REPLY_LIMIT,
+  type ApprovedReply,
+  readApprovedReplies,
+} from "./reply-approved-read.js";
 export * as replyLedgerSchema from "./reply-ledger-schema.js";
 // The Gmail draft writer's ledger (NS-237 slice 6): one approval, one draft.
 export {

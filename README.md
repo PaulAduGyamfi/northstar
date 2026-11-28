@@ -37,7 +37,7 @@ One system that **finds jobs, applies to them, runs your inbox, and keeps your p
 | [packages/inbox/](packages/inbox/) | Read-only Gmail and Calendar, mail linking, verification codes, interview detection |
 | [packages/pipeline/](packages/pipeline/) | Assembling an application package for the Approval Gate |
 | [packages/gateways/](packages/gateways/) | The only code that acts outward: Apply Gateway, browser form driver, Gmail drafts, approved prep blocks on a Northstar calendar (`funnel prep`), vault |
-| [packages/funnel/](packages/funnel/) | The 9-month backfill and funnel report, and the one-shot calendar interview check (`funnel interviews`), job-mail check (`funnel inbox`) and interview prep (`funnel prep`) |
+| [packages/funnel/](packages/funnel/) | The 9-month backfill and funnel report, and the one-shot calendar interview check (`funnel interviews`), job-mail check (`funnel inbox`), interview prep (`funnel prep`) and approved replies to Gmail drafts (`funnel drafts`) |
 | [evals/](evals/) | Eval sets per LLM route, replayed in CI |
 
 ## Requirement index (user's numbered asks → docs)
@@ -88,6 +88,9 @@ it, at most two points) in the same run once you turn on
 `RECRUITER_EXTRACT` (off by default). With `RECRUITER_REPLIES` on (off by default), the same run
 also drafts a short reply to each graded recruiter email you haven't answered (interested,
 asking for more, or a polite no; nothing for an F) and puts it in your Queue: nothing is sent.
+Replies you approve in the Queue go into your Gmail drafts when you run
+`pnpm --filter @northstar/funnel funnel drafts` (Google consent for Gmail drafts only, each run,
+no stored token); it never sends, so you read and send each one from Gmail yourself.
 Prep for the interviews you confirmed is planned and sent to
 your Queue when you run `pnpm --filter @northstar/funnel funnel prep`; the next run adds the plans
 you approved to a Northstar calendar it creates (Google consent for that calendar only, each run,

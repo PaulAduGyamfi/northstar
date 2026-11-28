@@ -7,6 +7,7 @@ import {
   countUngradedRecruiterMail,
   type LinkDecision as DbLinkDecision,
   dbCalendarLedger,
+  dbMailLedger,
   dbSpendMeter,
   dbWindowStore,
   fileReplyDraft,
@@ -19,6 +20,7 @@ import {
   type PreferenceValues,
   proposeInterviewPrep,
   readApprovedPrepPlans,
+  readApprovedReplies,
   readDeadLetterKeys,
   readFunnelMessages,
   readLinkCandidates,
@@ -31,6 +33,7 @@ import {
   readRecordedMessageIds,
   readRecruiterWeightsVersion,
   readReplyCandidates,
+  readReplyDraft,
   readTags,
   readUnclassifiedMail,
   readUngradedRecruiterMail,
@@ -80,6 +83,7 @@ import { createAsker } from "./ask.js";
 import { runBackfill } from "./backfill.js";
 import { main } from "./cli.js";
 import { loadFunnelConfig, loadPrepConfig, loadRecruiterReplies } from "./config.js";
+import { runDrafts } from "./drafts.js";
 import { runGrading, withWeights } from "./grade.js";
 import { runInbox } from "./inbox.js";
 import { toInterviewCandidates } from "./interviews.js";
@@ -319,6 +323,56 @@ try {
         },
       });
     },
+    runDrafts: () =>
+      runDrafts({
+        approved: () => readApprovedReplies(db, candidateId),
+        letters: () => readDeadLetterKeys(db, candidateId, "mail.draft_write"),
+        recordLetter: async (reply, reason, key) => {
+          const saved = await recordDeadLetter(db, {
+            candidateId,
+            kind: "mail.draft_write",
+            subject: `approval_decision:${reply.decisionId}`,
+            reasonCode: reason,
+            attempts: 1,
+            idempotencyKey: key,
+          });
+          // A letter that can't be stored stops the run: a silent drop would hide the reply.
+          if (!saved.ok) throw new Error(`dead letter refused: ${saved.error.field}`);
+        },
+        consent: async () => {
+          // Loaded only when an approved reply is waiting, so other funnel commands never load
+          // the Mail Gateway's writer.
+          const { authorizeCompose, writeReplyDraft } = await import("@northstar/gateways");
+          // ADR-0025: gmail.compose only, on this run; the token lives in this closure until the
+          // process ends and is never stored (#400). It can create drafts, never send them.
+          const access = await authorizeCompose({
+            config: loadGoogleConfig(process.env),
+            timeoutMs: 120_000,
+            openBrowser: async (url) => {
+              print(
+                "Opening Google's consent page (Gmail drafts only; nothing is sent). If it doesn't open, visit:",
+              );
+              print(url);
+              openInBrowser(url);
+            },
+          });
+          const ports = {
+            readReplyDraft: (owner: typeof candidateId, requestId: string) =>
+              readReplyDraft(db, owner, requestId),
+            verifyApproval: (input: Parameters<typeof verifyApproval>[1]) =>
+              verifyApproval(db, input),
+            ...dbMailLedger(db),
+            // The stored gmail_drafts switch and gmail breaker, asked per request.
+            guard: () => guard,
+          };
+          return (reply) =>
+            writeReplyDraft(ports, access, {
+              candidateId,
+              decisionId: reply.decisionId,
+              requestId: reply.requestId,
+            });
+        },
+      }),
     runInbox: async () => {
       // A bad RECRUITER_EXTRACT stops the run before Google is asked anything.
       const config = loadFunnelConfig(process.env);

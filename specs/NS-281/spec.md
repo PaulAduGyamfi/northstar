@@ -56,7 +56,18 @@ Slice 3: **answer drafts** (ANS-004), pending the scope question below.
 ## Out of scope
 Sending mail. A stored refresh token or a scheduled run (#400). A worker caller.
 
-## Open questions
-- #459 names ANS-004 and INB-004, which its parent #117 doesn't cite (ADR-0016 item 2). Slices 1
-  and 2 stay within RPL-002/RPL-004. Slice 3 (answer drafts, ANS-004) is checked with the
-  orchestrator before it starts.
+## Plan (slice 1)
+1. `readApprovedReplies` (`packages/db`, `reply-approved-read.ts`), by `readApprovedPrepPlans`' rule.
+2. `mail.draft_write` in `DEAD_LETTER_KINDS` (only a shape CHECK in the database: no migration) and
+   its words in `apps/web/src/dead-letters.ts`.
+3. `runDrafts` and `draftsCommand` (`packages/funnel`, `drafts.ts`), plain code over ports.
+4. `funnel drafts` in `cli.ts`, wired in `bin.ts` (`authorizeCompose`, `writeReplyDraft`,
+   `dbMailLedger`, `verifyApproval`, the stored guard), loaded only when a reply is waiting.
+5. AGENTS.md, README and `.claude/rules/db.md`.
+
+## Decisions made without Paul
+- **Scope beyond the parent's requirements.** #459 cites ANS-004 and INB-004, which its parent #117
+  doesn't (ADR-0016 item 2). The orchestrator relayed Paul's order for the follow-up issues ("Ok make
+  sure there are issues for the what if do next and do them in order next", 2026-11-28, in the
+  orchestrator's session), so #459 as written, answer drafts included, is in scope. Slices 1 and 2
+  stay within RPL-002/RPL-004.
