@@ -6,7 +6,7 @@ import { recordMailLink } from "./mail-link-write.js";
 import { recordRecruiterGrade } from "./recruiter-grade-write.js";
 import { regradeRecruiterMessage } from "./recruiter-regrade-write.js";
 import { recruiterWeight } from "./recruiter-weight-schema.js";
-import { readRecruiterWeights } from "./recruiter-weight-write.js";
+import { readRecruiterWeights, readRecruiterWeightsVersion } from "./recruiter-weight-write.js";
 import { candidate, domainEvent } from "./schema.js";
 import { createTestDb, sqlState } from "./test/pglite.js";
 
@@ -205,5 +205,28 @@ describe("learning stays on the grader's unweighted letter (NS-238 item 3 slice 
       reason: "You regraded a recruiter email: B to C",
       payload: { gmailMessageId: W1, systemGrade: "B", grade: "C" },
     });
+  });
+});
+
+describe("readRecruiterWeightsVersion (NS-238 item 3 slice 3)", () => {
+  it("gives null before anything is learned, then the newest version's position and weights", async () => {
+    const before = await readRecruiterWeightsVersion(db, candidateId);
+    for (const id of [M1, M2, M3]) await regrade(id, "D");
+    const after = await readRecruiterWeightsVersion(db, candidateId);
+    const [newest] = await db
+      .select({ position: recruiterWeight.position })
+      .from(recruiterWeight)
+      .orderBy(sql`${recruiterWeight.position} desc`)
+      .limit(1);
+    expect([before, after]).toEqual([
+      null,
+      { position: newest?.position, weights: { "title:exact": -2, "sender:agency": -2 } },
+    ]);
+  });
+
+  it("gives an empty set of weights for a version that took every adjustment back", async () => {
+    for (const id of [M1, M2, M3]) await regrade(id, "D");
+    for (const id of [M1, M2, M3]) await regrade(id, "B");
+    expect((await readRecruiterWeightsVersion(db, candidateId))?.weights).toEqual({});
   });
 });

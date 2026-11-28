@@ -305,9 +305,39 @@ describe("the weighted grade (NS-238 item 3 slice 3)", () => {
       });
     expect([
       await sqlState(row({ weightedGrade: "A", weightedPoints: null, weightsPosition: null })),
+      await sqlState(row({ weightedGrade: null, weightedPoints: 3, weightsPosition: 1n })),
+      await sqlState(row({ weightedGrade: "A", weightedPoints: 3, weightsPosition: null })),
       await sqlState(row({ weightedGrade: "A", weightedPoints: 7, weightsPosition: 1n })),
       await sqlState(row({ weightedGrade: "E", weightedPoints: 5, weightsPosition: 1n })),
       await sqlState(row({ weightedGrade: "A", weightedPoints: 5, weightsPosition: 0n })),
-    ]).toEqual([CHECK_VIOLATION, CHECK_VIOLATION, CHECK_VIOLATION, CHECK_VIOLATION]);
+    ]).toEqual([
+      CHECK_VIOLATION,
+      CHECK_VIOLATION,
+      CHECK_VIOLATION,
+      CHECK_VIOLATION,
+      CHECK_VIOLATION,
+      CHECK_VIOLATION,
+    ]);
+  });
+
+  it("is refused by the table when it lifts a capped grade, and kept when it lowers one", async () => {
+    await recordMail(candidateId, MSG);
+    await recordMail(candidateId, "18c3f0a2b4d6e802");
+    const capped = (gmailMessageId: string, grade: string, weightedGrade: string) =>
+      db.insert(recruiterGrade).values({
+        candidateId,
+        gmailMessageId,
+        grade,
+        points: 4,
+        reasons: ["title:exact", "red_flag:vague_role"],
+        confidence: "normal",
+        weightedGrade,
+        weightedPoints: 5,
+        weightsPosition: 1n,
+      });
+    expect([
+      await sqlState(capped(MSG, "D", "B")),
+      await sqlState(capped("18c3f0a2b4d6e802", "D", "F")),
+    ]).toEqual([CHECK_VIOLATION, null]);
   });
 });

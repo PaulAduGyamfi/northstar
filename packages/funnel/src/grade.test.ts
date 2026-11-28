@@ -8,6 +8,7 @@ import {
   MAX_GRADE,
   runGrading,
   type StoredGrade,
+  withWeights,
 } from "./grade.js";
 
 // Grading recruiter mail in `funnel inbox` (NS-238 item 1 slice 2) with every port faked: no
@@ -206,5 +207,46 @@ describe("runGrading", () => {
     });
     const r = await runGrading(f.deps);
     expect([r.gradeStoppedBy, f.letters, r.graded]).toEqual(["RecruiterExtractOff", [], 0]);
+  });
+});
+
+describe("withWeights (NS-238 item 3 slice 3)", () => {
+  // A stand-in grader: B at 4 points, lifted by the sum of the weights given.
+  const asked: (object | undefined)[] = [];
+  const grader = (w?: Record<string, number>) => {
+    asked.push(w);
+    const points = 4 + Object.values(w ?? {}).reduce((a, b) => a + b, 0);
+    return {
+      grade: points >= 5 ? "A" : "B",
+      points,
+      reasons: ["title:exact"],
+      confidence: "normal",
+    };
+  };
+
+  it("keeps the grader's own grade alone when no weights were learned", () => {
+    asked.length = 0;
+    expect([withWeights(grader, null), asked]).toEqual([
+      { grade: "B", points: 4, reasons: ["title:exact"], confidence: "normal" },
+      [undefined],
+    ]);
+  });
+
+  it("keeps the grader's own grade alone when the newest version holds no weights", () => {
+    asked.length = 0;
+    expect([withWeights(grader, { position: 2n, weights: {} }), asked.length]).toEqual([
+      { grade: "B", points: 4, reasons: ["title:exact"], confidence: "normal" },
+      1,
+    ]);
+  });
+
+  it("grades again with the weights and stores that beside the grader's own, with the version", () => {
+    expect(withWeights(grader, { position: 3n, weights: { "title:exact": 1 } })).toEqual({
+      grade: "B",
+      points: 4,
+      reasons: ["title:exact"],
+      confidence: "normal",
+      weighted: { grade: "A", points: 5, weightsPosition: 3n },
+    });
   });
 });

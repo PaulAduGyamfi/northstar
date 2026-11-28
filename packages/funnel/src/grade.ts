@@ -1,4 +1,5 @@
 import type { UnclassifiedMail } from "@northstar/db";
+import type { RecruiterWeights } from "@northstar/domain";
 import type { FullMessage, RecruiterExtractResult } from "@northstar/inbox";
 import { dependencyDown, errorName, type LetterRow, letterKey, letterState } from "./inbox.js";
 
@@ -38,7 +39,8 @@ export type GradingDeps = {
   readFull: (gmailMessageId: string) => Promise<FullMessage>;
   // extractRecruiterFacts, with the route turned on.
   extract: (body: string) => Promise<RecruiterExtractResult>;
-  // gradeRecruiterMessage over the checked facts and Paul's current preferences, no weights.
+  // gradeRecruiterMessage over the checked facts and Paul's current preferences: the grader's own,
+  // plus the weighted grade when learned weights exist (`withWeights`).
   grade: (
     facts: Extract<RecruiterExtractResult, { kind: "extracted" }>["facts"],
     body: string,
@@ -59,6 +61,23 @@ export type GradingReport = {
   // Ungraded recruiter mail is left for a later run.
   moreToGrade: boolean;
 };
+
+// The grader's own grade, and the same facts graded with Paul's learned weights beside it when a
+// version with any weights exists (NS-238 item 3 slice 3). `grade` is gradeRecruiterMessage bound
+// to the facts, preferences and body; called without weights it is the grader's own, which
+// learning compares his letter with.
+export function withWeights(
+  grade: (weights?: RecruiterWeights) => Omit<StoredGrade, "weighted">,
+  learned: { position: bigint; weights: RecruiterWeights } | null,
+): StoredGrade {
+  const own = grade();
+  if (learned === null || Object.keys(learned.weights).length === 0) return own;
+  const adjusted = grade(learned.weights);
+  return {
+    ...own,
+    weighted: { grade: adjusted.grade, points: adjusted.points, weightsPosition: learned.position },
+  };
+}
 
 export async function runGrading(deps: GradingDeps): Promise<GradingReport> {
   const r: GradingReport = {

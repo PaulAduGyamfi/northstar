@@ -18,7 +18,10 @@ return.
    - Migration 0107 adds three nullable columns: `weighted_grade` (A–F), `weighted_points`, and
      `weights_position` (the `recruiter_weight` version applied).
    - A CHECK requires all three set or all three null, and holds `weighted_points` within ±2 of
-     `points` (`MAX_TOTAL_ADJUSTMENT`).
+     `points` (`MAX_TOTAL_ADJUSTMENT`). Every branch tests each column `is not null`, so it can't
+     evaluate to NULL and pass.
+   - A second CHECK keeps a capped grade's cap: with a dealbreaker or any red flag among the
+     reasons, the weighted letter is never better than the grader's.
    - The columns are all null when no weights exist, and on every grade stored before this.
    - The table stays append-only. A grade's letters never change after it is stored.
 2. **Grading.**
@@ -33,7 +36,7 @@ return.
 4. **What the Inbox shows.** The thread's letter is Paul's regrade, else the weighted letter, else
    the grader's.
    - When the weighted letter differs from the grader's, it adds "Adjusted from B by your
-     regrades" (`readInboxThreads` gives `systemGrade` and `weightedGrade`).
+     regrades" (`readInboxThreads` gives the shown letter as `grade`, plus `systemGrade` when the weights changed it).
    - The Regrade picker starts at the shown letter.
    - The reply step (`readReplyCandidates`) follows the same letter: Paul's, else weighted, else
      the grader's. It never replies to an F.

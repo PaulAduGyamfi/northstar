@@ -14,6 +14,12 @@ import { candidate } from "./schema.js";
 
 // The fixed reason list as SQL literals, for the CHECK: constants only, never input.
 const REASON_LIST = sql.raw(RECRUITER_GRADE_REASONS.map((r) => `'${r}'`).join(", "));
+// The reasons that cap a letter (a dealbreaker makes it F, a red flag F or D), also constants only.
+const CAP_LIST = sql.raw(
+  RECRUITER_GRADE_REASONS.filter((r) => r === "dealbreaker" || r.startsWith("red_flag:"))
+    .map((r) => `'${r}'`)
+    .join(", "),
+);
 
 // A recruiter message's A–F grade (NS-238, REC-001/002): one per recorded Gmail message, decided by
 // plain code (gradeRecruiterMessage in @northstar/sources). Codes and numbers only, never email
@@ -52,9 +58,17 @@ export const recruiterGrade = pgTable(
     check("recruiter_grade_confidence_valid", sql`${t.confidence} in ('normal', 'low')`),
     // The weighted part is whole or absent, its letter a letter, and its points at most
     // MAX_TOTAL_ADJUSTMENT (2) from the grader's own: learning nudges a grade, never rewrites it.
+    // Every branch names each column `is not null`, so no part of it can evaluate to NULL (a CHECK
+    // that evaluates to NULL passes).
     check(
       "recruiter_grade_weighted_whole",
-      sql`(${t.weightedGrade} is null and ${t.weightedPoints} is null and ${t.weightsPosition} is null) or (${t.weightedGrade} in ('A', 'B', 'C', 'D', 'F') and ${t.weightedPoints} between ${t.points} - 2 and ${t.points} + 2 and ${t.weightsPosition} > 0)`,
+      sql`(${t.weightedGrade} is null and ${t.weightedPoints} is null and ${t.weightsPosition} is null) or (${t.weightedGrade} is not null and ${t.weightedPoints} is not null and ${t.weightsPosition} is not null and ${t.weightedGrade} in ('A', 'B', 'C', 'D', 'F') and ${t.weightedPoints} between ${t.points} - 2 and ${t.points} + 2 and ${t.weightsPosition} > 0)`,
+    ),
+    // A capped grade (a dealbreaker or any red flag: F or at most D) keeps its cap: the weighted
+    // letter is never better than the grader's. Letters rank by their place in 'ABCDF'.
+    check(
+      "recruiter_grade_weighted_keeps_cap",
+      sql`${t.weightedGrade} is null or not (${t.reasons} && array[${CAP_LIST}]::text[]) or strpos('ABCDF', ${t.weightedGrade}) >= strpos('ABCDF', ${t.grade})`,
     ),
     // Listed codes only, and no null: a reason can never carry email text.
     check(

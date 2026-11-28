@@ -80,7 +80,7 @@ import { createAsker } from "./ask.js";
 import { runBackfill } from "./backfill.js";
 import { main } from "./cli.js";
 import { loadFunnelConfig, loadPrepConfig, loadRecruiterReplies } from "./config.js";
-import { runGrading } from "./grade.js";
+import { runGrading, withWeights } from "./grade.js";
 import { runInbox } from "./inbox.js";
 import { toInterviewCandidates } from "./interviews.js";
 import { runPrep } from "./prep.js";
@@ -446,20 +446,10 @@ try {
             grade: async (facts, body) => {
               prefs ??= readPreferences(db, candidateId).then((p) => p ?? PREFERENCE_DEFAULTS);
               weights ??= readRecruiterWeightsVersion(db, candidateId);
-              // The grader's own grade, with no weights: learning compares Paul's letter with it.
-              const own = gradeRecruiterMessage(facts, await prefs, body);
-              const learned = await weights;
-              if (learned === null || Object.keys(learned.weights).length === 0) return own;
-              // The same facts with his learned weights: what the Inbox shows. Caps still apply.
-              const adjusted = gradeRecruiterMessage(facts, await prefs, body, learned.weights);
-              return {
-                ...own,
-                weighted: {
-                  grade: adjusted.grade,
-                  points: adjusted.points,
-                  weightsPosition: learned.position,
-                },
-              };
+              const p = await prefs;
+              // The grader's own (learning compares Paul's letter with it), and with his learned
+              // weights beside it when any exist: what the Inbox shows. Caps still apply.
+              return withWeights((w) => gradeRecruiterMessage(facts, p, body, w), await weights);
             },
             record: (gmailMessageId, g) =>
               recordRecruiterGrade(db, {
