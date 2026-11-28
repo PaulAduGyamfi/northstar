@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { QueueBody } from "../../src/approvals";
+import { focusLine, focusRequestId, QueueBody } from "../../src/approvals";
 import { webConfig } from "../../src/config";
 import { PillNav } from "../../src/pill-nav";
 import { SESSION_COOKIE } from "../../src/session";
@@ -12,7 +12,13 @@ export const dynamic = "force-dynamic";
 
 // The approval queue (NS-139, APR-001): everything waiting for Paul, oldest first. Signed out
 // redirects to sign-in; nothing renders without his session.
-export default async function ApprovalsPage() {
+// `?request=<id>` comes from a notification (NS-204): that request is selected and marked.
+export default async function ApprovalsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const focusId = focusRequestId((await searchParams).request);
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   const deps = { apiOrigin: webConfig().apiOrigin, token, fetch };
   const [queue, health] = await Promise.all([
@@ -20,6 +26,8 @@ export default async function ApprovalsPage() {
     readApi(deps, "/system/health", HealthBody),
   ]);
   if (queue.kind === "signed_out") redirect("/sign-in");
+  // What to say about the request a notification opened, if one did.
+  const focus = queue.kind === "ok" ? focusLine(queue.body.items, focusId) : null;
   return (
     <>
       <PillNav current="/approvals" health={dotStatus(health)} />
@@ -33,14 +41,21 @@ export default async function ApprovalsPage() {
                 : "The queue can't be read right now. Nothing has been decided."}
             </p>
           ) : queue.body.items.length === 0 ? (
-            <p className="muted">Queue clear. Nothing is waiting for you.</p>
+            <p className="muted" role="status">
+              {focus ?? "Queue clear. Nothing is waiting for you."}
+            </p>
           ) : (
             <>
               <p className="muted">
                 Nothing here goes out until you approve it. A decision can be undone for two
                 minutes.
               </p>
-              <ApprovalQueue items={queue.body.items} />
+              {focus === null ? null : (
+                <p className="muted" role="status">
+                  {focus}
+                </p>
+              )}
+              <ApprovalQueue items={queue.body.items} focusId={focusId} />
             </>
           )}
         </div>

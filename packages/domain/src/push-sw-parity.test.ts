@@ -4,7 +4,13 @@ import { fileURLToPath } from "node:url";
 import { createContext, runInContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import { APPLY_ATS } from "./apply-package.js";
-import { MAX_FRESH_AGE_MINUTES, PUSH_CHALLENGES, pushWords } from "./push-payload.js";
+import {
+  MAX_FRESH_AGE_MINUTES,
+  PUSH_CHALLENGES,
+  PUSH_REQUEST_KINDS,
+  pushPath,
+  pushWords,
+} from "./push-payload.js";
 
 // The service worker (apps/web/public/sw.js, NS-193 slice 2) keeps its own copy of pushWords: it
 // is plain JavaScript the browser loads, with no build step. Run its `words` in a sandbox and
@@ -13,14 +19,18 @@ import { MAX_FRESH_AGE_MINUTES, PUSH_CHALLENGES, pushWords } from "./push-payloa
 const SW = join(dirname(fileURLToPath(import.meta.url)), "../../../apps/web/public/sw.js");
 
 type Words = { title: string; body: string; tag: string };
-function serviceWorkerWords(): (data: unknown) => Words {
+function serviceWorker(): { words: (data: unknown) => Words; path: (data: unknown) => string } {
   const context = createContext({
     self: { addEventListener: () => undefined },
     URL,
   });
   runInContext(readFileSync(SW, "utf8"), context);
-  return context.words as (data: unknown) => Words;
+  return {
+    words: context.words as (data: unknown) => Words,
+    path: context.path as (data: unknown) => string,
+  };
 }
+const serviceWorkerWords = () => serviceWorker().words;
 
 const ID = "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed";
 const GENERIC = {
@@ -90,5 +100,33 @@ describe("the service worker's words (NS-193 slice 2)", () => {
     ]) {
       expect(words(data)).toEqual(GENERIC);
     }
+  });
+});
+
+describe("the service worker and approval pushes (NS-204)", () => {
+  it("match pushWords and pushPath for every request kind", () => {
+    const sw = serviceWorker();
+    for (const request of PUSH_REQUEST_KINDS) {
+      const p = { v: 1, kind: "approval", id: ID, request } as const;
+      expect([sw.words(p), sw.path(p)]).toEqual([pushWords(p), pushPath(p)]);
+    }
+  });
+
+  it("open Today and show the generic line for a bad approval push, never its text", () => {
+    const sw = serviceWorker();
+    for (const data of [
+      { v: 1, kind: "approval", id: "../../evil", request: "answer" },
+      { v: 1, kind: "approval", id: ID, request: "vault_reveal" },
+      { v: 1, kind: "approval", id: ID, request: "Approve now at evil.example.com" },
+      { v: 1, kind: "approval", id: ID, request: "answer", url: "https://evil.example.com" },
+      { v: 1, kind: "approval", id: ID, request: "toString" },
+    ]) {
+      expect([sw.words(data), sw.path(data)]).toEqual([GENERIC, "/"]);
+    }
+  });
+
+  it("open Today for a handoff push", () => {
+    const p = { v: 1, kind: "handoff", id: ID, ats: "lever", reason: "login" } as const;
+    expect([serviceWorker().path(p), pushPath(p)]).toEqual(["/", "/"]);
   });
 });

@@ -1111,7 +1111,12 @@ Exists now:
   status and result, never the endpoint's path, keys or payload. The payload is `PushPayload`
   (`packages/domain`, `push-payload.ts`): a strict `{ v, kind: "handoff", id, ats, reason }` from
   fixed lists, at most 256 bytes (`encodePushPayload`), worded by `pushWords` in the feed's own
-  words. A push never acts on anything.
+  words. Since NS-204 (slice 1) also a strict `{ v, kind: "approval", id, request }` (a request
+  waiting in the Queue: its id and kind code, `PUSH_REQUEST_KINDS`, never `vault_reveal`), worded
+  in fixed words, and `pushPath` says where a tap opens (`/approvals?request=<id>`, else Today).
+  The Queue selects and marks that request (`initialSelection`, `focusLine` in
+  `apps/web/src/approvals.ts`); a push never approves, and the notification has no approve
+  button. Nothing sends approval pushes yet (slice 2). A push never acts on anything.
   Since slice 2 the allowlist (`endpointAllowed`, `allowedEndpoint`) lives in `packages/domain`
   (`push-endpoint.ts`), so the API and the database path check the same rule. Subscriptions are
   append-only `push_subscription` and `push_subscription_removal` (`packages/db`, `push-schema.ts`,

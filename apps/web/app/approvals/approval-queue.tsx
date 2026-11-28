@@ -10,6 +10,7 @@ import {
   editableAnswers,
   editProblem,
   editResultWords,
+  initialSelection,
   KIND_WORDS,
   MAX_ANSWER,
   MAX_BATCH,
@@ -45,9 +46,22 @@ type Batch = {
 // The queue's actions (APR-002, APR-003): select, approve selected or all, reject with a reason,
 // and undo each batch until its effectiveAt. Every action is a visible button, so it works by
 // keyboard and on a phone (UX-043, UX-016 undo over confirm).
-export function ApprovalQueue({ items }: { items: QueueItem[] }) {
+export function ApprovalQueue({
+  items,
+  focusId = null,
+}: {
+  items: QueueItem[];
+  // A request a notification opened (NS-204): selected to start with and marked, never decided.
+  focusId?: string | null;
+}) {
   const router = useRouter();
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(() => initialSelection(items, focusId));
+
+  // Bring the notification's request into view, so Paul sees what "Approve selected" covers.
+  useEffect(() => {
+    if (focusId === null) return;
+    document.getElementById(`request-${focusId}`)?.scrollIntoView({ block: "center" });
+  }, [focusId]);
   const [rejecting, setRejecting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -212,7 +226,11 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
       ) : null}
       <ul className="switch-list">
         {items.map((item) => (
-          <li key={item.requestId}>
+          <li
+            key={item.requestId}
+            id={`request-${item.requestId}`}
+            aria-current={item.requestId === focusId ? "true" : undefined}
+          >
             <label>
               <input
                 type="checkbox"
@@ -220,6 +238,11 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
                 onChange={() => toggle(item.requestId)}
               />{" "}
               <span className="status-label">Awaiting you</span>{" "}
+              {item.requestId === focusId ? (
+                <>
+                  <span className="status-label">From your notification</span>{" "}
+                </>
+              ) : null}
               <strong>{KIND_WORDS[item.kind]}</strong>{" "}
               <span className="muted">
                 {item.subject}, waiting {waitedFor(item.requestedAt, now)}
