@@ -66,12 +66,19 @@ export type BriefProblem = {
     | "not_verbatim"
     | "not_quotable"
     | "no_proof"
-    | "gap_with_proof";
+    | "gap_with_proof"
+    // A role, match or gap line that cites another saved job than the interview's.
+    | "other_job"
+    | "off_company"
+    | "closed_job"
+    | "over_limit";
 };
 
 // What the brief may cite: the saved jobs (the snapshot's and the interview's), and the atom and
 // story ids the caller read from Paul's current profile.
 export type BriefSources = {
+  // The company the snapshot is of: an about line must name it.
+  company: string;
   jobs: readonly SnapshotJob[];
   atomIds: ReadonlySet<string>;
   storyIds: ReadonlySet<string>;
@@ -79,14 +86,20 @@ export type BriefSources = {
 
 // Refuses any line that cites nothing or an unknown job, atom or story, and any line that says
 // more than its sources: the role line is a cited job's title; about, roles and stack lines follow
-// the snapshot's own check; a match line is one of the cited job's requirements, verbatim, with at
+// the snapshot's own check (the company named, open roles, each section's maximum); a match line is one of the cited job's requirements, verbatim, with at
 // least one atom or story as proof; a gap line is one of the cited job's requirements and cites no
 // atom or story (a gap has no proof by definition). Plain code, no model (ADR-0004).
 export function checkInterviewBrief(brief: InterviewBrief, sources: BriefSources): BriefProblem[] {
   const jobs = new Map(sources.jobs.map((j) => [j.id, j]));
   const problems: BriefProblem[] = [];
+  // Each snapshot section's lines so far, for the section's maximum.
+  const seen = { about: 0, roles: 0, stack: 0 };
   brief.lines.forEach((line, index) => {
-    const reason = lineProblem(line, jobs, sources);
+    const position =
+      line.section === "about" || line.section === "roles" || line.section === "stack"
+        ? seen[line.section]++
+        : 0;
+    const reason = lineProblem(line, position, brief.jobId, jobs, sources);
     if (reason) problems.push({ index, reason });
   });
   return problems;
@@ -94,6 +107,10 @@ export function checkInterviewBrief(brief: InterviewBrief, sources: BriefSources
 
 function lineProblem(
   line: BriefLine,
+  // A snapshot line's position in its section.
+  position: number,
+  // The interview's job: role, match and gap lines are about it alone.
+  jobId: string,
   jobs: ReadonlyMap<string, SnapshotJob>,
   sources: BriefSources,
 ): BriefProblem["reason"] | null {
@@ -110,11 +127,13 @@ function lineProblem(
   if (line.section === "about" || line.section === "roles" || line.section === "stack") {
     // Snapshot lines cite jobs only.
     if (line.cites.some((c) => c.source !== "job")) return "not_verbatim";
-    return snapshotLineProblem(line.section, line, jobs);
+    return snapshotLineProblem(line.section, position, line, jobs, sources.company);
   }
   if (!quotable(line.text)) return "not_quotable";
-  const citedJobs = line.cites.flatMap((c) => {
-    const job = c.source === "job" ? jobs.get(c.id) : undefined;
+  const jobCites = line.cites.filter((c) => c.source === "job");
+  if (jobCites.some((c) => c.id !== jobId)) return "other_job";
+  const citedJobs = jobCites.flatMap((c) => {
+    const job = jobs.get(c.id);
     return job ? [job] : [];
   });
   const proof = line.cites.filter((c) => c.source !== "job");

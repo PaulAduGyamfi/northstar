@@ -21,7 +21,12 @@ const OTHER_JOB: SnapshotJob = {
   closed: false,
 };
 const JOBS = [INTERVIEW_JOB, OTHER_JOB];
-const SOURCES = { jobs: JOBS, atomIds: new Set(["a1", "a2"]), storyIds: new Set(["s1"]) };
+const SOURCES = {
+  company: "Globex",
+  jobs: JOBS,
+  atomIds: new Set(["a1", "a2"]),
+  storyIds: new Set(["s1"]),
+};
 
 const brief = () =>
   buildInterviewBrief({
@@ -106,43 +111,71 @@ describe("checkInterviewBrief", () => {
     ]);
   });
 
-  it("refuses a gap that cites proof, a match with none, and a line the job never asked for", () => {
-    const lines: BriefLine[] = [
-      {
-        section: "gap",
-        text: "On-call experience",
-        cites: [
-          { source: "job", id: "j1" },
-          { source: "atom", id: "a1" },
-        ],
-      },
-      { section: "match", text: "5+ years of TypeScript", cites: [{ source: "job", id: "j1" }] },
-      {
-        section: "match",
-        text: "Led a team of 40",
-        cites: [
-          { source: "job", id: "j1" },
-          { source: "atom", id: "a1" },
-        ],
-      },
-      { section: "role", text: "Staff Engineer", cites: [{ source: "job", id: "j1" }] },
-    ];
-    expect(checkInterviewBrief({ jobId: "j1", lines }, SOURCES)).toEqual([
+  const check = (line: BriefLine, sources = SOURCES) =>
+    checkInterviewBrief({ jobId: "j1", lines: [line] }, sources);
+  const j1 = { source: "job" as const, id: "j1" };
+  const a1 = { source: "atom" as const, id: "a1" };
+
+  it("refuses a gap that cites proof", () => {
+    expect(check({ section: "gap", text: "On-call experience", cites: [j1, a1] })).toEqual([
       { index: 0, reason: "gap_with_proof" },
-      { index: 1, reason: "no_proof" },
-      { index: 2, reason: "not_verbatim" },
-      { index: 3, reason: "not_verbatim" },
     ]);
+  });
+
+  it("refuses a match with no proof", () => {
+    expect(check({ section: "match", text: "5+ years of TypeScript", cites: [j1] })).toEqual([
+      { index: 0, reason: "no_proof" },
+    ]);
+  });
+
+  it("refuses a match the job never asked for", () => {
+    expect(check({ section: "match", text: "Led a team of 40", cites: [j1, a1] })).toEqual([
+      { index: 0, reason: "not_verbatim" },
+    ]);
+  });
+
+  it("refuses a role line that isn't the job's title", () => {
+    expect(check({ section: "role", text: "Staff Engineer", cites: [j1] })).toEqual([
+      { index: 0, reason: "not_verbatim" },
+    ]);
+  });
+
+  it("refuses a gap taken from another saved job's requirements", () => {
+    const line: BriefLine = {
+      section: "gap",
+      text: "Kubernetes in production",
+      cites: [{ source: "job", id: "j2" }],
+    };
+    expect(check(line)).toEqual([{ index: 0, reason: "other_job" }]);
   });
 
   it("refuses a snapshot line that cites an atom instead of a job", () => {
     const line: BriefLine = {
       section: "about",
       text: "Globex builds billing software for clinics.",
-      cites: [{ source: "atom", id: "a1" }],
+      cites: [a1],
     };
-    expect(checkInterviewBrief({ jobId: "j1", lines: [line] }, SOURCES)).toEqual([
-      { index: 0, reason: "not_verbatim" },
+    expect(check(line)).toEqual([{ index: 0, reason: "not_verbatim" }]);
+  });
+
+  it("refuses an about line that doesn't name the company", () => {
+    const line: BriefLine = {
+      section: "about",
+      text: "Run Kubernetes for Globex.",
+      cites: [{ source: "job", id: "j2" }],
+    };
+    expect(check(line, { ...SOURCES, company: "Initech" })).toEqual([
+      { index: 0, reason: "off_company" },
     ]);
+  });
+
+  it("refuses an other role whose job closed", () => {
+    const line: BriefLine = {
+      section: "roles",
+      text: "Platform Engineer",
+      cites: [{ source: "job", id: "j2" }],
+    };
+    const jobs = [INTERVIEW_JOB, { ...OTHER_JOB, closed: true }];
+    expect(check(line, { ...SOURCES, jobs })).toEqual([{ index: 0, reason: "closed_job" }]);
   });
 });

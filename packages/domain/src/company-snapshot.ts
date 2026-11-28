@@ -93,17 +93,27 @@ export const STACK_TERMS: readonly string[] = [
 ];
 
 // Characters a quote may never carry: controls, invisible formatting (direction marks,
-// zero-width spaces), private-use and unassigned code points, line and paragraph separators, and
-// blank-looking characters (Hangul fillers, the braille blank). A sentence holding one is skipped:
-// it could hide words from Paul on the page.
-const HIDDEN = /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Zl}\p{Zp}ᅟᅠㅤﾠ⠀]/u;
+// zero-width spaces), private-use and unassigned code points, line and paragraph separators,
+// blank-looking characters (Hangul fillers, the braille blank), the combining grapheme joiner and
+// variation selectors (the list NS-231 refuses in Paul's own work), and unusual spaces (the
+// reply check's rule; a plain or no-break space is fine). A sentence holding one is
+// skipped: it could hide or reorder words on the page.
+const HIDDEN =
+  /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Zl}\p{Zp}\u115F\u1160\u3164\uFFA0\u2800\u2000-\u200A\u202F\u205F\u3000]/u;
+// The grapheme joiner and variation selectors are combining marks, so they live in their own
+// pattern (a character class can't hold them beside other characters without confusing a reader).
+const JOINERS = /\u034F|[\uFE00-\uFE0F]|[\u{E0100}-\u{E01EF}]/u;
+// Three or more combining marks in a row draw over neighbouring text ("Zalgo"); an accented
+// letter never needs more than two.
+const MARK_STACK = /\p{M}{3,}/u;
 
 // Characters that continue a name: "Go" isn't in "Google", "C" isn't in "C#".
 const NAME_CHAR = "A-Za-z0-9+#";
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// True when `term` appears in `text` as a whole name, ignoring case unless `exactCase` (the Fit
-// Score's rule, with exact case for words a sentence uses in other senses).
+// True when `term` appears in `text` as a whole name, ignoring case unless `exactCase`. A copy of
+// the Fit Score's `namesTerm` (packages/sources, fit/match.ts), which domain can't import, with
+// exact case for words a sentence uses in other senses.
 export function namesWhole(text: string, term: string, exactCase = false): boolean {
   const t = term.trim();
   if (t === "") return false;
@@ -113,17 +123,41 @@ export function namesWhole(text: string, term: string, exactCase = false): boole
 
 // Stack terms that are also everyday words ("go live", "rust", "a temporal gap"): a posting names
 // the technology only when it writes the capital.
-const EXACT_CASE_TERMS = new Set(["Go", "Rust", "Swift", "Ruby", "Rails", "Spark", "Temporal"]);
+const EXACT_CASE_TERMS = new Set([
+  "Go",
+  "Rust",
+  "Swift",
+  "Ruby",
+  "Rails",
+  "Spark",
+  "Temporal",
+  "React",
+  "Flask",
+  "Kafka",
+  "Airflow",
+  "Snowflake",
+]);
 
 // A quote fit to show: no hidden characters, not empty, not too long.
 export function quotable(text: string): boolean {
   const t = text.trim();
-  return t.length > 0 && t.length <= MAX_QUOTE_LENGTH && !HIDDEN.test(t);
+  return (
+    t.length > 0 &&
+    t.length <= MAX_QUOTE_LENGTH &&
+    !HIDDEN.test(t) &&
+    !JOINERS.test(t) &&
+    !MARK_STACK.test(t)
+  );
 }
 
-// A description's sentences, each exactly as written (so a quote is a verbatim substring).
+// A description's sentences, each exactly as written (so a quote is a verbatim substring). A
+// sentence ends at ".", "!" or "?" followed by a space or the end, or at a line break, so
+// "Node.js", "e.g." inside a word run and "v2.0" stay whole.
 function sentences(text: string): string[] {
-  return (text.match(/[^.!?\n]+[.!?]?/g) ?? []).map((s) => s.trim()).filter((s) => s !== "");
+  return text
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((s) => s.trim())
+    .filter((s) => s !== "");
 }
 
 // Freshest first; undated jobs after dated ones; then by id so the order never varies.
@@ -140,6 +174,8 @@ export function buildCompanySnapshot(input: {
   company: string;
   jobs: readonly SnapshotJob[];
 }): CompanySnapshot {
+  // Closed jobs still say what the company does and what it builds with, so they feed the about
+  // and stack lines; only the roles list is open jobs alone.
   const jobs = [...input.jobs].sort(byFreshness);
   const open = jobs.filter((j) => !j.closed);
 
@@ -192,12 +228,30 @@ function jobNames(job: Pick<SnapshotJob, "description" | "requirements">, term: 
 export type SnapshotProblem = {
   section: "about" | "roles" | "stack";
   index: number;
-  reason: "uncited" | "unknown_source" | "not_verbatim" | "not_quotable";
+  reason:
+    | "uncited"
+    | "unknown_source"
+    | "not_verbatim"
+    | "not_quotable"
+    // An about line that doesn't name the company, or a role whose job is closed.
+    | "off_company"
+    | "closed_job"
+    // A line past its section's maximum.
+    | "over_limit";
 };
 
+// Each section's maximum, which the check holds a snapshot to as well as the builder.
+export const SNAPSHOT_LIMITS = {
+  about: MAX_ABOUT_LINES,
+  roles: MAX_ROLE_LINES,
+  stack: MAX_STACK_LINES,
+} as const;
+
 // Every snapshot line must cite a given job and say only what that job says: an about line is a
-// verbatim sentence of a cited job's description, a role line a cited job's title, a stack line
-// a STACK_TERMS term every cited job names. Plain code, no model (ADR-0004).
+// verbatim sentence of a cited job's description that names the company, a role line an open
+// cited job's title, a stack line a STACK_TERMS term every cited job names; no section holds more
+// than its maximum. The same rules as the builder, so a line built any other way (a later model
+// summary) is held to them too. Plain code, no model (ADR-0004).
 export function checkSnapshot(
   snapshot: CompanySnapshot,
   jobs: readonly SnapshotJob[],
@@ -207,7 +261,7 @@ export function checkSnapshot(
   const sections = ["about", "roles", "stack"] as const;
   for (const section of sections) {
     snapshot[section].forEach((line, index) => {
-      const reason = snapshotLineProblem(section, line, byId);
+      const reason = snapshotLineProblem(section, index, line, byId, snapshot.company);
       if (reason) problems.push({ section, index, reason });
     });
   }
@@ -217,9 +271,13 @@ export function checkSnapshot(
 // What is wrong with one snapshot line, or null. Shared with the brief's check.
 export function snapshotLineProblem(
   section: "about" | "roles" | "stack",
+  // The line's position in its section, for the section's maximum.
+  index: number,
   line: SnapshotLine,
   jobs: ReadonlyMap<string, SnapshotJob>,
+  company: string,
 ): SnapshotProblem["reason"] | null {
+  if (index >= SNAPSHOT_LIMITS[section]) return "over_limit";
   if (line.cites.length === 0) return "uncited";
   const cited: SnapshotJob[] = [];
   for (const c of line.cites) {
@@ -228,12 +286,20 @@ export function snapshotLineProblem(
     cited.push(job);
   }
   if (section !== "stack" && !quotable(line.text)) return "not_quotable";
+  if (section === "about" && (company.trim() === "" || !namesWhole(line.text, company.trim()))) {
+    return "off_company";
+  }
   const backed = (job: SnapshotJob): boolean => {
     if (section === "about") return sentences(job.description ?? "").includes(line.text);
-    if (section === "roles") return job.title.trim() === line.text;
+    if (section === "roles") return !job.closed && job.title.trim() === line.text;
     return STACK_TERMS.includes(line.text) && jobNames(job, line.text);
   };
   // An about or role line needs one cited job that says it; a stack line, every cited job.
   const ok = section === "stack" ? cited.every(backed) : cited.some(backed);
-  return ok ? null : "not_verbatim";
+  if (ok) return null;
+  // A role line that is a closed job's title says something true but no longer open.
+  if (section === "roles" && cited.some((j) => j.closed && j.title.trim() === line.text)) {
+    return "closed_job";
+  }
+  return "not_verbatim";
 }

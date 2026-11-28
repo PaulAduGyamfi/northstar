@@ -819,16 +819,19 @@ Exists now:
     what its caller hands it from storage: the company's name and its saved jobs. It gives up to 2
     "about" sentences quoted verbatim from postings that name the company, the open jobs' titles
     (freshest first, at most 10) and the stack: technologies from the fixed `STACK_TERMS` list the
-    postings name as whole words (everyday words such as Go or Rust only with their capital), most
-    named first, at most 15. Posting text is untrusted: it is only ever quoted with its job, and a
-    sentence with hidden characters (controls, `\p{Cf}`, blank-looking ones) is skipped.
-    `checkSnapshot` refuses a line that cites nothing, cites an unknown job or says what the cited
-    job doesn't.
+    postings name as whole words (everyday words such as Go, Rust or React only with their
+    capital), most named first, at most 15. Posting text is untrusted: it is only ever quoted with
+    its job, and a sentence with hidden characters (controls, `\p{Cf}`, blank-looking ones, the
+    grapheme joiner, variation selectors, unusual spaces, 3+ combining marks in a row) or over 300
+    characters is skipped. `checkSnapshot` holds any snapshot to the builder's rules: it refuses a
+    line that cites nothing, cites an unknown job or says what the cited job doesn't, an about line
+    that doesn't name the company, a role whose job is closed, and a section past its maximum.
   - `buildInterviewBrief` (`interview-brief.ts`, the Prep Coach's brief) puts together the job's
     title, the snapshot, the must-haves the caller matched (`matchRequirements`) with the proof it
     picked (`selectEvidence`'s atom and story ids) and the unmatched must-haves as gaps.
-    `checkInterviewBrief` refuses an uncited line, an unknown job, atom or story, a match line with
-    no proof or not among the job's requirements, and a gap line citing an atom or story.
+    `checkInterviewBrief` refuses an uncited line, an unknown job, atom or story, a role, match or
+    gap line citing another job than the interview's, a match line with no proof or not among the
+    job's requirements, and a gap line citing an atom or story.
 
   Storage, the `/interviews` page, Paul's company site through `safeFetch` and an off-by-default
   model summary are later slices.

@@ -109,6 +109,29 @@ describe("buildCompanySnapshot", () => {
     ]);
   });
 
+  it("skips a sentence holding a variation selector, a grapheme joiner or a stack of combining marks", () => {
+    const hiding = [
+      `Initech ships${String.fromCodePoint(0xfe0f)} fast.`,
+      `Initech ships${String.fromCodePoint(0x34f)} fast.`,
+      `Initech ships${String.fromCodePoint(0xe0100)} fast.`,
+      `Initech ships${String.fromCodePoint(0x301, 0x302, 0x303)} fast.`,
+    ];
+    const snapshot = buildCompanySnapshot({
+      company: "Initech",
+      jobs: [job({ id: "k1", description: [...hiding, "Initech makes printers."].join(" ") })],
+    });
+    expect(snapshot.about.map((l) => l.text)).toEqual(["Initech makes printers."]);
+  });
+
+  it("keeps an accented company sentence, whose letters carry one mark each", () => {
+    const text = "Café Initech serves cre\u0300me bru\u0302le\u0301e.";
+    const snapshot = buildCompanySnapshot({
+      company: "Initech",
+      jobs: [job({ id: "k1", description: text })],
+    });
+    expect(snapshot.about.map((l) => l.text)).toEqual([text]);
+  });
+
   it("keeps at most ten roles", () => {
     const many = Array.from({ length: 12 }, (_, i) => job({ id: `m${i}`, title: `Role ${i}` }));
     expect(buildCompanySnapshot({ company: "Initech", jobs: many }).roles).toHaveLength(
@@ -117,27 +140,144 @@ describe("buildCompanySnapshot", () => {
   });
 });
 
+describe("buildCompanySnapshot's edge cases", () => {
+  it("skips a sentence over 300 characters", () => {
+    const long = `Initech ${"builds ".repeat(50)}printers.`;
+    const snapshot = buildCompanySnapshot({
+      company: "Initech",
+      jobs: [job({ id: "k1", description: `${long} Initech makes printers.` })],
+    });
+    expect(snapshot.about.map((l) => l.text)).toEqual(["Initech makes printers."]);
+  });
+
+  it("gives no about line for a job with no description", () => {
+    expect(
+      buildCompanySnapshot({ company: "Initech", jobs: [job({ id: "k1", description: null })] })
+        .about,
+    ).toEqual([]);
+  });
+
+  it("puts undated jobs after dated ones", () => {
+    const snapshot = buildCompanySnapshot({
+      company: "Initech",
+      jobs: [
+        job({ id: "a", title: "Undated" }),
+        job({ id: "b", title: "Dated", postedAt: new Date("2026-11-01T00:00:00Z") }),
+      ],
+    });
+    expect(snapshot.roles.map((l) => l.text)).toEqual(["Dated", "Undated"]);
+  });
+
+  it("keeps a sentence holding Node.js whole", () => {
+    const text = "Initech runs Node.js in production.";
+    expect(
+      buildCompanySnapshot({ company: "Initech", jobs: [job({ id: "k1", description: text })] })
+        .about,
+    ).toEqual([{ text, cites: [{ source: "job", id: "k1" }] }]);
+  });
+
+  it("reads React only when written with its capital", () => {
+    const snapshot = buildCompanySnapshot({
+      company: "Initech",
+      jobs: [job({ id: "k1", description: "You react quickly to incidents." })],
+    });
+    expect(snapshot.stack).toEqual([]);
+  });
+
+  it("skips a sentence holding an unusual space", () => {
+    const snapshot = buildCompanySnapshot({
+      company: "Initech",
+      jobs: [
+        job({
+          id: "k1",
+          description: `Initech${String.fromCodePoint(0x2003)}ships fast. Initech makes printers.`,
+        }),
+      ],
+    });
+    expect(snapshot.about.map((l) => l.text)).toEqual(["Initech makes printers."]);
+  });
+});
+
+// One line in an otherwise empty snapshot of Globex.
+const only = (
+  section: "about" | "roles" | "stack",
+  text: string,
+  cites: { source: "job"; id: string }[],
+) => ({
+  company: "Globex",
+  about: [],
+  roles: [],
+  stack: [],
+  [section]: [{ text, cites }],
+});
+
 describe("checkSnapshot", () => {
   it("accepts the snapshot it built", () => {
     const snapshot = buildCompanySnapshot({ company: "Globex", jobs: JOBS });
     expect(checkSnapshot(snapshot, JOBS)).toEqual([]);
   });
 
-  it("refuses an uncited line, an unknown job, a sentence the job doesn't say and a stack term it doesn't name", () => {
-    const snapshot = {
-      company: "Globex",
-      about: [
-        { text: "Globex builds billing software for clinics.", cites: [] },
-        { text: "Globex raised a large round.", cites: [{ source: "job" as const, id: "j1" }] },
-      ],
-      roles: [{ text: "Staff Engineer", cites: [{ source: "job" as const, id: "j9" }] }],
-      stack: [{ text: "Rust", cites: [{ source: "job" as const, id: "j1" }] }],
-    };
+  it("refuses an uncited line", () => {
+    const snapshot = only("about", "Globex builds billing software for clinics.", []);
     expect(checkSnapshot(snapshot, JOBS)).toEqual([
       { section: "about", index: 0, reason: "uncited" },
-      { section: "about", index: 1, reason: "not_verbatim" },
+    ]);
+  });
+
+  it("refuses a line citing an unknown job", () => {
+    const snapshot = only("roles", "Staff Engineer", [{ source: "job", id: "j9" }]);
+    expect(checkSnapshot(snapshot, JOBS)).toEqual([
       { section: "roles", index: 0, reason: "unknown_source" },
+    ]);
+  });
+
+  it("refuses a sentence the cited job doesn't say", () => {
+    const snapshot = only("about", "Globex raised a large round.", [{ source: "job", id: "j1" }]);
+    expect(checkSnapshot(snapshot, JOBS)).toEqual([
+      { section: "about", index: 0, reason: "not_verbatim" },
+    ]);
+  });
+
+  it("refuses a stack term the cited job doesn't name", () => {
+    const snapshot = only("stack", "Rust", [{ source: "job", id: "j1" }]);
+    expect(checkSnapshot(snapshot, JOBS)).toEqual([
       { section: "stack", index: 0, reason: "not_verbatim" },
+    ]);
+  });
+
+  it("refuses a stack line when one of its cited jobs doesn't name the term", () => {
+    const snapshot = only("stack", "Kubernetes", [
+      { source: "job", id: "j2" },
+      { source: "job", id: "j1" },
+    ]);
+    expect(checkSnapshot(snapshot, JOBS)).toEqual([
+      { section: "stack", index: 0, reason: "not_verbatim" },
+    ]);
+  });
+
+  it("refuses an about line that doesn't name the company", () => {
+    const snapshot = {
+      ...only("about", "Run Kubernetes and Terraform for Globex.", [{ source: "job", id: "j2" }]),
+      company: "Initech",
+    };
+    expect(checkSnapshot(snapshot, JOBS)).toEqual([
+      { section: "about", index: 0, reason: "off_company" },
+    ]);
+  });
+
+  it("refuses a role whose job is closed", () => {
+    const snapshot = only("roles", "Data Engineer", [{ source: "job", id: "j3" }]);
+    expect(checkSnapshot(snapshot, JOBS)).toEqual([
+      { section: "roles", index: 0, reason: "closed_job" },
+    ]);
+  });
+
+  it("refuses every line past a section's maximum", () => {
+    const line = { text: "Backend Engineer", cites: [{ source: "job" as const, id: "j1" }] };
+    const snapshot = { company: "Globex", about: [], stack: [], roles: Array(12).fill(line) };
+    expect(checkSnapshot(snapshot, JOBS)).toEqual([
+      { section: "roles", index: 10, reason: "over_limit" },
+      { section: "roles", index: 11, reason: "over_limit" },
     ]);
   });
 });
