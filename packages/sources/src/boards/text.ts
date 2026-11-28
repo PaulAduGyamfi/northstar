@@ -15,10 +15,12 @@ const INVISIBLE =
 
 export const stripInvisible = (text: string) => text.replace(INVISIBLE, "");
 
-// HTML (or text with entities) to plain, cleaned text: decoded once, tags dropped.
+// HTML (or text with entities) to plain, cleaned text: its HTML entities decoded, tags dropped,
+// invisible characters stripped after that decode.
 export const cleanHtml = (html: string) => stripInvisible(htmlToText(html));
 
-// A one-line text field (a title): entities decoded once, any tags dropped, whitespace folded.
+// A one-line text field (a title): HTML entities decoded, any tags dropped, invisible characters
+// stripped after that decode, whitespace folded.
 export const cleanLine = (text: string) =>
   stripInvisible(decodeEntities(text.replace(/<[^>]*>/g, " ")))
     .replace(/\s+/g, " ")

@@ -129,6 +129,7 @@ describe("jobs watch", () => {
     for (const url of [
       "https://www.linkedin.com/jobs/feed.rss",
       "https://jobs.lever.co/initech",
+      "https://news.ycombinator.com/rss",
       "http://jobs.example.com/feed.xml",
       "https://user:pass@example.com/feed.xml",
       "https://jobs.example.com:8443/feed.xml",

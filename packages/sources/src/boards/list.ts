@@ -37,7 +37,7 @@ export async function listBoard(
       return listHnHiring((url, shape) => read(deps, url, shape));
     // An RSS, Atom or JSON Feed Paul named by its URL (NS-282 slice 2); the board is that URL.
     case "feed":
-      return listFeed(deps, t.board);
+      return listFeed(deps, t.board, now);
     case "greenhouse": {
       const body = await read(
         deps,

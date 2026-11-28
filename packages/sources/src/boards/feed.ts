@@ -12,20 +12,21 @@ import { type BoardPosting, BoardUnavailable, MAX_POSTINGS } from "./types.js";
 // A posting link: https, at most this long, and never on a site whose terms forbid automated
 // reads (a feed that points at LinkedIn postings gives nothing).
 const MAX_LINK = 2000;
-// Feed dates outside 2000 to 2100 are no date.
+// Feed dates before 2000, or more than 5 minutes after now, are no date: a future date would keep
+// an item at the top of the freshness order and pass the fresh-job alert's age test (SRC-012).
 const EARLIEST = Date.UTC(2000, 0, 1);
-const LATEST = Date.UTC(2100, 0, 1);
+const CLOCK_SKEW_MS = 5 * 60_000;
 
 type Item = { link: string | null; title: string; date: string; html: string; text: string };
 
-export async function listFeed(deps: FetchDeps, board: string): Promise<BoardPosting[]> {
+export async function listFeed(deps: FetchDeps, board: string, now: Date): Promise<BoardPosting[]> {
   const res = await safeFetch(deps, board, { maxBytes: BOARD_MAX_BYTES });
   // safeFetch refuses a redirect onto a site whose terms forbid automated reads, on every hop.
   if (res.status !== 200) throw new BoardUnavailable(`the feed answered ${res.status}`);
   return parseFeed(res.body)
     .slice(0, MAX_POSTINGS)
     .flatMap((item) => {
-      const posting = postingFrom(item);
+      const posting = postingFrom(item, now);
       return posting === null ? [] : [posting];
     });
 }
@@ -65,8 +66,9 @@ function jsonFeed(body: string): Item[] {
 }
 
 // Entities are never expanded by the parser (`processEntities: false`), and a feed that declares a
-// DOCTYPE is refused outright, so no entity a feed defines can grow it (billion laughs). The five
-// XML entities and numeric references are decoded once below, then the text is cleaned.
+// DOCTYPE is refused outright, so no entity a feed defines can grow it (billion laughs). The check
+// runs on the whole body, so even a `<!DOCTYPE html>` inside an item's CDATA refuses the feed: the
+// safe direction (the watch backs off). The XML layer is decoded in `text`, the HTML layer after.
 const parser = new XMLParser({
   processEntities: false,
   ignoreAttributes: false,
@@ -128,7 +130,9 @@ function atomLink(links: unknown): string | null {
   return page === undefined ? null : decodeEntities(str(page["@_href"])) || null;
 }
 
-// An element's text, its XML entities decoded once. CDATA is already literal text.
+// An element's text with its XML layer decoded (the five entities and numeric references); CDATA
+// is already literal. The HTML layer is decoded later by cleanLine or cleanHtml, and invisible
+// characters are stripped only after that last decode, so neither layer can smuggle one in.
 function text(node: unknown): string {
   if (typeof node === "string") return decodeEntities(node);
   const r = record(node);
@@ -141,7 +145,7 @@ function text(node: unknown): string {
 const firstText = (nodes: unknown) => (Array.isArray(nodes) ? text(nodes[0]) : text(nodes));
 
 // One item as a posting, or null when it has no usable link.
-export function postingFrom(item: Item): BoardPosting | null {
+export function postingFrom(item: Item, now: Date): BoardPosting | null {
   const url = postingUrl(item.link);
   if (url === null) return null;
   const title = cleanLine(item.title);
@@ -153,7 +157,7 @@ export function postingFrom(item: Item): BoardPosting | null {
   // JSON Feed's content_text is plain text: only invisible characters are removed.
   const description = item.html !== "" ? cleanHtml(item.html) : stripInvisible(item.text).trim();
   fields.description = description === "" ? null : description.slice(0, MAX_DESCRIPTION);
-  fields.postedAt = postedAt(item.date);
+  fields.postedAt = postedAt(item.date, now);
   const extraction: Extraction = { fields, method: "text", ats: null, atsPostingId: null };
   return { url, extraction };
 }
@@ -173,28 +177,31 @@ function postingUrl(raw: string | null): string | null {
   return termsFor(url).terms === "prohibited" ? null : url;
 }
 
-function postedAt(raw: string): Date | null {
+function postedAt(raw: string, now: Date): Date | null {
   const ms = Date.parse(raw.trim());
-  if (!Number.isFinite(ms) || ms < EARLIEST || ms > LATEST) return null;
+  if (!Number.isFinite(ms) || ms < EARLIEST || ms > now.getTime() + CLOCK_SKEW_MS) return null;
   return new Date(ms);
 }
 
 // The two ways job feeds title an item: "Senior Engineer at Globex" and "Globex: Senior Engineer".
-// Anything else keeps the title only when it names a role, with no company (a draft).
+// Exactly one form must fit: a title both fit ("Globex: Engineer at Night") is ambiguous, and
+// anything else keeps the title only when it names a role, with no company (a draft).
 export function readTitle(title: string): { title: string | null; company: string | null } {
   const role = (s: string) => s !== "" && ROLE.test(s) && usable(s);
   const company = (s: string) => s !== "" && usable(s) && !ROLE.test(s);
+  const draft = { title: role(title) ? title : null, company: null };
+  const fits: { title: string; company: string }[] = [];
   const at = title.lastIndexOf(" at ");
   if (at > 0) {
     const [t, c] = [title.slice(0, at).trim(), title.slice(at + 4).trim()];
-    if (role(t) && company(c)) return { title: t, company: c };
+    if (role(t) && company(c)) fits.push({ title: t, company: c });
   }
   const colon = title.indexOf(": ");
   if (colon > 0) {
     const [c, t] = [title.slice(0, colon).trim(), title.slice(colon + 2).trim()];
-    if (role(t) && company(c)) return { title: t, company: c };
+    if (role(t) && company(c)) fits.push({ title: t, company: c });
   }
-  return { title: role(title) ? title : null, company: null };
+  return fits.length === 1 && fits[0] !== undefined ? fits[0] : draft;
 }
 
 const record = (v: unknown): Record<string, unknown> =>

@@ -44,8 +44,9 @@ the same save path as a board posting (dedupe SRC-006, scoring, freshness order)
    entity is ever expanded; the five XML entities and numeric references are decoded once, then
    the text passes the same rules as HN's (`boards/text.ts`: control, format, bidi and
    blank-looking characters stripped after decoding). Each item with an https link not on a
-   prohibited site is a posting (link canonicalised, date 2000–2100, body bounded); `readTitle`
-   takes "Role at Company" or "Company: Role", else no company (a draft). `job-extract` on feed
+   prohibited site is a posting (link canonicalised, a date from 2000 to 5 minutes after the poll,
+   so a future date can't stay fresh; body bounded); `readTitle` takes "Role at Company" or
+   "Company: Role" when exactly one fits, else no company (a draft). `job-extract` on feed
    drafts is left for later: no model reads a feed in this slice. Migration 0113 adds `feed` to
    `WATCH_KINDS`. Behind `source:feed`.
 3. **YC jobs**, only if YC's terms allow automated reads of a public listing. If they don't, the
@@ -91,7 +92,9 @@ the same save path as a board posting (dedupe SRC-006, scoring, freshness order)
 
 ## Decisions made without Paul
 - Slice 2: a dependency, `fast-xml-parser@5.12.1` (exact pin, in `packages/sources` only):
-  Paul chose it on 2026-11-28 over hand-written XML parsing. A second schema change (migration
+  Paul chose it on 2026-11-28 over hand-written XML parsing. Its transitive packages, all from the same
+  author, none with an install script: `fast-xml-builder`, `@nodable/entities`, `anynum`,
+  `is-unsafe`, `path-expression-matcher`, `strnum`, `xml-naming`. A second schema change (migration
   0113, `feed` in the watch-kind CHECK). Feed drafts are not sent to `job-extract` yet.
 - A schema change (the watch-kind CHECK), and the Algolia HN API as the read path: it is HN's
   documented public search API and returns a thread in one request, where the Firebase API needs
