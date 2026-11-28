@@ -127,4 +127,8 @@ are CSS variables in `apps/web/app/globals.css`.
   arguments, and the API's session routes (`/push/*`). The service worker (`public/sw.js`) shows
   only a known push's fixed words (a copy of `pushWords`, checked by a test in `packages/domain`)
   or a generic line, never text from a push, and a tap opens Today on this origin, never a URL
-  from the push. It caches nothing and handles no fetches.
+  from the push. It caches nothing and handles no fetches. Since NS-204 an approval push (a
+  request id and kind code) opens `/approvals?request=<id>`, built from the checked id only (the
+  worker's `path`, `pushPath` in `packages/domain`): the Queue selects and marks that request
+  (`focusRequestId`, `focusLine`) and never decides it. A push never approves: Paul approves in the
+  Queue, signed in, through `POST /approvals/decide`, and the notification has no approve button.

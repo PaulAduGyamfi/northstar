@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { APPLY_ATS, type ApplyAts } from "./apply-package.js";
+import { APPROVAL_KINDS, type ApprovalKind } from "./approval.js";
 
 // What a web push carries (NS-193, ADR-0032 item 4): a kind, an id and codes from fixed lists,
 // nothing else. Never a URL, company, job title, email text or anything Paul typed: push
@@ -28,7 +29,27 @@ export const HandoffPush = z
   .strict();
 export type HandoffPush = z.infer<typeof HandoffPush>;
 
-export const PushPayload = z.discriminatedUnion("kind", [HandoffPush]);
+// The request kinds a push may name (NS-204): the Queue's own, never `vault_reveal`, which is
+// filed, approved and used in one transaction and never waits in the Queue.
+export const PUSH_REQUEST_KINDS = APPROVAL_KINDS.filter(
+  (k): k is Exclude<ApprovalKind, "vault_reveal"> => k !== "vault_reveal",
+);
+export type PushRequestKind = (typeof PUSH_REQUEST_KINDS)[number];
+
+// A request waiting in Paul's Queue (NS-204, APR-003): its id and its kind code, nothing else.
+// A push never approves: tapping it only opens the request in the Queue, where Paul approves it
+// himself through the session-only decide endpoint (decision on #162).
+export const ApprovalPush = z
+  .object({
+    v: z.literal(1),
+    kind: z.literal("approval"),
+    id: Uuid,
+    request: z.enum(PUSH_REQUEST_KINDS),
+  })
+  .strict();
+export type ApprovalPush = z.infer<typeof ApprovalPush>;
+
+export const PushPayload = z.discriminatedUnion("kind", [HandoffPush, ApprovalPush]);
 export type PushPayload = z.infer<typeof PushPayload>;
 
 // The payload as the sender encrypts it, or null when it isn't one of ours or is too long.
@@ -60,9 +81,33 @@ export type PushWords = { title: string; body: string; tag: string };
 // the earlier notification instead of stacking. The service worker keeps a copy of these words
 // (apps/web/public/sw.js, slice 2, with a test that they agree).
 export function pushWords(payload: PushPayload): PushWords {
+  if (payload.kind === "approval") {
+    return {
+      title: "Waiting for your approval",
+      body: `${REQUEST_WORDS[payload.request]} is waiting for you. Open it to review and approve.`,
+      tag: `approval:${payload.id}`,
+    };
+  }
   return {
     title: "Needs your hands",
     body: `${ATS_FORM[payload.ats]} stopped at ${CHALLENGE[payload.reason]}. Open Northstar to finish it.`,
     tag: `handoff:${payload.id}`,
   };
+}
+
+// Each request kind in fixed words (NS-204), as the Queue names them.
+const REQUEST_WORDS: Record<PushRequestKind, string> = {
+  application_package: "An application",
+  answer: "An answer for your bank",
+  email_reply: "An email reply",
+  outreach: "An outreach message",
+  profile_fix: "A profile fix",
+  growth_plan: "A growth plan",
+  prep_plan: "An interview prep plan",
+};
+
+// Where a tap opens (NS-204): the Queue with that request marked, built from the parsed id only,
+// never from text in a push. Handoffs open Today, where "Needs your hands" lives.
+export function pushPath(payload: PushPayload): string {
+  return payload.kind === "approval" ? `/approvals?request=${payload.id}` : "/";
 }

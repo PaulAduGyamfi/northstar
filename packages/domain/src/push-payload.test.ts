@@ -5,7 +5,9 @@ import {
   encodePushPayload,
   MAX_PUSH_PAYLOAD_BYTES,
   PUSH_CHALLENGES,
+  PUSH_REQUEST_KINDS,
   type PushPayload,
+  pushPath,
   pushWords,
 } from "./push-payload.js";
 
@@ -79,5 +81,43 @@ describe("pushWords (NS-193)", () => {
         expect(pushWords(p).body).toBe(`${fromFeed}. Open Northstar to finish it.`);
       }
     }
+  });
+});
+
+describe("approval pushes (NS-204)", () => {
+  it("encodes an approval push as its kind, id and request kind only", () => {
+    expect(encodePushPayload({ v: 1, kind: "approval", id: ID, request: "email_reply" })).toBe(
+      `{"v":1,"kind":"approval","id":"${ID}","request":"email_reply"}`,
+    );
+  });
+
+  it("refuses a subject, a draft, a URL, a bad id and the vault reveal", () => {
+    const base = { v: 1, kind: "approval", id: ID, request: "application_package" };
+    expect([
+      encodePushPayload({ ...base, subject: "Example Corp, Staff Engineer" }),
+      encodePushPayload({ ...base, body: "Hi Jo, thanks for reaching out" }),
+      encodePushPayload({ ...base, url: "https://evil.example.com" }),
+      encodePushPayload({ ...base, id: "not-a-uuid" }),
+      encodePushPayload({ ...base, request: "vault_reveal" }),
+    ]).toEqual([null, null, null, null, null]);
+  });
+
+  it("keeps every approval push under the size cap", () => {
+    for (const request of PUSH_REQUEST_KINDS) {
+      const json = encodePushPayload({ v: 1, kind: "approval", id: ID, request });
+      expect(json !== null && Buffer.byteLength(json) <= MAX_PUSH_PAYLOAD_BYTES).toBe(true);
+    }
+  });
+
+  it("words a request in fixed words and opens it in the Queue", () => {
+    const p = { v: 1, kind: "approval", id: ID, request: "application_package" } as const;
+    expect([pushWords(p), pushPath(p)]).toEqual([
+      {
+        title: "Waiting for your approval",
+        body: "An application is waiting for you. Open it to review and approve.",
+        tag: `approval:${ID}`,
+      },
+      `/approvals?request=${ID}`,
+    ]);
   });
 });

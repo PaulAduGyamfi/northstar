@@ -1,6 +1,7 @@
 // Northstar's service worker (NS-193 slice 2, ADR-0032 item 4). It shows a push's fixed words and
-// opens Today when Paul taps it. Nothing else: no caching, no fetch handling, no action on Paul's
-// behalf. A push carries codes only ({ v, kind, id, ats, reason }); the words below are a copy of
+// opens Today, or for a waiting request the Queue with it marked (NS-204), when Paul taps it.
+// Nothing else: no caching, no fetch handling, no action on Paul's behalf. A push carries codes
+// only ({ v, kind, id, ats, reason } or { v, kind, id, request }); the words below are a copy of
 // pushWords in packages/domain (push-payload.ts), and a test there checks they agree.
 
 const ATS_FORM = {
@@ -16,6 +17,37 @@ const CHALLENGE = {
   account: "an account sign-up",
 };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+// A request waiting in the Queue (NS-204): REQUEST_WORDS in push-payload.ts.
+const REQUEST = {
+  application_package: "An application",
+  answer: "An answer for your bank",
+  email_reply: "An email reply",
+  outreach: "An outreach message",
+  profile_fix: "A profile fix",
+  growth_plan: "A growth plan",
+  prep_plan: "An interview prep plan",
+};
+
+// An approval push with a valid id and a known kind, else false (NS-204).
+function isApproval(data) {
+  return (
+    data &&
+    data.v === 1 &&
+    data.kind === "approval" &&
+    Object.keys(data).length === 4 &&
+    typeof data.id === "string" &&
+    UUID.test(data.id) &&
+    typeof data.request === "string" &&
+    Object.hasOwn(REQUEST, data.request)
+  );
+}
+
+// Where a tap opens: the Queue with that request marked, built from the checked id only, never a
+// URL from the push; every other push opens Today (pushPath in push-payload.ts). A push never
+// approves: Paul approves in the Queue himself, signed in.
+function path(data) {
+  return isApproval(data) ? `/approvals?request=${data.id}` : "/";
+}
 
 // The words for a push, from known codes only. Anything else shows the generic line: the browser
 // requires a notification for every push, and no text from a push is ever shown as it came.
@@ -37,6 +69,13 @@ function words(data) {
       tag: `handoff:${data.id}`,
     };
   }
+  if (isApproval(data)) {
+    return {
+      title: "Waiting for your approval",
+      body: `${REQUEST[data.request]} is waiting for you. Open it to review and approve.`,
+      tag: `approval:${data.id}`,
+    };
+  }
   return { title: "Northstar", body: "Something needs you. Open Northstar.", tag: "northstar" };
 }
 
@@ -48,24 +87,36 @@ self.addEventListener("push", (event) => {
     data = null;
   }
   const w = words(data);
-  event.waitUntil(self.registration.showNotification(w.title, { body: w.body, tag: w.tag }));
+  // The path rides on the notification itself, computed here from the checked payload.
+  event.waitUntil(
+    self.registration.showNotification(w.title, {
+      body: w.body,
+      tag: w.tag,
+      data: { path: path(data) },
+    }),
+  );
 });
 
-// Tapping opens Today on this app's own origin, never a URL from the push.
+// Tapping opens this app's own page for the push on its own origin (Today, or the Queue with the
+// request marked), never a URL from the push. Only the two paths `path` builds are taken.
+const OPENABLE =
+  /^\/(?:approvals\?request=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$/;
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  const wanted = event.notification.data?.path;
+  const target = typeof wanted === "string" && OPENABLE.test(wanted) ? wanted : "/";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
       for (const w of windows) {
         if (new URL(w.url).origin === self.location.origin && "focus" in w) {
           // navigate() refuses a tab this worker doesn't control yet: then just focus it.
           return w
-            .navigate("/")
+            .navigate(target)
             .then((c) => (c ? c.focus() : w.focus()))
             .catch(() => w.focus());
         }
       }
-      return self.clients.openWindow("/");
+      return self.clients.openWindow(target);
     }),
   );
 });

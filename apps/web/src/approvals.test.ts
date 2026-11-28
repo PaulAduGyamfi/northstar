@@ -5,6 +5,8 @@ import {
   editableAnswers,
   editProblem,
   editResultWords,
+  focusLine,
+  focusRequestId,
   KIND_WORDS,
   MAX_ANSWER,
   MAX_REPLY_BODY,
@@ -305,6 +307,32 @@ describe("application package answers (NS-203 slice 5)", () => {
       "That application isn't waiting any more, so nothing changed.",
       "Northstar couldn't accept those answers. Check them and try again.",
       "Those answers are too long to send at once. Save fewer at a time.",
+    ]);
+  });
+});
+
+describe("a request a notification opened (NS-204)", () => {
+  const ID = "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed";
+
+  it("takes only a request id from the URL", () => {
+    expect([
+      focusRequestId(ID),
+      focusRequestId(undefined),
+      focusRequestId([ID, ID]),
+      focusRequestId("../approvals/decide"),
+      focusRequestId(`${ID}x`),
+    ]).toEqual([ID, null, null, null, null]);
+  });
+
+  it("says the request is selected when it waits, and that nothing was decided when it doesn't", () => {
+    expect([
+      focusLine([{ requestId: ID }], ID),
+      focusLine([], ID),
+      focusLine([{ requestId: ID }], null),
+    ]).toEqual([
+      "From your notification: it's selected below. Review it, then approve or reject it.",
+      "The request from your notification isn't waiting any more. Nothing was decided from the notification.",
+      null,
     ]);
   });
 });

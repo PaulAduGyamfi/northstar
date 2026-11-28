@@ -280,3 +280,22 @@ export function packageEditResultWords(status: number, code: unknown): string {
   if (status >= 500) return "That didn't save. Try again.";
   return "That edit couldn't be saved.";
 }
+
+// The request a notification named (NS-204): `?request=<uuid>` on the Queue, or null for a missing
+// or bad value. A push only opens the Queue; Paul approves the request himself, signed in.
+const REQUEST_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+export function focusRequestId(param: string | string[] | undefined): string | null {
+  return typeof param === "string" && REQUEST_ID.test(param) ? param : null;
+}
+
+// What the Queue says about the request a notification opened: it's selected and marked below, or
+// it isn't waiting any more (decided, withdrawn or edited meanwhile). Null when none was named.
+export function focusLine(
+  items: readonly { requestId: string }[],
+  id: string | null,
+): string | null {
+  if (id === null) return null;
+  return items.some((i) => i.requestId === id)
+    ? "From your notification: it's selected below. Review it, then approve or reject it."
+    : "The request from your notification isn't waiting any more. Nothing was decided from the notification.";
+}
