@@ -592,6 +592,8 @@ export {
   type SubscribeResult,
   subscribePush,
 } from "./push-write.js";
+// The queueing rule's reads (NS-280 slice 1).
+export { countQueuedToday, MAX_QUEUE_READ, readQueueCandidates } from "./queue-read.js";
 export { readEventsAfter } from "./read-events.js";
 // Recruiter grades (NS-238, REC-001/002).
 export * as recruiterGradeSchema from "./recruiter-grade-schema.js";
