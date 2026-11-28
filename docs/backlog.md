@@ -132,9 +132,9 @@ From `docs/roadmap.md` P2, cut now that P1 is past half done.
 | NS-172 | Growth progress capture, dashboard and weekly review | GRW-005…007 | growth, p2 |
 | NS-173 | SmartRecruiters apply adapter and posting liveness checks | APPLY-002, SRC-010 | apply, sourcing, p2 |
 
-## Closed without a closing PR (2026-11-27)
+## Closed without a closing PR (2026-11-27, 2026-11-28)
 
-These issues were finished by work that didn't close them. This PR closes them on merge.
+These issues were finished by work that didn't close them. The PR that added each row closed it on merge.
 
 | Issue | Done by |
 |---|---|
@@ -151,3 +151,6 @@ These issues were finished by work that didn't close them. This PR closes them o
 | #313 NS-252 | Paul chose his own input per company: append-only `company_domain` and `jobs domains`, fed into `readLinkCandidates` and the pre-filter's `knownDomains` |
 | #271 NS-240 | slices 1–6: the read-only Calendar client, stored detections and Paul's decisions, the consent flow, `runInterviewDetection`, the `/interviews` confirm page, and `funnel interviews` as its caller; a scheduled run was declined on #400 |
 | #400 NS-270 | Paul decided per-run consent: no stored Google refresh token and no scheduled detection; ADR-0014 and ADR-0026 stand |
+| #172 NS-197 (built as NS-199) | #326 (alert candidates narrowed to recent jobs and held alerts), #334 and #355 (quiet hours, zone and the tier-1 rule as in-app settings), #451 and #453 (each `job.fresh_alert` pushed at most once) |
+| #195 NS-213 | #299 (the Gate derives package policy facts) and #406 (the relay signals waiting submission workflows); its facts follow-up #297 was done in #414, #419 and #420 (closed by #422). Checking the worker client's not-found errors against a real Temporal belongs with #229 |
+| #429 NS-275 | decided on the issue: option 2, known words only, built in #443 (NS-277) and tightened in #450 (NS-278) |
