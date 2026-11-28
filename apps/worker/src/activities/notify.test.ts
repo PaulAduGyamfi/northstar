@@ -160,7 +160,10 @@ describe("notifyPass (NS-193 slice 3)", () => {
   it("sends nothing for a handoff Paul resolved before the sender ran", async () => {
     const handoffId = await openHandoff();
     await subscribe();
-    await resolveHandoff(db, { candidateId, handoffId, outcome: "submitted" });
+    // "gave_up" needs no status move first ("submitted" waits for needs_human), so the
+    // handoff really is resolved here.
+    const resolved = await resolveHandoff(db, { candidateId, handoffId, outcome: "gave_up" });
+    if (!resolved.ok) throw new Error(resolved.error.kind);
     const { ports: p, sent } = ports();
     await notifyPass(p, candidateId);
     expect([sent, await pushEvents()]).toEqual([[], []]);

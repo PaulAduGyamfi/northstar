@@ -107,7 +107,10 @@ describe("readHandoffsToNotify (NS-193 slice 3)", () => {
 
   it("leaves out a handoff Paul resolved", async () => {
     const handoffId = await openHandoff();
-    await resolveHandoff(db, { candidateId, handoffId, outcome: "submitted" });
+    // "gave_up" needs no status move first ("submitted" waits for needs_human), so the
+    // handoff really is resolved here.
+    const resolved = await resolveHandoff(db, { candidateId, handoffId, outcome: "gave_up" });
+    if (!resolved.ok) throw new Error(resolved.error.kind);
     expect(await readHandoffsToNotify(db, candidateId)).toEqual([]);
   });
 
