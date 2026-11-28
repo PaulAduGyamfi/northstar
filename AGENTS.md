@@ -813,6 +813,28 @@ Exists now:
   `plan_changed`, `approval_not_valid`, `rescheduled` when the Gate wouldn't close the old
   approval); either is passed over until Paul retries it. Google not answering stops the writing
   with no letter.
+- Company snapshots and interview briefs (NS-283, #461, CAL-005), slice 1, plain code in
+  `packages/domain` with no I/O, model, storage or caller yet:
+  - `buildCompanySnapshot` (`company-snapshot.ts`, the Research Service's snapshot) reads only
+    what its caller hands it from storage: the company's name and its saved jobs. It gives up to 2
+    "about" sentences quoted verbatim from postings that name the company, the open jobs' titles
+    (freshest first, at most 10) and the stack: technologies from the fixed `STACK_TERMS` list the
+    postings name as whole words (everyday words such as Go, Rust or React only with their
+    capital), most named first, at most 15. Posting text is untrusted: it is only ever quoted with
+    its job, and a sentence with hidden characters (controls, `\p{Cf}`, blank-looking ones, the
+    grapheme joiner, variation selectors, unusual spaces, 3+ combining marks in a row) or over 300
+    characters is skipped. `checkSnapshot` holds any snapshot to the builder's rules: it refuses a
+    line that cites nothing, cites an unknown job or says what the cited job doesn't, an about line
+    that doesn't name the company, a role whose job is closed, and a section past its maximum.
+  - `buildInterviewBrief` (`interview-brief.ts`, the Prep Coach's brief) puts together the job's
+    title, the snapshot, the must-haves the caller matched (`matchRequirements`) with the proof it
+    picked (`selectEvidence`'s atom and story ids) and the unmatched must-haves as gaps.
+    `checkInterviewBrief` refuses an uncited line, an unknown job, atom or story, a role, match or
+    gap line citing another job than the interview's, a match line with no proof or not among the
+    job's requirements, and a gap line citing an atom or story.
+
+  Storage, the `/interviews` page, Paul's company site through `safeFetch` and an off-by-default
+  model summary are later slices.
 - Recruiter grading (NS-167, REC-001/002), slice 1:
   - The `recruiter-extract` route (`packages/inbox`, `src/recruiter/`) reads a recruiter email's
     stated facts: title, seniority, company, place, remote kind, pay range, agency or in-house,
