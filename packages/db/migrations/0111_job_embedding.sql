@@ -25,10 +25,10 @@ CREATE TABLE "job_embedding" (
 	"embedding" vector(512) NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "job_embedding_position_unique" UNIQUE("position"),
-	CONSTRAINT "job_embedding_job_model_text_unique" UNIQUE("job_id","model","text_sha256"),
 	CONSTRAINT "job_embedding_model_valid" CHECK ("job_embedding"."model" = 'text-embedding-3-small'),
 	CONSTRAINT "job_embedding_dimensions_valid" CHECK ("job_embedding"."dimensions" = 512),
-	CONSTRAINT "job_embedding_text_sha256_shape" CHECK ("job_embedding"."text_sha256" ~ '^[0-9a-f]{64}$')
+	CONSTRAINT "job_embedding_text_sha256_shape" CHECK ("job_embedding"."text_sha256" ~ '^[0-9a-f]{64}$'),
+	CONSTRAINT "job_embedding_nonzero" CHECK (vector_norm("job_embedding"."embedding") > 0)
 );
 --> statement-breakpoint
 ALTER TABLE "job_duplicate_suggestion" ADD CONSTRAINT "job_duplicate_suggestion_candidate_id_candidate_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidate"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -36,8 +36,7 @@ ALTER TABLE "job_duplicate_suggestion" ADD CONSTRAINT "job_duplicate_suggestion_
 ALTER TABLE "job_duplicate_suggestion" ADD CONSTRAINT "job_duplicate_suggestion_job_b_same_candidate_fk" FOREIGN KEY ("job_b","candidate_id") REFERENCES "public"."job"("id","candidate_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "job_embedding" ADD CONSTRAINT "job_embedding_candidate_id_candidate_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidate"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "job_embedding" ADD CONSTRAINT "job_embedding_job_same_candidate_fk" FOREIGN KEY ("job_id","candidate_id") REFERENCES "public"."job"("id","candidate_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "job_embedding_job_model_position_idx" ON "job_embedding" USING btree ("candidate_id","job_id","model","position");
---> statement-breakpoint
+CREATE INDEX "job_embedding_job_model_position_idx" ON "job_embedding" USING btree ("candidate_id","job_id","model","position");--> statement-breakpoint
 -- Job embeddings and duplicate suggestions are append-only (NS-129 slice 2, ADR-0012, ADR-0033):
 -- a new text is a new row and a suggestion is never edited. Reuses the Approval Gate's reject
 -- function (migration 0016), then grants the app role by the NS-212 rule (migration 0065).

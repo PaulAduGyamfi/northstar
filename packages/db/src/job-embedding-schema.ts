@@ -24,8 +24,9 @@ import { candidate, job } from "./schema.js";
 export const STORED_EMBED_MODEL = "text-embedding-3-small";
 export const STORED_EMBED_DIMENSIONS = 512;
 
-// One vector per job, model and text. The newest per job and model is current: an edited title or
-// requirement is a new text, so a new row, and the old one stays as history.
+// A job's vectors, one row each time its text changes. The newest per job and model is current: an
+// edited title or requirement is a new row, and a text that goes back to an earlier one is a new
+// row too, so the newest is always the text the job holds now. The old rows stay as history.
 export const jobEmbedding = pgTable(
   "job_embedding",
   {
@@ -45,8 +46,6 @@ export const jobEmbedding = pgTable(
   },
   (t) => [
     unique("job_embedding_position_unique").on(t.position),
-    // The same text embedded twice stores nothing new.
-    unique("job_embedding_job_model_text_unique").on(t.jobId, t.model, t.textSha256),
     // The job must be this candidate's own.
     foreignKey({
       name: "job_embedding_job_same_candidate_fk",
@@ -56,6 +55,8 @@ export const jobEmbedding = pgTable(
     check("job_embedding_model_valid", sql`${t.model} = 'text-embedding-3-small'`),
     check("job_embedding_dimensions_valid", sql`${t.dimensions} = 512`),
     check("job_embedding_text_sha256_shape", sql`${t.textSha256} ~ '^[0-9a-f]{64}$'`),
+    // A zero vector has no direction: its cosine is NaN, which would sort above every match.
+    check("job_embedding_nonzero", sql`vector_norm(${t.embedding}) > 0`),
     // The current row per job and model is read by position.
     index("job_embedding_job_model_position_idx").on(t.candidateId, t.jobId, t.model, t.position),
   ],

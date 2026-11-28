@@ -22,9 +22,10 @@ export type EmbeddingRefusal =
   // Not one of the candidate's ready jobs: only a ready job is compared.
   | { kind: "JobNotReady" };
 
-// Stores a job's vector for its current text. The same text again stores nothing ("unchanged").
-// No domain event: one per embedded job would flood the feed, and the vector says nothing to
-// Paul. The suggestion it may lead to is the event.
+// Stores a job's vector for its current text. When the job's newest vector is already of this text
+// it stores nothing ("unchanged"); any other text, including one the job held before, is a new row,
+// so the newest row is always the job's text now. No domain event: one per embedded job would
+// flood the feed, and the vector says nothing to Paul. The suggestion it may lead to is the event.
 export async function saveJobEmbedding(
   db: Db,
   input: { candidateId: CandidateId; jobId: string; textSha256: string; embedding: number[] },
@@ -36,15 +37,16 @@ export async function saveJobEmbedding(
   }
   if (
     input.embedding.length !== STORED_EMBED_DIMENSIONS ||
-    !input.embedding.every((n) => Number.isFinite(n))
+    !input.embedding.every((n) => Number.isFinite(n)) ||
+    // A zero vector has no direction: its cosine is NaN (the table's CHECK refuses it too).
+    input.embedding.every((n) => n === 0)
   ) {
     return { ok: false, error: { kind: "InvalidEmbedding", field: "embedding" } };
   }
-  return inSpan(
-    "job.embedding_save",
-    { "northstar.embed.model": STORED_EMBED_MODEL },
-    async (span) => {
-      const [ready] = await db
+  return inSpan("job.embedding_save", { "northstar.embed.model": STORED_EMBED_MODEL }, (span) =>
+    db.transaction(async (tx) => {
+      // The job's row lock serializes two saves for one job, so the newest-hash check holds.
+      const [ready] = await tx
         .select({ id: job.id })
         .from(job)
         .where(
@@ -53,24 +55,36 @@ export async function saveJobEmbedding(
             eq(job.candidateId, input.candidateId),
             eq(job.status, "ready"),
           ),
-        );
+        )
+        .for("update");
       if (ready === undefined) return { ok: false, error: { kind: "JobNotReady" } } as const;
-      const inserted = await db
-        .insert(jobEmbedding)
-        .values({
-          candidateId: input.candidateId,
-          jobId: input.jobId,
-          model: STORED_EMBED_MODEL,
-          dimensions: STORED_EMBED_DIMENSIONS,
-          textSha256: input.textSha256,
-          embedding: input.embedding,
-        })
-        .onConflictDoNothing()
-        .returning({ id: jobEmbedding.id });
-      const status = inserted.length > 0 ? "stored" : "unchanged";
-      span.setAttribute("northstar.embed.status", status);
-      return { ok: true, value: { status } } as const;
-    },
+      const [newest] = await tx
+        .select({ textSha256: jobEmbedding.textSha256 })
+        .from(jobEmbedding)
+        .where(
+          and(
+            eq(jobEmbedding.candidateId, input.candidateId),
+            eq(jobEmbedding.jobId, input.jobId),
+            eq(jobEmbedding.model, STORED_EMBED_MODEL),
+          ),
+        )
+        .orderBy(desc(jobEmbedding.position))
+        .limit(1);
+      if (newest?.textSha256 === input.textSha256) {
+        span.setAttribute("northstar.embed.status", "unchanged");
+        return { ok: true, value: { status: "unchanged" } } as const;
+      }
+      await tx.insert(jobEmbedding).values({
+        candidateId: input.candidateId,
+        jobId: input.jobId,
+        model: STORED_EMBED_MODEL,
+        dimensions: STORED_EMBED_DIMENSIONS,
+        textSha256: input.textSha256,
+        embedding: input.embedding,
+      });
+      span.setAttribute("northstar.embed.status", "stored");
+      return { ok: true, value: { status: "stored" } } as const;
+    }),
   );
 }
 
@@ -110,8 +124,11 @@ export async function findSimilarJobs(
   if (!(input.minSimilarity >= 0 && input.minSimilarity <= 1)) {
     throw new RangeError("minSimilarity must be between 0 and 1");
   }
+  // Callers ask for a handful (suggestDuplicates: 5); 50 bounds a mistaken caller's read.
   const limit = Math.max(1, Math.min(50, Math.floor(input.limit)));
   const closed = await readClosedJobIds(db, input.candidateId);
+  // A closed job raises no suggestions either: only open jobs are compared, on both sides.
+  if (closed.has(input.jobId)) return [];
   // Each ready job's newest vector; then this job's against every other one's.
   const result = (await db.execute(sql`
     with current_vector as (
@@ -129,6 +146,7 @@ export async function findSimilarJobs(
     where self.job_id = ${input.jobId}
       and 1 - (other.embedding <=> self.embedding) >= ${input.minSimilarity}
     order by similarity desc, other.job_id
+    -- Closed jobs are dropped below, so read enough rows to fill the limit after dropping them.
     limit ${limit + closed.size}
   `)) as unknown as { rows: { job_id: string; similarity: number | string }[] };
   return result.rows

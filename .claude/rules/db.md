@@ -199,9 +199,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `tailored_resume` version names its PDF in `pdf_sha256` (a foreign key; null on older versions).
   The bytes are Paul's resume: events carry the hash and size only. `readStoredFile` serves the
   Apply Gateway's `readFile`.
-- Job embeddings (NS-129 slice 2, ADR-0033, migration 0111) are `job_embedding` (one row per
-  job, model and text SHA-256; the newest per job and model is current; CHECKs pin the model to
-  `text-embedding-3-small` and 512 dimensions) and `job_duplicate_suggestion` (one per candidate,
+- Job embeddings (NS-129 slice 2, ADR-0033, migration 0111) are `job_embedding` (a new row whenever
+  a job's text SHA-256 differs from its newest, under the job's row lock, so the newest per job and
+  model is current even after a text goes back to an earlier one; CHECKs pin the model to
+  `text-embedding-3-small` and 512 dimensions and refuse a zero vector) and `job_duplicate_suggestion` (one per candidate,
   pair and model, `job_a < job_b`, similarity 0–1), append-only (triggers), written only through
   `job-embedding-write.ts`. Composite foreign keys keep both jobs the candidate's own. A vector is
   of employer text only, and its text is never stored (the SHA-256 is). A suggestion never merges,

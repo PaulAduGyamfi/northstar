@@ -64,6 +64,15 @@ async function addJob(title: string): Promise<string> {
 const save = (id: string, embedding: number[], textSha256 = sha("a")) =>
   saveJobEmbedding(db, { candidateId, jobId: id, textSha256, embedding });
 
+// Two closed answers in a row close a posting (NS-173).
+async function closePosting(id: string): Promise<void> {
+  for (const at of ["2026-11-01T00:00:00Z", "2026-11-02T00:00:00Z"]) {
+    await db
+      .insert(postingCheck)
+      .values({ candidateId, jobId: id, outcome: "closed", checkedAt: new Date(at) });
+  }
+}
+
 describe("saveJobEmbedding (NS-129)", () => {
   it("stores a ready job's vector once per text", async () => {
     expect(await save(jobId, vec(0))).toEqual({ ok: true, value: { status: "stored" } });
@@ -77,6 +86,28 @@ describe("saveJobEmbedding (NS-129)", () => {
     expect(await readEmbeddingHashes(db, candidateId, [jobId])).toEqual(
       new Map([[jobId, sha("b")]]),
     );
+  });
+
+  it("stores a text the job held before again, so the newest row is always its text now", async () => {
+    expect([
+      await save(jobId, vec(0), sha("a")),
+      await save(jobId, vec(1), sha("b")),
+      await save(jobId, vec(0), sha("a")),
+    ]).toEqual([
+      { ok: true, value: { status: "stored" } },
+      { ok: true, value: { status: "stored" } },
+      { ok: true, value: { status: "stored" } },
+    ]);
+    expect(await readEmbeddingHashes(db, candidateId, [jobId])).toEqual(
+      new Map([[jobId, sha("a")]]),
+    );
+  });
+
+  it("refuses a zero vector, which has no direction to compare", async () => {
+    expect(await save(jobId, new Array(512).fill(0))).toEqual({
+      ok: false,
+      error: { kind: "InvalidEmbedding", field: "embedding" },
+    });
   });
 
   it("refuses a vector of the wrong size, a non-finite number or a bad hash", async () => {
@@ -156,6 +187,30 @@ describe("findSimilarJobs (NS-129)", () => {
         .insert(postingCheck)
         .values({ candidateId, jobId: other, outcome: "closed", checkedAt: new Date(at) });
     }
+    expect(
+      await findSimilarJobs(db, { candidateId, jobId, minSimilarity: 0.5, limit: 10 }),
+    ).toEqual([]);
+  });
+
+  it("fills its limit with open jobs when the most alike one is closed", async () => {
+    const closedJob = await addJob("Backend Engineer II");
+    const open = await addJob("Backend Engineer, Platform");
+    await save(jobId, vec(0));
+    await save(closedJob, vec(0));
+    await save(open, vec(0, 0.2));
+    await closePosting(closedJob);
+    expect(
+      (await findSimilarJobs(db, { candidateId, jobId, minSimilarity: 0.5, limit: 1 })).map(
+        (f) => f.jobId,
+      ),
+    ).toEqual([open]);
+  });
+
+  it("raises nothing for a job whose own posting is closed", async () => {
+    const other = await addJob("Backend Engineer II");
+    await save(jobId, vec(0));
+    await save(other, vec(0));
+    await closePosting(jobId);
     expect(
       await findSimilarJobs(db, { candidateId, jobId, minSimilarity: 0.5, limit: 10 }),
     ).toEqual([]);

@@ -55,8 +55,9 @@ Built in slices, each its own PR:
 - [x] Slice 1: the cost of each call is recorded through the spend meter.
 - [x] Slice 1: `embeddingText` holds the title, company and requirements only (a test).
 - [ ] Slice 2: append-only `job_embedding` and `job_duplicate_suggestion` (triggers, CHECKs,
-      same-candidate foreign keys; the app role's grants), a vector stored once per job and text,
-      the newest one current.
+      same-candidate foreign keys; the app role's grants), a vector stored whenever a job's text
+      differs from its newest (a text it held before included), so the newest is current; never
+      a zero vector.
 - [ ] Slice 2: `findSimilarJobs` compares only each other ready, open job's newest vector, and
       never another candidate's.
 - [ ] Slice 2: a pair is suggested once whichever way round, with one fixed-word
@@ -75,7 +76,9 @@ Built in slices, each its own PR:
 
 ## Observability
 - Span `llm.embed` (model, input count, tokens, status; never text or the key).
-- `job.duplicate_suggested` events (slice 2), ids and the similarity only.
+- `job.duplicate_suggested` events (slice 2), ids and the similarity only. The event's aggregate
+  is the lower job id, so the feed names that job; `jobs dupes` (slice 3) reads both jobs from
+  `job_duplicate_suggestion`, not from the event.
 
 ## Out of scope
 - Merging jobs from a suggestion (Paul merges by hand, or a later ticket).

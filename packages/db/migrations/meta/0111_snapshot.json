@@ -1,5 +1,5 @@
 {
-  "id": "2d21051e-54e1-4159-97e7-f2962ff2f28c",
+  "id": "434ead81-1648-45ed-844c-752fb6537763",
   "prevId": "6fc7cf99-ecaf-40c1-a3b6-ca14f6b74732",
   "version": "7",
   "dialect": "postgresql",
@@ -12173,15 +12173,6 @@
           "columns": [
             "position"
           ]
-        },
-        "job_embedding_job_model_text_unique": {
-          "name": "job_embedding_job_model_text_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "job_id",
-            "model",
-            "text_sha256"
-          ]
         }
       },
       "policies": {},
@@ -12197,6 +12188,10 @@
         "job_embedding_text_sha256_shape": {
           "name": "job_embedding_text_sha256_shape",
           "value": "\"job_embedding\".\"text_sha256\" ~ '^[0-9a-f]{64}$'"
+        },
+        "job_embedding_nonzero": {
+          "name": "job_embedding_nonzero",
+          "value": "vector_norm(\"job_embedding\".\"embedding\") > 0"
         }
       },
       "isRLSEnabled": false
