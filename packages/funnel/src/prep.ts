@@ -1,13 +1,14 @@
 import type { ApprovedPrepPlan, FiledPrepPlan, StoredInterview } from "@northstar/db";
-import type { Result } from "@northstar/domain";
+import { PREP_DAYS, type Result } from "@northstar/domain";
 import type { PrepRefusal, PrepWritten } from "@northstar/gateways";
 import type { PrepConfig } from "./config.js";
 import { errorName, type LetterRow, letterKey, letterState } from "./inbox.js";
 
 // `funnel prep` (NS-241 slice 5, CAL-003, ADR-0031): the command Paul runs to plan prep for his
 // confirmed interviews, file each plan with the Approval Gate, and write the plans he approved
-// onto his Northstar calendar. Google consent is asked on this run only, and only when there is
-// something approved to write (#400: no stored token). Plain code over ports.
+// onto his Northstar calendar. Google consent is asked on this run only (#400: no stored token):
+// the writer's only when there is something approved to write, and, with --busy-from-calendar
+// (slice 7), the read-only one only when something is about to be planned. Plain code over ports.
 
 // Why a plan went to Stuck work: a write that threw, or a refusal that no later run can clear.
 export type PrepLetterReason =
@@ -128,8 +129,8 @@ export async function runPrep(deps: PrepRunDeps): Promise<PrepRunReport> {
     stored.set(interview.detectionId, await deps.proposalOf(interview.detectionId));
   }
   // Busy time from what Northstar already knows: every other interview not dismissed and not
-  // over, and every stored proposal's blocks (slice 6). Paul's other calendar events stay unknown
-  // until a read-only Calendar consent joins this run.
+  // over, and every stored proposal's blocks (slice 6); with --busy-from-calendar also Paul's own
+  // calendar's events (slice 7).
   const blockBusy: BusyInterval[] = [...stored.values()].flatMap((p) =>
     p === null ? [] : p.blocks.map((b) => ({ start: b.start, end: b.end })),
   );
@@ -142,7 +143,12 @@ export async function runPrep(deps: PrepRunDeps): Promise<PrepRunReport> {
     let proposal = stored.get(interview.detectionId) ?? null;
     if (proposal === null) {
       const proposed = await deps.propose(interview.detectionId, {
-        busy: busyFor(interview.detectionId, interviewBusy, blockBusy, calendar),
+        busy: busyFor(
+          interview.detectionId,
+          interviewBusy,
+          blockBusy,
+          calendarNear(calendar, interview.start),
+        ),
         workingHours: deps.config.workingHours,
         timeZone: deps.config.timeZone,
         now,
@@ -185,9 +191,23 @@ export function busyFor(
     .slice(0, MAX_BUSY);
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// A long calendar could fill MAX_BUSY with meetings weeks before an interview and push out the
+// days its prep can use, so each plan gets only the calendar events that overlap those days:
+// PREP_DAYS before the interview, plus a day of slack for the time zone's midnight, up to its start.
+export function calendarNear(
+  calendar: readonly BusyInterval[],
+  interviewStart: Date,
+): BusyInterval[] {
+  const from = interviewStart.getTime() - (PREP_DAYS + 1) * DAY_MS;
+  return calendar.filter(
+    (b) => b.end.getTime() > from && b.start.getTime() < interviewStart.getTime(),
+  );
+}
+
 // The read-only Calendar client's own limit on one window (packages/inbox, MAX_WINDOW_DAYS).
 export const CALENDAR_WINDOW_DAYS = 60;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Reads Paul's calendar once for the interviews about to be planned: from now to the latest one's
 // start, at most CALENDAR_WINDOW_DAYS. Consent or Google failing never stops the run: it plans with

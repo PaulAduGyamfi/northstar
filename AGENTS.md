@@ -712,8 +712,11 @@ Exists now:
     is about to be planned, it asks `authorizeCalendar` (read-only, its own consent, the token in
     that call for the run, #400) and reads the primary calendar once from now to the latest such
     interview's start (at most 60 days) through the `calendar` breaker, keeping each event's start
-    and end only (cancelled ones dropped). A refused consent or failed read plans with stored busy
-    time and prints why by the error's class (`calendarLine`);
+    and end only (cancelled ones dropped). Each plan gets only the events in its own prep days
+    (`calendarNear`: `PREP_DAYS` plus a day before the interview), so a long calendar can't push
+    them out of the 500. All-day events (a day off) aren't read, and an interview more than about
+    60 days out gets none. A refused consent or failed read plans with stored busy time and prints
+    why by the error's class (`calendarLine`);
   - files each proposal with `requestPrepPlanApproval`. A replay counts as already sent;
   - writes the approved plans. Only then does it ask consent (`authorizeCalendarWrite`, in memory
     for that run, #400). The plans come from `readApprovedPrepPlans` (`packages/db`,

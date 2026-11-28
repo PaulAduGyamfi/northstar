@@ -292,6 +292,26 @@ describe("runPrep: busy time from Paul's own calendar (slice 7)", () => {
     expect(windows[0]?.timeMax).toEqual(new Date("2027-01-26T12:00:00Z"));
   });
 
+  it("gives each plan only the calendar events in its prep days, however long the calendar is", async () => {
+    // 600 short meetings in the two weeks after now, then one in the far interview's prep days.
+    const early = Array.from({ length: 600 }, (_, i) => ({
+      start: new Date(Date.UTC(2026, 10, 28, 0, i * 30)),
+      end: new Date(Date.UTC(2026, 10, 28, 0, i * 30 + 10)),
+    }));
+    const near = { start: new Date("2026-12-18T09:00:00Z"), end: new Date("2026-12-18T10:00:00Z") };
+    const busies: unknown[] = [];
+    const f = fake({
+      interviews: async () => [interview(1, "confirmed", new Date("2026-12-20T15:00:00Z"))],
+      calendarBusy: async () => [...early, near],
+      propose: async (id, request) => {
+        busies.push(request.busy);
+        return { ok: true, value: { proposalId: `p-${id}`, blocks: [] } };
+      },
+    });
+    await runPrep(f.deps);
+    expect(busies).toEqual([[near]]);
+  });
+
   it("plans with stored busy time when the calendar can't be read, and says why by class only", async () => {
     class CalendarReadError extends Error {
       override name = "CalendarReadError";
