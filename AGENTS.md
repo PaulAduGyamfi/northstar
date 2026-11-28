@@ -1608,6 +1608,8 @@ version on a release at least 14 days old (cooldown against hijacked releases) a
 
 - Every behavior change comes with a test that fails without it. Test names are sentences.
 - **No test calls a real model, Gmail, an ATS or the network.** Use recorded fixtures and fakes.
+  One named exception: the worker's `temporal.test.ts` downloads Temporal's test server from
+  `temporal.download` (NS-224, Paul allowed the host); it talks to nothing else.
 - Every LLM route has an eval set in `evals/<route>/`. Changing a prompt or model means running it.
   Agents build and label eval sets: synthetic cases are committed, real-mail cases live in
   `evals/**/private/` (gitignored), and Paul only reviews cases where two labeling passes disagree.
