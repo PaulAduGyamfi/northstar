@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { type Extraction, emptyFields, htmlToText, remoteFrom } from "../extraction.js";
+import { type Extraction, emptyFields, remoteFrom } from "../extraction.js";
+import { cleanHtml, MAX_DESCRIPTION, ROLE, usable } from "./text.js";
 import { type BoardPosting, BoardUnavailable, MAX_POSTINGS } from "./types.js";
 
 // The monthly Hacker News "Ask HN: Who is hiring?" thread (NS-282 slice 1), read through HN's
@@ -15,9 +16,6 @@ const ALGOLIA = "https://hn.algolia.com/api/v1";
 const THREAD_TITLE = /^Ask HN: Who is hiring\? \(/;
 // HN item ids are plain numbers.
 const ITEM_ID = /^\d{1,12}$/;
-// Bounds on what a comment can put in a job: a stored field never grows past these.
-const MAX_FIELD = 200;
-const MAX_DESCRIPTION = 20_000;
 
 const Search = z.object({
   hits: z.array(
@@ -89,14 +87,8 @@ export function postingFrom(c: Comment): BoardPosting | null {
 
 // HN writes paragraphs as bare `<p>` with no closing tag: each starts a new line.
 function commentText(html: string): string {
-  return htmlToText(html.replace(/<p>/gi, "\n\n")).replace(INVISIBLE, "");
+  return cleanHtml(html.replace(/<p>/gi, "\n\n"));
 }
-
-// Control, formatting and blank-looking characters (bidi overrides, zero-width joiners, Hangul
-// fillers, the braille blank, variation selectors): anyone can post on HN, and these would let a
-// comment reorder or hide text where its company or title is shown. Newlines and tabs stay.
-const INVISIBLE =
-  /(?![\n\t])[\p{Cc}\p{Cf}\u2028\u2029\u115F\u1160\u3164\uFFA0\u2800]|\u034F|[\uFE00-\uFE0F]/gu;
 
 // HN's own time for the comment, in seconds; anything outside 2007 to 2100 is no date.
 function postedAt(seconds: number | null | undefined): Date | null {
@@ -107,9 +99,6 @@ function postedAt(seconds: number | null | undefined): Date | null {
 
 const firstLine = (text: string) => (text.split("\n")[0] ?? "").trim();
 
-// Words that name a role, so the field holding one is the title.
-const ROLE =
-  /\b(engineer|engineering|developer|programmer|designer|scientist|architect|manager|lead|director|analyst|researcher|sre|devops|founding|intern|head of|vp|cto|recruiter|product|marketer|writer|specialist|administrator|technician|consultant)s?\b/i;
 // Fields that are terms, pay or links rather than a place.
 const NOT_PLACE =
   /(https?:\/\/|www\.|@|\$|€|£|\d+k\b|\bfull[- ]?time\b|\bpart[- ]?time\b|\bcontract\b|\bvisa\b|\bequity\b|\bsalary\b|\bseries [a-z]\b|\bseed\b|\bfunded\b|\byc [swf]\d|\bintern(ship)?s?\b)/i;
@@ -151,6 +140,3 @@ export function readHead(head: string): {
     null;
   return { company, title, location };
 }
-
-// A field fit to store: short, and not a link or address (a link is never a name).
-const usable = (s: string) => s.length <= MAX_FIELD && !/(https?:\/\/|www\.|@)/i.test(s);

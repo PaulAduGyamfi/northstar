@@ -114,7 +114,8 @@ or job title; tapping it opens Today, or the Queue with that request marked. A n
 approves anything. The `push` switch on the Health page stops it. Besides company boards, `jobs watch add` can now
 watch the monthly Hacker News "Who is hiring?" thread (read through HN's public API while `jobs
 run` polls; a post that doesn't follow HN's `Company | Role | Place` first line is saved as a draft
-for you to fill in). With `JOB_EMBEDDINGS` on (off
+for you to fill in), and any RSS, Atom or JSON Feed of job postings (`--feed`; an item whose title
+isn't "Role at Company" or "Company: Role" is saved as a draft). With `JOB_EMBEDDINGS` on (off
 by default, and not until its threshold is measured), each `jobs` scoring pass also sends changed
 jobs' titles, companies and requirements to OpenAI for embeddings and lists pairs that look like
 the same role in `jobs dupes`; nothing is merged. What each package does today is listed

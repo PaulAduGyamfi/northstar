@@ -885,7 +885,15 @@ Exists now:
   its time and its text as the description; replies, deleted and dead comments are skipped. Plain
   code reads only HN's first-line convention (`readHead`: company first, the first field naming a
   role as the title, a place), and a comment that doesn't follow it is saved as a draft. No model
-  reads it. Behind `source:hn_hiring`. RSS/JSON feeds and YC come in later slices.
+  reads it. Behind `source:hn_hiring`. Since slice 2 (migration 0113) also an RSS 2.0, Atom or
+  JSON Feed Paul names, a watch of kind `feed` (`jobs watch add <feed-url> --feed --tier N`;
+  `detectFeed`: https on the default port, no credentials, not an ATS board or HN, not a
+  prohibited site, the canonical URL as the board). `boards/feed.ts` reads it in one `safeFetch`
+  (XML through `fast-xml-parser@5.12.1`, Paul's choice: entities never expanded, a DOCTYPE
+  refused). Each item with an https link not on a prohibited site is one posting, with its date
+  and body (`cleanHtml`), and its title read by `readTitle` ("Role at Company", "Company: Role");
+  anything else keeps no company and is saved as a draft. No model reads it. The text rules HN and
+  feeds share are in `boards/text.ts`. Behind `source:feed`. YC comes in a later slice.
   Since NS-116 also fit scoring (`fit/`): versioned search preferences (`search_preference`) and
   a Fit Score per ready job (`fit_score`, `fit-write.ts` in `packages/db`) computed by plain code
   (no model): requirements matched to experience atoms by the technologies they name, preference
@@ -1639,7 +1647,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/sources jobs add <url>` | add a job from a link: ATS API, then the page's JSON-LD, then the `job-extract` model (needs `ANTHROPIC_API_KEY` only then). A job without a title or company is stored as a draft. LinkedIn, Indeed and Glassdoor links are refused. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs add --text data/<file> --url <url>` | add a job from a description Paul saved himself (sign-in sites such as LinkedIn); nothing is fetched |
 | repo root | `pnpm --filter @northstar/sources jobs list` / `jobs set <job-id> <field> <value>` | list jobs freshest first; fill in or correct a field (a draft becomes ready once it has a title and company). Paul only |
-| repo root | `pnpm --filter @northstar/sources jobs watch add <board-url> --tier 1\|2\|3` | watch a company's board (`boards.greenhouse.io/<board>`, `jobs.lever.co/<company>`, `jobs.ashbyhq.com/<org>`, `jobs.smartrecruiters.com/<Company>`, `apply.workable.com/<account>`, since NS-260 a Workday career site `<tenant>.wd<N>.myworkdayjobs.com/[<locale>/]<site>`, and since NS-282 the monthly HN "Who is hiring?" thread `news.ycombinator.com/submitted?id=whoishiring`); tier 1 polls every 10 min, 2 every 20, 3 hourly. Paul only: needs `DATABASE_URL` |
+| repo root | `pnpm --filter @northstar/sources jobs watch add <board-url> [--feed] --tier 1\|2\|3` | watch a company's board (`boards.greenhouse.io/<board>`, `jobs.lever.co/<company>`, `jobs.ashbyhq.com/<org>`, `jobs.smartrecruiters.com/<Company>`, `apply.workable.com/<account>`, since NS-260 a Workday career site `<tenant>.wd<N>.myworkdayjobs.com/[<locale>/]<site>`, and since NS-282 the monthly HN "Who is hiring?" thread `news.ycombinator.com/submitted?id=whoishiring`; with `--feed` before `--tier`, any https RSS, Atom or JSON Feed of postings); tier 1 polls every 10 min, 2 every 20, 3 hourly. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs watch list` / `watch remove <id>` / `watch retry <id>` | each board's tier, status and last read; stop watching one; put a quarantined one back. Paul only |
 | repo root | `pnpm --filter @northstar/sources jobs prefs` / `jobs prefs set <field> <value>` | show the search preferences / change one (`titles`, `seniority`, `locations`, `remote`, `dealbreakers` as comma lists; `compFloor`, `compTarget` per year; `currency`; `queueAt`, `suggestAt` thresholds; `-` clears). A change stores a new version and re-scores every ready job at once. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs score` / `jobs why <job-id>` | score every job not scored for the current preferences and resume (also runs after `jobs add`, `jobs set`, each poll pass and each browser capture) / a job's score with each matched requirement, its atom, and the unmatched ones. Paul only: prints his real profile |

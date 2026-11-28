@@ -1,4 +1,6 @@
 import type { WatchAts } from "@northstar/db";
+import { canonicalUrl } from "../fetch.js";
+import { termsFor } from "../terms.js";
 
 // A company's whole job board, as Paul gives it to `jobs watch add` (SRC-003). Plain URL parsing:
 // no request is made to decide this.
@@ -84,4 +86,31 @@ function hnBoard(u: URL): BoardTarget | null {
     board: "whoishiring",
     url: "https://news.ycombinator.com/submitted?id=whoishiring",
   };
+}
+
+// Feed URLs longer than this are refused: a feed's address is short, and the URL is the board key.
+const MAX_FEED_URL = 500;
+
+// An RSS, Atom or JSON Feed Paul names with `jobs watch add <url> --feed` (NS-282 slice 2). Plain
+// URL checks, no request: https on the default port, no user name or password, never a site whose
+// terms forbid automated reads, and never an ATS board or HN (those have their own watch kinds).
+// The board is the canonical URL, so the same feed typed twice is one watch.
+export function detectFeed(raw: string): BoardTarget | null {
+  const typed = raw.trim();
+  if (typed.length > MAX_FEED_URL) return null;
+  let u: URL;
+  try {
+    u = new URL(typed);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" || u.port !== "" || u.username !== "" || u.password !== "") {
+    return null;
+  }
+  if (detectBoard(typed) !== null || u.hostname.toLowerCase() === "news.ycombinator.com") {
+    return null;
+  }
+  const url = canonicalUrl(u.toString());
+  if (termsFor(url).terms === "prohibited") return null;
+  return { ats: "feed", board: url, url };
 }

@@ -108,6 +108,41 @@ describe("jobs watch", () => {
     expect(printed[0]).toContain("isn't a job board link");
   });
 
+  it("adds an RSS, Atom or JSON Feed with --feed, keyed by its canonical URL (NS-282)", async () => {
+    const { d, printed, calls } = deps([
+      "watch",
+      "add",
+      "https://Jobs.Example.com/feed.xml?utm_source=x#top",
+      "--feed",
+      "--tier",
+      "3",
+    ]);
+    expect(await main(d)).toBe(0);
+    const url = "https://jobs.example.com/feed.xml";
+    expect(calls).toEqual([["add", { ats: "feed", board: url, url }, 3]]);
+    expect(printed).toEqual([
+      `Watching the feed ${url} (tier 3, every 60 min). First poll on the next jobs poll or jobs run.`,
+    ]);
+  });
+
+  it("refuses a feed on a site whose terms forbid automated reads, or an ATS board as a feed", async () => {
+    for (const url of [
+      "https://www.linkedin.com/jobs/feed.rss",
+      "https://jobs.lever.co/initech",
+      "https://news.ycombinator.com/rss",
+      "http://jobs.example.com/feed.xml",
+      "https://user:pass@example.com/feed.xml",
+      "https://jobs.example.com:8443/feed.xml",
+    ]) {
+      const { d, printed, calls } = deps(["watch", "add", url, "--feed", "--tier", "1"]);
+      expect([await main(d), calls, printed[0]?.startsWith("Not watched: a feed is")]).toEqual([
+        1,
+        [],
+        true,
+      ]);
+    }
+  });
+
   it("refuses a tier other than 1, 2 or 3", async () => {
     const { d, calls } = deps(["watch", "add", "https://jobs.lever.co/initech", "--tier", "4"]);
     expect(await main(d)).toBe(1);

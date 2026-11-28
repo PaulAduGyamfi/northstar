@@ -6,6 +6,7 @@ import { postedOn } from "../ats/workday.js";
 import { dateOrNull, type Extraction, emptyFields, htmlToText, remoteFrom } from "../extraction.js";
 import { BOARD_MAX_BYTES, type FetchDeps, safeFetch } from "../fetch.js";
 import type { BoardTarget } from "./detect.js";
+import { listFeed } from "./feed.js";
 import { listHnHiring } from "./hn.js";
 import { type BoardPosting, BoardUnavailable, MAX_POSTINGS } from "./types.js";
 
@@ -34,6 +35,9 @@ export async function listBoard(
     // The monthly HN "Who is hiring?" thread (NS-282): a feed, not an ATS board.
     case "hn_hiring":
       return listHnHiring((url, shape) => read(deps, url, shape));
+    // An RSS, Atom or JSON Feed Paul named by its URL (NS-282 slice 2); the board is that URL.
+    case "feed":
+      return listFeed(deps, t.board, now);
     case "greenhouse": {
       const body = await read(
         deps,
