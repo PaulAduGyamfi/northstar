@@ -184,6 +184,9 @@ importers:
       '@northstar/llm':
         specifier: workspace:*
         version: link:../llm
+      '@northstar/profile':
+        specifier: workspace:*
+        version: link:../profile
       '@northstar/sources':
         specifier: workspace:*
         version: link:../sources
