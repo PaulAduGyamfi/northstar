@@ -122,3 +122,9 @@ are CSS variables in `apps/web/app/globals.css`.
 - Paul's regrade of a recruiter email (NS-238 item 3) goes only through `POST /inbox/regrade`. The
   Regrade picker shows only on a graded thread and starts at his own letter, else the system's; it
   records his letter and nothing else (`regradedMessage`, `regradeProblem` in `src/inbox.ts`).
+- Notifications (NS-193 slice 2, ADR-0032) go through `src/push.ts` (`enablePush`,
+  `disablePush`), which takes the service worker container, the permission request and fetch as
+  arguments, and the API's session routes (`/push/*`). The service worker (`public/sw.js`) shows
+  only a known push's fixed words (a copy of `pushWords`, checked by a test in `packages/domain`)
+  or a generic line, never text from a push, and a tap opens Today on this origin, never a URL
+  from the push. It caches nothing and handles no fetches.

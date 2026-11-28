@@ -92,7 +92,6 @@ export {
 } from "./mail/gateway.js";
 // The web push sender (NS-193, ADR-0032): pushes fixed words to Paul's own browsers, behind the
 // endpoint allowlist, the `push` kill switch and breaker. A push never acts on anything.
-export { endpointAllowed, PUSH_SERVICE_HOSTS } from "./push/endpoint.js";
 export {
   createPushSender,
   PUSH_DEPENDENCY,

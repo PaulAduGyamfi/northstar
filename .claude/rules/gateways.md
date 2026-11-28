@@ -46,8 +46,8 @@ end before they leave it. Never pass an event's title, attendees or id onward, a
 two tokens.
 The web push sender (NS-193, ADR-0032) is `src/push/`: pushes to Paul's own browsers only, never
 anyone else, and a push never acts on anything (approving from a push, #180, still needs the
-session or a passkey assertion). Every push passes `endpointAllowed` before anything else (never
-widen its host list without amending ADR-0032), then the `push` kill switch and breaker. Its
+session or a passkey assertion). Every push passes `endpointAllowed` (`packages/domain`, `push-endpoint.ts`, since NS-193 slice
+2) before anything else (never widen its host list without amending ADR-0032), then the `push` kill switch and breaker. Its
 payload is only a `PushPayload` (`packages/domain`): fixed codes and ids, never a URL, company,
 job title or email text. Its crypto (`encrypt.ts`, `vapid.ts`) must keep RFC 8291 Appendix A's
 vector passing, and the VAPID private key stays a `KeyObject`, never logged or put in an error.

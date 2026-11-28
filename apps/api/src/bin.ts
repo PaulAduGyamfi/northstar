@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import {
   acquireCall,
   connectDb,
+  countLivePushSubscriptions,
   dbSpendMeter,
   decideInterview,
   decideQueuedThread,
@@ -49,6 +50,7 @@ import {
   recordHandoffPrefill,
   recordPasskeyUse,
   regradeThread,
+  removePushSubscription,
   resolveDeadLetter,
   resolveHandoff,
   saveFitScore,
@@ -59,6 +61,7 @@ import {
   setConsentPolicy,
   setKillSwitch,
   soleCandidate,
+  subscribePush,
 } from "@northstar/db";
 import { pipelineMetrics } from "@northstar/domain";
 import { loadVaultKey } from "@northstar/gateways";
@@ -86,7 +89,7 @@ import { captureEndpoint } from "./capture.js";
 import { careerDirectionsEndpoints, directionJobs } from "./career-directions.js";
 import { careerDnaEndpoints } from "./career-dna.js";
 import { careerDnaWording } from "./career-dna-wording.js";
-import { loadApiConfig, loadExtensionTokenHash } from "./config.js";
+import { loadApiConfig, loadExtensionTokenHash, loadPushPublicKey } from "./config.js";
 import { consentEndpoints } from "./consent.js";
 import { deadLetterEndpoints } from "./dead-letters.js";
 import { growthEndpoints } from "./growth.js";
@@ -99,6 +102,7 @@ import { type PasskeyStore, passkeyAssertion, passkeyEndpoints } from "./passkey
 import { pipelineEndpoints } from "./pipeline.js";
 import { createPrefillGrants, prefillEndpoints } from "./prefill.js";
 import { prepPlanEndpoints } from "./prep-plan-view.js";
+import { pushEndpoints } from "./push.js";
 import { runEndpoints } from "./run.js";
 import { createApi } from "./server.js";
 import { createSessions } from "./sessions.js";
@@ -111,6 +115,8 @@ import { vaultRevealEndpoints } from "./vault-reveal.js";
 try {
   const config = loadApiConfig(process.env);
   const extensionTokenSha256 = loadExtensionTokenHash(process.env);
+  // The VAPID public key only (NS-193): the API never reads the private key.
+  const pushPublicKey = loadPushPublicKey(process.env);
   const { db } = connectDb(loadDbConfig(process.env));
   // The LLM spend caps, read at startup so a bad value shows at once (NS-176, ADR-0021).
   const llmBudget = loadLlmBudget({
@@ -269,6 +275,14 @@ try {
     list: async () => listOpenDeadLetters(db, await candidateId()),
     resolve: async (input) => resolveDeadLetter(db, { candidateId: await candidateId(), ...input }),
   });
+  // Web push subscriptions (NS-193 slice 2, ADR-0032): Paul's browsers, behind his session.
+  const push = pushEndpoints({
+    publicKey: pushPublicKey,
+    count: async () => countLivePushSubscriptions(db, await candidateId()),
+    subscribe: async (input) => subscribePush(db, await candidateId(), input),
+    unsubscribe: async (endpoint) =>
+      removePushSubscription(db, await candidateId(), { endpoint }, "user"),
+  });
   // Detected interviews and Paul's confirm step (NS-240 slice 5): never moves a status.
   const interviews = interviewEndpoints({
     list: async () => listInterviews(db, await candidateId()),
@@ -374,6 +388,7 @@ try {
       ...jobsPage,
       ...deadLetters,
       ...interviews,
+      ...push,
       ...spend,
       ...passkeys,
       ...vaultReveal,

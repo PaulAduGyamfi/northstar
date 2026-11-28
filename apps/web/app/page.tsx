@@ -11,6 +11,7 @@ import { todayCounts } from "../src/today";
 import { AddPasskey } from "./add-passkey";
 import { LiveFeed } from "./live-feed";
 import { NeedsYourHands } from "./needs-your-hands";
+import { Notifications } from "./notifications";
 import { SignOutButton } from "./sign-out-button";
 
 // Asked for on every request: the answer depends on Paul's session, never on a cached build.
@@ -53,6 +54,8 @@ export default async function TodayPage() {
           <p className="muted">Signed in. Your queue, replies and quests will show up here.</p>
           <SignOutButton />
           <AddPasskey />
+          {/* Web push (NS-193): a notification when an application needs Paul's hands. */}
+          <Notifications />
           {/* Settings → Accounts (NS-198): employer accounts and the consent policy. */}
           <p>
             <Link href="/settings/accounts">Settings → Accounts</Link>

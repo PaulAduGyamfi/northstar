@@ -1,4 +1,5 @@
 import {
+  allowedEndpoint,
   type CallDecision,
   type CallOutcome,
   encodePushPayload,
@@ -6,7 +7,6 @@ import {
 } from "@northstar/domain";
 import type { Span } from "@opentelemetry/api";
 import { encryptPayload, PushEncryptError } from "./encrypt.js";
-import { allowedEndpoint } from "./endpoint.js";
 import { type VapidConfig, vapidAuthorization } from "./vapid.js";
 
 // The web push sender (NS-193, ADR-0032 item 3). It pushes to Paul's own browsers, never to

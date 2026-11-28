@@ -1092,7 +1092,7 @@ Exists now:
   file fields) against the gateway's adapters, `fillForm` sets values through the prototype's
   setter (a safety net for a shadowed `value`; the isolated world already reaches the native one), and a thrown `handoff.prefilled` write puts its
   class name on the span (`northstar.prefill.record_error`, `errorClassOf`), never its message.
-- Web push (NS-193 slice 1, ADR-0032, Proposed): the sender in `packages/gateways/src/push/`, on
+- Web push (NS-193, ADR-0032, Proposed), slice 1: the sender in `packages/gateways/src/push/`, on
   `node:crypto` with no library. `encryptPayload` (RFC 8291 `aes128gcm`, one record, checked byte
   for byte against the RFC's Appendix A) and `vapidAuthorization` (RFC 8292 ES256, `aud` the
   endpoint's origin, 12 h) from Paul's own key pair, loaded by `loadVapidConfig`
@@ -1105,8 +1105,22 @@ Exists now:
   status and result, never the endpoint's path, keys or payload. The payload is `PushPayload`
   (`packages/domain`, `push-payload.ts`): a strict `{ v, kind: "handoff", id, ats, reason }` from
   fixed lists, at most 256 bytes (`encodePushPayload`), worded by `pushWords` in the feed's own
-  words. A push never acts on anything. No subscriptions, caller or service worker yet (slices 2
-  and 3).
+  words. A push never acts on anything.
+  Since slice 2 the allowlist (`endpointAllowed`, `allowedEndpoint`) lives in `packages/domain`
+  (`push-endpoint.ts`), so the API and the database path check the same rule. Subscriptions are
+  append-only `push_subscription` and `push_subscription_removal` (`packages/db`, `push-schema.ts`,
+  `push-write.ts`, migration 0108: `subscribePush` stores one live row per endpoint and refuses an
+  endpoint or key of the wrong shape by field, `removePushSubscription` by endpoint for Paul or by
+  id when the push service says `gone`, `readLivePushSubscriptions`; `push.subscribed` and
+  `push.unsubscribed` carry the row id only). The same migration adds `push_notification` and
+  `push_notification_result` (one claim per item key, then its outcome) for slice 3, and `push`
+  to the kill switches (`SUBSYSTEM_PATTERN`; `/health` always offers it). The API's
+  `GET /push/key`, `POST /push/subscribe` and `POST /push/unsubscribe` (session only,
+  `apps/api/src/push.ts`; the API reads only `PUSH_VAPID_PUBLIC_KEY`, `loadPushPublicKey`), and the
+  web app's service worker (`apps/web/public/sw.js`: a known push's fixed words, else a generic
+  line, never a push's text; a tap opens Today) and "Turn on notifications" on Today
+  (`app/notifications.tsx`, `src/push.ts`). A test in `packages/domain` runs the service worker's
+  words against `pushWords`. Nothing sends a push yet (slice 3).
 - Verification windows (NS-151, VER-001…006) in `packages/db` (`verification-schema.ts`,
   `verification-write.ts`, append-only): `verification_window`, one `verification_window_restart`
   and one `verification_window_close` per window, and `verification_used_message` (one window per

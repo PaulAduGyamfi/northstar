@@ -59,3 +59,21 @@ export function loadExtensionTokenHash(env: Record<string, string | undefined>):
   }
   return parsed.data;
 }
+
+// A P-256 public point as base64url: 65 bytes starting 0x04, so "B" then 86 characters.
+const PushPublicKey = z.string().regex(/^B[A-Za-z0-9_-]{86}$/);
+
+// The VAPID public key the browser subscribes with (NS-193, ADR-0032), or null while push isn't
+// set up (unset or a placeholder). The API never reads the private key: only the sender does.
+export function loadPushPublicKey(env: Record<string, string | undefined>): string | null {
+  const raw = env.PUSH_VAPID_PUBLIC_KEY?.trim();
+  if (raw === undefined || raw === "" || raw.includes("change-me")) return null;
+  const parsed = PushPublicKey.safeParse(raw);
+  if (!parsed.success) {
+    // Name the setting, never its value.
+    throw new Error(
+      "PUSH_VAPID_PUBLIC_KEY must be a P-256 public key in base64url (87 characters)",
+    );
+  }
+  return parsed.data;
+}

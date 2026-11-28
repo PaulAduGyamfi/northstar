@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { endpointAllowed } from "./endpoint.js";
+import { endpointAllowed } from "./push-endpoint.js";
 
 // An endpoint carrying credentials, built with URL so no address-shaped literal sits in the file.
 function withUserInfo(endpoint: string): string {
