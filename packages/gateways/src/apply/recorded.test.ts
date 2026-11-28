@@ -59,3 +59,12 @@ describe("the driver's in-page reader on a recorded Lever form", () => {
     expect([signals.visibleCaptcha, challengeOf(signals)]).toEqual([true, "captcha"]);
   });
 });
+
+describe("the driver's in-page reader on the recorded SmartRecruiters posting page (slice 3)", () => {
+  // The apply step answered with a bot check, so only the posting page could be recorded. It has
+  // no form, so the driver opens no form there and the gateway hands the application to Paul.
+  it("finds no form on the posting page, so a SmartRecruiters application becomes a handoff", () => {
+    const page = collectPage(null, recordedPage(RECORDED.smartrecruiters));
+    expect([page.forms, pickForm(page.forms)]).toEqual([[], null]);
+  });
+});

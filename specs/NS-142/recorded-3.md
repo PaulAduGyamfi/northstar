@@ -1,6 +1,6 @@
 # NS-142 slice 3: recorded Ashby and SmartRecruiters form structures
 
-Status: in progress (autonomous lane, ADR-0016). Assigned by the orchestrator after Paul approved
+Status: built (autonomous lane, ADR-0016). Assigned by the orchestrator after Paul approved
 recording on 2026-11-28 ("Ok I approve go ahead and do them all"), with the ATS hosts added to
 the environment's allowlist.
 Issue: #76 (parent #19)
@@ -26,17 +26,29 @@ standard field names (`_systemfield_name`, `firstName`…) are still hand-writte
   synthetic; the board is named by host and path shape only. Raw pages are never committed.
 
 ## Behavior
-- `RECORDED` gains `ashby` and `smartrecruiters` entries.
+- `RECORDED` gains an entry for each ATS whose page could be recorded (see Outcome).
 - The adapters test checks every standard, resume and cover-letter field each adapter fills is a
   control on its recorded form (by name, else id). A wrong name is corrected in the adapter and the
   extension's parity table, and the adapter's comment says "recorded".
 - Where the driver's in-page reader refuses a recorded shape (unnamed fields, a combobox, a hidden
   or CAPTCHA submit, no form), a test pins that refusal: the existing handoff, not new handling.
 
+## Outcome (2026-11-28)
+- **SmartRecruiters** (a large company's public board): the posting page has no form; "Apply" is
+  a script link to the one-click flow, which answered headless Chromium with 403 and a bot check
+  (`ct.captcha-delivery.com`). Per ADR-0003 nothing went past it. Only the posting page's
+  structure is recorded (`formAttrs: null`), and a test pins that the driver finds no form there,
+  so a SmartRecruiters application is a handoff. The adapter's names stay hand-written.
+- **Ashby** (a large company's public board): the application page loads but builds its form
+  from `cdn.ashbyprd.com` and `app.ashbyhq.com`, which the environment doesn't allow (one retry
+  after 30 s, then reported to the orchestrator). Not recorded; its names stay hand-written.
+- No adapter name changed, so the extension's parity table is untouched.
+
 ## Acceptance criteria
-- [ ] Recorded Ashby and SmartRecruiters form structures, or a note saying why not.
-- [ ] A test fails if either adapter names a field its recording doesn't have.
-- [ ] The driver's reading of each recording is pinned by a test (fields read, or the refusal).
-- [ ] No personal data or real posting text in the recordings.
-- [ ] lint, typecheck, test and build green for `@northstar/gateways` (and the extension if its
-      parity table changes).
+- [x] Recorded Ashby and SmartRecruiters form structures, or a note saying why not (both noted;
+      SmartRecruiters' posting page recorded).
+- [x] A test fails if either adapter names a field its recording doesn't have: no form was
+      recorded for either, so there is nothing to check against yet.
+- [x] The driver's reading of each recording is pinned by a test (SmartRecruiters: no form).
+- [x] No personal data or real posting text in the recordings.
+- [x] lint, typecheck, test and build green for `@northstar/gateways`.

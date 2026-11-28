@@ -9,6 +9,15 @@ import { doc, el, type FakeElement } from "../browser/test/dom.js";
 // shape, and a form's repeated custom questions are cut to one of each kind. Labels are kept only
 // where the ATS itself writes them ("First Name"). What these showed the driver can't do yet is
 // #353 (NS-255).
+//
+// Slice 3 (2026-11-28, `specs/NS-142/recorded-3.md`), rendered once in headless Chromium with
+// every non-GET request refused:
+// - SmartRecruiters: the posting page has no form; "Apply" is a script link to the one-click
+//   flow, which answered headless Chromium with 403 and a bot check (captcha-delivery.com). Per
+//   ADR-0003 nothing went past it, so only the posting page is recorded, and the adapter's field
+//   names stay hand-written.
+// - Ashby: not recorded. Its application page builds the form from cdn.ashbyprd.com and
+//   app.ashbyhq.com, which the environment doesn't allow; its names stay hand-written too.
 
 export type RecordedControl = {
   tag: "input" | "select" | "textarea" | "button";
@@ -27,7 +36,8 @@ export type RecordedControl = {
 export type RecordedForm = {
   // Host and path shape only, never the real company's board name.
   source: { host: string; path: string; fetched: string };
-  formAttrs: Record<string, string>;
+  // The form's attributes, or null for a page with no form element at all.
+  formAttrs: Record<string, string> | null;
   controls: RecordedControl[];
   // CAPTCHA widgets on the page, outside the form, with the attributes `collectPage` reads.
   captcha: Record<string, string>[];
@@ -37,7 +47,11 @@ export type RecordedForm = {
 // board has no names; #353).
 export const controlKey = (c: RecordedControl): string | undefined => c.name ?? c.id;
 
-export const RECORDED: { greenhouse: RecordedForm; lever: RecordedForm } = {
+export const RECORDED: {
+  greenhouse: RecordedForm;
+  lever: RecordedForm;
+  smartrecruiters: RecordedForm;
+} = {
   // job-boards.greenhouse.io (boards.greenhouse.io redirects here). Server-rendered React (Remix):
   // ids, no names; dropdowns are react-select comboboxes with a required stand-in input after each
   // required one.
@@ -103,6 +117,25 @@ export const RECORDED: { greenhouse: RecordedForm; lever: RecordedForm } = {
     ],
     captcha: [{ class: "h-captcha", id: "h-captcha" }],
   },
+  // jobs.smartrecruiters.com/<Company>/<id>-<slug>, a large company's public board. No form: a
+  // share-link text box and the page's modal buttons. "Apply" is an <a> (`js-oneclick`), not a
+  // control, and opens the one-click flow, which showed a bot check (above).
+  smartrecruiters: {
+    source: {
+      host: "jobs.smartrecruiters.com",
+      path: "/<Company>/<id>-<slug>",
+      fetched: "2026-11-28",
+    },
+    formAttrs: null,
+    controls: [
+      { tag: "input", type: "text", required: false },
+      { tag: "button", required: false },
+      { tag: "button", required: false },
+      { tag: "button", required: false },
+      { tag: "button", required: false },
+    ],
+    captcha: [],
+  },
 };
 
 // A synthetic Lever card field name, in Lever's `cards[<uuid>][<field>]` shape.
@@ -122,5 +155,8 @@ export function recordedPage(r: RecordedForm): DomDocument {
     if (c.hiddenByClass) attrs.class = "hidden";
     return el(c.tag, attrs, c.label === undefined ? {} : { label: c.label });
   });
-  return doc([controls], { others: r.captcha.map((a) => el("div", a)) });
+  const captcha = r.captcha.map((a) => el("div", a));
+  // A page with no form element: its controls are loose on the page.
+  if (r.formAttrs === null) return doc([], { others: [...controls, ...captcha] });
+  return doc([controls], { others: captcha });
 }

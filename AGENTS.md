@@ -1006,7 +1006,11 @@ Exists now:
   (`src/apply/test/recorded.ts`: structure only, all content synthetic; `recorded.test.ts`).
   Greenhouse's current board has ids and no names, react-select dropdowns, and a `method="get"` form that its own
   script sends; Lever's
-  only `type="submit"` is a hidden hCaptcha button. Since NS-255 the driver refuses both (below). Ashby's page is JavaScript-only and SmartRecruiters wasn't fetched, so both
+  only `type="submit"` is a hidden hCaptcha button. Since NS-255 the driver refuses both (below). Since NS-142
+  slice 3 the SmartRecruiters posting page is recorded too: it has no form (its one-click apply flow
+  answered headless Chromium with a bot check, which nothing went past), and a test pins that the
+  driver finds no form there, so it hands off. Ashby's form needs `cdn.ashbyprd.com` and
+  `app.ashbyhq.com`, which the environment doesn't allow, so Ashby's and SmartRecruiters' names
   stay hand-written, as do all confirmation markers (recording one needs a submission). The package schema and its hash
   are in `packages/domain` (`apply-package.ts`). Its tests run on fakes and, through `dbPorts`,
   on the real write paths: `@northstar/db/testing` exports `createTestDb` and friends for that.
