@@ -81,6 +81,11 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
   the call never went out, and it is retryable.
 - Wrap untrusted text with `untrustedBlock(kind, text)` in the route's volatile part.
 - Only `packages/llm` imports `@anthropic-ai/sdk`. Agents call the gateway, never the SDK.
+- Job embeddings (NS-129, ADR-0033) go only through `createEmbedClient` (`src/embed/`): OpenAI,
+  one endpoint, plain `fetch`, behind `agent:job-embed`, the `openai` breaker and the spend cap,
+  off unless `JOB_EMBEDDINGS=on`. Send it only `embeddingText(job)` (`packages/sources`): employer
+  text, never anything of Paul's. A new field there needs ADR-0033 amended. An embedding only
+  suggests a duplicate; `findDuplicate` stays the only merge.
 - Default model `claude-opus-5-5` with adaptive thinking and an explicit `effort` per route.
   A cheaper tier needs an eval result and an amendment to ADR-0006.
 - Every agent result is a structured output validated with its Zod schema on arrival. Check
