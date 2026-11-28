@@ -241,9 +241,8 @@ Exists now:
     evidence lacks what Paul did or how it turned out), recorded from the real model at 8/8.
     When on, a failing draft becomes `needs_human`.
   - Since NS-265 the eval's grader checks quotes against a story's parts without its title
-    (`checkText`), as the app does; the v2 recordings then score 6/8 (two quote a title). Prompt v3
-    adds "never quote a story's title". It waits for Paul's re-record on branch
-    `ns-265-eval-titles`, and replay stays red until then.
+    (`checkText`), as the app does; the v2 recordings scored 6/8 under it (two quoted a title).
+    Prompt v3 adds "never quote a story's title", recorded from the real model at 8/8.
 
   It has no caller, CLI or storage yet.
 - Reply drafts (NS-166, RPL-001) in `packages/profile/src/reply/`:
