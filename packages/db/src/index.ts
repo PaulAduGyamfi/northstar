@@ -21,6 +21,20 @@ export {
   recordAlertHeld,
   recordFreshAlert,
 } from "./alert-write.js";
+// Answer drafts filed with the Gate and banked once approved (NS-281 slice 3).
+export * as answerDraftSchema from "./answer-draft-schema.js";
+export {
+  type AnswerDraftInput,
+  APPROVED_ANSWER_LIMIT,
+  type ApprovedAnswerDraft,
+  type BankDraftError,
+  bankApprovedAnswer,
+  type FiledAnswer,
+  fileAnswerDraft,
+  readAnswerDraft,
+  readApprovedAnswerDrafts,
+  type StoredAnswerDraft,
+} from "./answer-draft-write.js";
 export * as answerSchema from "./answer-schema.js";
 export { BANK_KINDS, type BankKind } from "./answer-schema.js";
 export {

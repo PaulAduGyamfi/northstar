@@ -106,6 +106,13 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `answer-write.ts`. An answer is stored only with a live Gate approval by Paul (kind `answer`,
   subject `answer:<id>`, `answerContentSha256`). The answer text is Paul's words: never copy it
   into events, spans, logs or fixtures.
+  Answer drafts (NS-281 slice 3a, migrations 0114–0115) are `answer_draft`, one per Gate `answer`
+  request and per bank answer id, append-only (a trigger), written only through
+  `answer-draft-write.ts` (`fileAnswerDraft`: `requestApproval` and the insert in one transaction).
+  Its foreign key names the request's id, candidate, kind and content hash
+  (`answerContentSha256`), and the application is the candidate's own. The texts are drafted from
+  Paul's stories and atoms: never in an event, span or error. Bank one only through
+  `bankApprovedAnswer`, which calls `saveApprovedAnswer` (the approval verified again).
 - Resilience state (NS-126, ADR-0007) is `dependency_breaker` (one row per dependency, written
   only through `breaker-write.ts`) and `kill_switch` (append-only, written only through
   `kill-switch-write.ts`; the newest row per subsystem is its state, no row means on). Breaker

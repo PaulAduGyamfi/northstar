@@ -42,7 +42,18 @@ replies, only while `FOLLOW_UP_NUDGES=on` (default off):
 - A failed read, bad headers, a no-reply sender or a refused filing is a `mail.nudge` dead letter;
   Gmail not answering stops the step with no letter. Nothing is sent.
 
-Slice 3: **answer drafts** (ANS-004), pending the scope question below.
+Slice 3: **answer drafts** (ANS-004, ANS-005, ANS-006), in three PRs:
+- 3a (packages/db, migrations 0114–0115): append-only `answer_draft`, one row per Gate `answer`
+  request (its foreign key pins the request's id, kind and hash). `fileAnswerDraft` files the
+  request (subject `answer:<answerId>`, `answerContentSha256`, no policy facts) and stores the
+  draft in one transaction; `readAnswerDraft`; `readApprovedAnswerDrafts`; `bankApprovedAnswer`
+  through `saveApprovedAnswer`.
+- 3b (apps/api, apps/web): the Queue shows an answer's stored draft, and an `answer` request with
+  no stored draft is never approved.
+- 3c (packages/pipeline, apps/worker): when the package step leaves a required question
+  `no_bank_answer`, `draftAnswer` drafts it (the `agent:answer-draft` switch plus a setting, both off
+  by default) and files it; approved drafts are banked, so the next round reuses them. A drafted
+  answer always counts as `new` for the Gate's policy.
 
 ## Acceptance criteria
 - [ ] `readApprovedReplies` lists only approved, effective, not undone, not withdrawn, unwritten
@@ -52,6 +63,14 @@ Slice 3: **answer drafts** (ANS-004), pending the scope question below.
 - [ ] Run twice: a second run writes nothing new (the reader drops recorded decisions; the ledger
       answers `already_created`).
 - [ ] `funnel drafts` is wired in `bin.ts` and named in AGENTS.md and the README.
+
+Slice 3a:
+- [ ] A filed draft is a pending `answer` request with no policy facts, and its stored row is what
+      Paul approves; filing it twice stores nothing.
+- [ ] The table refuses an update, a delete, a truncate, a row no request pins and another
+      candidate's application.
+- [ ] An approved draft past its undo window is listed, banked once, then listed no more; a
+      withdrawn or pending one is never banked.
 
 Slice 2:
 - [ ] Off by default: `runNudges` reads, builds and files nothing (fakes); `FOLLOW_UP_NUDGES`
