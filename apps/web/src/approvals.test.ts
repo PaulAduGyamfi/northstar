@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   batchUndoLabel,
+  changedAnswers,
+  editableAnswers,
   editProblem,
   editResultWords,
   KIND_WORDS,
+  MAX_ANSWER,
   MAX_REPLY_BODY,
+  PackageBody,
+  packageEditBody,
+  packageEditProblem,
+  packageEditResultWords,
+  packageLines,
   QueueBody,
   replyLines,
   secondsLeft,
@@ -222,6 +230,81 @@ describe("editResultWords", () => {
       "Northstar couldn't accept that text. Check it and try again.",
       "That didn't save. Try again.",
       "That edit couldn't be saved.",
+    ]);
+  });
+});
+
+describe("application package answers (NS-203 slice 5)", () => {
+  const ANSWERS = [
+    { fieldName: "question_1", label: "Why us?", value: "I like what you build.", editable: true },
+    { fieldName: "question_2", label: "Relocate?", value: "Yes", editable: false },
+  ];
+
+  it("parses the API's answers", () => {
+    expect(PackageBody.safeParse({ answers: ANSWERS }).success).toBe(true);
+  });
+
+  it("shows one line per answer and says a choice can't be edited here", () => {
+    expect(packageLines(ANSWERS)).toEqual([
+      "Why us?: I like what you build.",
+      "Relocate?: Yes (a choice: not editable here)",
+    ]);
+  });
+
+  it("says when Paul edited the answers, and when a package fills none", () => {
+    expect([packageLines(ANSWERS, true).at(-1), packageLines([])]).toEqual([
+      "Edited by you: you changed these answers after they were filled.",
+      ["This application fills no questions."],
+    ]);
+  });
+
+  it("lists only the text answers for editing", () => {
+    expect(editableAnswers(ANSWERS).map((a) => a.fieldName)).toEqual(["question_1"]);
+  });
+
+  it("keeps only editable answers whose text changed", () => {
+    const drafts = new Map([
+      ["question_1", "I like what your team builds."],
+      ["question_2", "No"],
+    ]);
+    expect([...changedAnswers(ANSWERS, drafts)]).toEqual([
+      ["question_1", "I like what your team builds."],
+    ]);
+  });
+
+  it("sends an answer to a field named __proto__ like any other", () => {
+    const answers = [{ fieldName: "__proto__", label: "Why?", value: "Old.", editable: true }];
+    const changed = changedAnswers(answers, new Map([["__proto__", "New."]]));
+    expect(JSON.parse(packageEditBody("r1", changed))).toEqual(
+      JSON.parse('{"requestId":"r1","fields":{"__proto__":"New."}}'),
+    );
+  });
+
+  it("sends nothing unchanged, empty or too long", () => {
+    expect([
+      packageEditProblem(new Map()),
+      packageEditProblem(new Map([["question_1", "  "]])),
+      packageEditProblem(new Map([["question_1", "x".repeat(MAX_ANSWER + 1)]])),
+      packageEditProblem(new Map([["question_1", "Fine."]])),
+    ]).toEqual([
+      "Nothing changed, so there's nothing to save.",
+      "An answer can't be empty.",
+      "An answer is too long: at most 10,000 characters.",
+      null,
+    ]);
+  });
+
+  it("words a package edit's answer, a second click's not_pending as already done", () => {
+    expect([
+      packageEditResultWords(200, undefined),
+      packageEditResultWords(409, "not_pending"),
+      packageEditResultWords(400, "invalid_input"),
+      packageEditResultWords(413, "too_large"),
+    ]).toEqual([
+      "Saved. Your edited application is waiting for your approval, every answer marked new.",
+      "That application isn't waiting any more, so nothing changed.",
+      "Northstar couldn't accept those answers. Check them and try again.",
+      "Those answers are too long to send at once. Save fewer at a time.",
     ]);
   });
 });

@@ -198,3 +198,85 @@ export function editResultWords(status: number, code: unknown): string {
   if (status >= 500) return "That didn't save. Try again.";
   return "That edit couldn't be saved.";
 }
+
+// A waiting application package's answers (NS-203 slice 5, the API's GET /approvals/package):
+// each filled field's form label, its value and whether Paul may edit it here.
+export const PackageBody = z.object({
+  answers: z.array(
+    z.object({
+      fieldName: z.string(),
+      label: z.string(),
+      value: z.string(),
+      editable: z.boolean(),
+    }),
+  ),
+});
+export type PackageAnswer = z.infer<typeof PackageBody>["answers"][number];
+
+// The package schema's own limit on one text answer (packages/domain, apply-package.ts).
+export const MAX_ANSWER = 10_000;
+
+// What Paul reads before he approves a package, one line per answer, as plain text. A choice
+// field says it can't be edited here (its value must be one of the form's own options).
+export function packageLines(answers: PackageAnswer[], edited = false): string[] {
+  if (answers.length === 0) return ["This application fills no questions."];
+  const lines = answers.map(
+    (a) => `${a.label}: ${a.value}${a.editable ? "" : " (a choice: not editable here)"}`,
+  );
+  if (edited) lines.push("Edited by you: you changed these answers after they were filled.");
+  return lines;
+}
+
+// The answers Paul can edit here: text answers only, in the package's order.
+export function editableAnswers(answers: PackageAnswer[]): PackageAnswer[] {
+  return answers.filter((a) => a.editable);
+}
+
+// The answers Paul changed, by field name: only editable ones whose text differs. Maps, so a field
+// the employer named like an Object property ("__proto__") stays data.
+export function changedAnswers(
+  answers: PackageAnswer[],
+  drafts: ReadonlyMap<string, string>,
+): Map<string, string> {
+  const changed = new Map<string, string>();
+  for (const a of answers) {
+    const draft = drafts.get(a.fieldName);
+    if (a.editable && draft !== undefined && draft !== a.value) changed.set(a.fieldName, draft);
+  }
+  return changed;
+}
+
+// Why a package edit can't be sent, or null when it can. Nothing goes out for these.
+export function packageEditProblem(changed: ReadonlyMap<string, string>): string | null {
+  const values = [...changed.values()];
+  if (values.length === 0) return "Nothing changed, so there's nothing to save.";
+  if (values.some((v) => v.trim().length === 0)) return "An answer can't be empty.";
+  if (values.some((v) => v.length > MAX_ANSWER)) {
+    return `An answer is too long: at most ${MAX_ANSWER.toLocaleString("en-US")} characters.`;
+  }
+  return null;
+}
+
+// The edit's request body. Object.fromEntries defines each field as the object's own property,
+// so a field named "__proto__" is sent like any other.
+export function packageEditBody(requestId: string, changed: ReadonlyMap<string, string>): string {
+  return JSON.stringify({ requestId, fields: Object.fromEntries(changed) });
+}
+
+// A package edit's answer in plain words, like editResultWords for a reply.
+export function packageEditResultWords(status: number, code: unknown): string {
+  if (status === 200) {
+    return "Saved. Your edited application is waiting for your approval, every answer marked new.";
+  }
+  if (status === 401) return "You've been signed out. Sign in again to edit.";
+  if (code === "not_pending") return "That application isn't waiting any more, so nothing changed.";
+  if (code === "unchanged") return "Nothing changed, so there's nothing to save.";
+  if (code === "not_editable") return "That application can't be edited.";
+  if (code === "not_found") return "That application is gone. Reload the page.";
+  if (status === 413) return "Those answers are too long to send at once. Save fewer at a time.";
+  if (code === "invalid_body" || code === "invalid_input") {
+    return "Northstar couldn't accept those answers. Check them and try again.";
+  }
+  if (status >= 500) return "That didn't save. Try again.";
+  return "That edit couldn't be saved.";
+}

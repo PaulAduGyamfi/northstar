@@ -12,7 +12,7 @@ import {
 } from "./approval-write.js";
 import type { Db } from "./db.js";
 import { saveJobForm } from "./job-form-write.js";
-import { editPackage } from "./package-edit.js";
+import { editPackage, readPackageAnswers } from "./package-edit.js";
 import { candidate } from "./schema.js";
 import { type PackageFixture, packageFixture } from "./test/package-fixture.js";
 import { createTestDb } from "./test/pglite.js";
@@ -246,5 +246,60 @@ describe("editRequest", () => {
         packageFacts: facts,
       }),
     ).toEqual({ ok: false, error: { kind: "NotEditable" } });
+  });
+});
+
+describe("readPackageAnswers", () => {
+  it("gives each filled field's form label, value and that a text answer is editable", async () => {
+    const old = await filed();
+    expect(await readPackageAnswers(db, candidateId, old)).toEqual([
+      {
+        fieldName: "question_1",
+        label: "Anything else?",
+        value: "I like building search tools.",
+        editable: true,
+      },
+    ]);
+  });
+
+  it("marks a choice field as not editable", async () => {
+    const old = await filed({ question_1: "Yes" });
+    const saved = await saveJobForm(db, {
+      candidateId,
+      jobId: fixture.jobId,
+      ats: "greenhouse",
+      questions: [
+        {
+          fieldName: "question_1",
+          label: "Are you open to relocation?",
+          required: true,
+          kind: "select",
+          choices: [
+            { label: "Yes", value: "1" },
+            { label: "No", value: "0" },
+          ],
+          group: 0,
+        },
+      ],
+    });
+    if (saved.status !== "stored") throw new Error("form not saved");
+    expect(await readPackageAnswers(db, candidateId, old)).toEqual([
+      {
+        fieldName: "question_1",
+        label: "Are you open to relocation?",
+        value: "Yes",
+        editable: false,
+      },
+    ]);
+  });
+
+  it("finds nothing for another candidate's request or a bad id", async () => {
+    const old = await filed();
+    const [other] = await db.insert(candidate).values({ displayName: "Other" }).returning();
+    if (!other) throw new Error("no candidate");
+    expect([
+      await readPackageAnswers(db, CandidateId.parse(other.id), old),
+      await readPackageAnswers(db, candidateId, "not-a-uuid"),
+    ]).toEqual([null, null]);
   });
 });

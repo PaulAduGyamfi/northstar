@@ -2,6 +2,7 @@ import type {
   BatchOutcome,
   EditError,
   EditResult,
+  PackageAnswer,
   PendingApproval,
   ReasonRequired,
   UndoError,
@@ -33,7 +34,35 @@ export type ApprovalPorts = {
   // Paul's edit of a waiting reply's body (NS-203): the Gate withdraws the old request and files
   // one pinning the edited body.
   editReply: (input: { requestId: string; body: string }) => Promise<Result<EditResult, EditError>>;
+  // A waiting package's answers and Paul's edit of them (NS-203 slice 5): the Gate withdraws the
+  // old request and files the edited package, every field counting as new.
+  readPackage: (requestId: string) => Promise<PackageAnswer[] | null>;
+  editPackage: (input: {
+    requestId: string;
+    fields: Record<string, string>;
+  }) => Promise<Result<EditResult, EditError>>;
 };
+
+const PackageAnswers = z.object({
+  answers: z.array(
+    z.object({
+      fieldName: z.string(),
+      label: z.string(),
+      value: z.string(),
+      editable: z.boolean(),
+    }),
+  ),
+});
+
+// An edit names at most this many fields (a form's own bound, job-form-write.ts) and each value at
+// most the package schema's 10,000 characters; the Gate's own checks decide the rest. The body
+// itself is capped at EDIT_PACKAGE_MAX_BODY, room for several full answers in any script; a larger
+// edit is a 413, which the Queue words as "save fewer at a time".
+const MAX_EDITED_FIELDS = 200;
+const EDIT_PACKAGE_MAX_BODY = 256 * 1024;
+const EditedFields = z
+  .record(z.string().min(1).max(200), z.string().min(1).max(10_000))
+  .refine((fields) => Object.keys(fields).length <= MAX_EDITED_FIELDS);
 
 // What Paul sees of a reply before he approves it: who it goes to (and whether that is another
 // domain than the sender's), the subject and the body, never the thread headers.
@@ -266,5 +295,49 @@ export function approvalEndpoints(ports: ApprovalPorts): AnyEndpoint[] {
     },
   });
 
-  return [list, decide, undo, reply, editReply];
+  // A waiting package's answers (NS-203 slice 5): labels, values and which ones Paul may edit,
+  // never the contact details, files or apply URL.
+  const packageAnswers = endpoint({
+    method: "GET",
+    path: "/approvals/package",
+    auth: "session",
+    input: z.object({ requestId: z.uuid() }),
+    output: PackageAnswers,
+    handler: async ({ requestId }) => {
+      const found = await ports.readPackage(requestId);
+      if (found === null) return { ok: false, status: 404, error: "not_found" };
+      // Field by field: nothing else from the stored package reaches the page.
+      return {
+        ok: true,
+        body: {
+          answers: found.map((a) => ({
+            fieldName: a.fieldName,
+            label: a.label,
+            value: a.value,
+            editable: a.editable,
+          })),
+        },
+      };
+    },
+  });
+
+  // Paul edits a waiting package's text answers before approving it (NS-203 slice 5, APR-002).
+  const editPackage = endpoint({
+    method: "POST",
+    path: "/approvals/edit-package",
+    auth: "session",
+    maxBodyBytes: EDIT_PACKAGE_MAX_BODY,
+    input: z.object({ requestId: z.uuid(), fields: EditedFields }),
+    output: z.object({ requestId: z.string() }),
+    handler: async ({ requestId, fields }) => {
+      const r = await ports.editPackage({ requestId, fields });
+      if (!r.ok) {
+        const e = EDIT_ERRORS[r.error.kind];
+        return { ok: false, status: e.status, error: e.error };
+      }
+      return { ok: true, body: { requestId: r.value.requestId } };
+    },
+  });
+
+  return [list, decide, undo, reply, editReply, packageAnswers, editPackage];
 }

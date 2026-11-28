@@ -301,8 +301,12 @@ Exists now:
   `requestPackageApproval`) with no bank claims, so every field counts as `new` and no policy can
   approve the edit, and files it through `editRequest` (which takes a package only with those
   facts) under the same subject, storing the edited package behind the new request. Migration 0106
-  adds `application_package` to `approval_edit`'s trigger allowlist. No API route or Queue view
-  for it yet.
+  adds `application_package` to `approval_edit`'s trigger allowlist. Since slice 5 the Queue
+  serves it: the API's `GET /approvals/package` (session only; `readPackageAnswers`: each filled
+  field's form label, value and whether it is editable, never the contact, files or apply URL) and
+  `POST /approvals/edit-package` (session only, `editPackage`), and the web app's "Show the
+  answers" on a waiting application with Edit for its text answers (`packageLines`,
+  `changedAnswers`, `packageEditProblem`, `packageEditResultWords` in `src/approvals.ts`).
   Since slice 3 also follow-up nudges (RPL-004), plain code:
   - `nudgesDue` (`packages/domain`, `follow-up.ts`) picks the applications in `applied`
     (`submitted`, `confirmed`) or `interview` (`in_process`) whose newest verified-sender linked

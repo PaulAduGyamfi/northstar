@@ -4,14 +4,23 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   batchUndoLabel,
+  changedAnswers,
   DecideBody,
   EDITED_MARK,
+  editableAnswers,
   editProblem,
   editResultWords,
   KIND_WORDS,
+  MAX_ANSWER,
   MAX_BATCH,
   MAX_REPLY_BODY,
   type Outcome,
+  type PackageAnswer,
+  PackageBody,
+  packageEditBody,
+  packageEditProblem,
+  packageEditResultWords,
+  packageLines,
   type QueueItem,
   ReplyBody,
   replyLines,
@@ -223,6 +232,9 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
             {item.kind === "email_reply" ? (
               <ReplyPreview requestId={item.requestId} isEdited={item.edited} />
             ) : null}
+            {item.kind === "application_package" ? (
+              <PackagePreview requestId={item.requestId} isEdited={item.edited} />
+            ) : null}
           </li>
         ))}
       </ul>
@@ -394,6 +406,138 @@ function ReplyPreview({ requestId, isEdited }: { requestId: string; isEdited: bo
     <p>
       <button type="button" className="secondary" onClick={() => void show()}>
         Show the reply
+      </button>
+      {error ? <span role="status"> {error}</span> : null}
+    </p>
+  );
+}
+
+// "Show the answers" for one application package (NS-203 slice 5): fetched only when Paul asks,
+// shown as plain text. "Edit" lets him change text answers; saving files the edit with the Gate
+// (POST /approvals/edit-package), which withdraws this request and files the edited package, every
+// answer then counting as new. Choice answers and the contact, resume and posting stay as filed.
+function PackagePreview({ requestId, isEdited }: { requestId: string; isEdited: boolean }) {
+  const router = useRouter();
+  const [answers, setAnswers] = useState<PackageAnswer[] | null>(null);
+  const [drafts, setDrafts] = useState<ReadonlyMap<string, string> | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function show() {
+    setError(null);
+    try {
+      const res = await apiFetch(
+        `/api/approvals/package?requestId=${encodeURIComponent(requestId)}`,
+      );
+      if (res.status === 404) {
+        setError("No package is stored for this application. Reject it to clear it.");
+        return;
+      }
+      const parsed = res.ok ? PackageBody.safeParse(await res.json()) : null;
+      if (!parsed?.success) {
+        setError("The answers couldn't be read. Try again.");
+        return;
+      }
+      setAnswers(parsed.data.answers);
+    } catch (e) {
+      setError(isTimeout(e) ? "No answer in time. Try again." : "Couldn't reach Northstar.");
+    }
+  }
+  async function save(original: PackageAnswer[], edited: ReadonlyMap<string, string>) {
+    // Checked here first, so an empty or unchanged edit never reaches the Gate.
+    const changed = changedAnswers(original, edited);
+    const problem = packageEditProblem(changed);
+    if (problem !== null) {
+      setError(problem);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await apiFetch("/api/approvals/edit-package", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: packageEditBody(requestId, changed),
+      });
+      const answer: unknown = await res.json().catch(() => null);
+      const code =
+        answer !== null && typeof answer === "object" && "error" in answer
+          ? answer.error
+          : undefined;
+      setError(packageEditResultWords(res.status, code));
+      // Saved, or already gone (a second click): the queue reloads to show the edited request.
+      if (res.ok || code === "not_pending") {
+        setDrafts(null);
+        setAnswers(null);
+        router.refresh();
+      }
+    } catch (e) {
+      setError(isTimeout(e) ? TIMED_OUT_MESSAGE : "Couldn't reach Northstar.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  if (answers !== null && drafts !== null) {
+    return (
+      <div className="muted">
+        <p>Edit the text answers (choices, contact details and the resume stay as they are)</p>
+        {editableAnswers(answers).map((a) => (
+          <label key={a.fieldName}>
+            {a.label}
+            <textarea
+              value={drafts.get(a.fieldName) ?? a.value}
+              maxLength={MAX_ANSWER}
+              rows={4}
+              style={{ width: "100%" }}
+              onChange={(e) => setDrafts(new Map(drafts).set(a.fieldName, e.target.value))}
+            />
+          </label>
+        ))}
+        <button
+          type="button"
+          className="primary"
+          disabled={saving}
+          onClick={() => void save(answers, drafts)}
+        >
+          Save the edit
+        </button>{" "}
+        <button
+          type="button"
+          className="secondary"
+          disabled={saving}
+          onClick={() => setDrafts(null)}
+        >
+          Cancel
+        </button>
+        {error ? <span role="status"> {error}</span> : null}
+      </div>
+    );
+  }
+  if (answers !== null) {
+    const lines = packageLines(answers, isEdited);
+    return (
+      <div className="muted">
+        {lines.map((line, i) => (
+          // Lines are in a fixed order and never reorder, so the index is a stable key.
+          // biome-ignore lint/suspicious/noArrayIndexKey: fixed order, see above
+          <p key={i} style={{ whiteSpace: "pre-wrap" }}>
+            {line}
+          </p>
+        ))}
+        {answers.some((a) => a.editable) ? (
+          <button type="button" className="secondary" onClick={() => setDrafts(new Map())}>
+            Edit
+          </button>
+        ) : null}{" "}
+        <button type="button" className="secondary" onClick={() => setAnswers(null)}>
+          Hide the answers
+        </button>
+      </div>
+    );
+  }
+  return (
+    <p>
+      <button type="button" className="secondary" onClick={() => void show()}>
+        Show the answers
       </button>
       {error ? <span role="status"> {error}</span> : null}
     </p>

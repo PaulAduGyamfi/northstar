@@ -1,10 +1,12 @@
 import {
   type Db,
   decideApprovals,
+  editPackage,
   editReplyDraft,
   listPendingApprovals,
   missingReplyDrafts,
   otherDomainReplies,
+  readPackageAnswers,
   readReplyDraft,
   undoDecision,
 } from "@northstar/db";
@@ -37,5 +39,8 @@ export function dbApprovalPorts(db: Db, candidateId: () => Promise<CandidateId>)
       otherDomainReplies(db, await candidateId(), requestIds),
     // The server's candidate comes last here too.
     editReply: async (input) => editReplyDraft(db, { ...input, candidateId: await candidateId() }),
+    readPackage: async (requestId) => readPackageAnswers(db, await candidateId(), requestId),
+    // The server's candidate comes last here too.
+    editPackage: async (input) => editPackage(db, { ...input, candidateId: await candidateId() }),
   };
 }

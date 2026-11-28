@@ -434,7 +434,7 @@ export {
 // The Gate derives a package's policy facts itself (NS-213).
 export { type BankClaim, requestPackageApproval } from "./package-approval.js";
 // Paul's edit of a waiting application package (NS-203 slice 4).
-export { editPackage } from "./package-edit.js";
+export { editPackage, type PackageAnswer, readPackageAnswers } from "./package-edit.js";
 export { type PackageInputs, readPackageInputs, readPackageRounds } from "./package-read.js";
 // The Gate's settled package outcomes for the worker's signal relay (NS-213 slice 2).
 export {

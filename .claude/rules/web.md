@@ -56,6 +56,12 @@ are CSS variables in `apps/web/app/globals.css`.
   An edited request (NS-203 slice 3, the API's `edited`) reads "Edited by you" (`EDITED_MARK`), and
   its reply view says so in place of the cites line (`EDITED_LINE`): never claim the first draft's
   cites back Paul's own text.
+  An "Application" in the Queue (NS-203 slice 5) shows its answers only when Paul asks ("Show the
+  answers", the API's `GET /approvals/package`), as plain text through `packageLines`: labels and
+  values only, never the contact details, resume or apply URL. Its Edit changes only text answers
+  (a choice field says it isn't editable here), sends only the changed ones (`changedAnswers`)
+  through `POST /approvals/edit-package` after `packageEditProblem`, and words the result with
+  `packageEditResultWords`; the edited package then counts every answer as new.
 - The run inspector (NS-154) fetches a feed line's run (`GET /feed/run`) only when Paul asks, and
   shows it as plain text through `src/run.ts` (`callLine`, `totalsLine`).
 - Pipeline filters (NS-207) live in the URL (`parseFilters`, `filterQuery` in `src/pipeline.ts`)
