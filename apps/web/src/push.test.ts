@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { disablePush, enablePush, keyBytes, type PushBrowser, pushStatusLine } from "./push";
+import { disablePush, enablePush, type PushBrowser, pushStatusLine, vapidKeyBytes } from "./push";
 
 // "Turn on notifications" (NS-193 slice 2) with the browser and API faked. Synthetic keys only.
 
@@ -158,9 +158,9 @@ describe("pushStatusLine (NS-193 slice 2)", () => {
   });
 });
 
-describe("keyBytes", () => {
+describe("vapidKeyBytes", () => {
   it("decodes the base64url key into its 65 bytes", () => {
-    const bytes = keyBytes(PUBLIC_KEY);
+    const bytes = vapidKeyBytes(PUBLIC_KEY);
     expect([bytes.length, bytes[0]]).toEqual([65, 4]);
   });
 });

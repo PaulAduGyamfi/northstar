@@ -25,7 +25,7 @@ const KeyBody = z.object({
 export type PushKey = z.infer<typeof KeyBody>;
 
 // The VAPID key as the bytes pushManager.subscribe wants.
-export function keyBytes(b64u: string): Uint8Array<ArrayBuffer> {
+export function vapidKeyBytes(b64u: string): Uint8Array<ArrayBuffer> {
   const base64 = b64u.replace(/-/g, "+").replace(/_/g, "/");
   const binary = atob(base64 + "=".repeat((4 - (base64.length % 4)) % 4));
   const bytes = new Uint8Array(new ArrayBuffer(binary.length));
@@ -114,7 +114,7 @@ export async function enablePush(b: PushBrowser): Promise<PushOutcome> {
     subscription = await registration.pushManager.subscribe({
       // Every push shows a notification (the service worker's fixed words).
       userVisibleOnly: true,
-      applicationServerKey: keyBytes(key.publicKey),
+      applicationServerKey: vapidKeyBytes(key.publicKey),
     });
   } catch {
     return { ok: false, message: "This browser couldn't subscribe. Try again." };
