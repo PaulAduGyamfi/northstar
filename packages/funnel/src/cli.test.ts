@@ -155,6 +155,24 @@ describe("funnel cli", () => {
     expect([await main(d), runs, printed[0]?.startsWith("usage:")]).toEqual([1, 0, true]);
   });
 
+  it("prep passes the calendar flag only when it is given, and refuses any other flag", async () => {
+    const seen: boolean[] = [];
+    const run = async (argv: string[]) => {
+      const { d } = deps(argv);
+      d.runPrep = async ({ busyFromCalendar }) => {
+        seen.push(busyFromCalendar);
+        throw new Error("stop here");
+      };
+      return main(d);
+    };
+    expect([
+      await run(["prep"]),
+      await run(["prep", "--busy-from-calendar"]),
+      await run(["prep", "--busy-from-calendar", "now"]),
+      seen,
+    ]).toEqual([1, 1, 1, [false, true]]);
+  });
+
   it("backfill prints the counts and cost and records a counts-only event", async () => {
     const { d, printed, events } = deps(["backfill"]);
     expect(await main(d)).toBe(0);

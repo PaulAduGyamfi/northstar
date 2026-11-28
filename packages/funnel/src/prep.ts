@@ -1,13 +1,14 @@
 import type { ApprovedPrepPlan, FiledPrepPlan, StoredInterview } from "@northstar/db";
-import type { Result } from "@northstar/domain";
+import { PREP_DAYS, type Result } from "@northstar/domain";
 import type { PrepRefusal, PrepWritten } from "@northstar/gateways";
 import type { PrepConfig } from "./config.js";
 import { errorName, type LetterRow, letterKey, letterState } from "./inbox.js";
 
 // `funnel prep` (NS-241 slice 5, CAL-003, ADR-0031): the command Paul runs to plan prep for his
 // confirmed interviews, file each plan with the Approval Gate, and write the plans he approved
-// onto his Northstar calendar. Google consent is asked on this run only, and only when there is
-// something approved to write (#400: no stored token). Plain code over ports.
+// onto his Northstar calendar. Google consent is asked on this run only (#400: no stored token):
+// the writer's only when there is something approved to write, and, with --busy-from-calendar
+// (slice 7), the read-only one only when something is about to be planned. Plain code over ports.
 
 // Why a plan went to Stuck work: a write that threw, or a refusal that no later run can clear.
 export type PrepLetterReason =
@@ -58,6 +59,9 @@ export type PrepRunReport = {
   scopeMissing: boolean;
   // Why writing stopped early (consent or Google not answering), by the error's name.
   writeStoppedBy: string | null;
+  // Paul's own calendar as busy time (slice 7, `--busy-from-calendar`): null when not asked for
+  // or when nothing needed planning; else how many events were read, or the error's class name.
+  calendarBusy: { read: number } | { failedBy: string } | null;
 };
 
 export type PrepWriter = (plan: ApprovedPrepPlan) => Promise<Result<PrepWritten, PrepRefusal>>;
@@ -88,6 +92,9 @@ export type PrepRunDeps = {
   recordLetter: (plan: ApprovedPrepPlan, reason: PrepLetterReason, key: string) => Promise<void>;
   // Asks Calendar write consent for this run and returns the writer bound to that token.
   consent: () => Promise<PrepWriter>;
+  // Only with `--busy-from-calendar` (slice 7): asks read-only Calendar consent for this run and
+  // gives the primary calendar's events in the window as start and end times only.
+  calendarBusy?: (window: { timeMin: Date; timeMax: Date }) => Promise<BusyInterval[]>;
 };
 
 export async function runPrep(deps: PrepRunDeps): Promise<PrepRunReport> {
@@ -106,6 +113,7 @@ export async function runPrep(deps: PrepRunDeps): Promise<PrepRunReport> {
     stuck: 0,
     scopeMissing: false,
     writeStoppedBy: null,
+    calendarBusy: null,
   };
   const now = deps.now();
   const all = await deps.interviews();
@@ -121,19 +129,26 @@ export async function runPrep(deps: PrepRunDeps): Promise<PrepRunReport> {
     stored.set(interview.detectionId, await deps.proposalOf(interview.detectionId));
   }
   // Busy time from what Northstar already knows: every other interview not dismissed and not
-  // over, and every stored proposal's blocks (slice 6). Paul's other calendar events stay unknown
-  // until a read-only Calendar consent joins this run.
+  // over, and every stored proposal's blocks (slice 6); with --busy-from-calendar also Paul's own
+  // calendar's events (slice 7).
   const blockBusy: BusyInterval[] = [...stored.values()].flatMap((p) =>
     p === null ? [] : p.blocks.map((b) => ({ start: b.start, end: b.end })),
   );
   const interviewBusy = all.filter(
     (i) => i.decision !== "dismissed" && i.end.getTime() > now.getTime(),
   );
+  // Paul's own calendar, only on request and only when something is about to be planned (slice 7).
+  const calendar = await readCalendarBusy(deps, upcoming, stored, now, r);
   for (const interview of upcoming) {
     let proposal = stored.get(interview.detectionId) ?? null;
     if (proposal === null) {
       const proposed = await deps.propose(interview.detectionId, {
-        busy: busyFor(interview.detectionId, interviewBusy, blockBusy),
+        busy: busyFor(
+          interview.detectionId,
+          interviewBusy,
+          blockBusy,
+          calendarNear(calendar, interview.start),
+        ),
         workingHours: deps.config.workingHours,
         timeZone: deps.config.timeZone,
         now,
@@ -166,13 +181,59 @@ export function busyFor(
   detectionId: string,
   interviews: readonly StoredInterview[],
   blocks: readonly BusyInterval[],
+  calendar: readonly BusyInterval[] = [],
 ): BusyInterval[] {
   const others = interviews
     .filter((i) => i.detectionId !== detectionId)
     .map((i) => ({ start: i.start, end: i.end }));
-  return [...others, ...blocks]
+  return [...others, ...blocks, ...calendar]
     .sort((a, b) => a.start.getTime() - b.start.getTime())
     .slice(0, MAX_BUSY);
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// A long calendar could fill MAX_BUSY with meetings weeks before an interview and push out the
+// days its prep can use, so each plan gets only the calendar events that overlap those days:
+// PREP_DAYS before the interview, plus a day of slack for the time zone's midnight, up to its start.
+export function calendarNear(
+  calendar: readonly BusyInterval[],
+  interviewStart: Date,
+): BusyInterval[] {
+  const from = interviewStart.getTime() - (PREP_DAYS + 1) * DAY_MS;
+  return calendar.filter(
+    (b) => b.end.getTime() > from && b.start.getTime() < interviewStart.getTime(),
+  );
+}
+
+// The read-only Calendar client's own limit on one window (packages/inbox, MAX_WINDOW_DAYS).
+export const CALENDAR_WINDOW_DAYS = 60;
+
+// Reads Paul's calendar once for the interviews about to be planned: from now to the latest one's
+// start, at most CALENDAR_WINDOW_DAYS. Consent or Google failing never stops the run: it plans with
+// stored busy time and the report says why, by the error's class name only.
+async function readCalendarBusy(
+  deps: PrepRunDeps,
+  upcoming: readonly StoredInterview[],
+  stored: ReadonlyMap<string, PlannedProposal | null>,
+  now: Date,
+  r: PrepRunReport,
+): Promise<BusyInterval[]> {
+  if (!deps.calendarBusy) return [];
+  const toPlan = upcoming.filter((i) => (stored.get(i.detectionId) ?? null) === null);
+  // Nothing to plan: no consent page for nothing.
+  if (toPlan.length === 0) return [];
+  const latest = Math.max(...toPlan.map((i) => i.start.getTime()));
+  const timeMax = new Date(Math.min(latest, now.getTime() + CALENDAR_WINDOW_DAYS * DAY_MS));
+  try {
+    const events = await deps.calendarBusy({ timeMin: now, timeMax });
+    r.calendarBusy = { read: events.length };
+    // Start and end only, whatever the port handed back.
+    return events.map((e) => ({ start: e.start, end: e.end }));
+  } catch (e) {
+    r.calendarBusy = { failedBy: errorName(e) };
+    return [];
+  }
 }
 
 // A refusal that no later run can clear goes to Stuck work; the others wait for a later run.
@@ -305,6 +366,7 @@ export async function prepCommand(deps: PrepDeps): Promise<number> {
   deps.print(
     `Sent to your Queue for approval: ${r.filed}. Sent on an earlier run: ${r.waiting}. Not sent: ${r.notFiled}.`,
   );
+  if (r.calendarBusy !== null) deps.print(calendarLine(r.calendarBusy));
   for (const plan of r.newPlans) deps.print(planLine(plan, r.timeZone));
   let code = 0;
   if (r.writeStoppedBy !== null) {
@@ -331,6 +393,13 @@ export async function prepCommand(deps: PrepDeps): Promise<number> {
   if (r.filed > 0)
     deps.print("Approve or reject the new plans in your Queue, then run this again.");
   return r.stuck > 0 ? 1 : code;
+}
+
+// What the calendar read did for this run's plans, in fixed words: a count or the error's class.
+export function calendarLine(result: NonNullable<PrepRunReport["calendarBusy"]>): string {
+  return "read" in result
+    ? `Planned around ${result.read} event(s) from your calendar.`
+    : `Couldn't read your calendar (${result.failedBy}): planned around your other interviews and their prep only.`;
 }
 
 // Fixed words by the error's class: consent and database errors never echo a token or a value.

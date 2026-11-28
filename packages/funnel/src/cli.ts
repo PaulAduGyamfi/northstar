@@ -51,8 +51,9 @@ export type CliDeps = {
   runInterviews: () => Promise<InterviewsRun>;
   // Gmail consent and one mail-loop run (NS-238 item 1): the token lives only inside it.
   runInbox: () => Promise<InboxRunReport>;
-  // Prep plans and, when one is approved, Calendar write consent for this run (NS-241 slice 5).
-  runPrep: () => Promise<PrepRunReport>;
+  // Prep plans and, when one is approved, Calendar write consent for this run (NS-241 slice 5);
+  // with busyFromCalendar, read-only Calendar consent too, for busy time (slice 7).
+  runPrep: (options: { busyFromCalendar: boolean }) => Promise<PrepRunReport>;
   recordEvent: (
     type: "funnel.backfilled" | "funnel.reported",
     reason: string,
@@ -61,7 +62,7 @@ export type CliDeps = {
 };
 
 const USAGE =
-  "usage: funnel backfill [--since YYYY-MM-DD] [--max-messages N] | funnel import <file.csv> | funnel review | funnel report | funnel hypotheses | funnel interviews | funnel inbox | funnel prep";
+  "usage: funnel backfill [--since YYYY-MM-DD] [--max-messages N] | funnel import <file.csv> | funnel review | funnel report | funnel hypotheses | funnel interviews | funnel inbox | funnel prep [--busy-from-calendar]";
 
 export async function main(deps: CliDeps): Promise<number> {
   const [command, ...rest] = deps.argv;
@@ -75,10 +76,16 @@ export async function main(deps: CliDeps): Promise<number> {
   if (command === "hypotheses" && rest.length === 0) return hypothesesCommand(deps);
   if (command === "interviews" && rest.length === 0) return interviewsCommand(deps);
   if (command === "inbox" && rest.length === 0) return inboxCommand(deps);
-  if (command === "prep" && rest.length === 0) return prepCommand(deps);
+  if (command === "prep" && (rest.length === 0 || (rest.length === 1 && rest[0] === BUSY_FLAG))) {
+    const busyFromCalendar = rest.length === 1;
+    return prepCommand({ print: deps.print, runPrep: () => deps.runPrep({ busyFromCalendar }) });
+  }
   deps.print(USAGE);
   return 1;
 }
+
+// Opt-in: plan prep around Paul's own calendar too (NS-241 slice 7).
+const BUSY_FLAG = "--busy-from-calendar";
 
 // DX-001: nine months back from the search's start.
 const DEFAULT_SINCE = "2026-02-01";

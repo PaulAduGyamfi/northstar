@@ -707,8 +707,16 @@ Exists now:
     and working hours (`loadPrepConfig`: `PREP_TIME_ZONE`, else `ALERT_TIME_ZONE`, and
     `PREP_WORKING_HOURS`, default 09:00-17:00). Since slice 6 the planner's busy time is what is
     stored (`busyFor`, at most 500, soonest first): every other interview not dismissed or over,
-    and every stored proposal's blocks, including ones planned earlier in the run. Paul's other
-    calendar events are still unknown to it (that needs a second, read-only consent);
+    and every stored proposal's blocks, including ones planned earlier in the run. Since slice 7
+    `funnel prep --busy-from-calendar` (opt-in) adds Paul's own calendar: only when an interview
+    is about to be planned, it asks `authorizeCalendar` (read-only, its own consent, the token in
+    that call for the run, #400) and reads the primary calendar once from now to the latest such
+    interview's start (at most 60 days) through the `calendar` breaker, keeping each event's start
+    and end only (cancelled ones dropped). Each plan gets only the events in its own prep days
+    (`calendarNear`: `PREP_DAYS` plus a day before the interview), so a long calendar can't push
+    them out of the 500. All-day events (a day off) aren't read, and an interview more than about
+    60 days out gets none. A refused consent or failed read plans with stored busy time and prints
+    why by the error's class (`calendarLine`);
   - files each proposal with `requestPrepPlanApproval`. A replay counts as already sent;
   - writes the approved plans. Only then does it ask consent (`authorizeCalendarWrite`, in memory
     for that run, #400). The plans come from `readApprovedPrepPlans` (`packages/db`,
@@ -1397,7 +1405,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/funnel funnel review` | place or discard the messages the backfill couldn't decide, with a link to each in Gmail. Paul only |
 | repo root | `pnpm --filter @northstar/funnel funnel interviews` | sign in to Google Calendar read-only (browser consent every run, no stored token), detect interviews in the next 30 days against open applications whose company domains you entered (`jobs domains`), store them for `/interviews` and print counts only. Safe to rerun. Paul only: his real calendar, needs `DATABASE_URL` and `GOOGLE_OAUTH_CLIENT_*`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel inbox` | sign in to Gmail read-only (browser consent every run, no stored token), link new job mail from the stored cursor (the first run reads 7 days back), sort up to 25 recorded emails with the rules or the `mail-classify` model behind its switch, breaker and the spend cap, grade up to 10 recruiter emails when `RECRUITER_EXTRACT=on` (off by default), and print counts only; emails that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real mail, needs `DATABASE_URL`, `GOOGLE_OAUTH_CLIENT_*` and `ANTHROPIC_API_KEY`; agents never run it |
-| repo root | `pnpm --filter @northstar/funnel funnel prep` | plan prep blocks for each confirmed, upcoming interview inside your working hours (`PREP_TIME_ZONE` or `ALERT_TIME_ZONE`, `PREP_WORKING_HOURS`), send each plan to your Queue, and, when one is approved, sign in to Google for your Northstar calendar only (browser consent that run, no stored token) and add its blocks once each; prints counts only, and plans that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real calendar, needs `DATABASE_URL` and `GOOGLE_OAUTH_CLIENT_*` with `calendar.app.created` on the consent screen; agents never run it |
+| repo root | `pnpm --filter @northstar/funnel funnel prep [--busy-from-calendar]` | plan prep blocks for each confirmed, upcoming interview inside your working hours (`PREP_TIME_ZONE` or `ALERT_TIME_ZONE`, `PREP_WORKING_HOURS`), around your other interviews and their prep (with `--busy-from-calendar`, also around your calendar's events: a second, read-only Google consent that run, only when something is to be planned; times only, nothing kept), send each plan to your Queue, and, when one is approved, sign in to Google for your Northstar calendar only (browser consent that run, no stored token) and add its blocks once each; prints counts only, and plans that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real calendar, needs `DATABASE_URL` and `GOOGLE_OAUTH_CLIENT_*` with `calendar.app.created` on the consent screen (and `calendar.events.readonly`, as for `funnel interviews`, with `--busy-from-calendar`); agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel report` / `funnel hypotheses` | the funnel report and the hypothesis board. Paul only: they print his real applications; agents never run them |
 | repo root | `pnpm --filter @northstar/sources jobs add <url>` | add a job from a link: ATS API, then the page's JSON-LD, then the `job-extract` model (needs `ANTHROPIC_API_KEY` only then). A job without a title or company is stored as a draft. LinkedIn, Indeed and Glassdoor links are refused. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs add --text data/<file> --url <url>` | add a job from a description Paul saved himself (sign-in sites such as LinkedIn); nothing is fetched |

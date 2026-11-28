@@ -210,7 +210,7 @@ try {
       });
       return { report, applications, withDomains };
     },
-    runPrep: async () => {
+    runPrep: async ({ busyFromCalendar }) => {
       // A bad or missing zone or working hours stops the run before anything is planned.
       const config = loadPrepConfig(process.env);
       return runPrep({
@@ -248,6 +248,36 @@ try {
           // A letter that can't be stored stops the run: a silent drop would hide the plan.
           if (!saved.ok) throw new Error(`dead letter refused: ${saved.error.field}`);
         },
+        // Only with --busy-from-calendar (slice 7): read-only consent on this run (ADR-0026), the
+        // token kept in this call alone, and start and end times only out of each event.
+        calendarBusy: busyFromCalendar
+          ? async (window) => {
+              const access = await authorizeCalendar({
+                config: loadGoogleConfig(process.env),
+                fetchToken: googleTokenEndpoint(fetch),
+                timeoutMs: 120_000,
+                openBrowser: async (url) => {
+                  print(
+                    "Opening Google's consent page (read-only Calendar, for your busy time). If it doesn't open, visit:",
+                  );
+                  print(url);
+                  openInBrowser(url);
+                },
+              });
+              // Every read goes through the stored `calendar` breaker.
+              const events = await createCalendarClient({
+                access,
+                fetch,
+                sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+                random: Math.random,
+                guard,
+              }).listEvents(window);
+              // A cancelled event isn't busy time; nothing else of an event leaves this function.
+              return events
+                .filter((e) => e.status !== "cancelled")
+                .map((e) => ({ start: e.start, end: e.end }));
+            }
+          : undefined,
         consent: async () => {
           // Loaded only when an approved plan is waiting, so other funnel commands never load the
           // Calendar writer (or its browser dependency).

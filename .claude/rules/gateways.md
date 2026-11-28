@@ -40,7 +40,10 @@ stored row, the marker lookup or `createCalendar`, never from a caller.
 Its one caller is `funnel prep` (NS-241 slice 5, `packages/funnel`). That command asks consent
 only when an approved plan is waiting, keeps the token in that run's closure, and passes only
 `readApprovedPrepPlans`' ids. Never hand the writer's token to the read-only Calendar client or
-store it.
+store it. With `--busy-from-calendar` (slice 7) the same run may also ask the read-only
+`authorizeCalendar` for busy time: a separate token in its own call, events reduced to start and
+end before they leave it. Never pass an event's title, attendees or id onward, and never mix the
+two tokens.
 Other gateways (GitHub) don't exist yet: if you are about to create one outside its ticket, stop
 and ask Paul.
 The Gmail label writer (NS-229, `packages/inbox/src/labels/`, ADR-0027 **Rejected**: no caller,
