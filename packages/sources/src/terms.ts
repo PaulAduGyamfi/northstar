@@ -22,6 +22,8 @@ const ATS_HOSTS: [RegExp, string][] = [
   [/^(api|jobs|careers)\.smartrecruiters\.com$/, "smartrecruiters"],
   // The board APIs NS-115 polls, on their own hosts.
   [/^(boards-api\.greenhouse\.io|api\.lever\.co|api\.ashbyhq\.com)$/, "ats-api"],
+  // HN's documented public search API (NS-282): the monthly "Who is hiring?" thread.
+  [/^hn\.algolia\.com$/, "hn"],
 ];
 
 // Public, but not a documented API: the endpoint behind Workable's embeddable jobs widget.

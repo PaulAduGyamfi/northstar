@@ -106,9 +106,18 @@ Exists now:
   vector, by pgvector's `<=>`; nothing for a closed job) and `job_duplicate_suggestion` (one per pair, stored in one order;
   `recordDuplicateSuggestion` with `job.duplicate_suggested` by `system`, ids and the similarity,
   feed "Two saved jobs look like the same role: check them"). `suggestDuplicates`
-  (`packages/sources`, `dupes.ts`) stores at most 5 per job at a threshold its caller passes. No
-  caller yet: wiring, `jobs dupes` and the measured threshold come in slice 3; an embedding never
-  merges a job.
+  (`packages/sources`, `dupes.ts`) stores at most 5 per job at a threshold its caller passes.
+  Since slice 3 the `jobs` CLI runs `embedPass` (`embed-pass.ts`) after every scoring pass while
+  `JOB_EMBEDDINGS=on`: up to 64 ready, open jobs (freshest first, `readEmbeddableJobs`) whose
+  `embeddingText` SHA-256 differs from their newest stored one go out in one request, each vector
+  is stored and `suggestDuplicates` runs for each new one at `JOB_DUPLICATE_THRESHOLD` (0.50–0.99,
+  required while on, no default; `parseDuplicateThreshold`). A held-back or failed request stops
+  the pass with one printed line (`embedAfterScore`) and never fails the scoring command; the next
+  pass retries. A suggestion step that throws for one job is counted and printed, not retried: a
+  job embedded later still finds it, but its pairs with earlier jobs wait until its text changes. `jobs dupes` (`dupes-cli.ts`, `listDuplicateSuggestions`) lists the newest 50
+  pairs with both jobs' titles, companies and ids. The API's capture scoring doesn't embed. The
+  threshold's measurement and dismissing a suggestion need Paul's recordings (slice 4); until then
+  `JOB_EMBEDDINGS` stays off. An embedding never merges a job.
 - `evals/` (NS-106): the eval harness and CLI. One folder per route arrives with that route
   (`cases.jsonl`, `baseline.json`, `fixtures/`). Real-mail cases go in `evals/**/private/`
   (gitignored). The CLI can't run them yet: it only reads the public `cases.jsonl`. CI runs
@@ -868,6 +877,15 @@ Exists now:
   follows a redirect) reads its first 20 postings in Workday's order, with title, place, remote
   kind and posted date but no description, ids scoped by tenant as `jobs add` reads them, behind
   `source:workday`.
+  Since NS-282 (slice 1, #460) also the monthly Hacker News "Ask HN: Who is hiring?" thread, a
+  watch of kind `hn_hiring` (`company_watch.ats` takes `WATCH_KINDS`: the ATSs plus `hn_hiring`,
+  migration 0112; a feed's jobs have no ATS). `boards/hn.ts` makes two requests to HN's public
+  Algolia API (`hn.algolia.com`, terms `official-api`): the newest thread by `whoishiring`, then
+  its comments. Each top-level comment is one posting at `news.ycombinator.com/item?id=<id>`, with
+  its time and its text as the description; replies, deleted and dead comments are skipped. Plain
+  code reads only HN's first-line convention (`readHead`: company first, the first field naming a
+  role as the title, a place), and a comment that doesn't follow it is saved as a draft. No model
+  reads it. Behind `source:hn_hiring`. RSS/JSON feeds and YC come in later slices.
   Since NS-116 also fit scoring (`fit/`): versioned search preferences (`search_preference`) and
   a Fit Score per ready job (`fit_score`, `fit-write.ts` in `packages/db`) computed by plain code
   (no model): requirements matched to experience atoms by the technologies they name, preference
@@ -1439,8 +1457,9 @@ Exists now:
   first, at most 50 a pass), becomes a `queued` application through `createApplication`
   (`startedBy: northstar`, key `job:<jobId>:queue`, so a repeat replays the first), at most the
   caller's `dailyCap` a UTC day by the Gate's clock (`countQueuedToday`; never over APPLY-007's 25,
-  `MAX_QUEUE_DAILY_CAP`). It submits nothing. No caller yet: the pipeline workflow and its
-  off-by-default starter are NS-280 slices 2 and 3.
+  `MAX_QUEUE_DAILY_CAP`). It submits nothing. No caller yet: its off-by-default starter is NS-280
+  slice 3. Since slice 2 `preparePackage`'s `filed` result also carries the package's
+  `packageSha256`, which names its submission round.
 - `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
   (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
   decision as an `approval` signal (or `withdrawn`), then runs the `submitApplication` activity
@@ -1525,6 +1544,24 @@ Exists now:
   fails doesn't stop the others: the pass fails after trying them all (`RelayRoundsFailed`), and
   one that fails its 3 attempts is a dead letter (`apply.signal_relay`, `relay_failed`, one per
   workflow run). `main.ts` ensures the one `package-signal-relay` (`ensureSignalRelay`) beside the sweep.
+  Since NS-280 (slice 2) also `jobPipelineWorkflow` (`src/workflows/pipeline.ts`, on `pipeline`,
+  input the two ids only): for one application it runs `tailorResume` (`tailorForJob`, no toggles)
+  and `readJobForm` (the job's first Greenhouse link through `readGreenhouseForm` and `saveJobForm`,
+  behind the stored `source:greenhouse` switch and breaker; held back, a 429 or a 5xx fails the
+  attempt, retried for about 90 minutes, through `readGreenhouseFormResult`), both only while the
+  application is `queued`, then `preparePackage` (files
+  with the Gate; at `awaiting_approval` it reads the newest round's stored hash through
+  `readPipelineState`, `packages/db`, so a crashed run starts that round instead of filing again)
+  and `startSubmission` for that round (already started counts as done). A refused tailor or an
+  unreadable form doesn't stop the run: the package step's visible `package.needs_human` says
+  what is missing. A step failing all its attempts, or a Gate or move refusal, records one
+  `pipeline.job` dead letter per run and the workflow still fails visibly
+  (`src/activities/pipeline.ts`; ports bound by `pipelinePorts` in `wiring.ts`; `@northstar/worker`
+  depends on `pipeline`, `profile` and `sources` for it). The step order is plain code
+  (`runPipeline`, `src/workflows/pipeline-run.ts`), and an activity's error leaves as its class
+  name only (`scrubbed`: a database error quotes its parameters). `startJobPipeline` (`client.ts`)
+  starts one run per application (`pipeline:<applicationId>`); nothing calls it yet (slice 3, which
+  must also start a new round after a rejection and an edited package's round).
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 
@@ -1585,7 +1622,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/sources jobs add <url>` | add a job from a link: ATS API, then the page's JSON-LD, then the `job-extract` model (needs `ANTHROPIC_API_KEY` only then). A job without a title or company is stored as a draft. LinkedIn, Indeed and Glassdoor links are refused. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs add --text data/<file> --url <url>` | add a job from a description Paul saved himself (sign-in sites such as LinkedIn); nothing is fetched |
 | repo root | `pnpm --filter @northstar/sources jobs list` / `jobs set <job-id> <field> <value>` | list jobs freshest first; fill in or correct a field (a draft becomes ready once it has a title and company). Paul only |
-| repo root | `pnpm --filter @northstar/sources jobs watch add <board-url> --tier 1\|2\|3` | watch a company's board (`boards.greenhouse.io/<board>`, `jobs.lever.co/<company>`, `jobs.ashbyhq.com/<org>`, `jobs.smartrecruiters.com/<Company>`, `apply.workable.com/<account>`, and since NS-260 a Workday career site `<tenant>.wd<N>.myworkdayjobs.com/[<locale>/]<site>`); tier 1 polls every 10 min, 2 every 20, 3 hourly. Paul only: needs `DATABASE_URL` |
+| repo root | `pnpm --filter @northstar/sources jobs watch add <board-url> --tier 1\|2\|3` | watch a company's board (`boards.greenhouse.io/<board>`, `jobs.lever.co/<company>`, `jobs.ashbyhq.com/<org>`, `jobs.smartrecruiters.com/<Company>`, `apply.workable.com/<account>`, since NS-260 a Workday career site `<tenant>.wd<N>.myworkdayjobs.com/[<locale>/]<site>`, and since NS-282 the monthly HN "Who is hiring?" thread `news.ycombinator.com/submitted?id=whoishiring`); tier 1 polls every 10 min, 2 every 20, 3 hourly. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs watch list` / `watch remove <id>` / `watch retry <id>` | each board's tier, status and last read; stop watching one; put a quarantined one back. Paul only |
 | repo root | `pnpm --filter @northstar/sources jobs prefs` / `jobs prefs set <field> <value>` | show the search preferences / change one (`titles`, `seniority`, `locations`, `remote`, `dealbreakers` as comma lists; `compFloor`, `compTarget` per year; `currency`; `queueAt`, `suggestAt` thresholds; `-` clears). A change stores a new version and re-scores every ready job at once. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs score` / `jobs why <job-id>` | score every job not scored for the current preferences and resume (also runs after `jobs add`, `jobs set`, each poll pass and each browser capture) / a job's score with each matched requirement, its atom, and the unmatched ones. Paul only: prints his real profile |
@@ -1593,6 +1630,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/sources jobs form <job-id>` | read a saved Greenhouse job's application questions from its public API and store them with the job (a changed form is a new version; the same form stores nothing); prints counts and the required questions' labels. Paul only: real network and database |
 | repo root | `pnpm --filter @northstar/sources jobs alerts` / `jobs alerts set quiet <HH:MM-HH:MM\|off>` / `jobs alerts set zone <IANA zone>` / `jobs alerts set tier1 <true\|false>` / `jobs alerts reset quiet\|zone\|tier1` | show the fresh-job alert settings in effect and whether each is set here or the `ALERT_*` default / store one (checked like the env value; the next alert pass uses it, no restart) / put one back to its default. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs domains` / `jobs domains add <company-id> <domain>` / `jobs domains remove <company-id> <domain>` | list each company with its id and mail domains / add or remove one (checked as a plain domain; one another company holds is refused; the mail-link step reads it each time; freemail, shared ATS and hosting domains and bare public suffixes are refused). Paul only: needs `DATABASE_URL` |
+| repo root | `pnpm --filter @northstar/sources jobs dupes` | the newest 50 pairs of saved jobs that look like the same role (from job embeddings, NS-129), each with both jobs' titles, companies and ids and how alike they are; nothing is merged. With `JOB_EMBEDDINGS=on` (off by default) and `JOB_DUPLICATE_THRESHOLD` set, every `jobs` scoring pass embeds up to 64 changed jobs through OpenAI first (costs money, behind the `agent:job-embed` switch, the `openai` breaker and the spend cap). Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs check` | re-check the postings of saved jobs not tried in a day (closed ones weekly; at most 50 a pass); a job closes after two closed answers in a row and leaves scoring; prints counts only. Paul only: real network and database |
 | repo root | `cp .env.example .env` | once per clone (Paul): keep the part above the "Apps" line in `.env` (compose and `db:migrate`: the owner's credentials) and move the "Apps" part into `.env.app`, which the API and the `profile`, `jobs`, `funnel` and `eval` commands load (NS-235); then replace every `change-me`. An app refuses to start while `DATABASE_MIGRATION_URL` or `POSTGRES_PASSWORD` is in its environment |
 | repo root | `docker compose -f docker-compose.yml up -d --wait` | local stack: Postgres+pgvector :5432, Temporal :7233 (UI :8233), SeaweedFS S3 :8333, Grafana :3000 + OTLP :4317/:4318, all on 127.0.0.1. Agents must use this exact form (runs outside the sandbox) |

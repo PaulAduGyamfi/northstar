@@ -6,6 +6,8 @@ import { jobDuplicateSuggestion, jobEmbedding } from "./job-embedding-schema.js"
 import {
   DUPLICATE_SUGGESTED_REASON,
   findSimilarJobs,
+  listDuplicateSuggestions,
+  readEmbeddableJobs,
   readEmbeddingHashes,
   recordDuplicateSuggestion,
   saveJobEmbedding,
@@ -341,5 +343,50 @@ describe("the job_embedding and job_duplicate_suggestion tables", () => {
         }),
       ),
     ]).toEqual([CHECK_VIOLATION, CHECK_VIOLATION, CHECK_VIOLATION]);
+  });
+});
+
+describe("readEmbeddableJobs (NS-129 slice 3)", () => {
+  it("gives ready, open jobs with their company, freshest first", async () => {
+    const older = await addJob("Data Engineer");
+    await db
+      .update(job)
+      .set({ postedAt: new Date("2026-01-01T00:00:00Z") })
+      .where(eq(job.id, older));
+    const closedJob = await addJob("Closed Role");
+    await closePosting(closedJob);
+    const draft = await addJob("Draft Role");
+    await db
+      .update(job)
+      .set({ status: "draft", title: null, missingFields: ["title"] })
+      .where(eq(job.id, draft));
+    const found = await readEmbeddableJobs(db, candidateId);
+    expect(found.map((j) => [j.jobId, j.company])).toEqual([
+      [jobId, "Example Corp"],
+      [older, "Example Corp"],
+    ]);
+  });
+});
+
+describe("listDuplicateSuggestions (NS-129 slice 3)", () => {
+  it("lists the newest suggestions with both jobs' titles and companies", async () => {
+    const other = await addJob("Backend Engineer II");
+    await recordDuplicateSuggestion(db, { candidateId, jobIds: [jobId, other], similarity: 0.9 });
+    const [item] = await listDuplicateSuggestions(db, candidateId);
+    const [a, b] = [jobId, other].sort();
+    const title = (id: string | undefined) =>
+      id === jobId ? "Backend Engineer" : "Backend Engineer II";
+    expect(item?.jobs).toEqual([
+      { jobId: a, title: title(a), company: "Example Corp" },
+      { jobId: b, title: title(b), company: "Example Corp" },
+    ]);
+    expect(item?.similarity).toBeCloseTo(0.9, 5);
+  });
+
+  it("never lists another candidate's suggestions", async () => {
+    const other = await addJob("Backend Engineer II");
+    await recordDuplicateSuggestion(db, { candidateId, jobIds: [jobId, other], similarity: 0.9 });
+    const stranger = await seedApplication(db, "queued");
+    expect(await listDuplicateSuggestions(db, CandidateId.parse(stranger.candidateId))).toEqual([]);
   });
 });

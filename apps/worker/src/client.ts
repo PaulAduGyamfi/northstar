@@ -9,6 +9,7 @@ import {
 import { PIPELINE_QUEUE } from "./queues.js";
 import { inputProblem } from "./workflows/ending.js";
 import type { NotifyInput } from "./workflows/notify.js";
+import { type PipelineInput, pipelineInputProblem } from "./workflows/pipeline-plan.js";
 import type { RelayInput } from "./workflows/relay.js";
 import type { SubmissionInput } from "./workflows/submission.js";
 import type { SweepInput } from "./workflows/sweep.js";
@@ -61,7 +62,8 @@ export const NOTIFY_WORKFLOW_ID = "handoff-push-notifier";
 export type StartError =
   // The input would fail at the workflow's start: ids and the hash only (NS-242).
   | { kind: "InvalidInput"; problem: string }
-  // This package round already has (or had) a submission workflow: nothing was started.
+  // This package round already has (or had) a submission workflow, or (NS-280) this application
+  // a pipeline run: nothing was started.
   | { kind: "AlreadyStarted" };
 
 export async function startSubmission(
@@ -81,6 +83,28 @@ export async function startSubmission(
         packageSha256: input.packageSha256,
       },
     ],
+    reuse: "reject",
+  });
+  return started ? ok({ workflowId }) : err({ kind: "AlreadyStarted" });
+}
+
+// The workflow id of one application's pipeline run (NS-280 slice 2).
+export const pipelineWorkflowId = (applicationId: string): string => `pipeline:${applicationId}`;
+
+// Starts the job pipeline for one queued application, once: a second start for the same
+// application starts nothing while Temporal keeps the run (its retention). Every step is safe to
+// repeat anyway, so a run started again after retention only replays what is stored.
+export async function startJobPipeline(
+  port: TemporalPort,
+  input: PipelineInput,
+): Promise<Result<{ workflowId: string }, StartError>> {
+  const problem = pipelineInputProblem(input);
+  if (problem !== null) return err({ kind: "InvalidInput", problem });
+  const workflowId = pipelineWorkflowId(input.applicationId);
+  const { started } = await port.start("jobPipelineWorkflow", {
+    workflowId,
+    // Exactly the two ids.
+    args: [{ candidateId: input.candidateId, applicationId: input.applicationId }],
     reuse: "reject",
   });
   return started ? ok({ workflowId }) : err({ kind: "AlreadyStarted" });

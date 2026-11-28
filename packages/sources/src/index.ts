@@ -29,6 +29,12 @@ export {
   alertSettingsView,
 } from "./alerts-cli.js";
 export { type AtsTarget, detectAts } from "./ats/detect.js";
+// A Greenhouse posting's application form (NS-227), for the job pipeline's form step (NS-280).
+export {
+  type GreenhouseFormRead,
+  readGreenhouseForm,
+  readGreenhouseFormResult,
+} from "./ats/greenhouse-form.js";
 export { findDuplicate, type Match, nameKey, SIMILARITY, similarity } from "./dedupe.js";
 // Duplicate suggestions from job embeddings (NS-129 slice 2): they never merge a job.
 export { MAX_SUGGESTIONS_PER_JOB, type SuggestResult, suggestDuplicates } from "./dupes.js";
@@ -75,6 +81,9 @@ export {
 } from "./job-extract-route.js";
 export { JobExtract } from "./job-extract-schema.js";
 export { findJobPosting, fromJsonLd } from "./jsonld.js";
+// Each ATS's stored kill switch and breaker (`source:<ats>`), shared with the pipeline's form step.
+export type { PollGuard } from "./poll.js";
+export { dbPollGuard } from "./poll-guard.js";
 // The queue's fresh-first order (SRC-013), for the jobs page (NS-130 slice 10).
 export { ageHours, freshness, queueScore } from "./queue.js";
 // Recruiter grading (NS-167, REC-001): A–F from the checked facts and the search preferences.

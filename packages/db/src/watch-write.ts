@@ -2,12 +2,13 @@ import { randomUUID } from "node:crypto";
 import type { CandidateId } from "@northstar/domain";
 import { and, asc, eq, lte, ne, sql } from "drizzle-orm";
 import type { Db } from "./db.js";
-import { type ATS_KINDS, companyWatch, domainEvent, type WATCH_STATUSES } from "./schema.js";
+import { companyWatch, domainEvent, type WATCH_KINDS, type WATCH_STATUSES } from "./schema.js";
 
 // The watchlist's write path (NS-115, ADR-0015). packages/sources decides when a board is next
 // due and whether it backs off or quarantines; this module only stores the result.
 
-export type WatchAts = (typeof ATS_KINDS)[number];
+// A watch's kind: an ATS board or (NS-282) a permissive feed.
+export type WatchAts = (typeof WATCH_KINDS)[number];
 export type WatchStatus = (typeof WATCH_STATUSES)[number];
 export type WatchInput = { ats: WatchAts; board: string; url: string; tier: 1 | 2 | 3 };
 

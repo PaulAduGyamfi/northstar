@@ -1,4 +1,16 @@
-import { type Db, readDecisionPackage, readStoredFile } from "@northstar/db";
+import { lookup } from "node:dns/promises";
+import {
+  type Db,
+  readDecisionPackage,
+  readIndependentWork,
+  readJobAtsSources,
+  readPipelineState,
+  readStoredFile,
+  readTailorInput,
+  recordDeadLetter,
+  saveJobForm,
+  saveTailoredResume,
+} from "@northstar/db";
 import type { CandidateId } from "@northstar/domain";
 import {
   type ApplyPorts,
@@ -11,13 +23,22 @@ import {
   submitApplication,
   sweepStaleClaims,
 } from "@northstar/gateways";
+import { preparePackage } from "@northstar/pipeline";
+import { tailorForJob } from "@northstar/profile";
+import {
+  dbPollGuard,
+  detectAts,
+  type FetchDeps,
+  readGreenhouseFormResult,
+} from "@northstar/sources";
 import { Context } from "@temporalio/activity";
 import { type BeatStep, createApplyActivities } from "./activities/apply.js";
 import { createEndingActivities } from "./activities/ending.js";
 import { createNotifyActivities } from "./activities/notify.js";
+import { createPipelineActivities, type PipelinePorts } from "./activities/pipeline.js";
 import { createRelayActivities, dbReadSignals } from "./activities/relay.js";
 import { createSweepActivities } from "./activities/sweep.js";
-import { type TemporalPort, temporalPort } from "./client.js";
+import { startSubmission, type TemporalPort, temporalPort } from "./client.js";
 import type { WorkerConfig } from "./config.js";
 import { dbNotifyPorts } from "./notify-ports.js";
 
@@ -30,7 +51,8 @@ export type PoolActivities = {
   pipeline: ReturnType<typeof createEndingActivities> &
     ReturnType<typeof createSweepActivities> &
     ReturnType<typeof createRelayActivities> &
-    ReturnType<typeof createNotifyActivities>;
+    ReturnType<typeof createNotifyActivities> &
+    ReturnType<typeof createPipelineActivities>;
   // Null while WORKER_APPLY_BROWSER is off: nothing can be submitted.
   applyBrowser: ReturnType<typeof createApplyActivities> | null;
 };
@@ -53,6 +75,8 @@ export function workerActivities(
     // Registered even while push is off, so a notifier started earlier finds its activity and its
     // pass does nothing (NS-193 slice 3).
     ...createNotifyActivities(dbNotifyPorts(db, config.push)),
+    // The job pipeline (NS-280 slice 2): registered always; nothing starts a run yet (slice 3).
+    ...createPipelineActivities(pipelinePorts(db, temporal)),
   };
   const browser = config.applyBrowser;
   if (!browser.on) return { pipeline, applyBrowser: null };
@@ -103,5 +127,66 @@ export function browserPorts(
     readFile: (sha256) => deps.readFile(candidateId, sha256),
     openDriver: (hosts) =>
       deferredFormDriver(() => deps.launch({ hosts, executablePath: chromiumPath })),
+  };
+}
+
+// The safe fetcher's host lookup: every address a name resolves to (it refuses private ones).
+const fetchDeps: FetchDeps = {
+  resolve: async (host) => (await lookup(host, { all: true })).map((a) => a.address),
+  fetch,
+};
+
+// The job pipeline's ports on the real write paths (NS-280 slice 2): the same functions the
+// `profile tailor`, `jobs form` and package commands use, scoped to the run's candidate.
+export function pipelinePorts(
+  db: Db,
+  temporal: () => TemporalPort,
+  deps: FetchDeps = fetchDeps,
+): PipelinePorts {
+  return {
+    state: (candidateId, applicationId) => readPipelineState(db, candidateId, applicationId),
+    tailor: async (candidateId, jobId) => {
+      const run = await tailorForJob(
+        {
+          readInput: (id) => readTailorInput(db, candidateId, id),
+          save: (input) => saveTailoredResume(db, { ...input, candidateId }),
+          // The independent-work section (NS-231), as `profile tailor` reads it.
+          readWork: async () => {
+            const view = await readIndependentWork(db, candidateId);
+            return view === null ? null : { version: view.version, entries: view.entries };
+          },
+        },
+        jobId,
+        [],
+      );
+      if (run.kind === "tailored") return { kind: "tailored", saved: run.saved };
+      return run.kind === "refused"
+        ? { kind: "refused", reason: run.reason }
+        : { kind: "bad_toggle", reason: "bad_toggle" };
+    },
+    formTarget: async (candidateId, jobId) => {
+      // The first Greenhouse source whose link names its board and posting (as `jobs form`).
+      for (const source of await readJobAtsSources(db, candidateId, jobId)) {
+        const target = detectAts(source.url);
+        if (target?.ats === "greenhouse")
+          return { board: target.board, postingId: target.postingId };
+      }
+      return null;
+    },
+    guard: (candidateId) => dbPollGuard(db, candidateId),
+    readForm: (t) => readGreenhouseFormResult(deps, t),
+    saveForm: (candidateId, jobId, questions) =>
+      saveJobForm(db, { candidateId, jobId, ats: "greenhouse", questions, actor: "system" }),
+    prepare: (candidateId, applicationId) => preparePackage(db, { candidateId, applicationId }),
+    start: (input) => startSubmission(temporal(), input),
+    recordLetter: (letter) =>
+      recordDeadLetter(db, {
+        candidateId: letter.candidateId,
+        kind: "pipeline.job",
+        subject: `application:${letter.applicationId}`,
+        reasonCode: letter.reasonCode,
+        attempts: letter.attempts,
+        idempotencyKey: letter.idempotencyKey,
+      }),
   };
 }

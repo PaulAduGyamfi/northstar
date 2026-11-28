@@ -332,11 +332,16 @@ export {
 } from "./job-embedding-schema.js";
 export {
   DUPLICATE_SUGGESTED_REASON,
+  type DuplicateSuggestionItem,
+  type EmbeddableJob,
   type EmbeddingRefusal,
   findSimilarJobs,
+  listDuplicateSuggestions,
+  readEmbeddableJobs,
   readEmbeddingHashes,
   recordDuplicateSuggestion,
   type SimilarJob,
+  type SuggestedJob,
   saveJobEmbedding,
 } from "./job-embedding-write.js";
 // A job's application form (NS-227).
@@ -483,6 +488,7 @@ export {
   readApplicationTimeline,
   type TimelineItem,
 } from "./pipeline-read.js";
+export { type PipelineState, readPipelineState } from "./pipeline-state-read.js";
 // Prep plans through the Gate and the Calendar writer's ledger (NS-241 slice 4, ADR-0031).
 export {
   claimPrepWrite,
