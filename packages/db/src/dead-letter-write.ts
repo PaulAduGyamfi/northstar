@@ -40,6 +40,9 @@ export const DEAD_LETTER_KINDS = [
   // NS-193 slice 3: a handoff push no browser took, a claim whose outcome is unknown, or a pass
   // of the handoff notifier that kept failing (apps/worker notify.ts).
   "push.notify",
+  // NS-280 slice 2: a job pipeline run (tailor, form, package, start) that stopped part-way
+  // (apps/worker pipeline.ts).
+  "pipeline.job",
 ] as const;
 export type DeadLetterKind = (typeof DEAD_LETTER_KINDS)[number];
 

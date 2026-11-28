@@ -459,5 +459,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   rule's read-only readers: ready jobs whose newest score is `queue`, with no application and an
   open posting (ids only), and today's `application.created` events started by Northstar at
   `queued` (a count, by the Gate's clock).
+  `readPipelineState` (`pipeline-state-read.ts`, NS-280 slice 2) is the job pipeline's read-only
+  reader: an application's status, job and the newest round's stored package hash (the round's
+  package id from `readPackageRounds`, the newest `application_package` row for it), never the
+  package.
   `readApplicationHistories` (NS-208) gives each application's creation time, source, newest fit
   band, posting time and status moves (`application.*` events with a `to`), never names or text.

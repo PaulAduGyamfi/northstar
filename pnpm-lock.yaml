@@ -93,6 +93,15 @@ importers:
       '@northstar/gateways':
         specifier: workspace:*
         version: link:../../packages/gateways
+      '@northstar/pipeline':
+        specifier: workspace:*
+        version: link:../../packages/pipeline
+      '@northstar/profile':
+        specifier: workspace:*
+        version: link:../../packages/profile
+      '@northstar/sources':
+        specifier: workspace:*
+        version: link:../../packages/sources
       '@temporalio/activity':
         specifier: 1.25.0
         version: 1.25.0(long@5.3.2)(protobufjs@8.8.1)

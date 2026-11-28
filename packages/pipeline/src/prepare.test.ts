@@ -8,6 +8,7 @@ import {
   readApplicationTag,
   readEventsAfter,
   readPackageInputs,
+  readPipelineState,
   saveJobForm,
   saveTailoredResume,
   schema,
@@ -195,6 +196,19 @@ describe("preparePackage", () => {
       await status(),
       pending.map((p) => [p.kind, p.subject.startsWith("application_package:")]),
     ]).toEqual(["filed", "awaiting_approval", [["application_package", true]]]);
+  });
+
+  it("gives the filed package's hash, which readPipelineState finds for the newest round", async () => {
+    await complete();
+    const before = await readPipelineState(db, candidateId, applicationId);
+    const result = await prepare();
+    const after = await readPipelineState(db, candidateId, applicationId);
+    expect([
+      before?.packageSha256,
+      after?.status,
+      result.kind === "filed" && /^[0-9a-f]{64}$/.test(result.packageSha256),
+      result.kind === "filed" && after?.packageSha256 === result.packageSha256,
+    ]).toEqual([null, "awaiting_approval", true, true]);
   });
 
   it("puts the application's tagged address on the package, and a crashed round's rerun keeps it", async () => {

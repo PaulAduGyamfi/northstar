@@ -42,17 +42,33 @@ export async function readGreenhouseForm(
   deps: FetchDeps,
   t: { board: string; postingId: string },
 ): Promise<JobFormQuestion[] | null> {
+  const read = await readGreenhouseFormResult(deps, t);
+  return read.kind === "form" ? read.questions : null;
+}
+
+// The same read, telling apart Greenhouse failing for now (429 or 5xx: worth a retry, and it
+// counts against the breaker) from an answer that is no readable form (NS-280 slice 2).
+export type GreenhouseFormRead =
+  | { kind: "form"; questions: JobFormQuestion[] }
+  | { kind: "unavailable"; status: number }
+  | { kind: "unreadable" };
+
+export async function readGreenhouseFormResult(
+  deps: FetchDeps,
+  t: { board: string; postingId: string },
+): Promise<GreenhouseFormRead> {
   const url = `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(t.board)}/jobs/${encodeURIComponent(t.postingId)}?questions=true`;
   const res = await safeFetch(deps, url);
-  if (res.status !== 200) return null;
+  if (res.status === 429 || res.status >= 500) return { kind: "unavailable", status: res.status };
+  if (res.status !== 200) return { kind: "unreadable" };
   const parsed = GreenhouseForm.safeParse(safeJson(res.body));
-  if (!parsed.success) return null;
+  if (!parsed.success) return { kind: "unreadable" };
   const out: JobFormQuestion[] = [];
   for (const [group, q] of parsed.data.questions.entries()) {
     for (const f of q.fields) {
       // Own keys only: a type such as "constructor" must not find Object's built-ins.
       const kind = Object.hasOwn(KINDS, f.type) ? KINDS[f.type] : undefined;
-      if (kind === undefined) return null;
+      if (kind === undefined) return { kind: "unreadable" };
       const select = kind === "select" || kind === "multi_select";
       out.push({
         fieldName: f.name,
@@ -66,5 +82,5 @@ export async function readGreenhouseForm(
       });
     }
   }
-  return out;
+  return { kind: "form", questions: out };
 }

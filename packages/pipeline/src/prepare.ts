@@ -32,6 +32,9 @@ export type PrepareResult =
   | {
       kind: "filed";
       packageId: string;
+      // The filed package's hash (packageSha256), the one the Gate request pins: its submission
+      // round is named by it (NS-280 slice 2).
+      packageSha256: string;
       requestId: string;
       // A policy Paul set approved it as it was filed (APPLY-004); otherwise it waits in his queue.
       autoApproved: boolean;
@@ -213,6 +216,7 @@ export async function preparePackage(
   return {
     kind: "filed",
     packageId,
+    packageSha256: assembled.value.sha256,
     requestId: filed.value.requestId,
     // Only a policy's approval made as this request was filed; a replay's decision is reported
     // as it is (Paul may have approved or rejected it while the run was down).
