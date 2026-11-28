@@ -206,20 +206,26 @@ export async function bankApprovedAnswer(
 ): Promise<Result<{ answerId: string; version: number; saved: boolean }, BankDraftError>> {
   const draft = await readAnswerDraft(db, input.candidateId, input.requestId);
   if (draft === null) return { ok: false, error: { kind: "NotFound" } };
-  return saveApprovedAnswer(db, {
-    candidateId: input.candidateId,
-    answerId: draft.answerId,
-    kind: draft.kind,
-    canonicalId: draft.canonicalId,
-    shortText: draft.shortText,
-    longText: draft.longText,
-    decisionId: input.decisionId,
-    applicationId: draft.applicationId,
-    // Paul approves the draft as filed; an edit would be a new request (NS-203).
-    edited: false,
-    confidence: draft.confidence,
-    storyIds: draft.storyIds,
-    atomIds: draft.atomIds,
-    traceId: null,
-  });
+  try {
+    return await saveApprovedAnswer(db, {
+      candidateId: input.candidateId,
+      answerId: draft.answerId,
+      kind: draft.kind,
+      canonicalId: draft.canonicalId,
+      shortText: draft.shortText,
+      longText: draft.longText,
+      decisionId: input.decisionId,
+      applicationId: draft.applicationId,
+      // Paul approves the draft as filed; an edit would be a new request (NS-203).
+      edited: false,
+      confidence: draft.confidence,
+      storyIds: draft.storyIds,
+      atomIds: draft.atomIds,
+      traceId: null,
+    });
+  } catch {
+    // A fresh error with no cause: a driver error (a race on the bank answer's id, say) lists the
+    // insert's parameters, which hold the answer's text.
+    throw new Error("bank_answer insert failed");
+  }
 }

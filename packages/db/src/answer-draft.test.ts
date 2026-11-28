@@ -227,6 +227,52 @@ describe("readApprovedAnswerDrafts and bankApprovedAnswer", () => {
     expect([await readApprovedAnswerDrafts(db, candidateId), banked.ok]).toEqual([[], false]);
   });
 
+  it("keeps the answer's text out of the error when the bank's insert fails", async () => {
+    // Another candidate already banked an answer under the same id: the bank's primary key refuses
+    // this one inside saveApprovedAnswer.
+    const shared = draft();
+    const otherSeed = await seedApplication(db, "queued");
+    const otherId = CandidateId.parse(otherSeed.candidateId);
+    const theirs = await fileAnswerDraft(db, {
+      ...shared,
+      candidateId: otherId,
+      applicationId: otherSeed.applicationId,
+    });
+    const mine = await fileAnswerDraft(db, shared);
+    if (!theirs.ok || !mine.ok) throw new Error("not filed");
+    const theirDecision = await decideApprovals(db, {
+      candidateId: otherId,
+      requestIds: [theirs.value.requestId],
+      decision: "approve",
+    });
+    if (!theirDecision.ok) throw new Error(theirDecision.error.kind);
+    const theirDecisionId = theirDecision.value[0]?.result.ok
+      ? theirDecision.value[0].result.value.decisionId
+      : "";
+    const myDecisionId = await approve(mine.value.requestId);
+    await later();
+    const banked = await bankApprovedAnswer(db, {
+      candidateId: otherId,
+      requestId: theirs.value.requestId,
+      decisionId: theirDecisionId,
+    });
+    let message = "";
+    try {
+      await bankApprovedAnswer(db, {
+        candidateId,
+        requestId: mine.value.requestId,
+        decisionId: myDecisionId,
+      });
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect([banked.ok, message, message.includes(shared.shortText)]).toEqual([
+      true,
+      "bank_answer insert failed",
+      false,
+    ]);
+  });
+
   it("answers NotFound for a request with no stored draft", async () => {
     const banked = await bankApprovedAnswer(db, {
       candidateId,
