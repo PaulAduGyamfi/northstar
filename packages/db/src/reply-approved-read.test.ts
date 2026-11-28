@@ -128,6 +128,26 @@ describe("readApprovedReplies", () => {
     ]);
   });
 
+  it("lists a reply once: after one run records its draft, a second run lists nothing and its claim is done", async () => {
+    const requestId = await filed();
+    const decisionId = await approve(requestId);
+    await later();
+    const first = await readApprovedReplies(db, candidateId);
+    const claim = await claimDraft(db, candidateId, decisionId);
+    await recordDraft(db, candidateId, decisionId, "18c0ffee");
+    expect([
+      first,
+      claim,
+      await readApprovedReplies(db, candidateId),
+      await claimDraft(db, candidateId, decisionId),
+    ]).toEqual([
+      [{ requestId, decisionId }],
+      { state: "new" },
+      [],
+      { state: "done", draftMessageId: "18c0ffee" },
+    ]);
+  });
+
   it("leaves out another candidate's approved reply", async () => {
     const otherId = CandidateId.parse((await seedApplication(db, "submitted")).candidateId);
     const requestId = await filed(otherId);

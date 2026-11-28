@@ -43,6 +43,7 @@ function harness(
     recordLetter: async (r, reason, key) => {
       letters.push({ decisionId: r.decisionId, reason, key });
     },
+    switchOn: async () => true,
     consent: async () => {
       consents++;
       return async (r) => {
@@ -161,6 +162,13 @@ describe("runDrafts", () => {
     expect([report.scopeMissing, h.written.length, report.written]).toEqual([true, 1, 0]);
   });
 
+  it("asks no consent and claims nothing while the gmail_drafts switch is off", async () => {
+    const h = harness([reply(1)]);
+    h.deps.switchOn = async () => false;
+    const report = await runDrafts(h.deps);
+    expect([report.switchedOff, h.consents(), h.written, h.letters]).toEqual([true, 0, [], []]);
+  });
+
   it("stops writing, with no letter, when consent fails", async () => {
     const h = harness([reply(1)]);
     h.deps.consent = async () => {
@@ -210,6 +218,7 @@ const REPORT: DraftsRunReport = {
   stuck: 0,
   scopeMissing: false,
   stoppedBy: null,
+  switchedOff: false,
 };
 
 async function command(report: Partial<DraftsRunReport> | Error) {
@@ -257,6 +266,24 @@ describe("draftsCommand", () => {
       code: 1,
       printed: [
         "Approved replies weren't written: Google didn't grant Gmail drafts access. Allow it on the consent page and run it again.",
+      ],
+    });
+  });
+
+  it("says drafts are switched off on the Health page, and exits 1", async () => {
+    expect(await command({ passedOver: 0, switchedOff: true })).toEqual({
+      code: 1,
+      printed: [
+        "Approved replies weren't written: Gmail drafts are switched off on the Health page. Turn them on there and run it again.",
+      ],
+    });
+  });
+
+  it("prints only the Stuck work line when every approved reply is passed over", async () => {
+    expect(await command({ passedOver: 2 })).toEqual({
+      code: 0,
+      printed: [
+        "In Stuck work on /health: 0 new, 2 waiting for you. Retry one there and the next run writes it.",
       ],
     });
   });

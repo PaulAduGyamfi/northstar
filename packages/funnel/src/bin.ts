@@ -339,6 +339,7 @@ try {
           // A letter that can't be stored stops the run: a silent drop would hide the reply.
           if (!saved.ok) throw new Error(`dead letter refused: ${saved.error.field}`);
         },
+        switchOn: () => isSubsystemOn(db, candidateId, "gmail_drafts"),
         consent: async () => {
           // Loaded only when an approved reply is waiting, so other funnel commands never load
           // the Mail Gateway's writer.

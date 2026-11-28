@@ -376,7 +376,8 @@ Exists now:
   `drafts.ts`): it lists the approved replies not yet written (`readApprovedReplies`,
   `packages/db`, `reply-approved-read.ts`: `email_reply` requests with a stored draft whose newest
   live decision is an approval past its undo window by the Gate's clock, not undone or withdrawn,
-  with no `reply_draft_record` for that decision; ids only, at most 50), and only then asks
+  with no `reply_draft_record` for that decision; ids only, at most 50), and only then, while the
+  `gmail_drafts` switch is on (asked first, so a run while it is off leaves no claims), asks
   `authorizeCompose` (consent that run, the token in memory, #400). Each goes through
   `writeReplyDraft` with `dbMailLedger`, `verifyApproval` and the stored switch and breaker; it
   prints counts only. A write that throws, or a refusal no later run clears (`draft_not_found`,

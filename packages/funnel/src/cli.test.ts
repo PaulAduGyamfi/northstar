@@ -162,6 +162,7 @@ describe("funnel cli", () => {
         stuck: 0,
         scopeMissing: false,
         stoppedBy: null,
+        switchedOff: false,
       };
     };
     expect([await main(d), runs, printed]).toEqual([

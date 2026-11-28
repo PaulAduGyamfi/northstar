@@ -38,6 +38,8 @@ export type DraftsRunReport = {
   scopeMissing: boolean;
   // Why writing stopped early (consent or Gmail not answering), by the error's name.
   stoppedBy: string | null;
+  // The `gmail_drafts` kill switch is off: nothing was claimed and no consent was asked.
+  switchedOff: boolean;
 };
 
 export type DraftWriter = (reply: ApprovedReply) => Promise<Result<DraftWritten, DraftRefusal>>;
@@ -48,6 +50,10 @@ export type DraftsRunDeps = {
   // Every `mail.draft_write` letter with Paul's resolution (readDeadLetterKeys).
   letters: () => Promise<readonly LetterRow[]>;
   recordLetter: (reply: ApprovedReply, reason: DraftLetterReason, key: string) => Promise<void>;
+  // Whether the stored `gmail_drafts` kill switch is on. Asked before consent: the writer claims
+  // each decision before its own guard asks the switch, so a run while it is off would only leave
+  // claims behind (each one a step towards `claims_exhausted`) and a consent page for nothing.
+  switchOn: () => Promise<boolean>;
   // Asks gmail.compose consent for this run and returns writeReplyDraft bound to that token.
   consent: () => Promise<DraftWriter>;
 };
@@ -62,6 +68,7 @@ export async function runDrafts(deps: DraftsRunDeps): Promise<DraftsRunReport> {
     stuck: 0,
     scopeMissing: false,
     stoppedBy: null,
+    switchedOff: false,
   };
   const letters = letterState(await deps.letters(), "mail.draft_write");
   const all = await deps.approved();
@@ -69,6 +76,10 @@ export async function runDrafts(deps: DraftsRunDeps): Promise<DraftsRunReport> {
   r.passedOver = all.length - replies.length;
   // Nothing approved: no consent page for nothing.
   if (replies.length === 0) return r;
+  if (!(await deps.switchOn())) {
+    r.switchedOff = true;
+    return r;
+  }
   let write: DraftWriter;
   try {
     write = await deps.consent();
@@ -183,8 +194,15 @@ export async function draftsCommand(deps: DraftsDeps): Promise<number> {
       "Approved replies weren't written: Google didn't grant Gmail drafts access. Allow it on the consent page and run it again.",
     );
     code = 1;
-  } else if (r.approved === 0 && r.passedOver === 0) {
-    deps.print("No approved replies are waiting to go in your Gmail drafts.");
+  } else if (r.switchedOff) {
+    deps.print(
+      "Approved replies weren't written: Gmail drafts are switched off on the Health page. Turn them on there and run it again.",
+    );
+    code = 1;
+  } else if (r.approved === 0) {
+    // Every approved reply may be waiting in Stuck work: the line below says so.
+    if (r.passedOver === 0)
+      deps.print("No approved replies are waiting to go in your Gmail drafts.");
   } else {
     deps.print(
       `Approved replies put in your Gmail drafts: ${r.written} of ${r.approved}${r.alreadyThere > 0 ? ` (${r.alreadyThere} already there from an earlier run)` : ""}. Held back for later: ${r.skipped}.`,
