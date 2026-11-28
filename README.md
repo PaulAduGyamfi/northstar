@@ -95,6 +95,9 @@ it, at most two points) in the same run once you turn on
 `RECRUITER_EXTRACT` (off by default). With `RECRUITER_REPLIES` on (off by default), the same run
 also drafts a short reply to each graded recruiter email you haven't answered (interested,
 asking for more, or a polite no; nothing for an F) and puts it in your Queue: nothing is sent.
+With `FOLLOW_UP_NUDGES` on (off by default), the same run also puts a short follow-up in your
+Queue for each application that has gone quiet (7 days after applying, 5 in interviews, when the
+company's newest email left the next move to them); nothing is sent.
 Replies you approve in the Queue go into your Gmail drafts when you run
 `pnpm --filter @northstar/funnel funnel drafts` (Google consent for Gmail drafts only, each run,
 no stored token); it never sends, so you read and send each one from Gmail yourself.

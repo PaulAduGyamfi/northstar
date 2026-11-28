@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   FunnelConfigError,
+  loadFollowUpNudges,
   loadFunnelConfig,
   loadPrepConfig,
   loadRecruiterReplies,
@@ -104,6 +105,30 @@ describe("loadPrepConfig (NS-241 slice 5)", () => {
       "ALERT_TIME_ZONE is not a known IANA time zone",
       "PREP_WORKING_HOURS must be HH:MM-HH:MM, start before end",
       "PREP_WORKING_HOURS must be HH:MM-HH:MM, start before end",
+    ]);
+  });
+});
+
+describe("loadFollowUpNudges", () => {
+  it("reads FOLLOW_UP_NUDGES as on or off, unset or empty meaning off", () => {
+    expect([
+      loadFollowUpNudges({ FOLLOW_UP_NUDGES: "on" }),
+      loadFollowUpNudges({ FOLLOW_UP_NUDGES: "off" }),
+      loadFollowUpNudges({ FOLLOW_UP_NUDGES: "" }),
+      loadFollowUpNudges({ RECRUITER_REPLIES: "on" }),
+    ]).toEqual([true, false, false, false]);
+  });
+
+  it("refuses any other value by the setting's name, never echoing the value", () => {
+    let caught: unknown;
+    try {
+      loadFollowUpNudges({ FOLLOW_UP_NUDGES: "yes" });
+    } catch (e) {
+      caught = e;
+    }
+    expect([caught instanceof FunnelConfigError, (caught as Error).message]).toEqual([
+      true,
+      "FOLLOW_UP_NUDGES must be on or off",
     ]);
   });
 });

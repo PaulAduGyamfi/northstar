@@ -1,6 +1,6 @@
 # NS-281: Give the drafts their callers: reply drafts to Gmail drafts, follow-up nudges, answer drafts
 
-Status: draft
+Status: slice 1 merged (#471); slice 2 in review
 Requirements: RPL-002, RPL-004 (parent #117 cites RPL-001…004); ANS-004 and INB-004 are named on
 #459 but not on its parent (see Open questions)
 Rules that apply: ADR-0002, ADR-0014, ADR-0025, ADR-0016, `.claude/rules/db.md`, Paul's decision on
@@ -29,8 +29,18 @@ Slice 1 (this PR): **approved reply → Gmail draft.**
   no letter. A grant without compose stops it with `scope_missing`.
 - It prints counts only.
 
-Slice 2: **follow-up nudges.** `funnel inbox` files nudges for applications `nudgesDue` picks,
-through `nudgePackage` and `fileReplyDraft`, only while a setting turns it on (off by default).
+Slice 2: **follow-up nudges** (RPL-004). `funnel inbox` runs a nudge step after the recruiter
+replies, only while `FOLLOW_UP_NUDGES=on` (default off):
+- `runNudges` (`packages/funnel`, `nudge.ts`) takes `nudgesDue` over `readNudgeCandidates` with
+  `DEFAULT_NUDGE_DAYS` (7 applied, 5 interview), passing over lettered applications.
+- It files at most 10 a run, looking at no more than 30. It skips one Paul already followed up on
+  (a `SENT` message later in the thread, read by headers only, `paulAnswered` shared with the
+  recruiter replies).
+- It reads the reply headers, builds `nudgePackage` (fixed text per stage, nothing to cite) and
+  files it through `fileReplyDraft` (Gate, `email_reply`). A filed nudge is the message's one live
+  reply, so the next run's `nudgesDue` drops it.
+- A failed read, bad headers, a no-reply sender or a refused filing is a `mail.nudge` dead letter;
+  Gmail not answering stops the step with no letter. Nothing is sent.
 
 Slice 3: **answer drafts** (ANS-004), pending the scope question below.
 
@@ -43,15 +53,31 @@ Slice 3: **answer drafts** (ANS-004), pending the scope question below.
       answers `already_created`).
 - [ ] `funnel drafts` is wired in `bin.ts` and named in AGENTS.md and the README.
 
+Slice 2:
+- [ ] Off by default: `runNudges` reads, builds and files nothing (fakes); `FOLLOW_UP_NUDGES`
+      accepts only on/off, refusing others by name.
+- [ ] One nudge per due application, built with its stage; none for one not yet due or silent over
+      60 days (`MAX_NUDGE_SILENT_DAYS`).
+- [ ] Run twice: once a nudge is filed (`replyFiled`), the next run files nothing.
+- [ ] Skipped when Paul already followed up; a newly due application is filed even when 30+
+      answered ones wait (most recently due first).
+- [ ] A letter for each of `read_failed`, `invalid_headers`, `no_reply_address`, `file_refused`;
+      Gmail or the filing's dependency failing stops the step with no letter.
+- [ ] At most 10 filed and 30 looked at a run.
+
 ## Failure modes
 - Consent cancelled or timed out: the run stops, prints the error's class name, nothing written.
 - Gmail down / rate limited: stop, no letter; the claim's lease lets a later run continue.
 - Kill switch off or breaker open: `HeldBack`, skipped this run.
 - Database refuses: the command prints the error's class name and exits 1.
 
+Slice 2: Gmail down or a breaker stops the nudge step (the run prints why and exits 1); a bad
+`FOLLOW_UP_NUDGES` stops the run before Gmail consent.
+
 ## Observability
 `writeReplyDraft`'s `gmail.write_reply_draft` span and `reply.draft_created` event (existing);
-`dead_letter.recorded` for each letter. No new event types.
+`dead_letter.recorded` for each letter. No new event types. Slice 2: each filed nudge is the
+Gate's `approval.requested`; each letter `dead_letter.recorded` (`mail.nudge`).
 
 ## Out of scope
 Sending mail. A stored refresh token or a scheduled run (#400). A worker caller.
@@ -64,6 +90,13 @@ Sending mail. A stored refresh token or a scheduled run (#400). A worker caller.
 4. `funnel drafts` in `cli.ts`, wired in `bin.ts` (`authorizeCompose`, `writeReplyDraft`,
    `dbMailLedger`, `verifyApproval`, the stored guard), loaded only when a reply is waiting.
 5. AGENTS.md, README and `.claude/rules/db.md`.
+
+## Plan (slice 2)
+1. `mail.nudge` in `DEAD_LETTER_KINDS` (shape-only CHECK: no migration), words in the web app.
+2. `loadFollowUpNudges` (`FOLLOW_UP_NUDGES`, default off) and `.env.example`.
+3. `runNudges` (`nudge.ts`) over ports; `paulAnswered` exported from `reply.ts`.
+4. The step in `runInbox` after the replies, its report fields and printed lines; wired in `bin.ts`.
+5. AGENTS.md and README.
 
 ## Decisions made without Paul
 - **Scope beyond the parent's requirements.** #459 cites ANS-004 and INB-004, which its parent #117

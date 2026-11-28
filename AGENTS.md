@@ -350,6 +350,19 @@ Exists now:
     (`NUDGE_SENTENCES`, no claims; the greeting only from the From header's own name), refuses a
     no-reply recipient, and `fileReplyDraft` files it like any reply. A company that goes quiet
     after Paul's reply isn't nudged yet (one live reply per message).
+  - Since NS-281 (slice 2) its caller is `funnel inbox`, only while `FOLLOW_UP_NUDGES=on`
+    (`loadFollowUpNudges`; default off). After the recruiter replies, `runNudges`
+    (`packages/funnel`, `nudge.ts`) runs `nudgesDue` over `readNudgeCandidates` with
+    `DEFAULT_NUDGE_DAYS`, leaves out any silent over 60 days (`MAX_NUDGE_SILENT_DAYS`: an answer,
+    and stale mail when the step is first turned on), takes the most recently due first (so ones
+    Paul followed up on himself, which stay due, can't crowd out new ones), files at most 10 a run
+    (looking at no more than 30), skips one Paul
+    already followed up on (a `SENT` message later in the thread, headers only), reads the reply
+    headers (`getReplyHeaders`), builds `nudgePackage` and files it through `fileReplyDraft`. A
+    filed nudge is the message's one live reply, so a rerun files nothing. A read that fails, bad
+    headers, a no-reply sender or a refused filing is a `mail.nudge` dead letter (the same
+    pass-over rule); Gmail not answering stops the step with no letter. Nothing is sent: each nudge
+    waits in the Queue, and `funnel drafts` puts an approved one in Gmail drafts.
   Since slice 4 also the Gmail draft writer (ADR-0025, Accepted), a Mail Gateway module in
   `packages/gateways/src/mail/`. `writeReplyDraft` works in this order:
   - It reads the stored `reply_draft`, re-hashes it (`replyContentSha256`) and calls
@@ -1024,7 +1037,7 @@ Exists now:
   `recordDeadLetter` takes only a kind on `DEAD_LETTER_KINDS` (`apply.stale_sweep`,
   `apply.submission`, `calendar.interview_detection`, since NS-213 slice 2
   `apply.signal_relay`, since NS-241 slice 4 `calendar.prep_write`, since NS-193 slice 3
-  `push.notify`, and since NS-281 `mail.draft_write`); a new producer adds its own.
+  `push.notify`, and since NS-281 `mail.draft_write` and `mail.nudge`); a new producer adds its own.
 - Health and feed (NS-125, RES-013, OBS-002): `systemHealth` (`packages/domain`, `health.ts`)
   turns breakers, kill switches and board watches into `healthy / degraded / down` per subsystem
   with a plain reason, and `feedLine` (`feed.ts`) turns an event into one plain sentence from
@@ -1640,7 +1653,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/funnel funnel import data/<file>.csv` | import a tracker export (`company, role, applied_on, stage_reached, outcome` plus optional `outcome_on, channel, notes`); a file with any bad row stores nothing. Paul only |
 | repo root | `pnpm --filter @northstar/funnel funnel review` | place or discard the messages the backfill couldn't decide, with a link to each in Gmail. Paul only |
 | repo root | `pnpm --filter @northstar/funnel funnel interviews` | sign in to Google Calendar read-only (browser consent every run, no stored token), detect interviews in the next 30 days against open applications whose company domains you entered (`jobs domains`), store them for `/interviews` and print counts only. Safe to rerun. Paul only: his real calendar, needs `DATABASE_URL` and `GOOGLE_OAUTH_CLIENT_*`; agents never run it |
-| repo root | `pnpm --filter @northstar/funnel funnel inbox` | sign in to Gmail read-only (browser consent every run, no stored token), link new job mail from the stored cursor (the first run reads 7 days back), sort up to 25 recorded emails with the rules or the `mail-classify` model behind its switch, breaker and the spend cap, grade up to 10 recruiter emails when `RECRUITER_EXTRACT=on` (off by default), send up to 10 reply drafts by grade to your Queue for approval when `RECRUITER_REPLIES=on` (off by default; nothing is sent), and print counts only; emails that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real mail, needs `DATABASE_URL`, `GOOGLE_OAUTH_CLIENT_*` and `ANTHROPIC_API_KEY`; agents never run it |
+| repo root | `pnpm --filter @northstar/funnel funnel inbox` | sign in to Gmail read-only (browser consent every run, no stored token), link new job mail from the stored cursor (the first run reads 7 days back), sort up to 25 recorded emails with the rules or the `mail-classify` model behind its switch, breaker and the spend cap, grade up to 10 recruiter emails when `RECRUITER_EXTRACT=on` (off by default), send up to 10 reply drafts by grade to your Queue for approval when `RECRUITER_REPLIES=on` (off by default; nothing is sent), send up to 10 follow-ups on applications that went quiet to your Queue when `FOLLOW_UP_NUDGES=on` (off by default; nothing is sent), and print counts only; emails that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real mail, needs `DATABASE_URL`, `GOOGLE_OAUTH_CLIENT_*` and `ANTHROPIC_API_KEY`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel prep [--busy-from-calendar]` | plan prep blocks for each confirmed, upcoming interview inside your working hours (`PREP_TIME_ZONE` or `ALERT_TIME_ZONE`, `PREP_WORKING_HOURS`), around your other interviews and their prep (with `--busy-from-calendar`, also around your calendar's events: a second, read-only Google consent that run, only when something is to be planned; times only, nothing kept), send each plan to your Queue, and, when one is approved, sign in to Google for your Northstar calendar only (browser consent that run, no stored token) and add its blocks once each; prints counts only, and plans that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real calendar, needs `DATABASE_URL` and `GOOGLE_OAUTH_CLIENT_*` with `calendar.app.created` on the consent screen (and `calendar.events.readonly`, as for `funnel interviews`, with `--busy-from-calendar`); agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel drafts` | put each reply you approved in the Queue into your Gmail drafts, once per approval: only when one is waiting, sign in to Google for Gmail drafts only (browser consent that run, no stored token); it never sends, so you send each draft from Gmail yourself; prints counts only, and replies that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real mail, needs `DATABASE_URL` and `GOOGLE_OAUTH_CLIENT_*` with `gmail.compose` on the consent screen; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel report` / `funnel hypotheses` | the funnel report and the hypothesis board. Paul only: they print his real applications; agents never run them |

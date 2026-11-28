@@ -39,6 +39,8 @@ export const DEAD_LETTER_KINDS = [
   "mail.reply",
   // NS-281 slice 1: an approved reply `funnel drafts` couldn't write as a Gmail draft.
   "mail.draft_write",
+  // NS-281 slice 2: an application `funnel inbox` couldn't file a follow-up nudge for.
+  "mail.nudge",
   // NS-193 slice 3: a handoff push no browser took, a claim whose outcome is unknown, or a pass
   // of the handoff notifier that kept failing (apps/worker notify.ts).
   "push.notify",
