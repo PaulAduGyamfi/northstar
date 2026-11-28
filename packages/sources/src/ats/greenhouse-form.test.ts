@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fakeWeb } from "../test/fake-web.js";
-import { readGreenhouseForm } from "./greenhouse-form.js";
+import { readGreenhouseForm, readGreenhouseFormResult } from "./greenhouse-form.js";
 
 // A Greenhouse posting's application questions (NS-227), from a synthetic answer shaped like the
 // public job-board API's `?questions=true` (invented board, posting and questions).
@@ -159,6 +159,25 @@ describe("readGreenhouseForm", () => {
       await readGreenhouseForm(missing.deps, TARGET),
       await readGreenhouseForm(garbled.deps, TARGET),
     ]).toEqual([null, null]);
+  });
+
+  it("tells Greenhouse failing for now (429, 5xx) apart from an answer that is no form (NS-280)", async () => {
+    const busy = fakeWeb({ [URL]: { status: 429, body: {} } });
+    const down = fakeWeb({ [URL]: { status: 503, body: {} } });
+    const missing = fakeWeb({});
+    const ok = fakeWeb({ [URL]: { body: POSTING } });
+    const read = await readGreenhouseFormResult(ok.deps, TARGET);
+    expect([
+      await readGreenhouseFormResult(busy.deps, TARGET),
+      await readGreenhouseFormResult(down.deps, TARGET),
+      await readGreenhouseFormResult(missing.deps, TARGET),
+      read.kind === "form" && read.questions.length > 0,
+    ]).toEqual([
+      { kind: "unavailable", status: 429 },
+      { kind: "unavailable", status: 503 },
+      { kind: "unreadable" },
+      true,
+    ]);
   });
 
   it("asks for the posting by its encoded board and id", async () => {

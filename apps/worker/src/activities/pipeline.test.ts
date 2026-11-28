@@ -1,7 +1,7 @@
 import type { JobFormQuestion, PipelineState } from "@northstar/db";
 import { err, ok } from "@northstar/domain";
 import type { PrepareResult } from "@northstar/pipeline";
-import type { PollGuard } from "@northstar/sources";
+import type { GreenhouseFormRead, PollGuard } from "@northstar/sources";
 import { ApplicationFailure } from "@temporalio/common";
 import { describe, expect, it } from "vitest";
 import { createPipelineActivities, type PipelinePorts } from "./pipeline.js";
@@ -37,7 +37,7 @@ function fakes(options: {
   target?: { board: string; postingId: string } | null;
   on?: boolean;
   allowed?: boolean;
-  read?: () => Promise<JobFormQuestion[] | null>;
+  read?: () => Promise<GreenhouseFormRead>;
   prepared?: PrepareResult;
   start?: PipelinePorts["start"];
 }) {
@@ -66,7 +66,7 @@ function fakes(options: {
     guard: () => guard,
     readForm: async () => {
       calls.read++;
-      return options.read ? options.read() : [QUESTION];
+      return options.read ? options.read() : { kind: "form", questions: [QUESTION] };
     },
     saveForm: async () => ({ status: "stored", questions: 1 }),
     prepare: async () => {
@@ -154,8 +154,18 @@ describe("readJobForm (NS-280 slice 2)", () => {
     ]);
   });
 
+  it("reads a 429 or 5xx as Greenhouse failing for now: a breaker failure and a retried attempt, never unreadable", async () => {
+    const { activities, calls } = fakes({
+      read: async () => ({ kind: "unavailable", status: 503 }),
+    });
+    expect([await failureOf(activities.readJobForm(args)), calls.reports]).toEqual([
+      ["Unavailable", false],
+      [["source:greenhouse", { ok: false, error: "Unavailable" }, null]],
+    ]);
+  });
+
   it("says unreadable when Greenhouse answers with no form it can read, and skips past queued", async () => {
-    const unreadable = fakes({ read: async () => null });
+    const unreadable = fakes({ read: async () => ({ kind: "unreadable" }) });
     const later = fakes({
       state: { status: "awaiting_approval", jobId: JOB, packageSha256: SHA },
     });

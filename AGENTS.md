@@ -1511,8 +1511,9 @@ Exists now:
   Since NS-280 (slice 2) also `jobPipelineWorkflow` (`src/workflows/pipeline.ts`, on `pipeline`,
   input the two ids only): for one application it runs `tailorResume` (`tailorForJob`, no toggles)
   and `readJobForm` (the job's first Greenhouse link through `readGreenhouseForm` and `saveJobForm`,
-  behind the stored `source:greenhouse` switch and breaker; held back fails the attempt, retried
-  for about 90 minutes), both only while the application is `queued`, then `preparePackage` (files
+  behind the stored `source:greenhouse` switch and breaker; held back, a 429 or a 5xx fails the
+  attempt, retried for about 90 minutes, through `readGreenhouseFormResult`), both only while the
+  application is `queued`, then `preparePackage` (files
   with the Gate; at `awaiting_approval` it reads the newest round's stored hash through
   `readPipelineState`, `packages/db`, so a crashed run starts that round instead of filing again)
   and `startSubmission` for that round (already started counts as done). A refused tailor or an
@@ -1520,8 +1521,11 @@ Exists now:
   what is missing. A step failing all its attempts, or a Gate or move refusal, records one
   `pipeline.job` dead letter per run and the workflow still fails visibly
   (`src/activities/pipeline.ts`; ports bound by `pipelinePorts` in `wiring.ts`; `@northstar/worker`
-  depends on `pipeline`, `profile` and `sources` for it). `startJobPipeline` (`client.ts`) starts
-  one run per application (`pipeline:<applicationId>`); nothing calls it yet (slice 3).
+  depends on `pipeline`, `profile` and `sources` for it). The step order is plain code
+  (`runPipeline`, `src/workflows/pipeline-run.ts`), and an activity's error leaves as its class
+  name only (`scrubbed`: a database error quotes its parameters). `startJobPipeline` (`client.ts`)
+  starts one run per application (`pipeline:<applicationId>`); nothing calls it yet (slice 3, which
+  must also start a new round after a rejection and an edited package's round).
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 

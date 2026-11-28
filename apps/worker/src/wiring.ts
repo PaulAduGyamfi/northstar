@@ -25,7 +25,12 @@ import {
 } from "@northstar/gateways";
 import { preparePackage } from "@northstar/pipeline";
 import { tailorForJob } from "@northstar/profile";
-import { dbPollGuard, detectAts, type FetchDeps, readGreenhouseForm } from "@northstar/sources";
+import {
+  dbPollGuard,
+  detectAts,
+  type FetchDeps,
+  readGreenhouseFormResult,
+} from "@northstar/sources";
 import { Context } from "@temporalio/activity";
 import { type BeatStep, createApplyActivities } from "./activities/apply.js";
 import { createEndingActivities } from "./activities/ending.js";
@@ -169,7 +174,7 @@ export function pipelinePorts(
       return null;
     },
     guard: (candidateId) => dbPollGuard(db, candidateId),
-    readForm: (t) => readGreenhouseForm(deps, t),
+    readForm: (t) => readGreenhouseFormResult(deps, t),
     saveForm: (candidateId, jobId, questions) =>
       saveJobForm(db, { candidateId, jobId, ats: "greenhouse", questions, actor: "system" }),
     prepare: (candidateId, applicationId) => preparePackage(db, { candidateId, applicationId }),

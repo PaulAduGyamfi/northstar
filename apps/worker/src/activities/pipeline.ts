@@ -6,7 +6,7 @@ import type {
 } from "@northstar/db";
 import { CandidateId, type Result } from "@northstar/domain";
 import type { PrepareResult } from "@northstar/pipeline";
-import type { PollGuard } from "@northstar/sources";
+import type { GreenhouseFormRead, PollGuard } from "@northstar/sources";
 import { ApplicationFailure } from "@temporalio/common";
 import type { StartError } from "../client.js";
 import {
@@ -43,7 +43,7 @@ export type PipelinePorts = {
   ) => Promise<{ board: string; postingId: string } | null>;
   // The stored `source:greenhouse` switch and breaker, as board polling uses them.
   guard: (candidateId: CandidateId) => PollGuard;
-  readForm: (t: { board: string; postingId: string }) => Promise<JobFormQuestion[] | null>;
+  readForm: (t: { board: string; postingId: string }) => Promise<GreenhouseFormRead>;
   saveForm: (
     candidateId: CandidateId,
     jobId: string,
@@ -111,17 +111,24 @@ export function createPipelineActivities(ports: PipelinePorts) {
         throw ApplicationFailure.retryable("source:greenhouse breaker is open", "HeldBack");
       }
       const probeToken = decision.probe ? decision.probeToken : null;
-      let questions: JobFormQuestion[] | null;
+      let read: GreenhouseFormRead;
       try {
-        questions = await ports.readForm(target);
+        read = await ports.readForm(target);
       } catch (error) {
         // Greenhouse didn't answer (or the safe fetcher refused): counts against its breaker.
         await guard.report(GREENHOUSE, { ok: false, error: errorName(error) }, probeToken);
         throw error;
       }
-      // An answer that isn't a readable form is Greenhouse answering, not failing.
+      // A 429 or 5xx is Greenhouse failing for now: it counts against the breaker and the attempt
+      // is retried, so a passing outage never reads as "no form" (a needs-you line no rerun clears).
+      if (read.kind === "unavailable") {
+        await guard.report(GREENHOUSE, { ok: false, error: "Unavailable" }, probeToken);
+        throw ApplicationFailure.retryable(`greenhouse answered ${read.status}`, "Unavailable");
+      }
+      // Any other answer, form or not, is Greenhouse answering.
       await guard.report(GREENHOUSE, { ok: true }, probeToken);
-      if (questions === null) return { kind: "unreadable" };
+      if (read.kind === "unreadable") return { kind: "unreadable" };
+      const questions = read.questions;
       const saved = await ports.saveForm(queued.candidateId, queued.jobId, questions);
       return { kind: saved.status };
     },

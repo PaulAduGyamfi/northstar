@@ -50,8 +50,9 @@ nothing starts `submissionWorkflow`, and scoring, tailoring and the Gate only ru
      is `queued`. A refusal doesn't stop the run.
   2. `readJobForm`: the job's first Greenhouse link's form (`readGreenhouseForm` through the safe
      fetcher), stored with `saveJobForm`, only while `queued`, behind the stored `source:greenhouse`
-     switch and breaker (held back is a retryable failure). No link or an unreadable form doesn't
-     stop the run.
+     switch and breaker (held back is a retryable failure). A 429 or 5xx counts against the
+     breaker and is retried (`readGreenhouseFormResult`), never read as "no form". No link or an
+     answer that is no readable form doesn't stop the run.
   3. `preparePackage`: `preparePackage` (files with the Gate); at `awaiting_approval` it reads the
      newest round's stored package hash instead (`readPipelineState`, `packages/db`), so a crashed
      run starts that round. `needs_human` ends the run: the visible `package.needs_human`.
@@ -61,9 +62,24 @@ nothing starts `submissionWorkflow`, and scoring, tailoring and the Gate only ru
 - `preparePackage`'s `filed` result carries `packageSha256`. `startJobPipeline` (`client.ts`)
   starts one run per application (`pipeline:<applicationId>`). Nothing calls it yet (slice 3).
 
+- The step order and endings are plain code (`runPipeline`, `workflows/pipeline-run.ts`), tested on
+  fakes; the workflow binds Temporal's activities and errors to it. Activity errors leave as the
+  error's class name only (a database error quotes its parameters).
+
+### What slice 3 must answer (found in review)
+- `startJobPipeline` uses `pipeline:<applicationId>` with reject-duplicate, so a failed run, or a new
+  round after Paul rejected a package (the application goes back to `queued`), can't start again
+  while Temporal keeps the closed run. The starter needs an id per round (or another reuse policy).
+- An edited package (NS-203 slice 4) is a new request with a new hash: the relay withdraws the old
+  round's run, and nothing starts one for the edited package, so Paul's approval of it would do
+  nothing. The starter (or the relay) must start the edited round's submission.
+
 ## Acceptance criteria (slice 2)
 - [x] The workflow bundles; its input is the two ids only.
 - [x] Each activity is safe to repeat, skips work past its status, and a filed round found on a
       rerun starts its submission without filing again.
-- [x] The form step makes no call while `source:greenhouse` is off or its breaker is open.
+- [x] The form step makes no call while `source:greenhouse` is off or its breaker is open, and a
+      429 or 5xx is a retried breaker failure, never "no form".
+- [x] A refusal or a step out of attempts records one dead letter and fails the run; Paul's
+      needs-you line, a skip or a cancellation records none.
 - [x] lint, typecheck, test and build green for every touched package.

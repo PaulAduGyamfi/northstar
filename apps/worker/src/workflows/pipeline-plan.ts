@@ -34,13 +34,12 @@ export type PackageStep =
 // Starting the round's submission: started, or already started by an earlier run (its id).
 export type StartStep = { kind: "started" | "exists" };
 
-// How a run ended.
+// How a run that didn't fail ended. A refusal or a step that failed all its attempts records a
+// dead letter (pipelineKey) and fails the run instead.
 export type PipelineResult =
   | { kind: "submission_started" | "submission_exists"; packageSha256: string }
   | { kind: "needs_human" }
-  | { kind: "skipped"; reason: "not_found" | "not_queued" }
-  // A dead letter records it (pipelineKey).
-  | { kind: "stopped"; reasonCode: string };
+  | { kind: "skipped"; reason: "not_found" | "not_queued" };
 
 // The step whose activity failed all its attempts: its dead letter's reason code.
 export type PipelineStepName = "tailor" | "form" | "prepare" | "start";

@@ -30,7 +30,11 @@ export {
 } from "./alerts-cli.js";
 export { type AtsTarget, detectAts } from "./ats/detect.js";
 // A Greenhouse posting's application form (NS-227), for the job pipeline's form step (NS-280).
-export { readGreenhouseForm } from "./ats/greenhouse-form.js";
+export {
+  type GreenhouseFormRead,
+  readGreenhouseForm,
+  readGreenhouseFormResult,
+} from "./ats/greenhouse-form.js";
 export { findDuplicate, type Match, nameKey, SIMILARITY, similarity } from "./dedupe.js";
 // Duplicate suggestions from job embeddings (NS-129 slice 2): they never merge a job.
 export { MAX_SUGGESTIONS_PER_JOB, type SuggestResult, suggestDuplicates } from "./dupes.js";
