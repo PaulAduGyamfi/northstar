@@ -106,9 +106,18 @@ Exists now:
   vector, by pgvector's `<=>`; nothing for a closed job) and `job_duplicate_suggestion` (one per pair, stored in one order;
   `recordDuplicateSuggestion` with `job.duplicate_suggested` by `system`, ids and the similarity,
   feed "Two saved jobs look like the same role: check them"). `suggestDuplicates`
-  (`packages/sources`, `dupes.ts`) stores at most 5 per job at a threshold its caller passes. No
-  caller yet: wiring, `jobs dupes` and the measured threshold come in slice 3; an embedding never
-  merges a job.
+  (`packages/sources`, `dupes.ts`) stores at most 5 per job at a threshold its caller passes.
+  Since slice 3 the `jobs` CLI runs `embedPass` (`embed-pass.ts`) after every scoring pass while
+  `JOB_EMBEDDINGS=on`: up to 64 ready, open jobs (freshest first, `readEmbeddableJobs`) whose
+  `embeddingText` SHA-256 differs from their newest stored one go out in one request, each vector
+  is stored and `suggestDuplicates` runs for each new one at `JOB_DUPLICATE_THRESHOLD` (0.50–0.99,
+  required while on, no default; `parseDuplicateThreshold`). A held-back or failed request stops
+  the pass with one printed line (`embedAfterScore`) and never fails the scoring command; the next
+  pass retries. A suggestion step that throws for one job is counted and printed, not retried: a
+  job embedded later still finds it, but its pairs with earlier jobs wait until its text changes. `jobs dupes` (`dupes-cli.ts`, `listDuplicateSuggestions`) lists the newest 50
+  pairs with both jobs' titles, companies and ids. The API's capture scoring doesn't embed. The
+  threshold's measurement and dismissing a suggestion need Paul's recordings (slice 4); until then
+  `JOB_EMBEDDINGS` stays off. An embedding never merges a job.
 - `evals/` (NS-106): the eval harness and CLI. One folder per route arrives with that route
   (`cases.jsonl`, `baseline.json`, `fixtures/`). Real-mail cases go in `evals/**/private/`
   (gitignored). The CLI can't run them yet: it only reads the public `cases.jsonl`. CI runs
@@ -1579,6 +1588,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/sources jobs form <job-id>` | read a saved Greenhouse job's application questions from its public API and store them with the job (a changed form is a new version; the same form stores nothing); prints counts and the required questions' labels. Paul only: real network and database |
 | repo root | `pnpm --filter @northstar/sources jobs alerts` / `jobs alerts set quiet <HH:MM-HH:MM\|off>` / `jobs alerts set zone <IANA zone>` / `jobs alerts set tier1 <true\|false>` / `jobs alerts reset quiet\|zone\|tier1` | show the fresh-job alert settings in effect and whether each is set here or the `ALERT_*` default / store one (checked like the env value; the next alert pass uses it, no restart) / put one back to its default. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs domains` / `jobs domains add <company-id> <domain>` / `jobs domains remove <company-id> <domain>` | list each company with its id and mail domains / add or remove one (checked as a plain domain; one another company holds is refused; the mail-link step reads it each time; freemail, shared ATS and hosting domains and bare public suffixes are refused). Paul only: needs `DATABASE_URL` |
+| repo root | `pnpm --filter @northstar/sources jobs dupes` | the newest 50 pairs of saved jobs that look like the same role (from job embeddings, NS-129), each with both jobs' titles, companies and ids and how alike they are; nothing is merged. With `JOB_EMBEDDINGS=on` (off by default) and `JOB_DUPLICATE_THRESHOLD` set, every `jobs` scoring pass embeds up to 64 changed jobs through OpenAI first (costs money, behind the `agent:job-embed` switch, the `openai` breaker and the spend cap). Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs check` | re-check the postings of saved jobs not tried in a day (closed ones weekly; at most 50 a pass); a job closes after two closed answers in a row and leaves scoring; prints counts only. Paul only: real network and database |
 | repo root | `cp .env.example .env` | once per clone (Paul): keep the part above the "Apps" line in `.env` (compose and `db:migrate`: the owner's credentials) and move the "Apps" part into `.env.app`, which the API and the `profile`, `jobs`, `funnel` and `eval` commands load (NS-235); then replace every `change-me`. An app refuses to start while `DATABASE_MIGRATION_URL` or `POSTGRES_PASSWORD` is in its environment |
 | repo root | `docker compose -f docker-compose.yml up -d --wait` | local stack: Postgres+pgvector :5432, Temporal :7233 (UI :8233), SeaweedFS S3 :8333, Grafana :3000 + OTLP :4317/:4318, all on 127.0.0.1. Agents must use this exact form (runs outside the sandbox) |

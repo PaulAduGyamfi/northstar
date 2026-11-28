@@ -332,11 +332,16 @@ export {
 } from "./job-embedding-schema.js";
 export {
   DUPLICATE_SUGGESTED_REASON,
+  type DuplicateSuggestionItem,
+  type EmbeddableJob,
   type EmbeddingRefusal,
   findSimilarJobs,
+  listDuplicateSuggestions,
+  readEmbeddableJobs,
   readEmbeddingHashes,
   recordDuplicateSuggestion,
   type SimilarJob,
+  type SuggestedJob,
   saveJobEmbedding,
 } from "./job-embedding-write.js";
 // A job's application form (NS-227).
