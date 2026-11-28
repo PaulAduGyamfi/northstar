@@ -5,7 +5,8 @@ import { dependencyDown, errorName, type LetterRow, letterKey, letterState } fro
 // Grading recruiter mail in `funnel inbox` (NS-238 item 1 slice 2, REC-001): the route reads the
 // facts, `checkRecruiterFacts` keeps only what the email states, and plain code grades them. The
 // grade stored is the grader's own, with no learned weights, so learning keeps measuring against
-// it. Off unless Paul turns on RECRUITER_EXTRACT. Codes and counts only leave this file.
+// it; since NS-238 item 3 slice 3 the weighted grade is stored beside it, for the Inbox. Off unless
+// Paul turns on RECRUITER_EXTRACT. Codes and counts only leave this file.
 
 // Grades a run makes at most: each is a normal-priority model call.
 export const MAX_GRADE = 10;
@@ -18,12 +19,15 @@ export type GradeLetterReason =
   | "grade_failed"
   | "record_refused";
 
-// The grade as stored: the grader's letter, points, reason codes and confidence.
+// The grade as stored: the grader's letter, points, reason codes and confidence, and the same
+// message graded with Paul's learned weights when any exist (NS-238 item 3 slice 3). Learning
+// compares his letter with the grader's own, so both are kept.
 export type StoredGrade = {
   grade: string;
   points: number;
   reasons: readonly string[];
   confidence: string;
+  weighted?: { grade: string; points: number; weightsPosition: bigint };
 };
 
 export type GradingDeps = {

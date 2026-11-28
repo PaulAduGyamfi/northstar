@@ -147,7 +147,8 @@ export async function readUngradedRecruiterMail(
 }
 
 // A graded recruiter email `funnel inbox` may file a reply for (NS-238 item 2's caller): its ids
-// and the letter its reply follows, Paul's newest regrade when he gave one, else the grader's.
+// and the letter its reply follows, the one the Inbox shows: Paul's newest regrade when he gave
+// one, else the weighted letter (NS-238 item 3 slice 3), else the grader's.
 export type ReplyCandidate = {
   mailLinkId: string;
   gmailMessageId: string;
@@ -163,13 +164,14 @@ export async function readReplyCandidates(
   candidateId: CandidateId,
   input: { since: Date; limit: number },
 ): Promise<ReplyCandidate[]> {
-  // Paul's letter wins: the newest regrade by its identity position, else the stored grade.
+  // Paul's letter wins: the newest regrade by its identity position, else the weighted letter,
+  // else the grader's own.
   const letter = sql<string>`coalesce((
     select ${recruiterRegrade.grade} from ${recruiterRegrade}
     where ${recruiterRegrade.candidateId} = ${recruiterGrade.candidateId}
       and ${recruiterRegrade.gmailMessageId} = ${recruiterGrade.gmailMessageId}
     order by ${recruiterRegrade.position} desc limit 1
-  ), ${recruiterGrade.grade})`;
+  ), ${recruiterGrade.weightedGrade}, ${recruiterGrade.grade})`;
   const rows = await db
     .select({
       mailLinkId: mailLink.id,

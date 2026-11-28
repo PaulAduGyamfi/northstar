@@ -11,6 +11,8 @@ const Grade = z.object({
   grade: z.enum(["A", "B", "C", "D", "F"]),
   reasons: z.array(z.string()),
   confidence: z.enum(["normal", "low"]),
+  // The grader's own letter, only when Paul's learned weights changed it (NS-238 item 3 slice 3).
+  systemGrade: z.enum(["A", "B", "C", "D", "F"]).optional(),
   // Paul's own letter (NS-238 item 3), absent until he regrades.
   paulGrade: z.enum(["A", "B", "C", "D", "F"]).optional(),
 });
@@ -114,7 +116,9 @@ export function gradeWords(g: GradeView): string {
     .flatMap((r) => (Object.hasOwn(GRADE_REASON_WORDS, r) ? [GRADE_REASON_WORDS[r] as string] : []))
     .join(", ");
   const low = g.confidence === "low" ? " (little to go on)" : "";
-  return `Recruiter grade ${g.grade}${why ? `: ${why}` : ""}${low}`;
+  // Weights learned from his regrades moved it: say from what, so the letter has its why (UX-014).
+  const adjusted = g.systemGrade ? ` (adjusted from ${g.systemGrade} by your regrades)` : "";
+  return `Recruiter grade ${g.grade}${adjusted}${why ? `: ${why}` : ""}${low}`;
 }
 
 export type ThreadRow = {

@@ -29,6 +29,7 @@ import {
   readPrepPlan,
   readPrepProposal,
   readRecordedMessageIds,
+  readRecruiterWeightsVersion,
   readReplyCandidates,
   readTags,
   readUnclassifiedMail,
@@ -433,6 +434,8 @@ try {
         grading: () => {
           // Paul's current search preferences, read once a run (the defaults before he sets any).
           let prefs: Promise<PreferenceValues> | undefined;
+          // The newest learned weights and their version, also read once a run (NS-238 item 3).
+          let weights: ReturnType<typeof readRecruiterWeightsVersion> | undefined;
           return runGrading({
             enabled: config.recruiterExtract,
             gradeLetters: () => readDeadLetterKeys(db, candidateId, "mail.grade"),
@@ -442,11 +445,35 @@ try {
             extract: (body) => extractRecruiterFacts({ gateway: llm, enabled: true }, body),
             grade: async (facts, body) => {
               prefs ??= readPreferences(db, candidateId).then((p) => p ?? PREFERENCE_DEFAULTS);
-              // No learned weights: the stored grade stays the grader's own (NS-238 item 3).
-              return gradeRecruiterMessage(facts, await prefs, body);
+              weights ??= readRecruiterWeightsVersion(db, candidateId);
+              // The grader's own grade, with no weights: learning compares Paul's letter with it.
+              const own = gradeRecruiterMessage(facts, await prefs, body);
+              const learned = await weights;
+              if (learned === null || Object.keys(learned.weights).length === 0) return own;
+              // The same facts with his learned weights: what the Inbox shows. Caps still apply.
+              const adjusted = gradeRecruiterMessage(facts, await prefs, body, learned.weights);
+              return {
+                ...own,
+                weighted: {
+                  grade: adjusted.grade,
+                  points: adjusted.points,
+                  weightsPosition: learned.position,
+                },
+              };
             },
-            record: (gmailMessageId, grade) =>
-              recordRecruiterGrade(db, { candidateId, gmailMessageId, grade }),
+            record: (gmailMessageId, g) =>
+              recordRecruiterGrade(db, {
+                candidateId,
+                gmailMessageId,
+                // Field by field: the grade input is strict.
+                grade: {
+                  grade: g.grade,
+                  points: g.points,
+                  reasons: g.reasons,
+                  confidence: g.confidence,
+                },
+                ...(g.weighted ? { weighted: g.weighted } : {}),
+              }),
             recordGradeLetter: (m, reason, key) =>
               letter("mail.grade", {
                 subject: `mail_link:${m.mailLinkId}`,
