@@ -197,6 +197,6 @@ describe("readHead (NS-282)", () => {
       title: null,
       location: null,
     });
-    expect(readHead("Acme | Backend Engineer | jobs@acme.example.com").location).toBeNull();
+    expect(readHead("Acme | Backend Engineer | jobs@example.com").location).toBeNull();
   });
 });
