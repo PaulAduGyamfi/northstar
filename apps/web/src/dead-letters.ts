@@ -145,6 +145,17 @@ const KINDS: Record<string, KindWords> = {
         "Later `funnel drafts` runs leave this reply out. Nothing was sent: write the reply in Gmail yourself if you still want to.",
     },
   },
+  // NS-281 slice 2: an application `funnel inbox` couldn't file a follow-up nudge for. Nothing was
+  // sent or put in Gmail.
+  "mail.nudge": {
+    what: "Preparing a follow-up on an application",
+    next: {
+      retry: "The next `funnel inbox` run with follow-ups on tries this follow-up again.",
+      skip: "Later `funnel inbox` runs prepare no follow-up on this email.",
+      hand_off:
+        "Later `funnel inbox` runs prepare no follow-up on this email. Follow up from Gmail yourself if you want to; the application is on the Pipeline.",
+    },
+  },
   // NS-280 slice 2: a queued application whose pipeline run (tailor, form, package, start) stopped
   // part-way. Nothing restarts it from here yet; the application stays where it is.
   "pipeline.job": {

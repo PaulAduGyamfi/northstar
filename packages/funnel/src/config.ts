@@ -31,6 +31,14 @@ export function loadRecruiterReplies(env: Readonly<Record<string, string | undef
   throw new FunnelConfigError("RECRUITER_REPLIES must be on or off");
 }
 
+// Follow-up nudges in `funnel inbox` (NS-281 slice 2): off unless Paul turns them on.
+export function loadFollowUpNudges(env: Readonly<Record<string, string | undefined>>): boolean {
+  const raw = env.FOLLOW_UP_NUDGES;
+  if (raw === undefined || raw === "" || raw === "off") return false;
+  if (raw === "on") return true;
+  throw new FunnelConfigError("FOLLOW_UP_NUDGES must be on or off");
+}
+
 // `funnel prep`'s settings (NS-241 slice 5): where Paul's working day is, for the prep planner.
 export type PrepConfig = {
   // An IANA zone: PREP_TIME_ZONE, else the fresh-job alerts' ALERT_TIME_ZONE.

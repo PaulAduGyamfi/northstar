@@ -29,8 +29,18 @@ Slice 1 (this PR): **approved reply → Gmail draft.**
   no letter. A grant without compose stops it with `scope_missing`.
 - It prints counts only.
 
-Slice 2: **follow-up nudges.** `funnel inbox` files nudges for applications `nudgesDue` picks,
-through `nudgePackage` and `fileReplyDraft`, only while a setting turns it on (off by default).
+Slice 2: **follow-up nudges** (RPL-004). `funnel inbox` runs a nudge step after the recruiter
+replies, only while `FOLLOW_UP_NUDGES=on` (default off):
+- `runNudges` (`packages/funnel`, `nudge.ts`) takes `nudgesDue` over `readNudgeCandidates` with
+  `DEFAULT_NUDGE_DAYS` (7 applied, 5 interview), passing over lettered applications.
+- It files at most 10 a run, looking at no more than 30. It skips one Paul already followed up on
+  (a `SENT` message later in the thread, read by headers only, `paulAnswered` shared with the
+  recruiter replies).
+- It reads the reply headers, builds `nudgePackage` (fixed text per stage, nothing to cite) and
+  files it through `fileReplyDraft` (Gate, `email_reply`). A filed nudge is the message's one live
+  reply, so the next run's `nudgesDue` drops it.
+- A failed read, bad headers, a no-reply sender or a refused filing is a `mail.nudge` dead letter;
+  Gmail not answering stops the step with no letter. Nothing is sent.
 
 Slice 3: **answer drafts** (ANS-004), pending the scope question below.
 
@@ -64,6 +74,13 @@ Sending mail. A stored refresh token or a scheduled run (#400). A worker caller.
 4. `funnel drafts` in `cli.ts`, wired in `bin.ts` (`authorizeCompose`, `writeReplyDraft`,
    `dbMailLedger`, `verifyApproval`, the stored guard), loaded only when a reply is waiting.
 5. AGENTS.md, README and `.claude/rules/db.md`.
+
+## Plan (slice 2)
+1. `mail.nudge` in `DEAD_LETTER_KINDS` (shape-only CHECK: no migration), words in the web app.
+2. `loadFollowUpNudges` (`FOLLOW_UP_NUDGES`, default off) and `.env.example`.
+3. `runNudges` (`nudge.ts`) over ports; `paulAnswered` exported from `reply.ts`.
+4. The step in `runInbox` after the replies, its report fields and printed lines; wired in `bin.ts`.
+5. AGENTS.md and README.
 
 ## Decisions made without Paul
 - **Scope beyond the parent's requirements.** #459 cites ANS-004 and INB-004, which its parent #117

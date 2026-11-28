@@ -20,6 +20,7 @@ import {
   runInbox,
   storedResult,
 } from "./inbox.js";
+import type { NudgeReport } from "./nudge.js";
 import type { ReplyReport } from "./reply.js";
 
 // `funnel inbox` (NS-238 item 1) with every port faked: no Gmail, model or database. Invented
@@ -60,6 +61,15 @@ const RULES: TriageResult = {
 };
 
 // The reply step turned off, as it is by default.
+const NUDGES_OFF: NudgeReport = {
+  enabled: false,
+  filed: 0,
+  answered: 0,
+  nudgeLetters: 0,
+  nudgeStoppedBy: null,
+  moreToNudge: false,
+};
+
 const REPLIES_OFF: ReplyReport = {
   enabled: false,
   filed: 0,
@@ -114,6 +124,7 @@ function fake(over: Partial<InboxRunDeps> = {}) {
       moreToGrade: false,
     }),
     replies: async () => REPLIES_OFF,
+    nudges: async () => NUDGES_OFF,
     ...over,
   };
   return { deps, pollLetters, classifyLetters, saved, skips, relinked, leftAlone };
@@ -455,6 +466,12 @@ const REPORT: InboxRunReport = {
   replyLetters: 0,
   replyStoppedBy: null,
   moreToReply: false,
+  nudgesOn: false,
+  nudgesFiled: 0,
+  nudgesAnswered: 0,
+  nudgeLetters: 0,
+  nudgeStoppedBy: null,
+  moreToNudge: false,
 };
 
 async function command(run: () => Promise<InboxRunReport>) {
@@ -527,6 +544,39 @@ describe("runInbox: replies", () => {
   });
 });
 
+describe("runInbox: follow-up nudges", () => {
+  it("files nudges after the replies and reports what they did", async () => {
+    const order: string[] = [];
+    const r = await runInbox(
+      fake({
+        replies: async () => {
+          order.push("reply");
+          return REPLIES_OFF;
+        },
+        nudges: async () => {
+          order.push("nudge");
+          return {
+            enabled: true,
+            filed: 2,
+            answered: 1,
+            nudgeLetters: 1,
+            nudgeStoppedBy: null,
+            moreToNudge: true,
+          };
+        },
+      }).deps,
+    );
+    expect([
+      order,
+      r.nudgesOn,
+      r.nudgesFiled,
+      r.nudgesAnswered,
+      r.nudgeLetters,
+      r.moreToNudge,
+    ]).toEqual([["reply", "nudge"], true, 2, 1, 1, true]);
+  });
+});
+
 describe("inboxCommand", () => {
   it("prints counts only and exits 0", async () => {
     const { code, printed } = await command(async () => REPORT);
@@ -537,6 +587,39 @@ describe("inboxCommand", () => {
         "Sorted: 3 (2 by rules, 1 by the model). For your review: 0. Verification mail left alone: 0.",
         "Link or review them on /inbox.",
       ],
+    ]);
+  });
+
+  it("says what follow-ups were filed, where stuck ones wait, and that nothing was sent", async () => {
+    const { code, printed } = await command(async () => ({
+      ...REPORT,
+      queued: 0,
+      nudgesOn: true,
+      nudgesFiled: 2,
+      nudgesAnswered: 1,
+      nudgeLetters: 1,
+      moreToNudge: true,
+    }));
+    expect([code, printed.slice(2)]).toEqual([
+      0,
+      [
+        "Follow-ups sent to your Queue for approval: 2. Already followed up by you: 1.",
+        "Couldn't prepare a follow-up: 1. Each is in Stuck work on /health.",
+        "More applications are due a follow-up; run it again later.",
+        "Read and approve the replies on /approvals. Nothing was sent.",
+      ],
+    ]);
+  });
+
+  it("exits 1 and says why when follow-ups stopped early", async () => {
+    const { code, printed } = await command(async () => ({
+      ...REPORT,
+      nudgesOn: true,
+      nudgeStoppedBy: "GmailError",
+    }));
+    expect([code, printed.filter((l) => l.includes("stopped early"))]).toEqual([
+      1,
+      ["Preparing follow-ups stopped early: Gmail didn't answer."],
     ]);
   });
 

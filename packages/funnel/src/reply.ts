@@ -73,7 +73,11 @@ const isLetter = (grade: string): grade is ReplyLetter =>
 
 // Whether a message Paul sent (Gmail's SENT label, set by Gmail, never by a sender) sits in the
 // thread after this one. A draft he hasn't sent doesn't count.
-async function paulAnswered(deps: ReplyDeps, mail: ReplyCandidate): Promise<boolean> {
+// Shared with the follow-up nudges (NS-281 slice 2): a nudge after Paul's own follow-up is noise.
+export async function paulAnswered(
+  deps: Pick<ReplyDeps, "getHeaders" | "threadMessageIds">,
+  mail: { gmailMessageId: string; threadId: string },
+): Promise<boolean> {
   const own = await deps.getHeaders(mail.gmailMessageId);
   for (const { id } of await deps.threadMessageIds(mail.threadId)) {
     if (id === mail.gmailMessageId) continue;

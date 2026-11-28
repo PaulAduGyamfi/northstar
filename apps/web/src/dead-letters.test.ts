@@ -184,6 +184,19 @@ describe("nextStep", () => {
     ]);
   });
 
+  it("names an application it couldn't prepare a follow-up for, with its reasons", () => {
+    const nudge = { ...ITEM, kind: "mail.nudge", attempts: 1 };
+    expect([
+      letterLine(nudge).what,
+      letterLine({ ...nudge, reasonCode: "no_reply_address" }).why,
+      nextStep("mail.nudge", "skip"),
+    ]).toEqual([
+      "Preparing a follow-up on an application",
+      "Stopped after 1 attempt: it came from a no-reply address",
+      "Later `funnel inbox` runs prepare no follow-up on this email.",
+    ]);
+  });
+
   it("says a retried reply is tried on the next inbox run and a skipped one gets none", () => {
     expect(DEAD_LETTER_ACTIONS.map((a) => nextStep("mail.reply", a)).slice(0, 2)).toEqual([
       "The next `funnel inbox` run tries to prepare this reply again.",

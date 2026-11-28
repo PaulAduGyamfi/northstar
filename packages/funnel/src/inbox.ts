@@ -9,6 +9,7 @@ import {
 import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
 import { FunnelConfigError } from "./config.js";
 import type { GradingReport } from "./grade.js";
+import type { NudgeReport } from "./nudge.js";
 import type { ReplyReport } from "./reply.js";
 
 // `funnel inbox` (NS-238 item 1; INB-002/003/009/012): the mail loop, run once when Paul asks
@@ -31,7 +32,9 @@ export type LetterKind =
   | "mail.reply"
   | "calendar.prep_write"
   // NS-281 slice 1 (`funnel drafts`), keyed by the approval's decision id like prep writes.
-  | "mail.draft_write";
+  | "mail.draft_write"
+  // NS-281 slice 2 (follow-up nudges), keyed by the Gmail id the nudge replies on.
+  | "mail.nudge";
 
 // What the stored letters say about each message: pass it over unless Paul sent its newest letter
 // back with Retry (an open letter, Skip and Hand off all keep it out), and how many letters it has,
@@ -97,6 +100,8 @@ export type InboxRunDeps = {
   grading: () => Promise<GradingReport>;
   // Reply drafts by grade (`runReplies`, reply.ts), after grading; off unless RECRUITER_REPLIES is on.
   replies: () => Promise<ReplyReport>;
+  // Follow-up nudges (`runNudges`, nudge.ts), after the replies; off unless FOLLOW_UP_NUDGES is on.
+  nudges: () => Promise<NudgeReport>;
 };
 
 export type InboxRunReport = {
@@ -138,6 +143,13 @@ export type InboxRunReport = {
   replyLetters: number;
   replyStoppedBy: string | null;
   moreToReply: boolean;
+  // Follow-up nudges (NS-281 slice 2): whether they ran, what they filed, skipped or gave up on.
+  nudgesOn: boolean;
+  nudgesFiled: number;
+  nudgesAnswered: number;
+  nudgeLetters: number;
+  nudgeStoppedBy: string | null;
+  moreToNudge: boolean;
 };
 
 // A failure of the dependency, not of the message: stop, and leave the rest for a later run.
@@ -186,6 +198,12 @@ export async function runInbox(deps: InboxRunDeps): Promise<InboxRunReport> {
     replyLetters: 0,
     replyStoppedBy: null,
     moreToReply: false,
+    nudgesOn: false,
+    nudgesFiled: 0,
+    nudgesAnswered: 0,
+    nudgeLetters: 0,
+    nudgeStoppedBy: null,
+    moreToNudge: false,
   };
   await linkNewMail(deps, r);
   await classifyRecorded(deps, r);
@@ -204,6 +222,14 @@ export async function runInbox(deps: InboxRunDeps): Promise<InboxRunReport> {
   r.replyLetters = p.replyLetters;
   r.replyStoppedBy = p.replyStoppedBy;
   r.moreToReply = p.moreToReply;
+  // After the replies: a nudge is filed only on a message with no reply filed yet.
+  const n = await deps.nudges();
+  r.nudgesOn = n.enabled;
+  r.nudgesFiled = n.filed;
+  r.nudgesAnswered = n.answered;
+  r.nudgeLetters = n.nudgeLetters;
+  r.nudgeStoppedBy = n.nudgeStoppedBy;
+  r.moreToNudge = n.moreToNudge;
   return r;
 }
 
@@ -448,10 +474,25 @@ export async function inboxCommand(deps: InboxDeps): Promise<number> {
     deps.print(`Preparing replies stopped early: ${stopWords(r.replyStoppedBy)}.`);
     code = 1;
   }
+  if (r.nudgesOn) {
+    deps.print(
+      `Follow-ups sent to your Queue for approval: ${r.nudgesFiled}. Already followed up by you: ${r.nudgesAnswered}.`,
+    );
+    if (r.nudgeLetters > 0) {
+      deps.print(
+        `Couldn't prepare a follow-up: ${r.nudgeLetters}. Each is in Stuck work on /health.`,
+      );
+    }
+    if (r.moreToNudge) deps.print("More applications are due a follow-up; run it again later.");
+  }
+  if (r.nudgeStoppedBy !== null) {
+    deps.print(`Preparing follow-ups stopped early: ${stopWords(r.nudgeStoppedBy)}.`);
+    code = 1;
+  }
   if (r.queued > 0 || r.review > 0) deps.print("Link or review them on /inbox.");
   if (r.graded > 0) deps.print("See the grades on /inbox.");
   // Nothing is sent: each reply waits in the Queue until Paul approves it.
-  if (r.repliesFiled > 0)
+  if (r.repliesFiled > 0 || r.nudgesFiled > 0)
     deps.print("Read and approve the replies on /approvals. Nothing was sent.");
   return code;
 }

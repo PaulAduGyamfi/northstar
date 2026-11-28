@@ -27,6 +27,7 @@ import {
   readLinkedThreads,
   readMailCursor,
   readManualRows,
+  readNudgeCandidates,
   readPreferences,
   readPrepPlan,
   readPrepProposal,
@@ -82,11 +83,17 @@ import { sql } from "drizzle-orm";
 import { createAsker } from "./ask.js";
 import { runBackfill } from "./backfill.js";
 import { main } from "./cli.js";
-import { loadFunnelConfig, loadPrepConfig, loadRecruiterReplies } from "./config.js";
+import {
+  loadFollowUpNudges,
+  loadFunnelConfig,
+  loadPrepConfig,
+  loadRecruiterReplies,
+} from "./config.js";
 import { runDrafts } from "./drafts.js";
 import { runGrading, withWeights } from "./grade.js";
 import { runInbox } from "./inbox.js";
 import { toInterviewCandidates } from "./interviews.js";
+import { runNudges } from "./nudge.js";
 import { runPrep } from "./prep.js";
 import { runReplies } from "./reply.js";
 import { Baselines } from "./report.js";
@@ -379,6 +386,8 @@ try {
       const config = loadFunnelConfig(process.env);
       // So does a bad RECRUITER_REPLIES (NS-238 item 2's caller).
       const repliesOn = loadRecruiterReplies(process.env);
+      // And a bad FOLLOW_UP_NUDGES (NS-281 slice 2).
+      const nudgesOn = loadFollowUpNudges(process.env);
       const access = await gmailAccess();
       // Every Gmail read goes through the stored `gmail` breaker.
       const gmail = createGmailClient({
@@ -410,7 +419,7 @@ try {
           }),
       };
       const letter = async (
-        kind: "mail.poll" | "mail.classify" | "mail.grade" | "mail.reply",
+        kind: "mail.poll" | "mail.classify" | "mail.grade" | "mail.reply" | "mail.nudge",
         input: {
           subject: string;
           reasonCode: string;
@@ -550,6 +559,46 @@ try {
             recordReplyLetter: (m, reason, key) =>
               letter("mail.reply", {
                 subject: `mail_link:${m.mailLinkId}`,
+                reasonCode: reason,
+                attempts: 1,
+                key,
+              }),
+          });
+        },
+        nudges: async () => {
+          // Loaded only when the step is on, as for the replies; off, runNudges returns before
+          // building anything, so the stand-in is never called.
+          const build = nudgesOn
+            ? (await import("@northstar/profile")).nudgePackage
+            : () => ({ ok: false as const, error: { kind: "InvalidReply" as const } });
+          return runNudges({
+            enabled: nudgesOn,
+            now: () => new Date(),
+            nudgeLetters: () => readDeadLetterKeys(db, candidateId, "mail.nudge"),
+            candidates: () => readNudgeCandidates(db, candidateId),
+            // Headers only, through the same `gmail` breaker; never a body.
+            threadMessageIds: (threadId) => gmail.threadMessageIds(threadId),
+            getHeaders: (gmailMessageId) => gmail.getHeaders(gmailMessageId),
+            getReplyHeaders: (gmailMessageId) => gmail.getReplyHeaders(gmailMessageId),
+            build: (input) => {
+              const built = build(input);
+              // By kind only: the package goes on to the filing port.
+              return built.ok
+                ? built
+                : {
+                    ok: false as const,
+                    error: {
+                      kind:
+                        built.error.kind === "NoReplyAddress"
+                          ? ("NoReplyAddress" as const)
+                          : ("InvalidReply" as const),
+                    },
+                  };
+            },
+            file: (nudge) => fileReplyDraft(db, { candidateId, reply: nudge }),
+            recordNudgeLetter: (due, reason, key) =>
+              letter("mail.nudge", {
+                subject: `application:${due.applicationId}`,
                 reasonCode: reason,
                 attempts: 1,
                 key,
