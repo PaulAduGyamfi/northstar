@@ -89,7 +89,8 @@ your Queue when you run `pnpm --filter @northstar/funnel funnel prep`; the next 
 you approved to a Northstar calendar it creates (Google consent for that calendar only, each run,
 no stored token). The plan's blocks print in your terminal on the run that files it, and "Show the
 plan" on its Queue card lists them before you approve. It plans
-around your other interviews and their prep, but not yet around other meetings on your calendar. What each package does today is listed
+around your other interviews and their prep, and with `funnel prep --busy-from-calendar` around
+the other meetings on your calendar too (a second, read-only Google consent that run). What each package does today is listed
 under "Layout" in [AGENTS.md](AGENTS.md).
 
 ## Getting started (local)

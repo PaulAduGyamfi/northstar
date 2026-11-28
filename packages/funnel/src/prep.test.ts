@@ -3,6 +3,7 @@ import type { PrepRefusal, PrepWritten } from "@northstar/gateways";
 import { describe, expect, it } from "vitest";
 import {
   busyFor,
+  calendarLine,
   MAX_BUSY,
   type PrepLetterReason,
   type PrepRunDeps,
@@ -227,6 +228,94 @@ describe("runPrep: busy time from what is stored", () => {
   });
 });
 
+describe("runPrep: busy time from Paul's own calendar (slice 7)", () => {
+  const meeting = {
+    start: new Date("2026-11-30T09:00:00Z"),
+    end: new Date("2026-11-30T10:00:00Z"),
+  };
+
+  it("asks nothing of the calendar when the flag wasn't given", async () => {
+    const f = fake({ interviews: async () => [interview(1, "confirmed")] });
+    const r = await runPrep(f.deps);
+    expect(r.calendarBusy).toBe(null);
+  });
+
+  it("reads once up to the latest interview to plan and plans around its events", async () => {
+    const windows: unknown[] = [];
+    const busies: unknown[] = [];
+    const f = fake({
+      interviews: async () => [
+        interview(1, "confirmed", new Date("2026-12-01T15:00:00Z")),
+        interview(2, "confirmed", new Date("2026-12-04T15:00:00Z")),
+      ],
+      calendarBusy: async (window) => {
+        windows.push(window);
+        return [meeting];
+      },
+      propose: async (id, request) => {
+        busies.push(request.busy);
+        return { ok: true, value: { proposalId: `p-${id}`, blocks: [] } };
+      },
+    });
+    const r = await runPrep(f.deps);
+    expect([windows, r.calendarBusy, busies[0]]).toEqual([
+      [{ timeMin: NOW, timeMax: new Date("2026-12-04T15:00:00Z") }],
+      { read: 1 },
+      [meeting, { start: new Date("2026-12-04T15:00:00Z"), end: new Date("2026-12-04T16:00:00Z") }],
+    ]);
+  });
+
+  it("asks nothing when every upcoming interview already has a plan", async () => {
+    let asked = 0;
+    const f = fake({
+      interviews: async () => [interview(1, "confirmed")],
+      proposalOf: async () => ({ proposalId: "p1", blocks: [] }),
+      calendarBusy: async () => {
+        asked++;
+        return [];
+      },
+    });
+    const r = await runPrep(f.deps);
+    expect([asked, r.calendarBusy]).toEqual([0, null]);
+  });
+
+  it("reads at most the calendar client's 60 days ahead", async () => {
+    const windows: { timeMax: Date }[] = [];
+    const f = fake({
+      interviews: async () => [interview(1, "confirmed", new Date("2027-03-01T15:00:00Z"))],
+      calendarBusy: async (window) => {
+        windows.push(window);
+        return [];
+      },
+    });
+    await runPrep(f.deps);
+    expect(windows[0]?.timeMax).toEqual(new Date("2027-01-26T12:00:00Z"));
+  });
+
+  it("plans with stored busy time when the calendar can't be read, and says why by class only", async () => {
+    class CalendarReadError extends Error {
+      override name = "CalendarReadError";
+    }
+    const busies: unknown[] = [];
+    const f = fake({
+      interviews: async () => [interview(1, "confirmed")],
+      calendarBusy: async () => {
+        throw new CalendarReadError("detail that must not print");
+      },
+      propose: async (id, request) => {
+        busies.push(request.busy);
+        return { ok: true, value: { proposalId: `p-${id}`, blocks: [] } };
+      },
+    });
+    const r = await runPrep(f.deps);
+    expect([r.calendarBusy, busies, r.proposed]).toEqual([
+      { failedBy: "CalendarReadError" },
+      [[]],
+      1,
+    ]);
+  });
+});
+
 describe("runPrep: writing approved plans", () => {
   it("asks no consent when nothing is approved", async () => {
     const f = fake();
@@ -416,6 +505,7 @@ const REPORT: PrepRunReport = {
   stuck: 0,
   scopeMissing: false,
   writeStoppedBy: null,
+  calendarBusy: null,
 };
 
 describe("prepCommand", () => {
@@ -480,6 +570,22 @@ describe("prepCommand", () => {
     expect(planLine({ interviewStart: new Date("2026-12-01T15:00:00Z"), blocks: [] }, "UTC")).toBe(
       "Interview Tue, Dec 1, 15:00: no blocks fit.",
     );
+  });
+
+  it("words the calendar read: how many events, or why it couldn't be read", () => {
+    expect([calendarLine({ read: 3 }), calendarLine({ failedBy: "OAuthError" })]).toEqual([
+      "Planned around 3 event(s) from your calendar.",
+      "Couldn't read your calendar (OAuthError): planned around your other interviews and their prep only.",
+    ]);
+  });
+
+  it("prints the calendar line after the counts only when the calendar was asked", async () => {
+    const printed: string[] = [];
+    await prepCommand({
+      print: (l) => printed.push(l),
+      runPrep: async () => ({ ...REPORT, calendarBusy: { read: 2 } }),
+    });
+    expect(printed[2]).toBe("Planned around 2 event(s) from your calendar.");
   });
 
   it("says why writing stopped, and the Stuck work it left, and exits 1", async () => {
