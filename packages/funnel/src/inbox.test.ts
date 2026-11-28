@@ -20,6 +20,7 @@ import {
   runInbox,
   storedResult,
 } from "./inbox.js";
+import type { ReplyReport } from "./reply.js";
 
 // `funnel inbox` (NS-238 item 1) with every port faked: no Gmail, model or database. Invented
 // Gmail ids only.
@@ -56,6 +57,17 @@ const RULES: TriageResult = {
     requisition: null,
     stageSignal: "none",
   },
+};
+
+// The reply step turned off, as it is by default.
+const REPLIES_OFF: ReplyReport = {
+  enabled: false,
+  filed: 0,
+  answered: 0,
+  archiveSuggested: 0,
+  replyLetters: 0,
+  replyStoppedBy: null,
+  moreToReply: false,
 };
 
 function fake(over: Partial<InboxRunDeps> = {}) {
@@ -101,6 +113,7 @@ function fake(over: Partial<InboxRunDeps> = {}) {
       gradeStoppedBy: null,
       moreToGrade: false,
     }),
+    replies: async () => REPLIES_OFF,
     ...over,
   };
   return { deps, pollLetters, classifyLetters, saved, skips, relinked, leftAlone };
@@ -435,6 +448,13 @@ const REPORT: InboxRunReport = {
   graded: 0,
   gradeLetters: 0,
   gradeStoppedBy: null,
+  repliesOn: false,
+  repliesFiled: 0,
+  repliesAnswered: 0,
+  archiveSuggested: 0,
+  replyLetters: 0,
+  replyStoppedBy: null,
+  moreToReply: false,
 };
 
 async function command(run: () => Promise<InboxRunReport>) {
@@ -465,6 +485,45 @@ describe("runInbox: grading", () => {
       }).deps,
     );
     expect([order, r.gradingOn, r.graded, r.gradeLetters]).toEqual([["sort", "grade"], true, 2, 1]);
+  });
+});
+
+describe("runInbox: replies", () => {
+  it("files replies after grading and carries their counts into the report", async () => {
+    const order: string[] = [];
+    const r = await runInbox(
+      fake({
+        grading: async () => {
+          order.push("grade");
+          return {
+            enabled: true,
+            graded: 1,
+            gradeLetters: 0,
+            gradeStoppedBy: null,
+            moreToGrade: false,
+          };
+        },
+        replies: async () => {
+          order.push("reply");
+          return {
+            enabled: true,
+            filed: 2,
+            answered: 1,
+            archiveSuggested: 0,
+            replyLetters: 1,
+            replyStoppedBy: null,
+            moreToReply: false,
+          };
+        },
+      }).deps,
+    );
+    expect([order, r.repliesOn, r.repliesFiled, r.repliesAnswered, r.replyLetters]).toEqual([
+      ["grade", "reply"],
+      true,
+      2,
+      1,
+      1,
+    ]);
   });
 });
 
@@ -538,6 +597,38 @@ describe("inboxCommand", () => {
     expect([code, printed.filter((l) => l.startsWith("Grading stopped"))]).toEqual([
       1,
       ["Grading stopped early: the Claude API didn't answer."],
+    ]);
+  });
+
+  it("says how many replies wait in the Queue and that nothing was sent, when replies are on", async () => {
+    const { code, printed } = await command(async () => ({
+      ...REPORT,
+      repliesOn: true,
+      repliesFiled: 2,
+      repliesAnswered: 1,
+      archiveSuggested: 1,
+      replyLetters: 1,
+    }));
+    expect([code, printed.filter((l) => /repl/i.test(l))]).toEqual([
+      0,
+      [
+        "Replies to recruiters sent to your Queue for approval: 2. Already answered by you: 1.",
+        "No reply suggested (graded F, archive them): 1.",
+        "Couldn't prepare a reply: 1. Each is in Stuck work on /health.",
+        "Read and approve the replies on /approvals. Nothing was sent.",
+      ],
+    ]);
+  });
+
+  it("exits 1 when preparing replies stopped early", async () => {
+    const { code, printed } = await command(async () => ({
+      ...REPORT,
+      repliesOn: true,
+      replyStoppedBy: "GmailError",
+    }));
+    expect([code, printed.filter((l) => l.startsWith("Preparing replies"))]).toEqual([
+      1,
+      ["Preparing replies stopped early: Gmail didn't answer."],
     ]);
   });
 

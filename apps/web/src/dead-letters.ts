@@ -109,6 +109,17 @@ const KINDS: Record<string, KindWords> = {
         "Later `funnel inbox` runs leave this email ungraded. It is still on /inbox; read it in Gmail from there and decide yourself.",
     },
   },
+  // NS-238 item 2's caller: a graded recruiter email `funnel inbox` couldn't file a reply for.
+  // Nothing was sent or put in Gmail.
+  "mail.reply": {
+    what: "Preparing a reply to a recruiter email",
+    next: {
+      retry: "The next `funnel inbox` run tries to prepare this reply again.",
+      skip: "Later `funnel inbox` runs prepare no reply to this email.",
+      hand_off:
+        "Later `funnel inbox` runs prepare no reply to this email. It is still on /inbox; open it in Gmail from there and reply yourself if you want to.",
+    },
+  },
   // NS-238 item 1: a recorded email `funnel inbox` couldn't read or sort.
   "mail.classify": {
     what: "Sorting a job email",
@@ -143,6 +154,10 @@ const REASONS: Record<string, string> = {
   truncated: "the model's answer was cut off",
   invalid_output: "the model's answer was malformed",
   grade_failed: "grading it failed",
+  invalid_headers: "its sender, subject or thread headers can't be replied to safely",
+  no_reply_address: "it came from a no-reply address",
+  file_refused: "your approval queue refused the reply",
+  unknown_grade: "its stored grade isn't one this version knows",
 };
 
 // Own keys only: a code such as "constructor" must not find Object's built-ins.

@@ -9,6 +9,7 @@ import {
   dbCalendarLedger,
   dbSpendMeter,
   dbWindowStore,
+  fileReplyDraft,
   isSubsystemOn,
   knownGmailIds,
   latestFactsCheck,
@@ -28,6 +29,7 @@ import {
   readPrepPlan,
   readPrepProposal,
   readRecordedMessageIds,
+  readReplyCandidates,
   readTags,
   readUnclassifiedMail,
   readUngradedRecruiterMail,
@@ -76,11 +78,12 @@ import { sql } from "drizzle-orm";
 import { createAsker } from "./ask.js";
 import { runBackfill } from "./backfill.js";
 import { main } from "./cli.js";
-import { loadFunnelConfig, loadPrepConfig } from "./config.js";
+import { loadFunnelConfig, loadPrepConfig, loadRecruiterReplies } from "./config.js";
 import { runGrading } from "./grade.js";
 import { runInbox } from "./inbox.js";
 import { toInterviewCandidates } from "./interviews.js";
 import { runPrep } from "./prep.js";
+import { runReplies } from "./reply.js";
 import { Baselines } from "./report.js";
 
 // Entry point for `pnpm --filter @northstar/funnel funnel …`. The only place in this package that
@@ -318,6 +321,8 @@ try {
     runInbox: async () => {
       // A bad RECRUITER_EXTRACT stops the run before Google is asked anything.
       const config = loadFunnelConfig(process.env);
+      // So does a bad RECRUITER_REPLIES (NS-238 item 2's caller).
+      const repliesOn = loadRecruiterReplies(process.env);
       const access = await gmailAccess();
       // Every Gmail read goes through the stored `gmail` breaker.
       const gmail = createGmailClient({
@@ -349,7 +354,7 @@ try {
           }),
       };
       const letter = async (
-        kind: "mail.poll" | "mail.classify" | "mail.grade",
+        kind: "mail.poll" | "mail.classify" | "mail.grade" | "mail.reply",
         input: {
           subject: string;
           reasonCode: string;
@@ -444,6 +449,34 @@ try {
               recordRecruiterGrade(db, { candidateId, gmailMessageId, grade }),
             recordGradeLetter: (m, reason, key) =>
               letter("mail.grade", {
+                subject: `mail_link:${m.mailLinkId}`,
+                reasonCode: reason,
+                attempts: 1,
+                key,
+              }),
+          });
+        },
+        // Reply drafts by grade: filed with the Gate for Paul's approval, never sent (REC-002).
+        replies: async () => {
+          // Loaded only when the step is on: the profile package is large, and other commands
+          // never need it.
+          // Off, runReplies returns before building anything, so the stand-in is never called.
+          const build = repliesOn
+            ? (await import("@northstar/profile")).recruiterReplyPackage
+            : () => ({ ok: false as const, error: { kind: "ArchiveSuggested" as const } });
+          return runReplies({
+            enabled: repliesOn,
+            now: () => new Date(),
+            replyLetters: () => readDeadLetterKeys(db, candidateId, "mail.reply"),
+            candidates: (since, limit) => readReplyCandidates(db, candidateId, { since, limit }),
+            // Headers only, through the same `gmail` breaker; never a body.
+            threadMessageIds: (threadId) => gmail.threadMessageIds(threadId),
+            getHeaders: (gmailMessageId) => gmail.getHeaders(gmailMessageId),
+            getReplyHeaders: (gmailMessageId) => gmail.getReplyHeaders(gmailMessageId),
+            build: (input) => build(input),
+            file: (reply) => fileReplyDraft(db, { candidateId, reply }),
+            recordReplyLetter: (m, reason, key) =>
+              letter("mail.reply", {
                 subject: `mail_link:${m.mailLinkId}`,
                 reasonCode: reason,
                 attempts: 1,

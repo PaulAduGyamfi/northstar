@@ -9,6 +9,7 @@ import {
 import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
 import { FunnelConfigError } from "./config.js";
 import type { GradingReport } from "./grade.js";
+import type { ReplyReport } from "./reply.js";
 
 // `funnel inbox` (NS-238 item 1; INB-002/003/009/012): the mail loop, run once when Paul asks
 // (#400: no stored Google token, no schedule). It links new mail from the stored cursor, then
@@ -23,7 +24,12 @@ export const MAX_CLASSIFY = 25;
 export type LetterRow = { idempotencyKey: string; action: "retry" | "skip" | "hand_off" | null };
 // `calendar.prep_write` (NS-241 slice 5, `funnel prep`) keys its letters by the approval's
 // decision id the same way: `<kind>:<id>:<n>`.
-export type LetterKind = "mail.poll" | "mail.classify" | "mail.grade" | "calendar.prep_write";
+export type LetterKind =
+  | "mail.poll"
+  | "mail.classify"
+  | "mail.grade"
+  | "mail.reply"
+  | "calendar.prep_write";
 
 // What the stored letters say about each message: pass it over unless Paul sent its newest letter
 // back with Retry (an open letter, Skip and Hand off all keep it out), and how many letters it has,
@@ -87,6 +93,8 @@ export type InboxRunDeps = {
   ungradedRecruiterMail: () => Promise<number>;
   // The grading step (`runGrading`, grade.ts), after sorting; off unless RECRUITER_EXTRACT is on.
   grading: () => Promise<GradingReport>;
+  // Reply drafts by grade (`runReplies`, reply.ts), after grading; off unless RECRUITER_REPLIES is on.
+  replies: () => Promise<ReplyReport>;
 };
 
 export type InboxRunReport = {
@@ -120,6 +128,14 @@ export type InboxRunReport = {
   graded: number;
   gradeLetters: number;
   gradeStoppedBy: string | null;
+  // Reply drafts (NS-238 item 2's caller): whether it ran, what it filed, skipped or gave up on.
+  repliesOn: boolean;
+  repliesFiled: number;
+  repliesAnswered: number;
+  archiveSuggested: number;
+  replyLetters: number;
+  replyStoppedBy: string | null;
+  moreToReply: boolean;
 };
 
 // A failure of the dependency, not of the message: stop, and leave the rest for a later run.
@@ -161,6 +177,13 @@ export async function runInbox(deps: InboxRunDeps): Promise<InboxRunReport> {
     graded: 0,
     gradeLetters: 0,
     gradeStoppedBy: null,
+    repliesOn: false,
+    repliesFiled: 0,
+    repliesAnswered: 0,
+    archiveSuggested: 0,
+    replyLetters: 0,
+    replyStoppedBy: null,
+    moreToReply: false,
   };
   await linkNewMail(deps, r);
   await classifyRecorded(deps, r);
@@ -170,6 +193,15 @@ export async function runInbox(deps: InboxRunDeps): Promise<InboxRunReport> {
   r.gradeLetters = g.gradeLetters;
   r.gradeStoppedBy = g.gradeStoppedBy;
   r.recruiterWaiting = await deps.ungradedRecruiterMail();
+  // After grading, so this run's new grades get their replies in the same run.
+  const p = await deps.replies();
+  r.repliesOn = p.enabled;
+  r.repliesFiled = p.filed;
+  r.repliesAnswered = p.answered;
+  r.archiveSuggested = p.archiveSuggested;
+  r.replyLetters = p.replyLetters;
+  r.replyStoppedBy = p.replyStoppedBy;
+  r.moreToReply = p.moreToReply;
   return r;
 }
 
@@ -397,8 +429,28 @@ export async function inboxCommand(deps: InboxDeps): Promise<number> {
     deps.print(`Grading stopped early: ${stopWords(r.gradeStoppedBy)}.`);
     code = 1;
   }
+  if (r.repliesOn) {
+    deps.print(
+      `Replies to recruiters sent to your Queue for approval: ${r.repliesFiled}. Already answered by you: ${r.repliesAnswered}.`,
+    );
+    if (r.archiveSuggested > 0) {
+      deps.print(`No reply suggested (graded F, archive them): ${r.archiveSuggested}.`);
+    }
+    if (r.replyLetters > 0) {
+      deps.print(`Couldn't prepare a reply: ${r.replyLetters}. Each is in Stuck work on /health.`);
+    }
+    if (r.moreToReply)
+      deps.print("More recruiter emails are waiting for a reply; run it again later.");
+  }
+  if (r.replyStoppedBy !== null) {
+    deps.print(`Preparing replies stopped early: ${stopWords(r.replyStoppedBy)}.`);
+    code = 1;
+  }
   if (r.queued > 0 || r.review > 0) deps.print("Link or review them on /inbox.");
   if (r.graded > 0) deps.print("See the grades on /inbox.");
+  // Nothing is sent: each reply waits in the Queue until Paul approves it.
+  if (r.repliesFiled > 0)
+    deps.print("Read and approve the replies on /approvals. Nothing was sent.");
   return code;
 }
 

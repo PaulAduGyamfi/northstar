@@ -157,6 +157,52 @@ describe("gmail client", () => {
     expect(h.authenticationResults).toBeNull();
   });
 
+  it("reads a reply's headers with format=metadata and only the reply headers", async () => {
+    const recruiter = {
+      ...message,
+      headers: {
+        ...message.headers,
+        "Reply-To": "Jo Recruiter <jo@globex.example>",
+        "Message-ID": "<abc123@globex.example>",
+        References: "<root1@globex.example>",
+      },
+    };
+    const gmail = fakeGmail([recruiter]);
+    const h = await client(gmail).getReplyHeaders("m1");
+    const url = new URL(gmail.requests[0]?.url ?? "");
+    expect([url.searchParams.get("format"), url.searchParams.getAll("metadataHeaders"), h]).toEqual(
+      [
+        "metadata",
+        ["From", "Reply-To", "Subject", "Message-ID", "References"],
+        {
+          from: "Globex Recruiting <no-reply.ats@example.com>",
+          replyTo: "Jo Recruiter <jo@globex.example>",
+          subject: "Thank you for applying to Globex",
+          messageId: "<abc123@globex.example>",
+          references: "<root1@globex.example>",
+        },
+      ],
+    );
+  });
+
+  it("reads no subject when the message has two, so the envelope refuses it", async () => {
+    const twice = {
+      ...message,
+      extraHeaders: [{ name: "Subject", value: "A second subject" }],
+    };
+    expect((await client(fakeGmail([twice])).getReplyHeaders("m1")).subject).toBeNull();
+  });
+
+  it("joins a reply header that appears twice, so the envelope can refuse it", async () => {
+    const twice = {
+      ...message,
+      headers: { ...message.headers, "Reply-To": "jo@globex.example" },
+      extraHeaders: [{ name: "Reply-To", value: "other@elsewhere.example" }],
+    };
+    const h = await client(fakeGmail([twice])).getReplyHeaders("m1");
+    expect([h.replyTo, h.messageId]).toEqual(["jo@globex.example, other@elsewhere.example", null]);
+  });
+
   it("fetches the plain-text body of a full message", async () => {
     const full = await client(fakeGmail([message])).getFull("m1");
     expect(full.body).toBe("Hi, we received your application for Backend Engineer.");

@@ -134,6 +134,32 @@ describe("nextStep", () => {
     expect(letterLine(grade).what).toBe("Grading a recruiter email");
   });
 
+  it("names a recruiter email it couldn't prepare a reply for, with each reason", () => {
+    const reply = { ...ITEM, kind: "mail.reply", attempts: 1 };
+    const reasons = [
+      "read_failed",
+      "invalid_headers",
+      "no_reply_address",
+      "file_refused",
+      "unknown_grade",
+    ];
+    expect(reasons.map((reasonCode) => letterLine({ ...reply, reasonCode }).why)).toEqual([
+      "Stopped after 1 attempt: Gmail wouldn't give the email",
+      "Stopped after 1 attempt: its sender, subject or thread headers can't be replied to safely",
+      "Stopped after 1 attempt: it came from a no-reply address",
+      "Stopped after 1 attempt: your approval queue refused the reply",
+      "Stopped after 1 attempt: its stored grade isn't one this version knows",
+    ]);
+    expect(letterLine(reply).what).toBe("Preparing a reply to a recruiter email");
+  });
+
+  it("says a retried reply is tried on the next inbox run and a skipped one gets none", () => {
+    expect(DEAD_LETTER_ACTIONS.map((a) => nextStep("mail.reply", a)).slice(0, 2)).toEqual([
+      "The next `funnel inbox` run tries to prepare this reply again.",
+      "Later `funnel inbox` runs prepare no reply to this email.",
+    ]);
+  });
+
   it("says a retried email is tried on the next inbox run and a skipped one is passed over", () => {
     expect(DEAD_LETTER_ACTIONS.map((a) => nextStep("mail.poll", a))).toEqual([
       "The next `funnel inbox` run reads this email again.",

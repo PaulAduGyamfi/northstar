@@ -1,10 +1,12 @@
 import type { CandidateId } from "@northstar/domain";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, notExists, sql } from "drizzle-orm";
 import type { Db } from "./db.js";
 import { mailClassification } from "./mail-classification-schema.js";
 import { mailLinkDecision } from "./mail-link-decision-schema.js";
 import { mailLink } from "./mail-link-schema.js";
 import { recruiterGrade } from "./recruiter-grade-schema.js";
+import { recruiterRegrade } from "./recruiter-regrade-schema.js";
+import { replyDraft } from "./reply-schema.js";
 
 // What `funnel inbox` (NS-238 item 1) still has to do after linking: read-only, ids and counts
 // only, the candidate's own rows only.
@@ -142,4 +144,75 @@ export async function readUngradedRecruiterMail(
     )
     .orderBy(desc(mailLink.receivedAt), desc(mailLink.gmailMessageId))
     .limit(limit);
+}
+
+// A graded recruiter email `funnel inbox` may file a reply for (NS-238 item 2's caller): its ids
+// and the letter its reply follows, Paul's newest regrade when he gave one, else the grader's.
+export type ReplyCandidate = {
+  mailLinkId: string;
+  gmailMessageId: string;
+  threadId: string;
+  grade: string;
+};
+
+// Graded recruiter mail received at or after `since` that has no reply draft filed for it (ever:
+// one filing per message, even after Paul rejected or edited it), that Paul hasn't dismissed and
+// whose letter isn't F (no reply for an F, REC-002), newest first, at most `limit`. Read-only.
+export async function readReplyCandidates(
+  db: Pick<Db, "select">,
+  candidateId: CandidateId,
+  input: { since: Date; limit: number },
+): Promise<ReplyCandidate[]> {
+  // Paul's letter wins: the newest regrade by its identity position, else the stored grade.
+  const letter = sql<string>`coalesce((
+    select ${recruiterRegrade.grade} from ${recruiterRegrade}
+    where ${recruiterRegrade.candidateId} = ${recruiterGrade.candidateId}
+      and ${recruiterRegrade.gmailMessageId} = ${recruiterGrade.gmailMessageId}
+    order by ${recruiterRegrade.position} desc limit 1
+  ), ${recruiterGrade.grade})`;
+  const rows = await db
+    .select({
+      mailLinkId: mailLink.id,
+      gmailMessageId: recruiterGrade.gmailMessageId,
+      threadId: mailLink.gmailThreadId,
+      grade: letter,
+    })
+    .from(recruiterGrade)
+    .innerJoin(
+      mailLink,
+      and(
+        eq(mailLink.candidateId, recruiterGrade.candidateId),
+        eq(mailLink.gmailMessageId, recruiterGrade.gmailMessageId),
+      ),
+    )
+    .leftJoin(
+      mailLinkDecision,
+      and(
+        eq(mailLinkDecision.candidateId, recruiterGrade.candidateId),
+        eq(mailLinkDecision.gmailMessageId, recruiterGrade.gmailMessageId),
+      ),
+    )
+    .where(
+      and(
+        eq(recruiterGrade.candidateId, candidateId),
+        gte(mailLink.receivedAt, input.since),
+        sql`${mailLinkDecision.decision} is distinct from 'dismissed'`,
+        sql`${letter} <> 'F'`,
+        // Not a join: an edited reply leaves several drafts for one message.
+        notExists(
+          db
+            .select({ one: sql`1` })
+            .from(replyDraft)
+            .where(
+              and(
+                eq(replyDraft.candidateId, recruiterGrade.candidateId),
+                eq(replyDraft.gmailMessageId, recruiterGrade.gmailMessageId),
+              ),
+            ),
+        ),
+      ),
+    )
+    .orderBy(desc(mailLink.receivedAt), desc(mailLink.gmailMessageId))
+    .limit(input.limit);
+  return rows.map((r) => ({ ...r, grade: String(r.grade) }));
 }

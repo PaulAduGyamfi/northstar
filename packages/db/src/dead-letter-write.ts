@@ -35,6 +35,8 @@ export const DEAD_LETTER_KINDS = [
   "mail.classify",
   // NS-238 item 1 slice 2: a recruiter email `funnel inbox` couldn't grade.
   "mail.grade",
+  // NS-238 item 2's caller: a graded recruiter email `funnel inbox` couldn't file a reply for.
+  "mail.reply",
 ] as const;
 export type DeadLetterKind = (typeof DEAD_LETTER_KINDS)[number];
 

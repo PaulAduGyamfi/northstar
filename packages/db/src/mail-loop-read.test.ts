@@ -8,10 +8,13 @@ import { recordMailLink } from "./mail-link-write.js";
 import {
   countUngradedRecruiterMail,
   readRecordedMessageIds,
+  readReplyCandidates,
   readUnclassifiedMail,
   readUngradedRecruiterMail,
 } from "./mail-loop-read.js";
 import { recordRecruiterGrade } from "./recruiter-grade-write.js";
+import { regradeRecruiterMessage } from "./recruiter-regrade-write.js";
+import { fileReplyDraft } from "./reply-write.js";
 import { candidate } from "./schema.js";
 import { createTestDb, seedApplication } from "./test/pglite.js";
 
@@ -192,5 +195,84 @@ describe("readDeadLetterKeys", () => {
       { idempotencyKey: `mail.poll:${M1}:1`, action: "retry" },
       { idempotencyKey: `mail.poll:${M2}:1`, action: null },
     ]);
+  });
+});
+
+describe("readReplyCandidates", () => {
+  const graded = async (id: string, day: number, grade: string) => {
+    await recorded(id, day, false);
+    await classify(id, "recruiter_inbound");
+    const r = await recordRecruiterGrade(db, {
+      candidateId,
+      gmailMessageId: id,
+      grade: { grade, points: 4, reasons: ["title:exact"], confidence: "normal" },
+    });
+    if (!r.ok) throw new Error(r.error.kind);
+  };
+  const since = new Date(Date.UTC(2026, 10, 2));
+  const ids = async (limit = 10) =>
+    (await readReplyCandidates(db, candidateId, { since, limit })).map((c) => c.gmailMessageId);
+  // Without the mail_link row id, which is random.
+  const rows = async () =>
+    (await readReplyCandidates(db, candidateId, { since, limit: 10 })).map(
+      ({ mailLinkId: _, ...rest }) => rest,
+    );
+
+  it("gives graded mail since the date, newest first, with its thread and letter", async () => {
+    await graded(M2, 2, "B");
+    await graded(M3, 3, "D");
+    expect(await rows()).toEqual([
+      { gmailMessageId: M3, threadId: M3, grade: "D" },
+      { gmailMessageId: M2, threadId: M2, grade: "B" },
+    ]);
+  });
+
+  it("leaves out mail received before the date", async () => {
+    await graded(M1, 1, "A");
+    expect(await ids()).toEqual([]);
+  });
+
+  it("leaves out an F, and follows Paul's newest regrade over the grader's letter", async () => {
+    await graded(M2, 2, "F");
+    await graded(M3, 3, "B");
+    await regradeRecruiterMessage(db, { candidateId, gmailMessageId: M2, grade: "C" });
+    await regradeRecruiterMessage(db, { candidateId, gmailMessageId: M3, grade: "F" });
+    expect(await rows()).toEqual([{ gmailMessageId: M2, threadId: M2, grade: "C" }]);
+  });
+
+  it("leaves out mail Paul dismissed", async () => {
+    await graded(M2, 2, "B");
+    await decideQueuedThread(db, { candidateId, gmailThreadId: M2, decision: { kind: "dismiss" } });
+    expect(await ids()).toEqual([]);
+  });
+
+  it("leaves out mail that already has a reply draft filed", async () => {
+    await graded(M2, 2, "B");
+    await graded(M3, 3, "B");
+    const filed = await fileReplyDraft(db, {
+      candidateId,
+      reply: {
+        gmailMessageId: M3,
+        threadId: M3,
+        envelope: {
+          to: "jo@acme.example",
+          subject: "Re: A role",
+          inReplyTo: "<m3@acme.example>",
+          references: ["<m3@acme.example>"],
+        },
+        replyToOtherDomain: false,
+        body: "Hi Jo, thank you.",
+        cites: [],
+        followUps: [],
+      },
+    });
+    if (!filed.ok) throw new Error(filed.error.kind);
+    expect(await ids()).toEqual([M2]);
+  });
+
+  it("gives at most the limit", async () => {
+    await graded(M2, 2, "B");
+    await graded(M3, 3, "B");
+    expect(await ids(1)).toEqual([M3]);
   });
 });
