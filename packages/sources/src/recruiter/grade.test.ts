@@ -209,4 +209,18 @@ describe("gradeRecruiterMessage with weights learned from Paul's regrades (NS-23
     });
     expect(crypto.grade).toBe("F");
   });
+
+  it("can't lift an upfront-fee F, however the weights lean (NS-238 item 3 slice 3)", () => {
+    const scam = { ...GOOD, redFlags: [{ kind: "upfront_fee" as const }] };
+    expect(gradeRecruiterMessage(scam, PREFS, "", { "title:exact": 2, "pay:ok": 2 }).grade).toBe(
+      "F",
+    );
+  });
+
+  it("can't lift a red flag's D cap, however the weights lean (NS-238 item 3 slice 3)", () => {
+    const vague = { ...GOOD, redFlags: [{ kind: "vague_role" as const }] };
+    expect(gradeRecruiterMessage(vague, PREFS, "", { "title:exact": 2, "pay:ok": 2 }).grade).toBe(
+      "D",
+    );
+  });
 });

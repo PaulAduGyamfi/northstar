@@ -48,13 +48,23 @@ const Grade = z.object({
   grade: z.enum(["A", "B", "C", "D", "F"]),
   reasons: z.array(z.enum(RECRUITER_GRADE_REASONS)).max(12),
   confidence: z.enum(["normal", "low"]),
+  // The grader's own letter, only when Paul's learned weights changed it (NS-238 item 3 slice 3).
+  systemGrade: z.enum(["A", "B", "C", "D", "F"]).optional(),
   // Paul's own letter (NS-238 item 3), absent until he regrades.
   paulGrade: z.enum(["A", "B", "C", "D", "F"]).optional(),
 });
 type GradeView = z.infer<typeof Grade>;
 // Only a graded thread carries the field, picked field by field.
 const gradeOf = (
-  g: { grade: string; reasons: string[]; confidence: string; paulGrade?: string } | undefined,
+  g:
+    | {
+        grade: string;
+        reasons: string[];
+        confidence: string;
+        systemGrade?: string;
+        paulGrade?: string;
+      }
+    | undefined,
 ) =>
   g === undefined
     ? {}
@@ -63,6 +73,9 @@ const gradeOf = (
           grade: g.grade as GradeView["grade"],
           reasons: g.reasons as GradeView["reasons"],
           confidence: g.confidence as GradeView["confidence"],
+          ...(g.systemGrade === undefined
+            ? {}
+            : { systemGrade: g.systemGrade as NonNullable<GradeView["systemGrade"]> }),
           ...(g.paulGrade === undefined
             ? {}
             : { paulGrade: g.paulGrade as NonNullable<GradeView["paulGrade"]> }),

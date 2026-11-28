@@ -568,7 +568,11 @@ Exists now:
   grade, newest first (`readUngradedRecruiterMail`), reads each body in memory, runs
   `extractRecruiterFacts` (behind `agent:recruiter-extract`, the breaker and the spend cap) and
   `gradeRecruiterMessage` over Paul's current preferences with **no learned weights**, so the stored
-  grade stays the grader's own, and stores it with `recordRecruiterGrade`. A refusal, cut-off or
+  grade stays the grader's own, and stores it with `recordRecruiterGrade`. Since NS-238 item 3 slice
+  3 it also grades the same facts with the newest learned weights (`readRecruiterWeightsVersion`)
+  when any exist and stores that beside it (`weighted_grade`, `weighted_points`,
+  `weights_position`, migration 0107); the Inbox, the feed line and the reply step use the
+  weighted letter, learning the grader's own. A refusal, cut-off or
   malformed answer, an unreadable message or a refused store is a `mail.grade` dead letter (the same
   pass-over rule). `@northstar/funnel` depends on `@northstar/sources` for the grader. Off, the
   run counts recruiter mail waiting for a grade (`countUngradedRecruiterMail`).
@@ -806,7 +810,9 @@ Exists now:
   N changes"); `readRecruiterWeights` gives the newest. `gradeRecruiterMessage` takes them as an
   optional `weights` argument, summed and held to ±2 per grade (`MAX_TOTAL_ADJUSTMENT`) and added
   before the letter is picked, so caps still apply. The caller must keep learning against the
-  unweighted grade (spec): `funnel inbox` grades with no weights, so nothing applies them yet.
+  unweighted grade (spec): since slice 3 `funnel inbox` stores both, deltas stay against
+  `recruiter_grade.grade` (the unweighted letter), and the Inbox shows the weighted one, Paul's
+  regrade above it, with "adjusted from C by your regrades" when the weights moved it.
 - `packages/funnel/` (NS-113): the 9-month backfill, funnel records derived by plain code from
   `funnel_message` and `funnel_manual_row` (`packages/db`, `funnel-schema.ts`), the tracker CSV
   import, the funnel report (Wilson intervals, rejection latency) and the hypothesis board.
