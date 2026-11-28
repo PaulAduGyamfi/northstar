@@ -130,7 +130,7 @@ describe("jobs watch", () => {
       "https://www.linkedin.com/jobs/feed.rss",
       "https://jobs.lever.co/initech",
       "http://jobs.example.com/feed.xml",
-      "https://user:pass@jobs.example.com/feed.xml",
+      "https://user:pass@example.com/feed.xml",
       "https://jobs.example.com:8443/feed.xml",
     ]) {
       const { d, printed, calls } = deps(["watch", "add", url, "--feed", "--tier", "1"]);
