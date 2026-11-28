@@ -3,7 +3,9 @@ import { matchQuestion } from "./question-match.js";
 import {
   isDisguisedLabel,
   isExactWording,
+  isKnownWording,
   labelReuse,
+  labelWords,
   REUSE_HIGH_CONFIDENCE,
   reuseStrength,
   weakerReuse,
@@ -175,11 +177,18 @@ describe("labelReuse against negations behind lookalikes the disguise rule allow
 describe("reuseStrength", () => {
   const canonical = { text: "Why are you interested in this role?", examples: [] };
 
+  // A label of known words only (NS-277), so this tests the confidence floor alone.
+  const KNOWN = "Please tell us why you are interested in this role";
+
   it("counts a match at the high-confidence floor as high confidence, and just below it as new", () => {
     expect([
-      reuseStrength("Some label", { canonical, confidence: REUSE_HIGH_CONFIDENCE }, COMPANY),
-      reuseStrength("Some label", { canonical, confidence: REUSE_HIGH_CONFIDENCE - 0.01 }, COMPANY),
+      reuseStrength(KNOWN, { canonical, confidence: REUSE_HIGH_CONFIDENCE }, COMPANY),
+      reuseStrength(KNOWN, { canonical, confidence: REUSE_HIGH_CONFIDENCE - 0.01 }, COMPANY),
     ]).toEqual(["bank_high_confidence", "new"]);
+  });
+
+  it("counts a label with any unknown word as new, however high the confidence (NS-277)", () => {
+    expect(reuseStrength("Some label", { canonical, confidence: 1 }, COMPANY)).toBe("new");
   });
 
   it("compares wording without case, spacing or a trailing question mark", () => {
@@ -197,5 +206,39 @@ describe("weakerReuse", () => {
       weakerReuse("bank_exact", "new"),
       weakerReuse("bank_exact", "bank_exact"),
     ]).toEqual(["bank_high_confidence", "bank_high_confidence", "new", "bank_exact"]);
+  });
+});
+
+describe("labelReuse needs every word of the label to be known (NS-277, #429)", () => {
+  it.each([
+    "Why wouldn t you want to work at Example Corp?",
+    "Why would you ne ver want to work at Example Corp?",
+    "Why do you want to work at Example Corp and what is your salary?",
+    "Why do you want to work at Example Corp\u0138",
+  ])("counts %s as new", (label) => {
+    expect(labelReuse(label, "why-this-company", COMPANY)).toBe("new");
+  });
+
+  it("still counts an honest rewording made of known words as high confidence", () => {
+    const label = "Please tell us why you want to work at Example Corp";
+    expect([matchQuestion(label).status, labelReuse(label, "why-this-company", COMPANY)]).toEqual([
+      "matched",
+      "bank_high_confidence",
+    ]);
+  });
+
+  it("takes the company's words only when the name is plain and short", () => {
+    const canonical = { text: "Why do you want to work at {company}?", examples: [] };
+    expect([
+      isKnownWording("Why do you want to work at Example Corp", canonical, COMPANY),
+      isKnownWording("Why do you want to work at Acme Salary", canonical, "Acme? Salary"),
+    ]).toEqual([true, false]);
+  });
+
+  it("reads a split word as its pieces and drops a possessive", () => {
+    expect([labelWords("Wouldn t you"), labelWords("Example Corp's team")]).toEqual([
+      ["wouldn", "t", "you"],
+      ["example", "corp", "team"],
+    ]);
   });
 });

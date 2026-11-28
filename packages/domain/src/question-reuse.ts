@@ -7,7 +7,8 @@ import { isNegatedQuestion, matchQuestion } from "./question-match.js";
 // match may let an answer skip Paul's review:
 // - bank_exact: the label is the canonical question's own wording (or one of its examples),
 //   company name aside;
-// - bank_high_confidence: a match at REUSE_HIGH_CONFIDENCE or above;
+// - bank_high_confidence: a match at REUSE_HIGH_CONFIDENCE or above whose every word is known
+//   (isKnownWording, NS-277);
 // - new: a weaker match (the 0.6 matching floor is not "high confidence"). It still fills the
 //   field, but Paul reviews it.
 export type ReuseSource = "bank_exact" | "bank_high_confidence" | "new";
@@ -65,6 +66,53 @@ const hides = (text: string): boolean => HIDING.test(text) || OTHER_SCRIPT.test(
 export const isDisguisedLabel = (label: string): boolean =>
   hides(label) || hides(label.normalize("NFKC"));
 
+// Words a label may add to the canonical wording without losing high confidence (NS-277, #429):
+// politeness and framing that carry no ask of their own. Deliberately small, with no negation
+// ("not", "never", "no"), no modal ("would", "could") and no word that can carry a second ask.
+export const KNOWN_FILLER: ReadonlySet<string> = new Set(
+  (
+    "a an the and of in on at to for with about is are be do does you your we our us i me my " +
+    "this that it what why how please briefly describe tell share explain"
+  ).split(" "),
+);
+
+// A label's words: NFKC, lowercase, runs of letters, digits and apostrophes, with a trailing "'s"
+// (a possessive: "Example Corp's") and stray apostrophes dropped. A split word ("wouldn t",
+// "ne ver") reads as its pieces, which no wording lists.
+export function labelWords(text: string): string[] {
+  return (
+    text
+      .normalize("NFKC")
+      .toLowerCase()
+      .replace(/[\u2018\u2019\u02bc`]/g, "'")
+      .match(/[\p{L}\p{N}']+/gu) ?? []
+  )
+    .map((w) => w.replace(/'s$/, "").replace(/^'+|'+$/g, ""))
+    .filter((w) => w !== "");
+}
+
+// Every word of the label is known (NS-277, #429, option 2): a word of the canonical question's own
+// wording or examples, a word of the company's name when it is a plain short name (isSafeCompany,
+// as for exact wording), or a KNOWN_FILLER word. A slot in a wording adds no words: "{company}"
+// takes the company's words only through that name, and other slots none. One unknown word (a
+// split "not", a lookalike letter the disguise rule lets through, an extra ask) and the label
+// isn't a confident reuse: it goes to Paul.
+export function isKnownWording(
+  label: string,
+  canonical: { text: string; examples: readonly string[] },
+  company: string,
+): boolean {
+  const known = new Set(KNOWN_FILLER);
+  for (const w of [canonical.text, ...canonical.examples]) {
+    for (const word of labelWords(w.replace(/\{[a-z]+\}/g, " "))) known.add(word);
+  }
+  if (company !== "" && isSafeCompany(company)) {
+    for (const word of labelWords(company)) known.add(word);
+  }
+  const words = labelWords(label);
+  return words.length > 0 && words.every((w) => known.has(w));
+}
+
 // The strength from a match code already made (the producer's path, which also takes a model's
 // pick only to fill, never to count as reuse).
 export function reuseStrength(
@@ -73,7 +121,10 @@ export function reuseStrength(
   company: string,
 ): ReuseSource {
   if (isExactWording(label, match.canonical, company)) return "bank_exact";
-  return match.confidence >= REUSE_HIGH_CONFIDENCE ? "bank_high_confidence" : "new";
+  return match.confidence >= REUSE_HIGH_CONFIDENCE &&
+    isKnownWording(label, match.canonical, company)
+    ? "bank_high_confidence"
+    : "new";
 }
 
 // The Gate's own reading: what an answer banked for `canonicalId` earns on a field with this label.

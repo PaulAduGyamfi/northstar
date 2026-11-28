@@ -163,6 +163,7 @@ describe("bankClaims", () => {
     variant: "short" as const,
     confidence: 0.5,
     exactWording: false,
+    knownWording: true,
     confirmedBy: "rules" as const,
     ...over,
   });
@@ -171,6 +172,8 @@ describe("bankClaims", () => {
     const sources: Assembled["sources"] = [
       bank({ fieldName: "exact", exactWording: true, variant: "long" }),
       bank({ fieldName: "high", confidence: 0.9 }),
+      // A label with a word nothing lists is never a confident reuse (NS-277).
+      bank({ fieldName: "unknown", confidence: 0.9, knownWording: false }),
       bank({ fieldName: "low", confidence: 0.5 }),
       bank({ fieldName: "model", exactWording: true, confirmedBy: "model" }),
       { fieldName: "setting", from: "setting", field: "needs_sponsorship", qualifier: "" },
