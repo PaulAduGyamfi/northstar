@@ -23,16 +23,35 @@ const plain = (text: string) =>
     .replace(/[?.!:\s]+$/, "")
     .toLowerCase();
 
+// How long a company name may be and still earn reuse credit (NS-278). The name and the label both
+// come from the employer, and isSafeCompany accepts up to 80 characters of plain words, so a name
+// such as "Acme Your Salary Expectations" could carry an ask into a label that reads as exact. A
+// longer name still fills an answer's {company} slot (adaptAnswer); it only earns no reuse, so
+// those labels go to Paul.
+export const REUSE_COMPANY_MAX_WORDS = 3;
+export const REUSE_COMPANY_MAX_LENGTH = 40;
+
+// The company name may count toward reuse: a plain short name (isSafeCompany) of at most
+// REUSE_COMPANY_MAX_WORDS words and REUSE_COMPANY_MAX_LENGTH characters.
+export function isReuseCompany(company: string): boolean {
+  if (company === "" || company.length > REUSE_COMPANY_MAX_LENGTH || !isSafeCompany(company)) {
+    return false;
+  }
+  const words = labelWords(company).length;
+  return words >= 1 && words <= REUSE_COMPANY_MAX_WORDS;
+}
+
 // The label is the canonical question's own wording, or one of its examples, with `{company}`
-// filled by the job's company. A wording with the slot counts only for a plain short company name
-// (isSafeCompany, as the answer's own fill): the name and the label both come from the employer,
-// so a "company" such as "Acme? Also list your salary" must not make an extra ask look exact.
+// filled by the job's company. A wording with the slot counts only for a company isReuseCompany
+// accepts: the name and the label both come from the employer, so a "company" such as "Acme? Also
+// list your salary" (not plain) or "Acme Your Salary Expectations" (too long) must not make an
+// extra ask look exact.
 export function isExactWording(
   label: string,
   canonical: { text: string; examples: readonly string[] },
   company: string,
 ): boolean {
-  const safe = company !== "" && isSafeCompany(company);
+  const safe = isReuseCompany(company);
   return [canonical.text, ...canonical.examples].some(
     (w) =>
       (safe || !w.includes("{company}")) &&
@@ -92,12 +111,37 @@ export function labelWords(text: string): string[] {
     .filter((w) => w !== "");
 }
 
+// Apostrophes as labelWords reads them: curly, modifier and backtick all become "'".
+const foldApostrophes = (text: string): string => text.replace(/[\u2018\u2019\u02bc`]/g, "'");
+
+// The label with the company's name taken out (NS-278): the name, as one unit and in its own
+// order, where the label writes it, at most `slots` times (the most `{company}` slots one wording
+// has). Its words earn no credit anywhere else, so "Why do you want to work at Acme? Your salary
+// expectations?" with the company "Acme Your Salary Expectations" keeps "Acme", "your", "salary"
+// and "expectations" (the name isn't written whole). Compared after NFKC, lowercasing and folding
+// apostrophes, the way labelWords reads both. A copy joined to a word by an apostrophe is a word of
+// its own and stays ("you're" with the company "re"); a possessive "'s" after the name goes with it.
+function withoutCompany(label: string, company: string, slots: number): string {
+  const text = foldApostrophes(label.normalize("NFKC").toLowerCase());
+  const name = foldApostrophes(company.normalize("NFKC").toLowerCase().trim());
+  if (name === "") return text;
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+  // No letter, digit or apostrophe may touch either end, so "Acme" never eats part of "Acmeless"
+  // or "you're". A possessive "'s" right after the name is part of it.
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}'])${escaped}(?:'s)?(?![\\p{L}\\p{N}'])`, "gu");
+  // At most as many times as a wording has the slot (security review): another copy of the name
+  // ("Your Salary. Why … at Your Salary?") keeps its words, which aren't known. The first copies
+  // in the label go, so a stray copy before the real one leaves the real one's words: new.
+  let left = slots;
+  return text.replace(pattern, (match) => (left-- > 0 ? " " : match));
+}
+
 // Every word of the label is known (NS-277, #429, option 2): a word of the canonical question's own
-// wording or examples, a word of the company's name when it is a plain short name (isSafeCompany,
-// as for exact wording), or a KNOWN_FILLER word. A slot in a wording adds no words: "{company}"
-// takes the company's words only through that name, and other slots none. One unknown word (a
-// split "not", a lookalike letter the disguise rule lets through, an extra ask) and the label
-// isn't a confident reuse: it goes to Paul.
+// wording or examples, or a KNOWN_FILLER word, once the company's name is taken out where the label
+// writes it whole (withoutCompany, NS-278; only a company isReuseCompany accepts). A slot in a
+// wording adds no words, and the company's words count nowhere but as the whole name. One unknown
+// word (a split "not", a lookalike letter the disguise rule lets through, an extra ask) and the
+// label isn't a confident reuse: it goes to Paul.
 export function isKnownWording(
   label: string,
   canonical: { text: string; examples: readonly string[] },
@@ -107,11 +151,11 @@ export function isKnownWording(
   for (const w of [canonical.text, ...canonical.examples]) {
     for (const word of labelWords(w.replace(/\{[a-z]+\}/g, " "))) known.add(word);
   }
-  if (company !== "" && isSafeCompany(company)) {
-    for (const word of labelWords(company)) known.add(word);
-  }
-  const words = labelWords(label);
-  return words.length > 0 && words.every((w) => known.has(w));
+  const wordings = [canonical.text, ...canonical.examples];
+  const slots = Math.max(0, ...wordings.map((w) => w.split("{company}").length - 1));
+  const rest = labelWords(isReuseCompany(company) ? withoutCompany(label, company, slots) : label);
+  // The label must hold words of its own, not only the company's name.
+  return rest.length > 0 && rest.every((w) => known.has(w));
 }
 
 // The strength from a match code already made (the producer's path, which also takes a model's
