@@ -1,6 +1,15 @@
 import { RECRUITER_GRADE_REASONS } from "@northstar/domain";
 import { sql } from "drizzle-orm";
-import { check, integer, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import {
+  bigint,
+  check,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { candidate } from "./schema.js";
 
 // The fixed reason list as SQL literals, for the CHECK: constants only, never input.
@@ -22,6 +31,13 @@ export const recruiterGrade = pgTable(
     // Codes from RECRUITER_GRADE_REASONS (@northstar/domain) only.
     reasons: text("reasons").array().notNull(),
     confidence: text("confidence").notNull(),
+    // NS-238 item 3 slice 3: the grade with Paul's learned weights applied, and the
+    // recruiter_weight version that produced it. `grade` and `points` stay the grader's own,
+    // unweighted result, which learning compares his letter with; these are what the Inbox shows.
+    // All null when no weights existed (and on every grade stored before migration 0107).
+    weightedGrade: text("weighted_grade"),
+    weightedPoints: integer("weighted_points"),
+    weightsPosition: bigint("weights_position", { mode: "bigint" }),
     gradedAt: timestamp("graded_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -34,6 +50,12 @@ export const recruiterGrade = pgTable(
     check("recruiter_grade_grade_valid", sql`${t.grade} in ('A', 'B', 'C', 'D', 'F')`),
     check("recruiter_grade_points_range", sql`${t.points} between -50 and 50`),
     check("recruiter_grade_confidence_valid", sql`${t.confidence} in ('normal', 'low')`),
+    // The weighted part is whole or absent, its letter a letter, and its points at most
+    // MAX_TOTAL_ADJUSTMENT (2) from the grader's own: learning nudges a grade, never rewrites it.
+    check(
+      "recruiter_grade_weighted_whole",
+      sql`(${t.weightedGrade} is null and ${t.weightedPoints} is null and ${t.weightsPosition} is null) or (${t.weightedGrade} in ('A', 'B', 'C', 'D', 'F') and ${t.weightedPoints} between ${t.points} - 2 and ${t.points} + 2 and ${t.weightsPosition} > 0)`,
+    ),
     // Listed codes only, and no null: a reason can never carry email text.
     check(
       "recruiter_grade_reasons_listed",
