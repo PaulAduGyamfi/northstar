@@ -58,7 +58,7 @@ export type PushWords = { title: string; body: string; tag: string };
 
 // The notification's words: fixed sentences chosen by codes. `tag` lets a repeated push replace
 // the earlier notification instead of stacking. The service worker keeps a copy of these words
-// (apps/web/public/sw.js; a test there checks they agree).
+// (apps/web/public/sw.js, slice 2, with a test that they agree).
 export function pushWords(payload: PushPayload): PushWords {
   return {
     title: "Needs your hands",

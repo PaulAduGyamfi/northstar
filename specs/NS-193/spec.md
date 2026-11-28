@@ -29,7 +29,7 @@ Built in three slices, each its own PR:
    - The payload (`packages/domain`, `push-payload.ts`): `{ v: 1, kind: "handoff", id, ats,
      reason }` with the ATS and reason from fixed lists, checked by Zod (`strict`). Never a URL,
      company, job title or email text; `pushWords` gives the notification's fixed title and body
-     ("A Greenhouse form needs your hands: a CAPTCHA stopped it.").
+     ("A Greenhouse form stopped at a CAPTCHA. Open Northstar to finish it.", the feed's own words).
    - The VAPID settings get placeholders in the example env file's Apps part and a typed loader
      (`loadVapidConfig`).
 2. **Subscriptions.** Append-only `push_subscription` and `push_subscription_removal`

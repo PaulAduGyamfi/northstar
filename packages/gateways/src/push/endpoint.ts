@@ -30,7 +30,8 @@ export function allowedEndpoint(endpoint: string): URL | null {
   // `URL` drops the default port, so any port left is a non-default one.
   if (url.port !== "") return null;
   if (url.username !== "" || url.password !== "" || url.hash !== "") return null;
-  // `URL` lower-cases the host and turns a trailing-dot or IDN form into its canonical one.
+  // `URL` lower-cases the host and punycodes an IDN; it keeps a trailing dot, so
+  // `fcm.googleapis.com.` matches nothing below and is refused.
   const host = url.hostname;
   const known =
     (PUSH_SERVICE_HOSTS as readonly string[]).includes(host) ||

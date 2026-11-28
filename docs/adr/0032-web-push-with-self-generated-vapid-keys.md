@@ -56,7 +56,7 @@ threat model and where subscriptions live.
    - Checks the `push` kill switch, then the `push` breaker (ADR-0007), at the moment it sends.
      A check that throws holds the push back.
    - POSTs through the global `fetch` with a 10 s limit, `TTL: 86400` and `Urgency: high`.
-   - Counts only no answer, 429 and 5xx against the breaker. 201/202 is `sent`, 404/410 `gone`
+   - Counts only no answer, 429 and 5xx against the breaker. Any 2xx is `sent`, 404/410 `gone`
      (drop the subscription), any other 4xx `rejected`.
    - Its span `push.send` holds the endpoint's host, the status and the outcome. Never the
      endpoint's path (it identifies the device), the keys, the JWT or the payload.

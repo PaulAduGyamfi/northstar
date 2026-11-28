@@ -104,6 +104,9 @@ describe("vapidAuthorization (NS-193, RFC 8292)", () => {
       exp: Math.floor(now.getTime() / 1000) + VAPID_TTL_SECONDS,
       sub: SUBJECT,
     });
+    // RFC 8292: never more than 24 hours ahead.
+    const exp = JSON.parse(Buffer.from(c, "base64url").toString()).exp as number;
+    expect(exp - Math.floor(now.getTime() / 1000)).toBeLessThanOrEqual(86_400);
     const ok = verify(
       "sha256",
       Buffer.from(`${h}.${c}`),

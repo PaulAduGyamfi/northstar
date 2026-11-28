@@ -17,7 +17,8 @@ const SALT_BYTES = 16;
 // One record holds the whole payload: 4096 is the record size RFC 8291 section 4 uses, and
 // payloads are capped far below it (MAX_PUSH_PAYLOAD_BYTES).
 const RECORD_SIZE = 4096;
-// AES-GCM tag (16) and the padding delimiter (1) share the record with the payload.
+// AES-GCM tag (16) and the padding delimiter (1) share the record with the payload. In practice
+// MAX_PUSH_PAYLOAD_BYTES (256, packages/domain) bounds it far below this.
 const MAX_PLAINTEXT = RECORD_SIZE - 16 - 1;
 
 export class PushEncryptError extends Error {
