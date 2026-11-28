@@ -132,8 +132,9 @@ and never hand its `gmail.modify` token to code that reads mail.
   Feed (`boards/feed.ts`, slice 2) is read the same way: XML only through `fast-xml-parser` with
   `processEntities: false`, any DOCTYPE refused, and its items' links kept only when https and not
   on a prohibited site. Never expand entities, never follow an item's link at poll time, and keep
-  the untrusted-text rules in `boards/text.ts` for both. YC's own site and Work at a Startup are
-  `prohibited` (NS-288): changing that needs their terms read and quoted first (#477).
+  the untrusted-text rules in `boards/text.ts` for both. Every YC host but `news.ycombinator.com`
+  and every Work at a Startup host are `prohibited` (NS-288): changing that needs their terms read
+  and quoted first (#477).
 
 For every gateway (the Apply Gateway now, the others when they land):
 
