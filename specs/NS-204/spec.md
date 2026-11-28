@@ -24,7 +24,9 @@ something Paul hasn't seen; opening the item first costs one extra tap.
 2. **Next PR, needs the migration lane:** the sender.
    - A `push_notification` item key `approval_request:<uuid>:notify` (a CHECK change).
    - A reader of pending requests with no claim.
-   - The worker's notifier pass, one push per request with at most 20 a pass, built like NS-193 slice 3.
+   - The worker's notifier pass, built like NS-193 slice 3. It pushes only pending requests that
+     need Paul (never ones a policy auto-approved), at most 5 approval pushes a pass, then one fixed
+     "N more waiting in the Queue" push, so a burst can't flood his phone (orchestrator).
 
 The issue asks for one push per batch. This plan sends one per request instead, so a push can name exactly what it opens. An approval from a push then covers that one request, which Paul sees before approving. A second push for an item already decided opens a Queue that says it's no longer waiting, and the decide answers `already_decided`.
 
