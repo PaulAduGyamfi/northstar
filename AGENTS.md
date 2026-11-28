@@ -1401,8 +1401,13 @@ Exists now:
   retried). The activity calls the Apply Gateway and returns plain data; `decide` (plain code)
   finishes, or waits on a durable timer for `InProgress`, `AtsBusy`, `Paced`, `DailyCapReached`
   and `HeldBack` (at most 20 waits, then `gave_up`). Tests run without a server: `decide`, the
-  activity on a fake gateway, and Temporal's workflow bundler. No client or restart test yet (the
-  test server download is extra network).
+  activity on a fake gateway, and Temporal's workflow bundler. Since NS-224 (#229) also
+  `src/temporal.test.ts`, on Temporal's time-skipping test server (`@temporalio/testing`, which
+  downloads it from `temporal.download`; Paul allowed the host): a run that waits on a durable
+  timer survives a worker restart, and a retry after a worker died mid-submit finds the claim,
+  each with exactly one submission (fake activities; the real bundle); and `temporalPort` answers
+  not delivered and not waiting for a missing workflow over both the test client and the
+  worker's own client.
   Since NS-220 also `staleClaimSweepWorkflow` (on `pipeline`): every 5 minutes (input) it runs the
   `sweepStaleClaims` activity per candidate (the gateway's sweep with `dbSweepPorts`; 1 minute,
   3 attempts), continuing as new after 100 passes. A pass that fails all its attempts becomes a
