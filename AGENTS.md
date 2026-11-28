@@ -1134,7 +1134,7 @@ Exists now:
   the activity's 5-minute timeout; `readStalePushClaims`, by the Gate's clock) as a `push.notify`
   dead letter (`outcome_unknown`), never pushing it again. It claims nothing while `push` is
   switched off (asked again before each claim) or no browser is subscribed, so a handoff opened
-  then is still pushed later; a handoff whose every send the breaker held back is a `held_back`
+  then is still pushed later; a handoff whose every send the breaker held back is a `push_paused`
   letter and stops the pass, so the other open handoffs wait for a later pass. Otherwise, for at most 20 open
   handoffs with no claim (`readHandoffsToNotify`), it takes the one claim per handoff
   (`claimHandoffNotification`, key `apply_handoff:<id>:notify`, under the handoff's row lock, the

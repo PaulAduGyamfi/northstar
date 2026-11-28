@@ -235,7 +235,7 @@ describe("notifyPass (NS-193 slice 3)", () => {
     const held = ports(new PushHeldBack("breaker", null));
     await notifyPass(held.ports, candidateId);
     // One handoff used its push and is reported apart; the other is still waiting, unclaimed.
-    expect([await letters(), held.sent.length]).toEqual([["held_back"], 1]);
+    expect([await letters(), held.sent.length]).toEqual([["push_paused"], 1]);
     const working = ports();
     await notifyPass(working.ports, candidateId);
     expect(working.sent).toHaveLength(1);

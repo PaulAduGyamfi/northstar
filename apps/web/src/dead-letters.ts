@@ -171,7 +171,7 @@ const REASONS: Record<string, string> = {
   file_refused: "your approval queue refused the reply",
   unknown_grade: "its stored grade isn't one this version knows",
   not_delivered: "no browser took the notification",
-  held_back: "notifications were paused (the push switch or its breaker) when it was sent",
+  push_paused: "notifications were paused (the push switch or its breaker) when it was sent",
   outcome_unknown: "a run stopped before it knew whether the notification went out",
   notify_failed: "every attempt failed",
 };

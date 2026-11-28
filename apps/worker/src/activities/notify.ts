@@ -138,7 +138,7 @@ export async function notifyPass(
         subject: `apply_handoff:${handoff.handoffId}`,
         // Held back (the breaker opened, or the switch flipped between check and send) reads
         // apart from a push no browser took.
-        reasonCode: allHeld ? "held_back" : "not_delivered",
+        reasonCode: allHeld ? "push_paused" : "not_delivered",
         key: `push:${claim.notificationId}:undelivered`,
         attempts: subscriptions.length,
       });

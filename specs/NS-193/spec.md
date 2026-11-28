@@ -57,7 +57,7 @@ Built in three slices, each its own PR:
 ## Failure modes
 - Push service slow or down: 10 s limit, the `push` breaker opens after 5 faults. A push is never
   retried (at most once): one no browser took is a `push.notify` dead letter (`not_delivered`) on
-  `/health`'s Stuck work, and one the breaker held back is `held_back` and stops the pass, so the
+  `/health`'s Stuck work, and one the breaker held back is `push_paused` and stops the pass, so the
   other open handoffs keep their push for a later pass. A pass that fails all its attempts is a
   `notify_failed` letter.
 - Turning push on for the first time pushes every handoff already open (at most 20 a pass).
