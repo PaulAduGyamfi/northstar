@@ -41,6 +41,16 @@ and the dev dependency in the orchestrator's session (2026-11-28).
    directory by the SDK.
 4. **Docs:** AGENTS.md (the worker's tests) and `.claude/rules/worker.md`.
 
+## Security notes
+- The test server is a binary the SDK downloads from `temporal.download` over TLS and caches in
+  the OS temp directory. It isn't pinned by version or checked by hash, and `pnpm-lock.yaml`
+  doesn't cover it. So it can change without a lock change, and a file already at the cache path
+  is reused. In CI the build job holds no secrets and reads contents only. On Paul's machine it
+  runs as his user. Pinning it (`testServer.executable` with a fixed version and download
+  directory) is a follow-up if he wants it.
+- The agent sandbox allows only the package registries, so these tests fail inside it. Locally
+  they need Paul's shell, otherwise CI. Never widen the sandbox or turn it off to get them green.
+
 ## Out of scope
 - The relay's `apply.signal_relay` dead-letter path on a real server: it needs the database in a
   worker activity, and its plain-code path is already tested.
