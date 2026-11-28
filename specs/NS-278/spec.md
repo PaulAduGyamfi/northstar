@@ -19,7 +19,8 @@ like "Acme Your Salary Expectations". Before this change:
   neither `bank_exact` nor company-word credit.
 - `isKnownWording` no longer credits the company's words one by one. It takes the whole name out
   where the label writes it, as one unit and in order (after NFKC and lowercasing, with nothing
-  but punctuation or spaces at either end). The rest must be all known words, and the label must
+  but punctuation or spaces at either end), at most as many times as one of the canonical
+  wordings has a `{company}` slot (security review: a repeated name keeps its words). The rest must be all known words, and the label must
   hold at least one word that isn't the name.
 
 ## Acceptance criteria

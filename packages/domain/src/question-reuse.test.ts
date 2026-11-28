@@ -271,6 +271,23 @@ describe("a company name earns reuse only whole, short and where the label write
     ]).toEqual([true, false, false, false]);
   });
 
+  it("takes the name out only as often as a wording has the slot, so a repeated name is new", () => {
+    expect(
+      labelReuse(
+        "Your Salary. Why do you want to work at Your Salary?",
+        "why-this-company",
+        "Your Salary",
+      ),
+    ).toBe("new");
+  });
+
+  it("gives no company credit to a canonical question with no company slot", () => {
+    const canonical = { text: "Why are you interested in this role?", examples: [] };
+    expect(
+      isKnownWording("Why are you interested in this role at Example Corp", canonical, COMPANY),
+    ).toBe(false);
+  });
+
   it("still counts a plain short company name as exact and high confidence", () => {
     expect([
       labelReuse("Why do you want to work at Example Corp?", "why-this-company", COMPANY),

@@ -111,18 +111,22 @@ export function labelWords(text: string): string[] {
     .filter((w) => w !== "");
 }
 
-// The label with every whole occurrence of the company's name taken out (NS-278): the name, as one
-// unit and in its own order, where the label writes it. Its words earn no credit anywhere else, so
+// The label with the company's name taken out (NS-278): the name, as one unit and in its own order,
+// where the label writes it, at most `slots` times (the most `{company}` slots one wording has). Its words earn no credit anywhere else, so
 // "Why do you want to work at Acme? Your salary expectations?" with the company "Acme Your Salary
 // Expectations" keeps "Acme", "your", "salary" and "expectations" (the name isn't written whole).
 // Compared after NFKC and lowercasing, the way labelWords reads both.
-function withoutCompany(label: string, company: string): string {
+function withoutCompany(label: string, company: string, slots: number): string {
   const text = label.normalize("NFKC").toLowerCase();
   const name = company.normalize("NFKC").toLowerCase().trim();
   if (name === "") return text;
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
   // Only where no letter or digit touches either end, so "Acme" never eats part of "Acmeless".
-  return text.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, "gu"), " ");
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, "gu");
+  // At most as many times as a wording has the slot (security review): another copy of the name
+  // ("Your Salary. Why … at Your Salary?") keeps its words, which aren't known.
+  let left = slots;
+  return text.replace(pattern, (match) => (left-- > 0 ? " " : match));
 }
 
 // Every word of the label is known (NS-277, #429, option 2): a word of the canonical question's own
@@ -140,7 +144,9 @@ export function isKnownWording(
   for (const w of [canonical.text, ...canonical.examples]) {
     for (const word of labelWords(w.replace(/\{[a-z]+\}/g, " "))) known.add(word);
   }
-  const rest = labelWords(isReuseCompany(company) ? withoutCompany(label, company) : label);
+  const wordings = [canonical.text, ...canonical.examples];
+  const slots = Math.max(0, ...wordings.map((w) => w.split("{company}").length - 1));
+  const rest = labelWords(isReuseCompany(company) ? withoutCompany(label, company, slots) : label);
   // The label must hold words of its own, not only the company's name.
   return rest.length > 0 && rest.every((w) => known.has(w));
 }
