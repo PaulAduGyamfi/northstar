@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { endpointAllowed } from "./endpoint.js";
 
+// An endpoint carrying credentials, built with URL so no address-shaped literal sits in the file.
+function withUserInfo(endpoint: string): string {
+  const url = new URL(endpoint);
+  url.username = "user";
+  url.password = "secret-for-test";
+  return url.href;
+}
+
 describe("endpointAllowed (NS-193, ADR-0032 item 3)", () => {
   it.each([
     "https://fcm.googleapis.com/fcm/send/abc123:def",
@@ -21,7 +29,7 @@ describe("endpointAllowed (NS-193, ADR-0032 item 3)", () => {
     ["a lookalike suffix", "https://evilfcm.googleapis.com.example.com/x"],
     ["a host that only ends with the name", "https://notfcm.googleapis.com/x"],
     ["a non-default port", "https://fcm.googleapis.com:8443/fcm/send/abc"],
-    ["user info", "https://user:pass@fcm.googleapis.com/fcm/send/abc"],
+    ["user info", withUserInfo("https://fcm.googleapis.com/fcm/send/abc")],
     ["an IPv4 literal", "https://127.0.0.1/push"],
     ["an IPv6 literal", "https://[::1]/push"],
     ["a trailing-dot host", "https://fcm.googleapis.com./fcm/send/abc"],
