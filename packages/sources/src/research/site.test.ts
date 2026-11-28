@@ -71,22 +71,61 @@ describe("readCompanySite", () => {
     ]);
   });
 
-  it("drops a page that redirected off the company's domain", async () => {
+  it("drops a page that redirected off the company's domain, after safeFetch followed it", async () => {
+    const elsewhere = "https://elsewhere.example.org/";
+    const web = fakeWeb({ [HOME]: { status: 301, location: elsewhere }, [elsewhere]: PAGE });
+    expect([await readCompanySite(web.deps, "globex.example.com"), web.asked]).toEqual([
+      { ok: false, reason: "off_domain" },
+      [ROBOTS, HOME, elsewhere],
+    ]);
+  });
+
+  it("never reads the page when robots.txt answers 429", async () => {
+    const web = fakeWeb({ [ROBOTS]: { status: 429 }, [HOME]: PAGE });
+    const read = await readCompanySite(web.deps, "globex.example.com");
+    expect([read, web.asked]).toEqual([{ ok: false, reason: "robots_unreadable" }, [ROBOTS]]);
+  });
+
+  it("keeps a redirect to its own www name, after asking that host's robots.txt too", async () => {
+    const www = "https://www.globex.example.com/";
+    const web = fakeWeb({ [HOME]: { status: 301, location: www }, [www]: PAGE });
+    const read = await readCompanySite(web.deps, "globex.example.com");
+    expect([read.ok && read.page.url, web.asked]).toEqual([
+      www,
+      [ROBOTS, HOME, www, "https://www.globex.example.com/robots.txt"],
+    ]);
+  });
+
+  it("drops the www page when the www host's robots.txt keeps everyone out", async () => {
+    const www = "https://www.globex.example.com/";
     const web = fakeWeb({
-      [HOME]: { status: 301, location: "https://elsewhere.example.org/" },
-      "https://elsewhere.example.org/": PAGE,
+      [HOME]: { status: 301, location: www },
+      [www]: PAGE,
+      "https://www.globex.example.com/robots.txt": { body: "User-agent: *\nDisallow: /" },
     });
+    expect(await readCompanySite(web.deps, "globex.example.com")).toEqual({
+      ok: false,
+      reason: "robots_disallow",
+    });
+  });
+
+  it("drops a page that redirected to another subdomain, whose robots.txt was never asked", async () => {
+    const blog = "https://blog.globex.example.com/";
+    const web = fakeWeb({ [HOME]: { status: 301, location: blog }, [blog]: PAGE });
     expect(await readCompanySite(web.deps, "globex.example.com")).toEqual({
       ok: false,
       reason: "off_domain",
     });
   });
 
-  it("keeps a redirect to its own www subdomain", async () => {
-    const www = "https://www.globex.example.com/";
-    const web = fakeWeb({ [HOME]: { status: 301, location: www }, [www]: PAGE });
+  it("reads a robots.txt that redirected to another host as no rules for this one", async () => {
+    const web = fakeWeb({
+      [ROBOTS]: { status: 301, location: "https://elsewhere.example.org/robots.txt" },
+      "https://elsewhere.example.org/robots.txt": { body: "User-agent: *\nDisallow: /" },
+      [HOME]: PAGE,
+    });
     const read = await readCompanySite(web.deps, "globex.example.com");
-    expect(read.ok && read.page.url).toBe(www);
+    expect(read.ok).toBe(true);
   });
 
   it("refuses a page that isn't HTML or isn't a 200", async () => {

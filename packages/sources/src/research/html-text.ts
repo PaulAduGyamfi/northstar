@@ -11,8 +11,10 @@ export const MAX_SITE_TEXT = 50_000;
 
 // Elements whose content is never visible text. Their whole content is skipped, so nothing in a
 // script or a style sheet can reach a quote.
+// Not "head": a page may leave out "</head>", and skipping to an end that never comes would drop
+// the whole body. Its title is skipped instead; its scripts and styles are caught by name.
 const SKIPPED = new Set([
-  "head",
+  "title",
   "script",
   "style",
   "noscript",
@@ -108,6 +110,23 @@ function endOfElement(html: string, name: string, from: number): number {
   }
 }
 
+// Where the tag starting at `<` ends: its first ">" outside a quoted attribute value (a ">" inside
+// `data="/>"` doesn't end it), or -1. Scans forward only, from this tag's start.
+function tagEnd(html: string, lt: number): number {
+  let quote = "";
+  for (let i = lt + 1; i < html.length; i++) {
+    const c = html[i];
+    if (quote !== "") {
+      if (c === quote) quote = "";
+    } else if (c === '"' || c === "'") {
+      quote = c;
+    } else if (c === ">") {
+      return i;
+    }
+  }
+  return -1;
+}
+
 // Decodes the named entities above and numeric ones that are real characters; leaves any other
 // "&…;" as written. The pattern has bounded parts, so it can't backtrack badly.
 function decodeEntities(text: string): string {
@@ -137,18 +156,22 @@ export function htmlText(html: string): string {
       i = end < 0 ? html.length : end + 3;
       continue;
     }
-    const gt = html.indexOf(">", lt);
+    const tag = tagName(html, lt);
+    // A real tag ends at its first ">" outside quotes; anything else ("<!doctype", "a < b") at
+    // its first ">", so an apostrophe in text never swallows the page.
+    const gt = tag.name === "" ? html.indexOf(">", lt) : tagEnd(html, lt);
     // An unclosed tag at the end: nothing after it is text.
     if (gt < 0) break;
-    const tag = tagName(html, lt);
     if (tag.name === "") {
       // "<" not starting a tag (a doctype, "<!", "< 3") is dropped with what follows up to ">".
       i = gt + 1;
       continue;
     }
     if (!tag.closing && SKIPPED.has(tag.name)) {
-      // A self-closing skipped element ("<svg/>") has no content to skip.
-      i = html[gt - 1] === "/" ? gt + 1 : endOfElement(html, tag.name, gt + 1);
+      // Only foreign content (svg) can close itself ("<svg/>"); browsers ignore the slash on
+      // "<script/>", whose content still follows.
+      const selfClosed = tag.name === "svg" && html[gt - 1] === "/";
+      i = selfClosed ? gt + 1 : endOfElement(html, tag.name, gt + 1);
       out.push("\n");
       continue;
     }

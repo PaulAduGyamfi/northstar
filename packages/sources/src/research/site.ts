@@ -32,7 +32,7 @@ export type SiteRefusal =
 
 export type SiteRead = { ok: true; page: SitePage } | { ok: false; reason: SiteRefusal };
 
-// robots.txt is small; a larger one is read as unreadable.
+// robots.txt is small; safeFetch refuses a larger one, and the read stops (`fetch_refused`).
 const ROBOTS_MAX_BYTES = 64 * 1024;
 
 // True unless robots.txt's group for every agent ("*") disallows the whole site ("/" or "/*").
@@ -60,7 +60,23 @@ export function robotsAllowsHome(robots: string): boolean {
   return true;
 }
 
-const onDomain = (host: string, domain: string) => host === domain || host.endsWith(`.${domain}`);
+// Why one host's robots.txt stops the read, or null when it allows the home page. No robots.txt
+// (any other 4xx) means no rules; a server error or a 429 means we can't tell, so we don't read. A robots.txt that
+// redirected to another host is that host's rules, not this one's: read as no rules.
+async function robotsBlock(
+  deps: FetchDeps,
+  host: string,
+): Promise<"robots_disallow" | "robots_unreadable" | "fetch_refused" | "unreachable" | null> {
+  const url = `https://${host}/robots.txt`;
+  const robots = await fetched(() => safeFetch(deps, url, { maxBytes: ROBOTS_MAX_BYTES }));
+  if (!robots.ok) return robots.reason;
+  const r = robots.value;
+  if (new URL(r.url).hostname !== host) return null;
+  // A 429 is a busy server, not "no robots.txt": like a 5xx, we can't tell.
+  if (r.status >= 500 || r.status === 429) return "robots_unreadable";
+  if (r.status === 200 && !robotsAllowsHome(r.body)) return "robots_disallow";
+  return null;
+}
 
 export async function readCompanySite(deps: FetchDeps, rawDomain: string): Promise<SiteRead> {
   const tracer = trace.getTracer("@northstar/sources");
@@ -88,23 +104,22 @@ async function readSite(deps: FetchDeps, rawDomain: string): Promise<SiteRead> {
   if (companySiteTerms(home).terms === "prohibited") return { ok: false, reason: "terms" };
   trace.getActiveSpan()?.setAttribute("server.address", domain);
 
-  const robots = await fetched(() =>
-    safeFetch(deps, `https://${domain}/robots.txt`, { maxBytes: ROBOTS_MAX_BYTES }),
-  );
-  if (!robots.ok) return robots;
-  const r = robots.value;
-  // No robots.txt (4xx) means no rules; a server error means we can't tell, so we don't read.
-  if (r.status >= 500) return { ok: false, reason: "robots_unreadable" };
-  if (r.status === 200 && !robotsAllowsHome(r.body)) {
-    return { ok: false, reason: "robots_disallow" };
-  }
+  const blocked = await robotsBlock(deps, domain);
+  if (blocked) return { ok: false, reason: blocked };
 
   const page = await fetched(() => safeFetch(deps, home));
   if (!page.ok) return page;
   const p = page.value;
-  // The page must end on the company's own domain: safeFetch follows redirects itself, so a page
-  // that ended elsewhere was read but is dropped here, and nothing from it is ever quoted.
-  if (!onDomain(new URL(p.url).hostname, domain)) return { ok: false, reason: "off_domain" };
+  // The page must end on the company's own domain or its www name: safeFetch follows redirects
+  // itself, so a page that ended elsewhere (another site, or another subdomain whose robots.txt
+  // was never asked) was read but is dropped here, and nothing from it is ever quoted.
+  const host = new URL(p.url).hostname;
+  if (host !== domain && host !== `www.${domain}`) return { ok: false, reason: "off_domain" };
+  // A page served by the www name answers to that host's own robots.txt too.
+  if (host !== domain) {
+    const wwwBlocked = await robotsBlock(deps, host);
+    if (wwwBlocked) return { ok: false, reason: wwwBlocked };
+  }
   if (p.status !== 200) return { ok: false, reason: "http_error" };
   if (!/^\s*text\/html\b/i.test(p.contentType)) return { ok: false, reason: "not_html" };
   const text = htmlText(p.body);

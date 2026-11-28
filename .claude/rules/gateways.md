@@ -135,7 +135,8 @@ and never hand its `gmail.modify` token to code that reads mail.
   the untrusted-text rules in `boards/text.ts` for both.
   A company's own site (NS-283, `research/site.ts`) is read only through `readCompanySite`: a
   domain Paul entered, `companySiteTerms` declared first, `robots.txt` asked first, the home page
-  only, through `safeFetch`, and dropped unless it ends on that domain. Its text is only quoted
+  only, through `safeFetch`, and dropped unless it ends on that domain or its `www.` name (whose own
+  robots.txt is asked too). Its text is only quoted
   with the page's URL; never follow its links, read a second page, or take a domain from a
   posting or mail.
 

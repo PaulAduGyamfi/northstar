@@ -48,12 +48,13 @@ exist. A brief must only say what a stored source or Paul's own profile backs.
      (`normalizeDomain`, `isSharedDomain`).
    - Its terms status is declared before any read (`companySiteTerms`: a prohibited site or an
      ATS host is refused; a company's own site is `public-feed`, source `company-site`).
-   - It asks `robots.txt` first: a site-wide `Disallow: /` for `*` or a 5xx stops it before the
+   - It asks `robots.txt` first: a site-wide `Disallow: /` for `*`, a 5xx or a 429 stops it before the
      page is read; no robots.txt (4xx) means no rules.
-   - Both reads go through `safeFetch`. The page must end on the domain or a subdomain of it (a
-     page redirected elsewhere is dropped, never quoted), answer 200 and be HTML.
+   - Both reads go through `safeFetch`. The page must end on the domain or its `www.` name (whose
+     own robots.txt is asked too; a page redirected anywhere else is dropped, never quoted), answer
+     200 and be HTML. A robots.txt that redirected to another host counts as no rules.
    - `htmlText` (`research/html-text.ts`) turns it into visible text in one linear pass: scripts,
-     styles, templates and the head dropped whole, blocks as lines, a few entities decoded, at
+     styles, templates and the page title dropped whole, blocks as lines, a few entities decoded, at
      most 50,000 characters.
    - Every failure is a reason (`SiteRefusal`), never a throw; one `research.site_read` span
      carries the domain and the outcome only.

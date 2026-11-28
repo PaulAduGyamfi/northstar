@@ -41,4 +41,24 @@ describe("htmlText", () => {
     const text = htmlText(Array(1_000).fill(`<p>${line}</p>`).join(""));
     expect([text.length <= MAX_SITE_TEXT, text.endsWith("end.")]).toEqual([true, true]);
   });
+
+  it("never shows a script's content, even written as <script/> or with a > inside an attribute", () => {
+    const html =
+      '<p>Shown.</p><script/>var a = "Globex secret";</script>' +
+      '<script data="/>">var b = "Globex hidden";</script><p>Also shown.</p>';
+    expect(htmlText(html)).toBe("Shown.\nAlso shown.");
+  });
+
+  it("doesn't let a stray < and an apostrophe swallow the rest of the page", () => {
+    expect(htmlText("<p>a < b isn't wrong.</p><p>Globex grows.</p>")).toBe("a\nGlobex grows.");
+  });
+
+  it("lets an svg close itself", () => {
+    expect(htmlText("<p>Logo:</p><svg/><p>Globex.</p>")).toBe("Logo:\nGlobex.");
+  });
+
+  it("keeps the body of a page that never closes its head", () => {
+    const html = "<html><head><title>Globex</title><body><p>Globex makes billing simple.</p>";
+    expect(htmlText(html)).toBe("Globex makes billing simple.");
+  });
 });
