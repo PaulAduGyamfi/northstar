@@ -79,9 +79,11 @@ on the Health page (a stopped pool reads "Not running"). With `WORKER_JOB_PIPELI
 default; NS-280) it also runs the job pipeline every 10 minutes: ready jobs whose newest Fit
 Score is in the queue band become queued applications (at most `WORKER_QUEUE_DAILY_CAP` a day,
 default 5, never over 25), and each one's resume is tailored, its Greenhouse form read, its
-package filed to your Queue and its submission run started, waiting for your approval. A job that
-needs something from you (a missing setting, answer or file) says so on its timeline instead, and
-is tried again the next day. Off, nothing is queued or submitted on its own, and no mail is polled
+package filed to your Queue and its submission run started, waiting for your approval (or one by
+an approval policy you set). A job that needs something from you (a missing setting, answer or
+file) says so on its timeline instead, and is tried again the next day. Off, nothing new is queued
+or started; runs already started finish (stop them in Temporal's UI if you need to), and the
+`auto_apply` switch on the Health page stops any submission at once. No mail is polled
 automatically. Its browser pool
 is off unless you turn it on (`WORKER_APPLY_BROWSER=on`); while it is off, a submission waits in
 Temporal's queue (it isn't dropped) and still needs your approval when the pool comes on. Interviews on your calendar are found when you run `pnpm --filter @northstar/funnel funnel
