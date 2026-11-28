@@ -199,6 +199,14 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `tailored_resume` version names its PDF in `pdf_sha256` (a foreign key; null on older versions).
   The bytes are Paul's resume: events carry the hash and size only. `readStoredFile` serves the
   Apply Gateway's `readFile`.
+- Job embeddings (NS-129 slice 2, ADR-0033, migration 0111) are `job_embedding` (one row per
+  job, model and text SHA-256; the newest per job and model is current; CHECKs pin the model to
+  `text-embedding-3-small` and 512 dimensions) and `job_duplicate_suggestion` (one per candidate,
+  pair and model, `job_a < job_b`, similarity 0–1), append-only (triggers), written only through
+  `job-embedding-write.ts`. Composite foreign keys keep both jobs the candidate's own. A vector is
+  of employer text only, and its text is never stored (the SHA-256 is). A suggestion never merges,
+  edits or deletes a job. `job.duplicate_suggested` carries ids and the similarity; its feed line
+  is a fixed-word `reason`. Storing a vector writes no event.
 - LLM spend (NS-176, ADR-0021) is `llm_spend`, append-only (a trigger), written only through
   `spend-write.ts`: a route name and micro-dollars per reply, never a prompt, input or output.
   `readLlmSpend` sums by the UTC day and month.

@@ -30,6 +30,8 @@ export {
 } from "./alerts-cli.js";
 export { type AtsTarget, detectAts } from "./ats/detect.js";
 export { findDuplicate, type Match, nameKey, SIMILARITY, similarity } from "./dedupe.js";
+// Duplicate suggestions from job embeddings (NS-129 slice 2): they never merge a job.
+export { MAX_SUGGESTIONS_PER_JOB, type SuggestResult, suggestDuplicates } from "./dupes.js";
 export { type Extraction, emptyFields, htmlToText } from "./extraction.js";
 export * from "./fetch.js";
 // Career directions (NS-130 slice 2, DNA-004): role families ranked by evidence coverage.

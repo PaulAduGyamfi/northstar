@@ -97,8 +97,17 @@ Exists now:
   spend cap (route `job-embed`, priority `low`, its cost in `llm_spend`); its `llm.embed` span holds
   counts, tokens and status, never text or the key. `loadEmbedConfig` reads `JOB_EMBEDDINGS`
   (default off) and `OPENAI_API_KEY` (`.env.app` only). The text sent is only `embeddingText(job)`
-  (`packages/sources`: title, company and requirements lines). No caller yet: storage and
-  duplicate suggestions come in slice 2; an embedding never merges a job.
+  (`packages/sources`: title, company and requirements lines). Since slice 2 (migration 0111)
+  vectors and suggestions are stored in `packages/db` (`job-embedding-schema.ts`,
+  `job-embedding-write.ts`, append-only): `job_embedding` (`vector(512)`, one row per job, model
+  and text SHA-256, the newest current; `saveJobEmbedding` for ready jobs only, no event;
+  `readEmbeddingHashes`), `findSimilarJobs` (cosine over each other ready, open job's newest
+  vector, by pgvector's `<=>`) and `job_duplicate_suggestion` (one per pair, stored in one order;
+  `recordDuplicateSuggestion` with `job.duplicate_suggested` by `system`, ids and the similarity,
+  feed "Two saved jobs look like the same role: check them"). `suggestDuplicates`
+  (`packages/sources`, `dupes.ts`) stores at most 5 per job at a threshold its caller passes. No
+  caller yet: wiring, `jobs dupes` and the measured threshold come in slice 3; an embedding never
+  merges a job.
 - `evals/` (NS-106): the eval harness and CLI. One folder per route arrives with that route
   (`cases.jsonl`, `baseline.json`, `fixtures/`). Real-mail cases go in `evals/**/private/`
   (gitignored). The CLI can't run them yet: it only reads the public `cases.jsonl`. CI runs

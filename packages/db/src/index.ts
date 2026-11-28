@@ -322,6 +322,23 @@ export {
   recordInterviewDetection,
   type StoredInterview,
 } from "./interview-write.js";
+// Job embeddings and duplicate suggestions (NS-129 slice 2, ADR-0033): vectors of employer text
+// only, and suggestions that never merge a job.
+export {
+  jobDuplicateSuggestion,
+  jobEmbedding,
+  STORED_EMBED_DIMENSIONS,
+  STORED_EMBED_MODEL,
+} from "./job-embedding-schema.js";
+export {
+  DUPLICATE_SUGGESTED_REASON,
+  type EmbeddingRefusal,
+  findSimilarJobs,
+  readEmbeddingHashes,
+  recordDuplicateSuggestion,
+  type SimilarJob,
+  saveJobEmbedding,
+} from "./job-embedding-write.js";
 // A job's application form (NS-227).
 export type { JobFormQuestion } from "./job-form-schema.js";
 export * as jobFormSchema from "./job-form-schema.js";

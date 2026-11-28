@@ -47,6 +47,7 @@ export default defineConfig({
     "./src/recruiter-weight-schema.ts",
     "./src/prep-plan-schema.ts",
     "./src/push-schema.ts",
+    "./src/job-embedding-schema.ts",
   ],
   out: "./migrations",
 });

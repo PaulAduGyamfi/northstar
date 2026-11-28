@@ -1,6 +1,6 @@
 # NS-129: Embedding-based job dedupe (suggestions only)
 
-Status: slice 1 in progress (autonomous lane, ADR-0016; Paul approved building it on 2026-11-28)
+Status: slice 1 merged (#462); slice 2 in progress (autonomous lane, ADR-0016; Paul approved building it on 2026-11-28)
 Issue: #52 (split out of NS-114, #13). Provider: OpenAI (Q-19, decided by Paul 2026-11-28).
 Requirements: SRC-006 (description embedding), RES-002, RES-005, RES-008, RES-009, OBS-001
 Rules that apply: ADR-0002, ADR-0005, ADR-0007, ADR-0008, ADR-0016, ADR-0021, ADR-0033 (this
@@ -47,13 +47,21 @@ Built in slices, each its own PR:
    before anything is turned on.
 
 ## Acceptance criteria
-- [ ] Slice 1: ADR-0033 written (Proposed); the client sends exactly one request shape to exactly
+- [x] Slice 1: ADR-0033 written (Proposed); the client sends exactly one request shape to exactly
       one host, refuses a redirect, and sends nothing while the switch is off, the breaker is
       open, the spend cap holds `low` back or `JOB_EMBEDDINGS` is off (tests with a fake `fetch`;
       no test calls the network).
-- [ ] Slice 1: only no answer, a cut-off body, 408, 409, 429 and 5xx count against the breaker; a 400 or 401 doesn't.
-- [ ] Slice 1: the cost of each call is recorded through the spend meter.
-- [ ] Slice 1: `embeddingText` holds the title, company and requirements only (a test).
+- [x] Slice 1: only no answer, a cut-off body, 408, 409, 429 and 5xx count against the breaker; a 400 or 401 doesn't.
+- [x] Slice 1: the cost of each call is recorded through the spend meter.
+- [x] Slice 1: `embeddingText` holds the title, company and requirements only (a test).
+- [ ] Slice 2: append-only `job_embedding` and `job_duplicate_suggestion` (triggers, CHECKs,
+      same-candidate foreign keys; the app role's grants), a vector stored once per job and text,
+      the newest one current.
+- [ ] Slice 2: `findSimilarJobs` compares only each other ready, open job's newest vector, and
+      never another candidate's.
+- [ ] Slice 2: a pair is suggested once whichever way round, with one fixed-word
+      `job.duplicate_suggested` event; `suggestDuplicates` stores at most 5 per job and never
+      changes a job.
 - [ ] AGENTS.md, README and `.env.example` describe each slice.
 - [ ] lint, typecheck, test, build green (CI `checks`).
 
