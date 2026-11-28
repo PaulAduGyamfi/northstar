@@ -101,7 +101,10 @@ pushes each new "Needs your hands" item, each request newly waiting in your Queu
 alone at a time, then one "N more waiting" notification), and each fresh-job alert from the last
 hour (never one held for quiet hours), to your browsers once, in fixed words with no link, company
 or job title; tapping it opens Today, or the Queue with that request marked. A notification never
-approves anything. The `push` switch on the Health page stops it. What each package does today is listed
+approves anything. The `push` switch on the Health page stops it. With `JOB_EMBEDDINGS` on (off
+by default, and not until its threshold is measured), each `jobs` scoring pass also sends changed
+jobs' titles, companies and requirements to OpenAI for embeddings and lists pairs that look like
+the same role in `jobs dupes`; nothing is merged. What each package does today is listed
 under "Layout" in [AGENTS.md](AGENTS.md).
 
 ## Getting started (local)

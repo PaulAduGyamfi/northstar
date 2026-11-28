@@ -9,7 +9,7 @@ import {
 } from "./job-embedding-schema.js";
 import { readClosedJobIds } from "./liveness-write.js";
 import { appendEvent, inSpan } from "./resilience-event.js";
-import { job } from "./schema.js";
+import { company, job } from "./schema.js";
 
 // The job-embedding write path (NS-129 slice 2, SRC-006, ADR-0033). packages/sources decides what
 // text is embedded and which pairs are alike enough; this module stores vectors and suggestions
@@ -214,4 +214,80 @@ export async function recordDuplicateSuggestion(
     // A fresh error with no cause: the driver's message lists the query's parameters.
     throw new Error("job.duplicate_suggest failed");
   }
+}
+
+export type EmbeddableJob = {
+  jobId: string;
+  title: string | null;
+  company: string | null;
+  requirements: string[];
+};
+
+// The candidate's ready, open jobs in the shape `embeddingText` reads, freshest first (posted, else
+// first seen), so a pass that stops early has embedded the newest jobs. Employer text only.
+export async function readEmbeddableJobs(
+  db: Db,
+  candidateId: CandidateId,
+): Promise<EmbeddableJob[]> {
+  const closed = await readClosedJobIds(db, candidateId);
+  const rows = await db
+    .select({
+      jobId: job.id,
+      title: job.title,
+      company: company.name,
+      requirements: job.requirements,
+    })
+    .from(job)
+    .leftJoin(company, eq(company.id, job.companyId))
+    .where(and(eq(job.candidateId, candidateId), eq(job.status, "ready")))
+    .orderBy(desc(sql`coalesce(${job.postedAt}, ${job.firstSeenAt})`), job.id);
+  return rows.filter((r) => !closed.has(r.jobId));
+}
+
+export type DuplicateSuggestionItem = {
+  suggestionId: string;
+  similarity: number;
+  suggestedAt: Date;
+  jobs: [SuggestedJob, SuggestedJob];
+};
+export type SuggestedJob = { jobId: string; title: string | null; company: string | null };
+
+// The newest suggestions (at most 50), each with both jobs' titles and companies, for Paul's
+// `jobs dupes`. Read-only; the names are read here at display time, never stored with the pair.
+export async function listDuplicateSuggestions(
+  db: Db,
+  candidateId: CandidateId,
+): Promise<DuplicateSuggestionItem[]> {
+  const rows = await db
+    .select({
+      suggestionId: jobDuplicateSuggestion.id,
+      similarity: jobDuplicateSuggestion.similarity,
+      suggestedAt: jobDuplicateSuggestion.createdAt,
+      jobA: jobDuplicateSuggestion.jobA,
+      jobB: jobDuplicateSuggestion.jobB,
+    })
+    .from(jobDuplicateSuggestion)
+    .where(eq(jobDuplicateSuggestion.candidateId, candidateId))
+    .orderBy(desc(jobDuplicateSuggestion.position))
+    .limit(50);
+  const ids = [...new Set(rows.flatMap((r) => [r.jobA, r.jobB]))];
+  const names =
+    ids.length === 0
+      ? []
+      : await db
+          .select({ jobId: job.id, title: job.title, company: company.name })
+          .from(job)
+          .leftJoin(company, eq(company.id, job.companyId))
+          .where(and(eq(job.candidateId, candidateId), inArray(job.id, ids)));
+  const byId = new Map(names.map((n) => [n.jobId, n]));
+  const named = (jobId: string): SuggestedJob => {
+    const n = byId.get(jobId);
+    return { jobId, title: n?.title ?? null, company: n?.company ?? null };
+  };
+  return rows.map((r) => ({
+    suggestionId: r.suggestionId,
+    similarity: r.similarity,
+    suggestedAt: r.suggestedAt,
+    jobs: [named(r.jobA), named(r.jobB)],
+  }));
 }

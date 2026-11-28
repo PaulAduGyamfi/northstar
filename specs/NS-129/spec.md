@@ -1,6 +1,6 @@
 # NS-129: Embedding-based job dedupe (suggestions only)
 
-Status: slice 1 merged (#462); slice 2 in progress (autonomous lane, ADR-0016; Paul approved building it on 2026-11-28)
+Status: slices 1 (#462) and 2 (#465) merged; slice 3 in progress (autonomous lane, ADR-0016; Paul approved building it on 2026-11-28)
 Issue: #52 (split out of NS-114, #13). Provider: OpenAI (Q-19, decided by Paul 2026-11-28).
 Requirements: SRC-006 (description embedding), RES-002, RES-005, RES-008, RES-009, OBS-001
 Rules that apply: ADR-0002, ADR-0005, ADR-0007, ADR-0008, ADR-0016, ADR-0021, ADR-0033 (this
@@ -41,10 +41,20 @@ Built in slices, each its own PR:
    suggestion when two jobs the deterministic rule kept apart are at least the threshold alike,
    with a `job.duplicate_suggested` event and a fixed-word feed line ("Two saved jobs look like
    the same role: check them").
-3. **Wiring and measurement.** `jobs score` / the poll pass embed new ready jobs and suggest
-   duplicates while `JOB_EMBEDDINGS=on`; `jobs dupes` lists suggestions with both jobs' titles for
-   Paul. The threshold is set from a labelled synthetic set, measured against the shingle rule,
-   before anything is turned on.
+3. **Wiring.** After every scoring pass in the `jobs` CLI (`jobs score`, after `jobs add` /
+   `jobs set`, each `jobs poll` / `jobs run` pass), while `JOB_EMBEDDINGS=on`, `embedPass`
+   (`packages/sources`, `embed-pass.ts`) embeds up to 64 ready, open jobs (freshest first) whose
+   `embeddingText` hash differs from their newest stored one, in one request, stores each vector
+   and runs `suggestDuplicates` for each new one. A held-back or failed request stops the pass with
+   one printed line; the next pass retries (nothing is lost: the hashes still differ). The
+   threshold is `JOB_DUPLICATE_THRESHOLD` (0.50–0.99), required while embeddings are on, with no
+   default. `jobs dupes` lists the newest 50 suggestions with both jobs' titles, companies, ids
+   and the similarity, in Paul's terminal only.
+4. **Measurement (needs Paul).** Recording real vectors for a labelled synthetic set costs money
+   and needs the key, so it is Paul's run: a follow-up builds the harness (labelled pairs,
+   `--record`, replay that reports precision and recall per threshold against the shingle rule)
+   and Paul picks `JOB_DUPLICATE_THRESHOLD` from it before turning embeddings on. Until then
+   `JOB_EMBEDDINGS` stays off. Dismissing a wrong suggestion (a new table) comes with it.
 
 ## Acceptance criteria
 - [x] Slice 1: ADR-0033 written (Proposed); the client sends exactly one request shape to exactly
@@ -63,6 +73,12 @@ Built in slices, each its own PR:
 - [ ] Slice 2: a pair is suggested once whichever way round, with one fixed-word
       `job.duplicate_suggested` event; `suggestDuplicates` stores at most 5 per job and never
       changes a job.
+- [ ] Slice 3: while `JOB_EMBEDDINGS` is off, no scoring pass reads a key or sends anything; on,
+      a pass embeds only jobs whose text changed, at most 64 in one request, and suggests
+      duplicates for each new vector; a held-back or failed request stops the pass visibly and
+      never fails the scoring command.
+- [ ] Slice 3: `JOB_DUPLICATE_THRESHOLD` is required while on and refused by name when missing or
+      outside 0.50–0.99; `jobs dupes` lists suggestions.
 - [ ] AGENTS.md, README and `.env.example` describe each slice.
 - [ ] lint, typecheck, test, build green (CI `checks`).
 
@@ -72,7 +88,12 @@ Built in slices, each its own PR:
 - Key missing, wrong or revoked: `on` without a key refuses to start; a 401 is reported on the
   span and not counted against the breaker (it answered).
 - Spend cap reached: held back like any `low` model route.
-- Wrong suggestion: nothing is merged; Paul dismisses it (slice 3).
+- Wrong suggestion: nothing is merged; it stays listed until dismissal lands (slice 4).
+- A suggestion step that throws for one newly embedded job (a database error): counted and printed
+  ("N couldn't be compared"), not retried. Jobs embedded later still compare against it, but its
+  pairs with jobs embedded before it are found only when its text next changes. Retrying would
+  mean comparing every job on every pass; a dead letter would need a new kind. Revisit if it
+  happens.
 
 ## Observability
 - Span `llm.embed` (model, input count, tokens, status; never text or the key).

@@ -4,6 +4,7 @@ import type { Result } from "@northstar/domain";
 import { describeHeldBack, HeldBack, LlmTransportError } from "@northstar/llm";
 import { type AlertsCliDeps, alertsCommand } from "./alerts-cli.js";
 import { type DomainsCliDeps, domainsCommand } from "./domains-cli.js";
+import { type DupesCliDeps, dupesCommand } from "./dupes-cli.js";
 import { FIT_USAGE, type FitCliDeps, fitCommand, scoreAfter } from "./fit/cli.js";
 import { type FormCliDeps, formCommand } from "./form-cli.js";
 import type { IngestResult } from "./ingest.js";
@@ -38,6 +39,8 @@ export type CliDeps = {
   alerts: AlertsCliDeps;
   // A company's own mail domains (NS-252): their own usage line, so USAGE stays as it was.
   domains?: DomainsCliDeps;
+  // Duplicate suggestions from job embeddings (NS-129 slice 3): their own usage line.
+  dupes?: DupesCliDeps;
 };
 
 const USAGE = `usage: jobs add <url> | jobs add --text <file> --url <url> | jobs list | jobs set <job-id> <field> <value>\n       jobs watch add <board-url> --tier 1|2|3 | jobs watch list | jobs watch remove|retry <id> | jobs poll | jobs run\n       jobs check\n${FIT_USAGE}`;
@@ -72,6 +75,10 @@ export async function main(deps: CliDeps): Promise<number> {
   if (deps.domains) {
     const domains = await domainsCommand({ ...deps.domains, print: deps.print }, deps.argv);
     if (domains !== null) return domains;
+  }
+  if (deps.dupes) {
+    const dupes = await dupesCommand({ ...deps.dupes, print: deps.print }, deps.argv);
+    if (dupes !== null) return dupes;
   }
   const form = await formCommand({ ...deps.form, print: deps.print }, deps.argv);
   if (form !== null) return form;
