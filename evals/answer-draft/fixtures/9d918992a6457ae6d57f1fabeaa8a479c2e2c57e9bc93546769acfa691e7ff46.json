@@ -1,0 +1,50 @@
+{
+  "requestSha256": "9d918992a6457ae6d57f1fabeaa8a479c2e2c57e9bc93546769acfa691e7ff46",
+  "response": {
+    "model": "claude-opus-5-5",
+    "id": "msg_011ChUZQmbAJkPftWaSW4qiX",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"sentences\":[{\"text\":\"A customer needed the CSV export by Friday for their audit.\",\"cites\":[{\"id\":\"s-export\",\"quote\":\"A customer needed the CSV export by Friday for their audit.\"}]},{\"text\":\"I had to ship it with two days left.\",\"cites\":[{\"id\":\"s-export\",\"quote\":\"I had to ship it with two days left.\"}]},{\"text\":\"I cut the scope to CSV only and left PDF for later.\",\"cites\":[{\"id\":\"s-export\",\"quote\":\"I cut the scope to CSV only and left PDF for later.\"}]},{\"text\":\"We shipped on Thursday and the customer passed the audit.\",\"cites\":[{\"id\":\"s-export\",\"quote\":\"We shipped on Thursday and the customer passed the audit.\"}]}],\"followUps\":[]}"
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 300,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 1567,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "iterations": [
+        {
+          "input_tokens": 300,
+          "output_tokens": 258,
+          "cache_read_input_tokens": 1567,
+          "cache_creation_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "output_tokens": 258,
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      },
+      "service_tier": "standard",
+      "inference_geo": "global",
+      "speed": "standard"
+    },
+    "diagnostics": null
+  }
+}

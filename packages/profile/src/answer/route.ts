@@ -4,7 +4,7 @@ import { loadPrompt } from "@northstar/prompts";
 import type { EvidenceItem } from "./evidence.js";
 import { AnswerDraft } from "./schema.js";
 
-export const ANSWER_DRAFT_VERSION = 2;
+export const ANSWER_DRAFT_VERSION = 3;
 
 export type AnswerDraftInput = {
   question: string;
