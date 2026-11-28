@@ -1,4 +1,5 @@
-// Public entry of @northstar/llm: the only package that talks to Claude (ADR-0006, ADR-0013).
+// Public entry of @northstar/llm: the only package that talks to Claude (ADR-0006, ADR-0013), and
+// since NS-129 to OpenAI's embeddings endpoint (ADR-0033), for job text only.
 export { anthropicClientOptions, createAnthropicClient } from "./anthropic-client.js";
 // The LLM spend cap (NS-176, ADR-0021).
 export {
@@ -13,6 +14,22 @@ export {
 } from "./budget.js";
 export type { MessagesClient } from "./client.js";
 export { type LlmConfig, loadLlmConfig } from "./config.js";
+// Job embeddings through OpenAI (NS-129, ADR-0033): off unless JOB_EMBEDDINGS=on.
+export {
+  createEmbedClient,
+  EMBED_DIMENSIONS,
+  EMBED_MODEL,
+  EMBED_PRIORITY,
+  EMBED_ROUTE,
+  type EmbedClient,
+  type EmbedFetch,
+  EmbedResponseError,
+  EmbedTransportError,
+  MAX_EMBED_CHARS,
+  MAX_EMBED_INPUTS,
+  OPENAI_DEPENDENCY,
+} from "./embed/client.js";
+export { type EmbedConfig, loadEmbedConfig } from "./embed/config.js";
 export { LlmTransportError } from "./errors.js";
 export {
   canonicalJson,

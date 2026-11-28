@@ -90,6 +90,15 @@ Exists now:
 - `packages/llm/` (NS-106): the LLM gateway, the only importer of `@anthropic-ai/sdk`. Typed
   routes, structured output, caching order, refusal fallback, call records and the `llm.call`
   span. Plus `untrustedBlock` and the request-keyed replay/recording fixtures (ADR-0013).
+  Since NS-129 (#52, slice 1, ADR-0033, Proposed) also the one non-Anthropic model call:
+  `createEmbedClient` (`src/embed/`), OpenAI `text-embedding-3-small` at 512 dimensions through
+  plain `fetch` to `https://api.openai.com/v1/embeddings` only (no SDK, no redirect, 20 s), behind
+  the `agent:job-embed` switch, the `openai` breaker (no answer, a cut-off body, 408, 409, 429 and 5xx count) and the shared
+  spend cap (route `job-embed`, priority `low`, its cost in `llm_spend`); its `llm.embed` span holds
+  counts, tokens and status, never text or the key. `loadEmbedConfig` reads `JOB_EMBEDDINGS`
+  (default off) and `OPENAI_API_KEY` (`.env.app` only). The text sent is only `embeddingText(job)`
+  (`packages/sources`: title, company and requirements lines). No caller yet: storage and
+  duplicate suggestions come in slice 2; an embedding never merges a job.
 - `evals/` (NS-106): the eval harness and CLI. One folder per route arrives with that route
   (`cases.jsonl`, `baseline.json`, `fixtures/`). Real-mail cases go in `evals/**/private/`
   (gitignored). The CLI can't run them yet: it only reads the public `cases.jsonl`. CI runs
