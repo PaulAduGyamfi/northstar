@@ -15,10 +15,9 @@ import {
   setKillSwitch,
   subscribePush,
 } from "@northstar/db";
-import { createTestDb, seedApplication } from "@northstar/db/testing";
+import { createTestDb, seedApplication, setGateClock } from "@northstar/db/testing";
 import { CandidateId, type PushPayload } from "@northstar/domain";
 import { PushError, PushHeldBack, type PushResult } from "@northstar/gateways";
-import { sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { dbNotifyPorts } from "../notify-ports.js";
 import { type NotifyPorts, notifyPass } from "./notify.js";
@@ -39,7 +38,7 @@ beforeEach(async () => {
   const seeded = await seedApplication(db, "awaiting_approval");
   candidateId = CandidateId.parse(seeded.candidateId);
   companyId = seeded.companyId;
-  await db.execute(sql`select set_config('northstar.gate_test_now', ${NOW.toISOString()}, false)`);
+  await setGateClock(db, NOW);
 });
 afterEach(() => close());
 
@@ -255,9 +254,7 @@ describe("notifyPass (NS-193 slice 3)", () => {
     const { ports: p, sent } = ports();
     await p.claim(candidateId, handoffId);
     // Twenty minutes later by the Gate's clock: past the 15-minute lease.
-    await db.execute(
-      sql`select set_config('northstar.gate_test_now', ${new Date(Date.now() + 20 * 60_000).toISOString()}, false)`,
-    );
+    await setGateClock(db, new Date(Date.now() + 20 * 60_000));
     await notifyPass(p, candidateId);
     await notifyPass(p, candidateId);
     expect([await letters(), sent]).toEqual([["outcome_unknown"], []]);
