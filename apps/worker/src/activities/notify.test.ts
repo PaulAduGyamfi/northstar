@@ -32,18 +32,24 @@ let db: Db;
 let close: () => Promise<void>;
 let candidateId: CandidateId;
 let companyId: string;
+// The Gate's clock for this test: each opened handoff moves it on (see openHandoff).
+let clock: Date;
 
 beforeEach(async () => {
   ({ db, close } = await createTestDb());
   const seeded = await seedApplication(db, "awaiting_approval");
   candidateId = CandidateId.parse(seeded.candidateId);
   companyId = seeded.companyId;
-  await setGateClock(db, NOW);
+  clock = NOW;
+  await setGateClock(db, clock);
 });
 afterEach(() => close());
 
 // An open handoff: a CAPTCHA stopped a claimed Greenhouse submission. Its id.
 async function openHandoff(): Promise<string> {
+  // Two minutes on per handoff: the Apply ledger keeps 90 s between submissions (Paced).
+  clock = new Date(clock.getTime() + 2 * 60_000);
+  await setGateClock(db, clock);
   const [j] = await db
     .insert(schema.job)
     .values({
