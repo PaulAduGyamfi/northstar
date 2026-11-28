@@ -38,6 +38,10 @@ unknown kind is never guessed into one. Since NS-204 slice 2 the pass also pushe
 waiting in the Queue, between handoffs and fresh jobs (`src/activities/notify-approvals.ts`): at
 most 5 alone a pass, then the rest claimed and covered by one `approvals_waiting` push, so each
 request is pushed once; a push never approves.
+Since NS-224 `src/temporal.test.ts` runs the real workflow bundle on Temporal's time-skipping
+test server (worker restarts, a retry after a mid-submit crash, not-found over both clients), in
+the normal `test` script so CI runs it; its test-only workflow lives in `src/test/` (excluded from
+the build).
 Other domains' workflows arrive with their tickets.
 
 Rules:
