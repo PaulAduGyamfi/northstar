@@ -1,0 +1,50 @@
+{
+  "requestSha256": "1ca57a18025997c47e21b0e1c465ee9693414aeba1034124c5e8ab9d59be1aa3",
+  "response": {
+    "model": "claude-opus-5-5",
+    "id": "msg_011ChUZS2YMsPmkmyEoRLa53",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"sentences\":[{\"text\":\"On the team I worked on, the on-call rotation got woken up most nights by alerts that needed no action.\",\"cites\":[{\"id\":\"s-oncall\",\"quote\":\"The on-call rotation got woken up most nights by alerts that needed no action.\"}]},{\"text\":\"I volunteered to look into it, with help from two teammates.\",\"cites\":[{\"id\":\"s-oncall\",\"quote\":\"I volunteered to look into it, with help from two teammates.\"}]},{\"text\":\"We went through a month of alerts and I deleted the ones nobody acted on.\",\"cites\":[{\"id\":\"s-oncall\",\"quote\":\"We went through a month of alerts and I deleted the ones nobody acted on.\"}]},{\"text\":\"Night pages went down to about one a week.\",\"cites\":[{\"id\":\"s-oncall\",\"quote\":\"Night pages went down to about one a week.\"}]}],\"followUps\":[]}"
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 323,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 1567,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "iterations": [
+        {
+          "input_tokens": 323,
+          "output_tokens": 531,
+          "cache_read_input_tokens": 1567,
+          "cache_creation_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "output_tokens": 531,
+      "output_tokens_details": {
+        "thinking_tokens": 237
+      },
+      "service_tier": "standard",
+      "inference_geo": "global",
+      "speed": "standard"
+    },
+    "diagnostics": null
+  }
+}
