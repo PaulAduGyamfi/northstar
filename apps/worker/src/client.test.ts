@@ -6,6 +6,7 @@ import {
 import { describe, expect, it } from "vitest";
 import {
   ensureHandoffNotifier,
+  ensureJobPipelineStarter,
   ensureSignalRelay,
   ensureStaleSweep,
   isNotFound,
@@ -66,23 +67,24 @@ function fakeTemporal() {
 describe("startJobPipeline (NS-280 slice 2)", () => {
   const pipelineInput = { candidateId: CANDIDATE, applicationId: APP };
 
-  it("starts one pipeline run per application with exactly its two ids, and a second start starts nothing", async () => {
+  it("starts one pipeline run per application, round and day with exactly its two ids, and a second start starts nothing", async () => {
     const t = fakeTemporal();
-    const first = await startJobPipeline(t.port, pipelineInput);
-    const again = await startJobPipeline(t.port, pipelineInput);
+    const at = { round: 0, day: "2026-11-28" };
+    const first = await startJobPipeline(t.port, pipelineInput, at);
+    const again = await startJobPipeline(t.port, pipelineInput, at);
     expect([first, again, t.starts]).toEqual([
-      { ok: true, value: { workflowId: `pipeline:${APP}` } },
+      { ok: true, value: { workflowId: `pipeline:${APP}:0:2026-11-28` } },
       { ok: false, error: { kind: "AlreadyStarted" } },
       [
         {
           workflowType: "jobPipelineWorkflow",
-          workflowId: `pipeline:${APP}`,
+          workflowId: `pipeline:${APP}:0:2026-11-28`,
           args: [pipelineInput],
           reuse: "reject",
         },
         {
           workflowType: "jobPipelineWorkflow",
-          workflowId: `pipeline:${APP}`,
+          workflowId: `pipeline:${APP}:0:2026-11-28`,
           args: [pipelineInput],
           reuse: "reject",
         },
@@ -92,13 +94,48 @@ describe("startJobPipeline (NS-280 slice 2)", () => {
 
   it("refuses an input with any other field, starting nothing", async () => {
     const t = fakeTemporal();
-    const result = await startJobPipeline(t.port, {
-      ...pipelineInput,
-      email: "someone@example.com",
-    } as typeof pipelineInput);
+    const result = await startJobPipeline(
+      t.port,
+      { ...pipelineInput, email: "someone@example.com" } as typeof pipelineInput,
+      { round: 0, day: "2026-11-28" },
+    );
     expect([result, t.starts]).toEqual([
       { ok: false, error: { kind: "InvalidInput", problem: "unexpected input field: email" } },
       [],
+    ]);
+  });
+});
+
+describe("startJobPipeline's round and day (NS-280 slice 3)", () => {
+  const pipelineInput = { candidateId: CANDIDATE, applicationId: APP };
+
+  it("gives a later round and a later day their own runs, and refuses a bad round or day", async () => {
+    const t = fakeTemporal();
+    const results = [
+      await startJobPipeline(t.port, pipelineInput, { round: 0, day: "2026-11-28" }),
+      await startJobPipeline(t.port, pipelineInput, { round: 1, day: "2026-11-28" }),
+      await startJobPipeline(t.port, pipelineInput, { round: 1, day: "2026-11-29" }),
+      await startJobPipeline(t.port, pipelineInput, { round: -1, day: "2026-11-29" }),
+      await startJobPipeline(t.port, pipelineInput, { round: 0, day: "28/11/2026" }),
+    ];
+    expect([results.map((r) => r.ok), t.starts.length]).toEqual([
+      [true, true, true, false, false],
+      3,
+    ]);
+  });
+});
+
+describe("ensureJobPipelineStarter (NS-280 slice 3)", () => {
+  it("starts the one starter, keeping a running one", async () => {
+    const t = fakeTemporal();
+    await ensureJobPipelineStarter(t.port, { candidateIds: [CANDIDATE] });
+    expect(t.starts).toEqual([
+      {
+        workflowType: "jobPipelineStarterWorkflow",
+        workflowId: "job-pipeline-starter",
+        args: [{ candidateIds: [CANDIDATE] }],
+        reuse: "existing",
+      },
     ]);
   });
 });

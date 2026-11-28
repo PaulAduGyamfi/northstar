@@ -380,7 +380,20 @@ Exists now:
   with the lease's end inside `DRAFT_CLAIM_LEASE_MS`, 5 min; `unknown`, with a fresh claim, after
   it; `done` once recorded), `recordDraft` writes one `reply_draft_record` per decision with a
   `reply.draft_created` event (decision and message ids; a fixed-word feed line), refusing a
-  different second id, and `dbMailLedger(db)` binds both to the writer's ports. No caller yet (#230).
+  different second id, and `dbMailLedger(db)` binds both to the writer's ports.
+  Since NS-281 (slice 1) its caller is a command Paul runs, `funnel drafts` (`packages/funnel`,
+  `drafts.ts`): it lists the approved replies not yet written (`readApprovedReplies`,
+  `packages/db`, `reply-approved-read.ts`: `email_reply` requests with a stored draft whose newest
+  live decision is an approval past its undo window by the Gate's clock, not undone or withdrawn,
+  with no `reply_draft_record` for that decision; ids only, at most 50), and only then, while the
+  `gmail_drafts` switch is on (asked first, so a run while it is off leaves no claims), asks
+  `authorizeCompose` (consent that run, the token in memory, #400). Each goes through
+  `writeReplyDraft` with `dbMailLedger`, `verifyApproval` and the stored switch and breaker; it
+  prints counts only. A write that throws, or a refusal no later run clears (`draft_not_found`,
+  `draft_changed`, `approval_not_valid`, `claims_exhausted`, `draft_conflict`), is a
+  `mail.draft_write` dead letter, passed over until Paul retries it; another run's claim, the undo
+  window and a held-back request wait for a later run; Gmail not answering (no answer, 429, 5xx)
+  stops the run with no letter. Nothing is ever sent.
 - Factual answers (NS-141, ANS-001) from Paul's profile settings, plain code, no model:
   `profile_setting` in `packages/db` (`settings-write.ts`: `setProfileSetting`,
   `readProfileSettings`, `recordFactualAnswer`; append-only, newest wins, setting the same value
@@ -1010,8 +1023,8 @@ Exists now:
   Hand off buttons that say what happens next (`src/dead-letters.ts`). Since NS-236
   `recordDeadLetter` takes only a kind on `DEAD_LETTER_KINDS` (`apply.stale_sweep`,
   `apply.submission`, `calendar.interview_detection`, since NS-213 slice 2
-  `apply.signal_relay`, since NS-241 slice 4 `calendar.prep_write`, and since NS-193 slice 3
-  `push.notify`); a new producer adds its own.
+  `apply.signal_relay`, since NS-241 slice 4 `calendar.prep_write`, since NS-193 slice 3
+  `push.notify`, and since NS-281 `mail.draft_write`); a new producer adds its own.
 - Health and feed (NS-125, RES-013, OBS-002): `systemHealth` (`packages/domain`, `health.ts`)
   turns breakers, kill switches and board watches into `healthy / degraded / down` per subsystem
   with a plain reason, and `feedLine` (`feed.ts`) turns an event into one plain sentence from
@@ -1452,8 +1465,8 @@ Exists now:
   first, at most 50 a pass), becomes a `queued` application through `createApplication`
   (`startedBy: northstar`, key `job:<jobId>:queue`, so a repeat replays the first), at most the
   caller's `dailyCap` a UTC day by the Gate's clock (`countQueuedToday`; never over APPLY-007's 25,
-  `MAX_QUEUE_DAILY_CAP`). It submits nothing. No caller yet: its off-by-default starter is NS-280
-  slice 3. Since slice 2 `preparePackage`'s `filed` result also carries the package's
+  `MAX_QUEUE_DAILY_CAP`). It submits nothing. Its caller is the worker's job pipeline starter
+  (NS-280 slice 3, off by default). Since slice 2 `preparePackage`'s `filed` result also carries the package's
   `packageSha256`, which names its submission round.
 - `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
   (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
@@ -1554,9 +1567,26 @@ Exists now:
   (`src/activities/pipeline.ts`; ports bound by `pipelinePorts` in `wiring.ts`; `@northstar/worker`
   depends on `pipeline`, `profile` and `sources` for it). The step order is plain code
   (`runPipeline`, `src/workflows/pipeline-run.ts`), and an activity's error leaves as its class
-  name only (`scrubbed`: a database error quotes its parameters). `startJobPipeline` (`client.ts`)
-  starts one run per application (`pipeline:<applicationId>`); nothing calls it yet (slice 3, which
-  must also start a new round after a rejection and an edited package's round).
+  name only (`scrubbed`: a database error quotes its parameters).
+  Since NS-280 slice 3 its starter: `jobPipelineStarterWorkflow` (`src/workflows/starter.ts`, on
+  `pipeline`, every 10 minutes, continuing as new after 100 passes) runs `startPipelines`
+  (`src/activities/starter.ts`, ports bound by `starterPorts` in `wiring.ts`). While
+  `WORKER_JOB_PIPELINE=on` (`loadWorkerConfig`, default off; `WORKER_QUEUE_DAILY_CAP`, 1–25,
+  default 5) a pass runs `queueReadyJobs` at that cap, then reads `readPipelineWork` (`packages/db`,
+  `pipeline-state-read.ts`, read-only, at most 50 of each): it starts a pipeline run for each
+  `queued` or `package_ready` application, freshest first (`startJobPipeline`, id
+  `pipeline:<applicationId>:<round>:<UTC day>`, so one Paul unblocked runs again the next day; the
+  round keeps a later round apart once something moves a rejected application back to `queued`,
+  which nothing does yet; at most 10 new runs a pass) and the submission run of each open round (an
+  application at `awaiting_approval` whose newest stored package's request isn't withdrawn and
+  either waits for a decision or was approved within the last hour, `OPEN_ROUND_APPROVED_HOURS`, so
+  an edited package's round starts too, but a round whose run already ended is never restarted
+  once Temporal forgets it). Off, the pass does nothing, so a starter left running queues
+  and starts nothing; `main.ts` ensures it (`ensureJobPipelineStarter`) only while on. One start
+  failing doesn't stop the others; a pass that fails its 3 attempts is a `pipeline.start` dead
+  letter (one per run). `src/pipeline-e2e.test.ts` drives a synthetic ready job through the starter
+  and the pipeline's activities on PGlite with a fake Greenhouse and Temporal, to a filed package
+  and one started submission run, and a second pass adds nothing.
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 
@@ -1612,6 +1642,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/funnel funnel interviews` | sign in to Google Calendar read-only (browser consent every run, no stored token), detect interviews in the next 30 days against open applications whose company domains you entered (`jobs domains`), store them for `/interviews` and print counts only. Safe to rerun. Paul only: his real calendar, needs `DATABASE_URL` and `GOOGLE_OAUTH_CLIENT_*`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel inbox` | sign in to Gmail read-only (browser consent every run, no stored token), link new job mail from the stored cursor (the first run reads 7 days back), sort up to 25 recorded emails with the rules or the `mail-classify` model behind its switch, breaker and the spend cap, grade up to 10 recruiter emails when `RECRUITER_EXTRACT=on` (off by default), send up to 10 reply drafts by grade to your Queue for approval when `RECRUITER_REPLIES=on` (off by default; nothing is sent), and print counts only; emails that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real mail, needs `DATABASE_URL`, `GOOGLE_OAUTH_CLIENT_*` and `ANTHROPIC_API_KEY`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel prep [--busy-from-calendar]` | plan prep blocks for each confirmed, upcoming interview inside your working hours (`PREP_TIME_ZONE` or `ALERT_TIME_ZONE`, `PREP_WORKING_HOURS`), around your other interviews and their prep (with `--busy-from-calendar`, also around your calendar's events: a second, read-only Google consent that run, only when something is to be planned; times only, nothing kept), send each plan to your Queue, and, when one is approved, sign in to Google for your Northstar calendar only (browser consent that run, no stored token) and add its blocks once each; prints counts only, and plans that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real calendar, needs `DATABASE_URL` and `GOOGLE_OAUTH_CLIENT_*` with `calendar.app.created` on the consent screen (and `calendar.events.readonly`, as for `funnel interviews`, with `--busy-from-calendar`); agents never run it |
+| repo root | `pnpm --filter @northstar/funnel funnel drafts` | put each reply you approved in the Queue into your Gmail drafts, once per approval: only when one is waiting, sign in to Google for Gmail drafts only (browser consent that run, no stored token); it never sends, so you send each draft from Gmail yourself; prints counts only, and replies that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real mail, needs `DATABASE_URL` and `GOOGLE_OAUTH_CLIENT_*` with `gmail.compose` on the consent screen; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel report` / `funnel hypotheses` | the funnel report and the hypothesis board. Paul only: they print his real applications; agents never run them |
 | repo root | `pnpm --filter @northstar/sources jobs add <url>` | add a job from a link: ATS API, then the page's JSON-LD, then the `job-extract` model (needs `ANTHROPIC_API_KEY` only then). A job without a title or company is stored as a draft. LinkedIn, Indeed and Glassdoor links are refused. Paul only: needs `DATABASE_URL` |
 | repo root | `pnpm --filter @northstar/sources jobs add --text data/<file> --url <url>` | add a job from a description Paul saved himself (sign-in sites such as LinkedIn); nothing is fetched |
@@ -1633,7 +1664,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/db db:generate` | new migration from `packages/db/src/schema.ts` (no database needed); prints "No schema changes" when migrations match |
 | repo root | `pnpm --filter @northstar/db db:migrate` | apply pending migrations as the tables' owner, `DATABASE_MIGRATION_URL`, which Node loads from the root `.env` (Paul, outside the sandbox, stack up). Builds `domain` and `db` first. The apps use `DATABASE_URL`, the `northstar_app` role (NS-212) |
 | repo root | `pnpm --filter @northstar/api start` | build and run the API on 127.0.0.1:`NORTHSTAR_API_PORT` (8787), reading the root `.env.app`; refuses to start until `NORTHSTAR_SIGNIN_KEY_SHA256` and `DATABASE_URL` are set (Paul) |
-| repo root | `pnpm --filter @northstar/worker start` | build and run the worker process (NS-225): connects to Temporal on this machine (`TEMPORAL_ADDRESS`, default 127.0.0.1:7233; stack up) and runs the `pipeline` pool, plus the `apply-browser` pool only with `WORKER_APPLY_BROWSER=on` and `WORKER_CHROMIUM_PATH`; reads the root `.env.app` like the API and needs `DATABASE_URL`. At start it ensures the stale-claim sweep and the package decision relay run, and the handoff notifier (NS-193) while the `PUSH_VAPID_*` settings are set; nothing starts submission workflows yet. Paul only: real database and Temporal; agents never run it |
+| repo root | `pnpm --filter @northstar/worker start` | build and run the worker process (NS-225): connects to Temporal on this machine (`TEMPORAL_ADDRESS`, default 127.0.0.1:7233; stack up) and runs the `pipeline` pool, plus the `apply-browser` pool only with `WORKER_APPLY_BROWSER=on` and `WORKER_CHROMIUM_PATH`; reads the root `.env.app` like the API and needs `DATABASE_URL`. At start it ensures the stale-claim sweep and the package decision relay run, the handoff notifier (NS-193) while the `PUSH_VAPID_*` settings are set, and the job pipeline's starter (NS-280) while `WORKER_JOB_PIPELINE=on` (off by default; `WORKER_QUEUE_DAILY_CAP`, default 5): it queues ready jobs in the queue band, files their packages to the Queue and starts their submission runs, which wait for Paul's approval or one by a policy he set. Turning it off stops new runs; runs already started finish, and `auto_apply` off stops any submission at once. Paul only: real database and Temporal; agents never run it |
 | repo root | `pnpm --filter @northstar/web build` / `pnpm --filter @northstar/web start` | build and serve the web app on 127.0.0.1:3100; open it at `http://northstar.localhost:3100` (`NORTHSTAR_WEB_ORIGIN`, ADR-0018). It doesn't read the root `.env` or `.env.app`: export `NORTHSTAR_API_ORIGIN` (default `http://127.0.0.1:8787`) in the shell before build and start if the API's port changed. `pnpm --filter @northstar/web dev` while developing |
 | repo root | `pnpm --filter @northstar/extension build` | build the browser extension into `apps/extension/dist`; load that folder in `chrome://extensions` ("Load unpacked"), then paste the extension token in its options (Paul). The API needs `NORTHSTAR_EXTENSION_TOKEN_SHA256` and `DATABASE_URL` for captures |
 

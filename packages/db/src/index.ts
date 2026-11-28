@@ -488,7 +488,13 @@ export {
   readApplicationTimeline,
   type TimelineItem,
 } from "./pipeline-read.js";
-export { type PipelineState, readPipelineState } from "./pipeline-state-read.js";
+export {
+  PIPELINE_WORK_LIMIT,
+  type PipelineState,
+  type PipelineWork,
+  readPipelineState,
+  readPipelineWork,
+} from "./pipeline-state-read.js";
 // Prep plans through the Gate and the Calendar writer's ledger (NS-241 slice 4, ADR-0031).
 export {
   claimPrepWrite,
@@ -621,6 +627,12 @@ export {
   readRecruiterWeightsVersion,
   refreshRecruiterWeights,
 } from "./recruiter-weight-write.js";
+// The approved replies not yet written as Gmail drafts, for `funnel drafts` (NS-281 slice 1).
+export {
+  APPROVED_REPLY_LIMIT,
+  type ApprovedReply,
+  readApprovedReplies,
+} from "./reply-approved-read.js";
 export * as replyLedgerSchema from "./reply-ledger-schema.js";
 // The Gmail draft writer's ledger (NS-237 slice 6): one approval, one draft.
 export {

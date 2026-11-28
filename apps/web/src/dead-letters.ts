@@ -133,6 +133,18 @@ const KINDS: Record<string, KindWords> = {
         'Nothing is sent again. Check "Needs your hands" on Today and the jobs page yourself; check /health if notifications keep failing.',
     },
   },
+  // NS-281 slice 1: an approved reply `funnel drafts` couldn't write as a Gmail draft. Nothing was
+  // sent, and a draft already written is never written twice (one per approval).
+  "mail.draft_write": {
+    what: "Putting an approved reply in your Gmail drafts",
+    next: {
+      retry:
+        "The next `funnel drafts` run tries this reply again. A draft already in Gmail isn't added twice.",
+      skip: "Later `funnel drafts` runs leave this reply out. Nothing was sent.",
+      hand_off:
+        "Later `funnel drafts` runs leave this reply out. Nothing was sent: write the reply in Gmail yourself if you still want to.",
+    },
+  },
   // NS-280 slice 2: a queued application whose pipeline run (tailor, form, package, start) stopped
   // part-way. Nothing restarts it from here yet; the application stays where it is.
   "pipeline.job": {
@@ -143,6 +155,17 @@ const KINDS: Record<string, KindWords> = {
       skip: "Nothing more is done about this run. The application stays where it is on the Pipeline.",
       hand_off:
         "Nothing runs now. Check the application on the Pipeline; if nothing is waiting in your Queue for it, apply on the job's own page yourself.",
+    },
+  },
+  // NS-280 slice 3: a pass of the job pipeline's starter. It reads again on every pass, so
+  // resolving only records Paul's choice.
+  "pipeline.start": {
+    what: "Queueing ready jobs and starting their applications",
+    next: {
+      retry: "The next pass, within minutes, queues and starts again on its own.",
+      skip: "Nothing more is done about this pass. The next pass still runs.",
+      hand_off:
+        "The next pass still runs. Check /health; if passes keep failing, turn WORKER_JOB_PIPELINE off and restart the worker.",
     },
   },
   // NS-238 item 1: a recorded email `funnel inbox` couldn't read or sort.
@@ -171,6 +194,10 @@ const REASONS: Record<string, string> = {
   plan_changed: "its stored plan changed after you approved it",
   approval_not_valid: "its approval no longer stands",
   rescheduled: "the interview moved and the old approval couldn't be closed",
+  draft_failed: "every attempt to write the Gmail draft failed",
+  draft_not_found: "its stored reply wasn't found",
+  draft_changed: "its stored reply changed after you approved it",
+  draft_conflict: "a different Gmail draft is already recorded for this approval",
   read_failed: "Gmail wouldn't give the email",
   step_failed: "linking it to your applications failed",
   classify_failed: "sorting it failed",
@@ -192,6 +219,7 @@ const REASONS: Record<string, string> = {
   prepare_failed: "every attempt to prepare the package failed",
   start_failed: "every attempt to start the submission failed",
   stored_package_missing: "its filed package wasn't found",
+  start_pass_failed: "every attempt failed",
 };
 
 // Own keys only: a code such as "constructor" must not find Object's built-ins.

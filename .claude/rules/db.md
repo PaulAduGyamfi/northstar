@@ -301,6 +301,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   written only through `reply-ledger-write.ts` (`claimDraft` under a per-decision advisory lock;
   `recordDraft`, which refuses a different second id). Ids and times only; `reply.draft_created`
   carries the decision and draft message ids, and its feed line is a fixed-word `reason`.
+  `readApprovedReplies` (`reply-approved-read.ts`, NS-281 slice 1) is `funnel drafts`' read-only
+  list of what to write, by `readApprovedPrepPlans`' rule: `email_reply` requests with a stored
+  `reply_draft` whose newest live decision is an approval past its undo window by the Gate's clock,
+  not undone, the request not withdrawn, and no `reply_draft_record` for that decision. Ids only,
+  at most 50.
   `readNudgeCandidates` (`nudge-read.ts`, NS-237 slice 3) is the follow-up nudge check's
   read-only reader: applications in a nudge stage, their last move, newest linked message from a
   verified sender and whether a `reply_draft` is filed for it; ids and times only.
@@ -465,6 +470,11 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `readPipelineState` (`pipeline-state-read.ts`, NS-280 slice 2) is the job pipeline's read-only
   reader: an application's status, job and the newest round's stored package hash (the round's
   package id from `readPackageRounds`, the newest `application_package` row for it), never the
-  package.
+  package. `readPipelineWork` (same file, slice 3) is the starter's: `queued` and `package_ready`
+  applications, freshest first, with their round count, and open rounds (an `awaiting_approval`
+  application's newest stored package whose request has no withdrawal and either no live decision
+  or a live approval that took effect within `OPEN_ROUND_APPROVED_HOURS`, by the Gate's clock: an
+  older approval's round may have a run that already ended, which must never be started again),
+  ids and hashes only, at most 50 of each.
   `readApplicationHistories` (NS-208) gives each application's creation time, source, newest fit
   band, posting time and status moves (`application.*` events with a `to`), never names or text.

@@ -37,12 +37,17 @@ export const DEAD_LETTER_KINDS = [
   "mail.grade",
   // NS-238 item 2's caller: a graded recruiter email `funnel inbox` couldn't file a reply for.
   "mail.reply",
+  // NS-281 slice 1: an approved reply `funnel drafts` couldn't write as a Gmail draft.
+  "mail.draft_write",
   // NS-193 slice 3: a handoff push no browser took, a claim whose outcome is unknown, or a pass
   // of the handoff notifier that kept failing (apps/worker notify.ts).
   "push.notify",
   // NS-280 slice 2: a job pipeline run (tailor, form, package, start) that stopped part-way
   // (apps/worker pipeline.ts).
   "pipeline.job",
+  // NS-280 slice 3: a pass of the job pipeline's starter (queueing and starting runs) that kept
+  // failing (apps/worker starter.ts).
+  "pipeline.start",
 ] as const;
 export type DeadLetterKind = (typeof DEAD_LETTER_KINDS)[number];
 

@@ -55,3 +55,6 @@ export const NOTIFY_ATTEMPTS = 3;
 // Attempts the submitApplication activity gets before the workflow fails (and, since NS-226,
 // records an activity_failed dead letter).
 export const SUBMIT_ATTEMPTS = 5;
+
+// Attempts a pass of the job pipeline's starter gets (NS-280 slice 3) before its dead letter.
+export const STARTER_ATTEMPTS = 3;

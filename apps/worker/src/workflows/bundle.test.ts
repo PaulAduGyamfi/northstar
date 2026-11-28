@@ -17,6 +17,8 @@ describe("the workflow bundle", () => {
     expect(code).toContain("handoffNotifyWorkflow");
     // NS-280 slice 2: the job pipeline.
     expect(code).toContain("jobPipelineWorkflow");
+    // NS-280 slice 3: its starter.
+    expect(code).toContain("jobPipelineStarterWorkflow");
   }, 60_000);
 });
 

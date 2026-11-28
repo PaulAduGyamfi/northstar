@@ -29,7 +29,9 @@ export type LetterKind =
   | "mail.classify"
   | "mail.grade"
   | "mail.reply"
-  | "calendar.prep_write";
+  | "calendar.prep_write"
+  // NS-281 slice 1 (`funnel drafts`), keyed by the approval's decision id like prep writes.
+  | "mail.draft_write";
 
 // What the stored letters say about each message: pass it over unless Paul sent its newest letter
 // back with Retry (an open letter, Skip and Hand off all keep it out), and how many letters it has,

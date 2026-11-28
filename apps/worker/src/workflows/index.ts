@@ -3,6 +3,7 @@
 export { handoffNotifyWorkflow } from "./notify.js";
 export { jobPipelineWorkflow } from "./pipeline.js";
 export { packageSignalRelayWorkflow } from "./relay.js";
+export { jobPipelineStarterWorkflow } from "./starter.js";
 export {
   approvalSignal,
   submissionWorkflow,

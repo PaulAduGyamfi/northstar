@@ -70,6 +70,9 @@ function deps(argv: string[], answers: (string | null)[] = []) {
     runPrep: async () => {
       throw new Error("not used here");
     },
+    runDrafts: async () => {
+      throw new Error("not used here");
+    },
     readText: async () =>
       "company,role,applied_on,stage_reached,outcome\nGlobex,Engineer,2026-03-02,screen,rejected\n",
     setManualRows: async (input) => {
@@ -139,6 +142,40 @@ describe("funnel cli", () => {
     const { d, printed } = deps(["inbox", "--since", "2026-01-01"]);
     let runs = 0;
     d.runInbox = async () => {
+      runs++;
+      throw new Error("must not run");
+    };
+    expect([await main(d), runs, printed[0]?.startsWith("usage:")]).toEqual([1, 0, true]);
+  });
+
+  it("drafts runs once and returns its exit code", async () => {
+    const { d, printed } = deps(["drafts"]);
+    let runs = 0;
+    d.runDrafts = async () => {
+      runs++;
+      return {
+        approved: 0,
+        written: 0,
+        alreadyThere: 0,
+        skipped: 0,
+        passedOver: 0,
+        stuck: 0,
+        scopeMissing: false,
+        stoppedBy: null,
+        switchedOff: false,
+      };
+    };
+    expect([await main(d), runs, printed]).toEqual([
+      0,
+      1,
+      ["No approved replies are waiting to go in your Gmail drafts."],
+    ]);
+  });
+
+  it("drafts with extra arguments prints the usage, exits 1 and runs nothing", async () => {
+    const { d, printed } = deps(["drafts", "now"]);
+    let runs = 0;
+    d.runDrafts = async () => {
       runs++;
       throw new Error("must not run");
     };
