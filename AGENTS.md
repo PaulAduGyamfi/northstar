@@ -1543,12 +1543,15 @@ Exists now:
   (`src/activities/starter.ts`, ports bound by `starterPorts` in `wiring.ts`). While
   `WORKER_JOB_PIPELINE=on` (`loadWorkerConfig`, default off; `WORKER_QUEUE_DAILY_CAP`, 1–25,
   default 5) a pass runs `queueReadyJobs` at that cap, then reads `readPipelineWork` (`packages/db`,
-  `pipeline-state-read.ts`, read-only, at most 50 of each): it starts a pipeline run for each queued
-  application's round (`startJobPipeline`, id `pipeline:<applicationId>:<round>:<UTC day>`, so a
-  round after a rejection gets its own run and one Paul unblocked runs again the next day; at most
-  10 new runs a pass) and the submission run of each open round (an application at
-  `awaiting_approval` whose newest stored package's request isn't withdrawn or rejected, so an
-  edited package's round starts too). Off, the pass does nothing, so a starter left running queues
+  `pipeline-state-read.ts`, read-only, at most 50 of each): it starts a pipeline run for each
+  `queued` or `package_ready` application, freshest first (`startJobPipeline`, id
+  `pipeline:<applicationId>:<round>:<UTC day>`, so one Paul unblocked runs again the next day; the
+  round keeps a later round apart once something moves a rejected application back to `queued`,
+  which nothing does yet; at most 10 new runs a pass) and the submission run of each open round (an
+  application at `awaiting_approval` whose newest stored package's request isn't withdrawn and
+  either waits for a decision or was approved within the last hour, `OPEN_ROUND_APPROVED_HOURS`, so
+  an edited package's round starts too, but a round whose run already ended is never restarted
+  once Temporal forgets it). Off, the pass does nothing, so a starter left running queues
   and starts nothing; `main.ts` ensures it (`ensureJobPipelineStarter`) only while on. One start
   failing doesn't stop the others; a pass that fails its 3 attempts is a `pipeline.start` dead
   letter (one per run). `src/pipeline-e2e.test.ts` drives a synthetic ready job through the starter

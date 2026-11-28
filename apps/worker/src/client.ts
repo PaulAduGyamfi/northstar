@@ -92,10 +92,12 @@ export async function startSubmission(
 }
 
 // The workflow id of one application's pipeline run (NS-280): its package round (rounds opened
-// so far, so a round after a rejection gets its own run) and the UTC day it was started, so a
-// queued application whose run ended (Paul needed, or a dead letter) is tried again the next day,
-// once Paul may have added what was missing. Every step is safe to repeat, so a rerun only replays
-// what is stored.
+// so far) and the UTC day it was started, so a queued application whose run ended (Paul needed, or
+// a dead letter) is tried again the next day, once Paul may have added what was missing. Nothing
+// moves a rejected application back to `queued` yet (the state machine allows it; no caller does),
+// so the round only keeps a later round's run apart when that arrives. A run still retrying at
+// midnight can overlap the next day's: the package id and the status moves' keys are the same in
+// both, so they file and move once; the loser may record a spare `pipeline.job` letter.
 export const pipelineWorkflowId = (applicationId: string, round: number, day: string): string =>
   `pipeline:${applicationId}:${round}:${day}`;
 

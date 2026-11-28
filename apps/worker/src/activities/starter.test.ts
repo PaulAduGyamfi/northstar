@@ -35,7 +35,7 @@ function fakes(options: {
     },
     work: async () =>
       options.work ?? {
-        queued: [{ applicationId: app(1), rounds: 1 }],
+        toPrepare: [{ applicationId: app(1), rounds: 1 }],
         openRounds: [{ applicationId: app(2), packageSha256: SHA }],
       },
     startPipeline: async (input, at) => {
@@ -89,7 +89,7 @@ describe("startPipelines (NS-280 slice 3)", () => {
   it("starts at most MAX_PIPELINE_STARTS_PER_PASS new runs a pass, counting ones already started apart", async () => {
     const queued = Array.from({ length: 15 }, (_, i) => ({ applicationId: app(i + 1), rounds: 0 }));
     const { activities } = fakes({
-      work: { queued, openRounds: [] },
+      work: { toPrepare: queued, openRounds: [] },
       existing: [app(1), app(2)],
     });
     const pass = await activities.startPipelines({ candidateId: CANDIDATE });
@@ -102,7 +102,7 @@ describe("startPipelines (NS-280 slice 3)", () => {
   it("tries every start when one fails, then fails the attempt with class names only", async () => {
     const { activities, calls } = fakes({
       work: {
-        queued: [
+        toPrepare: [
           { applicationId: app(1), rounds: 0 },
           { applicationId: app(2), rounds: 0 },
         ],

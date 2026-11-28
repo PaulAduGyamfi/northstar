@@ -72,7 +72,7 @@ One system that **finds jobs, applies to them, runs your inbox, and keeps your p
 
 Phase 1 is being built ticket by ticket from the GitHub issues, mostly by agents working under
 ADR-0016 (the autonomous lane, see [docs/adr/](docs/adr/)). The building blocks exist and are
-tested on synthetic data, but **nothing runs on a schedule yet**. The worker process exists
+tested on synthetic data, but **nothing runs on a schedule unless you turn it on**. The worker process exists
 (`pnpm --filter @northstar/worker start`, NS-225), runs the stale-claim sweep and the relay that passes your approval decisions to waiting
 submissions, and shows each pool
 on the Health page (a stopped pool reads "Not running"). With `WORKER_JOB_PIPELINE=on` (off by

@@ -46,7 +46,7 @@ rerun at `awaiting_approval` starts the stored round instead of filing again
 `pipeline.job` dead letter. Since slice 3 its starter (`src/workflows/starter.ts`,
 `src/activities/starter.ts`) runs only while `WORKER_JOB_PIPELINE=on` (default off; its pass does
 nothing while off): it queues ready jobs at `WORKER_QUEUE_DAILY_CAP` (never over 25), starts one
-pipeline run per queued round and UTC day, and starts each open round's submission run. Off stops
+pipeline run per queued (or `package_ready`) application and UTC day, and starts each open round's submission run (pending, or approved within the hour: never restart an older approval's round, whose run may have ended). Off stops
 new runs only: runs already started finish, and `auto_apply` is the immediate stop. Never default
 it on.
 Since NS-224 `src/temporal.test.ts` runs the real workflow bundle on Temporal's time-skipping

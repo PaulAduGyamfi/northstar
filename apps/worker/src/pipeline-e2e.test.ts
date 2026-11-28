@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   type Db,
+  decideApprovals,
   fitSchema,
   listPendingApprovals,
   PREFERENCE_DEFAULTS,
@@ -15,7 +16,7 @@ import {
   withdrawApproval,
   writeProfileImport,
 } from "@northstar/db";
-import { createTestDb } from "@northstar/db/testing";
+import { createTestDb, setGateClock } from "@northstar/db/testing";
 import { CandidateId } from "@northstar/domain";
 import type { FetchDeps } from "@northstar/sources";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -233,7 +234,8 @@ describe("the job pipeline end to end (NS-280)", () => {
     ]);
   });
 
-  it("never starts a round again once Paul withdrew its request", async () => {
+  // A filed round: the starter queues and starts the job, the pipeline's steps file its package.
+  async function fileRound() {
     const temporal = fakeTemporal();
     const starter = createStarterActivities(
       starterPorts(
@@ -250,19 +252,47 @@ describe("the job pipeline end to end (NS-280)", () => {
     await steps.tailorResume(args);
     await steps.readJobForm(args);
     await steps.preparePackage(args);
-    const before = await readPipelineWork(db, candidateId);
     const [request] = await listPendingApprovals(db, candidateId);
-    const withdrawn = await withdrawApproval(db, {
-      candidateId,
-      requestId: request?.requestId ?? "",
-      by: "user",
-    });
-    const after = await readPipelineWork(db, candidateId);
+    return { temporal, starter, applicationId, requestId: request?.requestId ?? "" };
+  }
+  const openRounds = async () =>
+    (await readPipelineWork(db, candidateId)).openRounds.map((r) => r.applicationId);
+
+  it("never starts a round's submission again once Paul withdrew its request", async () => {
+    const { temporal, starter, applicationId, requestId } = await fileRound();
+    const before = await openRounds();
+    const withdrawn = await withdrawApproval(db, { candidateId, requestId, by: "user" });
+    const startsBefore = temporal.started.length;
+    const pass = await starter.startPipelines({ candidateId });
     expect([
-      before.openRounds.map((r) => r.applicationId),
+      before,
       withdrawn.ok,
-      after.openRounds,
-      after.queued,
-    ]).toEqual([[applicationId], true, [], []]);
+      await openRounds(),
+      pass.on && pass.submissions,
+      temporal.started.length - startsBefore,
+    ]).toEqual([[applicationId], true, [], { started: 0, existing: 0 }, 0]);
+  });
+
+  it("never lists a round Paul rejected", async () => {
+    const { requestId } = await fileRound();
+    await decideApprovals(db, {
+      candidateId,
+      requestIds: [requestId],
+      decision: "reject",
+      reason: "not this one",
+    });
+    expect(await openRounds()).toEqual([]);
+  });
+
+  it("lists an approved round only within the hour after its approval took effect, so an ended run is never restarted later", async () => {
+    const now = Date.now();
+    await setGateClock(db, new Date(now));
+    const { applicationId, requestId } = await fileRound();
+    await decideApprovals(db, { candidateId, requestIds: [requestId], decision: "approve" });
+    // Past the 2-minute undo window: the approval has taken effect.
+    await setGateClock(db, new Date(now + 10 * 60_000));
+    const soon = await openRounds();
+    await setGateClock(db, new Date(now + 2 * 3_600_000));
+    expect([soon, await openRounds()]).toEqual([[applicationId], []]);
   });
 });

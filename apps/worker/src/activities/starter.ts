@@ -80,7 +80,7 @@ export function createStarterActivities(ports: StarterPorts) {
       }
       const day = ports.today();
       const pipelines = { started: 0, existing: 0 };
-      for (const q of work.queued) {
+      for (const q of work.toPrepare) {
         if (pipelines.started >= MAX_PIPELINE_STARTS_PER_PASS) break;
         try {
           const started = await ports.startPipeline(

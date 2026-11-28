@@ -92,16 +92,21 @@ nothing starts `submissionWorkflow`, and scoring, tailoring and the Gate only ru
   `pipeline.start` dead letter (one per run). `main.ts` ensures it only while the setting is on, and
   the activity does nothing while it is off.
 - A pass: `queueReadyJobs` at the cap, then `readPipelineWork` (`packages/db`):
-  - each queued application's round gets a pipeline run, id `pipeline:<id>:<round>:<UTC day>`:
-    a round after a rejection runs, and one Paul unblocked (needs-you) runs again the next day;
-    at most 10 new runs a pass;
-  - each open round (awaiting approval, newest stored package's request not withdrawn or rejected)
-    gets its submission run started, so an edited package's round runs (answers the slice 2 gap).
+  - each `queued` or `package_ready` application (freshest first) gets a pipeline run, id
+    `pipeline:<id>:<round>:<UTC day>`: one Paul unblocked (needs-you) runs again the next day; at
+    most 10 new runs a pass. Nothing moves a rejected application back to `queued` yet, so the
+    round only matters once something does (follow-up);
+  - each open round (awaiting approval, newest stored package's request not withdrawn, and either
+    waiting for a decision or approved within the last hour) gets its submission run started, so an
+    edited package's round runs (answers the slice 2 gap). An older approval is left alone: its run
+    may have ended (gave up, failed), and restarting it after Temporal forgets the closed run could
+    submit twice.
 - One start failing doesn't stop the others; the attempt fails afterwards with class names only.
 
 ## Acceptance criteria (slice 3)
 - [x] Off by default; off, a pass queues and starts nothing.
 - [x] A test drives a synthetic ready job to a filed package and a started submission run on fakes,
       and a second pass and run file and start nothing new (#458 "Done when").
-- [x] A withdrawn round is never started again; a later round or day gets its own run.
+- [x] A withdrawn or rejected round is never started again, nor an approved round past the hour; a
+      later day gets its own run.
 - [x] AGENTS.md and the README describe the loop and the setting.
