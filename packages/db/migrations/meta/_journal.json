@@ -750,6 +750,13 @@
       "when": 1795821980141,
       "tag": "0106_approval_edit_packages",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1795827417560,
+      "tag": "0107_recruiter_grade_weighted",
+      "breakpoints": true
     }
   ]
 }
