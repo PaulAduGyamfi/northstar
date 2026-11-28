@@ -120,16 +120,17 @@ const KINDS: Record<string, KindWords> = {
         "Later `funnel inbox` runs prepare no reply to this email. It is still on /inbox; open it in Gmail from there and reply yourself if you want to.",
     },
   },
-  // NS-193 slice 3: a notification about a handoff that didn't reach any browser, or whose
-  // outcome is unknown. The handoff itself stays on Today; nothing is pushed again (at most once).
+  // NS-193 slice 3: a notification about a handoff, or (NS-199) a fresh job, that didn't reach any
+  // browser, or whose outcome is unknown. The handoff or job itself stays where it was (Today, or
+  // the jobs page); nothing is pushed again (at most once).
   "push.notify": {
-    what: "Notifying you that an application needs your hands",
+    what: "Sending you a notification",
     next: {
       retry:
-        'Nothing is sent again: each handoff gets at most one notification. The handoff is still on Today under "Needs your hands".',
-      skip: "Nothing more is done about this notification. The handoff is still on Today.",
+        'Nothing is sent again: each item gets at most one notification. An application that needs your hands is still on Today under "Needs your hands", and a fresh job is still on the jobs page.',
+      skip: "Nothing more is done about this notification. What it was about is still on Today or the jobs page.",
       hand_off:
-        'Nothing is sent again. Open Today and finish the application under "Needs your hands"; check /health if notifications keep failing.',
+        'Nothing is sent again. Check "Needs your hands" on Today and the jobs page yourself; check /health if notifications keep failing.',
     },
   },
   // NS-238 item 1: a recorded email `funnel inbox` couldn't read or sort.

@@ -30,6 +30,10 @@ ports in `src/notify-ports.ts`) pushes each new open handoff once: it claims bef
 claims nothing while `push` is off or no browser listens, reports a claim with no result as a dead
 letter instead of re-sending, and `main.ts` starts it only while the `PUSH_VAPID_*` settings are
 set (its activities stay registered, so a notifier started earlier does nothing when they're not).
+Since NS-199 item 1 slice 2 the same pass also pushes fresh-job alerts after the handoffs, read
+only through `readFreshAlertsToNotify` (never a held alert, never one over an hour old) and
+claimed through `claimFreshJobNotification`; a stale claim's dead-letter subject comes from its
+key (`apply_handoff:<id>` or `job:<id>`), and a key of an unknown kind is never guessed into one.
 Other domains' workflows arrive with their tickets.
 
 Rules:

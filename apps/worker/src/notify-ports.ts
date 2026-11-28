@@ -1,8 +1,10 @@
 import {
   acquireCall,
+  claimFreshJobNotification,
   claimHandoffNotification,
   type Db,
   isSubsystemOn,
+  readFreshAlertsToNotify,
   readHandoffsToNotify,
   readLivePushSubscriptions,
   readStalePushClaims,
@@ -16,9 +18,9 @@ import { createPushSender, PUSH_SUBSYSTEM, type VapidConfig } from "@northstar/g
 import { ApplicationFailure } from "@temporalio/common";
 import type { NotifyPorts } from "./activities/notify.js";
 
-// The handoff notifier's ports bound to the database and the push sender (NS-193 slice 3). The
-// sender is built per push with the candidate's own stored switch and breaker (ADR-0007), so a
-// flip on /health takes effect on the next push. No VAPID settings: no sender, and the pass does
+// The notifier's ports bound to the database and the push sender (NS-193 slice 3; fresh-job
+// alerts since NS-199 item 1 slice 2). The sender is built per push with the candidate's own
+// stored switch and breaker (ADR-0007), so a flip on /health takes effect on the next push. No VAPID settings: no sender, and the pass does
 // nothing.
 
 export function dbNotifyPorts(db: Db, vapid: VapidConfig | null): NotifyPorts {
@@ -49,6 +51,8 @@ export function dbNotifyPorts(db: Db, vapid: VapidConfig | null): NotifyPorts {
     live: (candidateId) => readLivePushSubscriptions(db, candidateId),
     toNotify: (candidateId) => readHandoffsToNotify(db, candidateId),
     claim: (candidateId, handoffId) => claimHandoffNotification(db, candidateId, handoffId),
+    freshToNotify: (candidateId) => readFreshAlertsToNotify(db, candidateId),
+    claimFresh: (candidateId, jobId) => claimFreshJobNotification(db, candidateId, jobId),
     removeGone: async (candidateId, subscriptionId) => {
       await removePushSubscription(db, candidateId, { subscriptionId }, "gone");
     },

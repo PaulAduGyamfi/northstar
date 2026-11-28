@@ -8,6 +8,8 @@ import {
   listOpenHandoffs,
   readEventsAfter,
   readLivePushSubscriptions,
+  recordAlertHeld,
+  recordFreshAlert,
   recordNeedsHuman,
   requestApproval,
   resolveHandoff,
@@ -267,5 +269,119 @@ describe("notifyPass (NS-193 slice 3)", () => {
     await notifyPass(p, candidateId);
     await notifyPass(p, candidateId);
     expect([await letters(), sent]).toEqual([["outcome_unknown"], []]);
+  });
+});
+
+// A fresh-job alert the alert pass recorded `minutesAgo` before the test's Gate clock, for a job id
+// that exists only in the event (the notifier reads events, never the job row).
+async function freshAlert(minutesAgo = 5): Promise<string> {
+  const jobId = randomUUID();
+  await recordFreshAlert(db, {
+    candidateId,
+    jobId,
+    score: 88,
+    ageMinutes: 12,
+    tier: 2,
+    now: new Date(clock.getTime() - minutesAgo * 60_000),
+    wasHeld: false,
+  });
+  return jobId;
+}
+
+const letterSubjects = async () =>
+  (await listOpenDeadLetters(db, candidateId))
+    .filter((l) => l.kind === "push.notify")
+    .map((l) => [l.reasonCode, l.subject]);
+
+describe("notifyPass for fresh-job alerts (NS-199 item 1 slice 2)", () => {
+  it("pushes a fresh alert once to each browser, even when the pass runs twice", async () => {
+    const jobId = await freshAlert();
+    await subscribe("device-1");
+    await subscribe("device-2");
+    const { ports: p, sent } = ports();
+    const first = await notifyPass(p, candidateId);
+    const second = await notifyPass(p, candidateId);
+    expect([first.notified, second.notified]).toEqual([1, 0]);
+    expect(sent.map((s) => s.payload)).toEqual([
+      { v: 1, kind: "fresh_job", id: jobId, age: 12, fit: 88 },
+      { v: 1, kind: "fresh_job", id: jobId, age: 12, fit: 88 },
+    ]);
+    expect(await pushEvents()).toEqual(["push.sent"]);
+  });
+
+  it("pushes a sent alert but never one held for quiet hours", async () => {
+    await recordAlertHeld(db, {
+      candidateId,
+      jobId: randomUUID(),
+      score: 90,
+      ageMinutes: 3,
+      tier: 2,
+      now: clock,
+    });
+    const sentJob = await freshAlert();
+    await subscribe();
+    const { ports: p, sent } = ports();
+    await notifyPass(p, candidateId);
+    expect(sent.map((s) => s.payload.id)).toEqual([sentJob]);
+  });
+
+  it("pushes an alert from the last hour but never an older one", async () => {
+    await freshAlert(61);
+    const recent = await freshAlert(5);
+    await subscribe();
+    const { ports: p, sent } = ports();
+    await notifyPass(p, candidateId);
+    expect(sent.map((s) => s.payload.id)).toEqual([recent]);
+  });
+
+  it("claims nothing while push is switched off, then pushes once it is back on", async () => {
+    await freshAlert();
+    await subscribe();
+    const off = {
+      candidateId,
+      subsystem: "push",
+      actor: "user",
+      reason: "Quiet for a while",
+    } as const;
+    await setKillSwitch(db, { ...off, enabled: false });
+    const { ports: p, sent } = ports();
+    await notifyPass(p, candidateId);
+    expect(sent).toEqual([]);
+    await setKillSwitch(db, { ...off, enabled: true, reason: "Back on" });
+    await notifyPass(p, candidateId);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("pushes handoffs before fresh alerts, and a held-back handoff leaves the alert for later", async () => {
+    await openHandoff();
+    const jobId = await freshAlert();
+    await subscribe();
+    const held = ports(new PushHeldBack("breaker", null));
+    await notifyPass(held.ports, candidateId);
+    expect(held.sent.map((s) => s.payload.kind)).toEqual(["handoff"]);
+    const working = ports();
+    await notifyPass(working.ports, candidateId);
+    expect(working.sent.map((s) => s.payload)).toEqual([
+      { v: 1, kind: "fresh_job", id: jobId, age: 12, fit: 88 },
+    ]);
+  });
+
+  it("turns a fresh alert no browser took into a not_delivered letter on the job", async () => {
+    const jobId = await freshAlert();
+    await subscribe();
+    await notifyPass(ports(new PushError("push service answered 503", 503)).ports, candidateId);
+    expect(await letterSubjects()).toEqual([["not_delivered", `job:${jobId}`]]);
+  });
+
+  it("reports a fresh alert's claim left without a result as outcome_unknown on the job, once", async () => {
+    const jobId = await freshAlert();
+    await subscribe();
+    const { ports: p, sent } = ports();
+    await p.claimFresh(candidateId, jobId);
+    // Twenty minutes later by the Gate's clock: past the 15-minute lease.
+    await setGateClock(db, new Date(Date.now() + 20 * 60_000));
+    await notifyPass(p, candidateId);
+    await notifyPass(p, candidateId);
+    expect([await letterSubjects(), sent]).toEqual([[["outcome_unknown", `job:${jobId}`]], []]);
   });
 });
