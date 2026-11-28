@@ -111,20 +111,27 @@ export function labelWords(text: string): string[] {
     .filter((w) => w !== "");
 }
 
-// The label with the company's name taken out (NS-278): the name, as one unit and in its own order,
-// where the label writes it, at most `slots` times (the most `{company}` slots one wording has). Its words earn no credit anywhere else, so
-// "Why do you want to work at Acme? Your salary expectations?" with the company "Acme Your Salary
-// Expectations" keeps "Acme", "your", "salary" and "expectations" (the name isn't written whole).
-// Compared after NFKC and lowercasing, the way labelWords reads both.
+// Apostrophes as labelWords reads them: curly, modifier and backtick all become "'".
+const foldApostrophes = (text: string): string => text.replace(/[\u2018\u2019\u02bc`]/g, "'");
+
+// The label with the company's name taken out (NS-278): the name, as one unit and in its own
+// order, where the label writes it, at most `slots` times (the most `{company}` slots one wording
+// has). Its words earn no credit anywhere else, so "Why do you want to work at Acme? Your salary
+// expectations?" with the company "Acme Your Salary Expectations" keeps "Acme", "your", "salary"
+// and "expectations" (the name isn't written whole). Compared after NFKC, lowercasing and folding
+// apostrophes, the way labelWords reads both. A copy joined to a word by an apostrophe is a word of
+// its own and stays ("you're" with the company "re"); a possessive "'s" after the name goes with it.
 function withoutCompany(label: string, company: string, slots: number): string {
-  const text = label.normalize("NFKC").toLowerCase();
-  const name = company.normalize("NFKC").toLowerCase().trim();
+  const text = foldApostrophes(label.normalize("NFKC").toLowerCase());
+  const name = foldApostrophes(company.normalize("NFKC").toLowerCase().trim());
   if (name === "") return text;
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
-  // Only where no letter or digit touches either end, so "Acme" never eats part of "Acmeless".
-  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, "gu");
+  // No letter, digit or apostrophe may touch either end, so "Acme" never eats part of "Acmeless"
+  // or "you're". A possessive "'s" right after the name is part of it.
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}'])${escaped}(?:'s)?(?![\\p{L}\\p{N}'])`, "gu");
   // At most as many times as a wording has the slot (security review): another copy of the name
-  // ("Your Salary. Why … at Your Salary?") keeps its words, which aren't known.
+  // ("Your Salary. Why … at Your Salary?") keeps its words, which aren't known. The first copies
+  // in the label go, so a stray copy before the real one leaves the real one's words: new.
   let left = slots;
   return text.replace(pattern, (match) => (left-- > 0 ? " " : match));
 }

@@ -1303,7 +1303,9 @@ Exists now:
   other words counts as `new` (a second ask made only of known words still passes). Since NS-278 a
   company name earns reuse credit only when `isReuseCompany` accepts it (`isSafeCompany`, at most 3
   words and 40 characters), for exact wording too, and its words count only as the whole name where
-  the label writes it, never one by one. Since NS-249 (slice 1) `requestApproval` refuses
+  the label writes it (apostrophes folded; never inside a word joined by one; a possessive "'s"
+  goes with it), at most as many times as a wording has `{company}`, never one by one, and never
+  for a canonical question with no `{company}` slot. Since NS-249 (slice 1) `requestApproval` refuses
   facts from every caller (`InvalidRequest` on `facts`; its input says `facts: null`): a package
   filed there waits for Paul and, with no stored package, can't be submitted. Only
   `requestPackageApproval` passes facts, through `requestApprovalWithFacts`, which

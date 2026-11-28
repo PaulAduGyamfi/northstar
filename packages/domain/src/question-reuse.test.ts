@@ -281,6 +281,18 @@ describe("a company name earns reuse only whole, short and where the label write
     ).toBe("new");
   });
 
+  it("never takes a name out of a word joined by an apostrophe", () => {
+    expect([
+      labelReuse("Why do you want to work at you're?", "why-this-company", "re"),
+      labelReuse("Why do you want to work at Example Corp\u2019s?", "why-this-company", COMPANY),
+      labelReuse(
+        "Please tell us why you want to work at O\u2019Reilly",
+        "why-this-company",
+        "O'Reilly",
+      ),
+    ]).toEqual(["new", "bank_high_confidence", "bank_high_confidence"]);
+  });
+
   it("gives no company credit to a canonical question with no company slot", () => {
     const canonical = { text: "Why are you interested in this role?", examples: [] };
     expect(
