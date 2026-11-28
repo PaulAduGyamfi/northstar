@@ -36,10 +36,16 @@ export function Notifications() {
   async function run(action: typeof enablePush) {
     setBusy(true);
     setMessage(null);
-    const outcome = await action(browser());
-    setMessage({ ok: outcome.ok, text: outcome.message });
-    setKey(await readPushKey());
-    setBusy(false);
+    try {
+      const outcome = await action(browser());
+      setMessage({ ok: outcome.ok, text: outcome.message });
+      setKey(await readPushKey());
+    } catch {
+      // A browser call that threw outside the guarded steps: say so, never leave the buttons dead.
+      setMessage({ ok: false, text: "Something went wrong in this browser. Try again." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (!canPush) return null;
