@@ -39,3 +39,6 @@ export const relayFailureKey = (runId: string): string => `signal_relay:${runId}
 
 // The handoff notifier's dead-letter key for a failing pass (NS-193 slice 3): one per run.
 export const notifyFailureKey = (runId: string): string => `push_notify:${runId}`;
+
+// The job pipeline starter's dead-letter key for a failing pass (NS-280 slice 3): one per run.
+export const starterFailureKey = (runId: string): string => `pipeline_start:${runId}`;
