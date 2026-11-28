@@ -90,6 +90,22 @@ export {
   type WriteDraftInput,
   writeReplyDraft,
 } from "./mail/gateway.js";
+// The web push sender (NS-193, ADR-0032): pushes fixed words to Paul's own browsers, behind the
+// endpoint allowlist, the `push` kill switch and breaker. A push never acts on anything.
+export { endpointAllowed, PUSH_SERVICE_HOSTS } from "./push/endpoint.js";
+export {
+  createPushSender,
+  PUSH_DEPENDENCY,
+  PUSH_SUBSYSTEM,
+  PushError,
+  type PushGuard,
+  PushHeldBack,
+  PushRequestError,
+  type PushResult,
+  type PushSender,
+  type PushSubscriptionKeys,
+} from "./push/send.js";
+export { loadVapidConfig, type VapidConfig, VapidConfigError } from "./push/vapid.js";
 // The credential vault (NS-122, ADR-0010): loading the master key, generating and storing tenant
 // passwords. Opening (decrypting) is deliberately not exported: only code inside this package
 // may call src/vault/open.ts (CRD-002), and a test enforces it.

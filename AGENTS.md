@@ -1092,6 +1092,21 @@ Exists now:
   file fields) against the gateway's adapters, `fillForm` sets values through the prototype's
   setter (a safety net for a shadowed `value`; the isolated world already reaches the native one), and a thrown `handoff.prefilled` write puts its
   class name on the span (`northstar.prefill.record_error`, `errorClassOf`), never its message.
+- Web push (NS-193 slice 1, ADR-0032, Proposed): the sender in `packages/gateways/src/push/`, on
+  `node:crypto` with no library. `encryptPayload` (RFC 8291 `aes128gcm`, one record, checked byte
+  for byte against the RFC's Appendix A) and `vapidAuthorization` (RFC 8292 ES256, `aud` the
+  endpoint's origin, 12 h) from Paul's own key pair, loaded by `loadVapidConfig`
+  (`PUSH_VAPID_PUBLIC_KEY`, `PUSH_VAPID_PRIVATE_KEY`, `PUSH_VAPID_SUBJECT` in `.env.app`; none set
+  means push is off; a partial set, a placeholder or a mismatched pair is refused by name).
+  `createPushSender(...).send` refuses any endpoint `endpointAllowed` rejects (https, default
+  port, exactly FCM's, Mozilla's or `web.push.apple.com`, or under `notify.windows.com`; never an
+  IP), then asks the `push` kill switch and breaker, and posts through the global `fetch` (10 s, no redirects): `sent`, `gone` (404/410)
+  or `rejected`; only no answer, 429 and 5xx count against the breaker. Its span holds the host,
+  status and result, never the endpoint's path, keys or payload. The payload is `PushPayload`
+  (`packages/domain`, `push-payload.ts`): a strict `{ v, kind: "handoff", id, ats, reason }` from
+  fixed lists, at most 256 bytes (`encodePushPayload`), worded by `pushWords` in the feed's own
+  words. A push never acts on anything. No subscriptions, caller or service worker yet (slices 2
+  and 3).
 - Verification windows (NS-151, VER-001…006) in `packages/db` (`verification-schema.ts`,
   `verification-write.ts`, append-only): `verification_window`, one `verification_window_restart`
   and one `verification_window_close` per window, and `verification_used_message` (one window per
