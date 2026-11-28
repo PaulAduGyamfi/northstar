@@ -2,6 +2,8 @@ import type { ApprovedPrepPlan, StoredInterview } from "@northstar/db";
 import type { PrepRefusal, PrepWritten } from "@northstar/gateways";
 import { describe, expect, it } from "vitest";
 import {
+  busyFor,
+  MAX_BUSY,
   type PrepLetterReason,
   type PrepRunDeps,
   type PrepRunReport,
@@ -149,6 +151,78 @@ describe("runPrep: proposing and filing", () => {
     expect([r.timeZone, r.newPlans]).toEqual([
       "UTC",
       [{ interviewStart: new Date("2026-12-01T15:00:00Z"), blocks }],
+    ]);
+  });
+});
+
+describe("runPrep: busy time from what is stored", () => {
+  const block = (day: number) => ({
+    kind: "prep" as const,
+    start: new Date(`2026-11-${day}T09:00:00Z`),
+    end: new Date(`2026-11-${day}T09:45:00Z`),
+  });
+
+  it("gives the planner the other live interviews and every stored and earlier-planned block", async () => {
+    const seen: { id: string; busy: unknown }[] = [];
+    const f = fake({
+      interviews: async () => [
+        interview(1, "confirmed", new Date("2026-12-01T15:00:00Z")),
+        interview(2, "confirmed", new Date("2026-12-02T15:00:00Z")),
+        // Waiting for Paul: still busy time, never planned.
+        interview(3, null, new Date("2026-12-03T15:00:00Z")),
+        // Dismissed or over: never busy time.
+        interview(4, "dismissed", new Date("2026-12-04T15:00:00Z")),
+        interview(5, "confirmed", new Date("2026-11-27T09:00:00Z")),
+        interview(6, "confirmed", new Date("2026-12-05T15:00:00Z")),
+      ],
+      // Interview 6 already has a plan stored.
+      proposalOf: async (id) => (id === uuid(6) ? { proposalId: "p6", blocks: [block(28)] } : null),
+      propose: async (id, request) => {
+        seen.push({ id, busy: request.busy });
+        return {
+          ok: true,
+          value: { proposalId: `p-${id}`, blocks: [block(id === uuid(1) ? 29 : 30)] },
+        };
+      },
+    });
+    await runPrep(f.deps);
+    const at = (iso: string, minutes: number) => ({
+      start: new Date(iso),
+      end: new Date(new Date(iso).getTime() + minutes * 60 * 1000),
+    });
+    expect(seen).toEqual([
+      {
+        id: uuid(1),
+        busy: [
+          at("2026-11-28T09:00:00Z", 45),
+          at("2026-12-02T15:00:00Z", 60),
+          at("2026-12-03T15:00:00Z", 60),
+          at("2026-12-05T15:00:00Z", 60),
+        ],
+      },
+      {
+        id: uuid(2),
+        busy: [
+          at("2026-11-28T09:00:00Z", 45),
+          at("2026-11-29T09:00:00Z", 45),
+          at("2026-12-01T15:00:00Z", 60),
+          at("2026-12-03T15:00:00Z", 60),
+          at("2026-12-05T15:00:00Z", 60),
+        ],
+      },
+    ]);
+  });
+
+  it("keeps at most the planner's bound, the intervals that start soonest", () => {
+    const blocks = Array.from({ length: MAX_BUSY + 20 }, (_, i) => ({
+      start: new Date(Date.UTC(2026, 11, 1, 0, MAX_BUSY + 20 - i)),
+      end: new Date(Date.UTC(2026, 11, 1, 0, MAX_BUSY + 21 - i)),
+    }));
+    const busy = busyFor(uuid(1), [], blocks);
+    expect([busy.length, busy[0]?.start, busy.at(-1)?.start]).toEqual([
+      MAX_BUSY,
+      new Date(Date.UTC(2026, 11, 1, 0, 1)),
+      new Date(Date.UTC(2026, 11, 1, 0, MAX_BUSY)),
     ]);
   });
 });

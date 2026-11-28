@@ -1,6 +1,9 @@
 import type { CandidateId } from "@northstar/domain";
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "./db.js";
+import type { PrepBlockKind } from "./interview-prep-write.js";
+import { interviewDetection } from "./interview-schema.js";
+import { readPrepPlan } from "./prep-plan-write.js";
 
 // The prep plans Paul approved that the Calendar writer hasn't written yet (NS-241 slice 5), for
 // `funnel prep`. Read-only, ids only: never a block, time or zone.
@@ -52,4 +55,45 @@ export async function readApprovedPrepPlans(
     limit ${APPROVED_PREP_LIMIT}
   `)) as unknown as { rows: Row[] };
   return result.rows.map((row) => ({ requestId: row.request_id, decisionId: row.decision_id }));
+}
+
+// What Paul sees of a prep plan in the Queue before he approves it (NS-241 slice 6): the
+// interview it was filed for and each block's kind and times, plus whether the interview moved
+// since (a newer version of its detection). Read-only; never the calendar event id, a title, an
+// address, the calendar id or the plan's hash. Null for a request that isn't the candidate's
+// `prep_plan`.
+export type PrepPlanView = {
+  interview: { start: Date; end: Date };
+  blocks: { kind: PrepBlockKind; start: Date; end: Date }[];
+  rescheduled: boolean;
+};
+
+export async function readPrepPlanView(
+  db: Db,
+  candidateId: CandidateId,
+  requestId: string,
+): Promise<PrepPlanView | null> {
+  const plan = await readPrepPlan(db, candidateId, requestId);
+  if (plan === null) return null;
+  const [interview] = await db
+    .select({ start: interviewDetection.startsAt, end: interviewDetection.endsAt })
+    .from(interviewDetection)
+    .where(
+      and(
+        eq(interviewDetection.id, plan.filedFor.detectionId),
+        eq(interviewDetection.candidateId, candidateId),
+      ),
+    );
+  if (!interview) return null;
+  return {
+    interview: { start: interview.start, end: interview.end },
+    // In time order, whatever order they were stored in.
+    blocks: [...plan.blocks]
+      .sort((a, b) => a.start.getTime() - b.start.getTime())
+      .map((b) => ({ kind: b.kind, start: b.start, end: b.end })),
+    // No current version, or a newer one: the writer would withdraw this plan. The writer also
+    // withdraws when the current version isn't confirmed; that can't differ here, since a plan is
+    // proposed only for a confirmed detection and a decision never changes.
+    rescheduled: plan.current === null || plan.current.version !== plan.filedFor.version,
+  };
 }

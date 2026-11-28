@@ -701,14 +701,26 @@ Exists now:
   `@northstar/funnel` depends on `@northstar/gateways` for it). In one run it:
   - proposes prep for each confirmed, upcoming interview with no proposal. It uses Paul's zone
     and working hours (`loadPrepConfig`: `PREP_TIME_ZONE`, else `ALERT_TIME_ZONE`, and
-    `PREP_WORKING_HOURS`, default 09:00-17:00) and no busy time yet;
+    `PREP_WORKING_HOURS`, default 09:00-17:00). Since slice 6 the planner's busy time is what is
+    stored (`busyFor`, at most 500, soonest first): every other interview not dismissed or over,
+    and every stored proposal's blocks, including ones planned earlier in the run. Paul's other
+    calendar events are still unknown to it (that needs a second, read-only consent);
   - files each proposal with `requestPrepPlanApproval`. A replay counts as already sent;
   - writes the approved plans. Only then does it ask consent (`authorizeCalendarWrite`, in memory
     for that run, #400). The plans come from `readApprovedPrepPlans` (`packages/db`,
     `prep-plan-read.ts`: past the undo window, not undone, withdrawn or written; ids only, at
     most 50). Each goes through `writePrepPlan` behind the stored switch and breaker;
   - prints counts, plus each newly filed plan's interview and block times in his zone (his terminal
-    only; the Queue card doesn't show them yet).
+    only).
+
+  Since slice 6 the Queue shows a plan too: the API's `GET /approvals/prep-plan` (session only,
+  `apps/api/src/prep-plan-view.ts`) answers `readPrepPlanView` (`packages/db`,
+  `prep-plan-read.ts`, read-only): the interview the plan was filed for, each block's kind and
+  times in order, and `rescheduled` when a newer version of the interview is stored. It never
+  answers the event id, calendar id or hash. "Show the plan"
+  (`app/approvals/prep-plan-preview.tsx`) words it in the browser's own zone (`prepPlanLines`,
+  `src/prep-plan.ts`), with a line telling Paul to reject a rescheduled plan; the Queue doesn't
+  render it on a `prep_plan` item yet (a follow-up, after the Queue edit work).
 
   A write that throws becomes a `calendar.prep_write` dead letter (`write_failed`,
   `claims_exhausted`), and so does a refusal no later run clears (`plan_not_found`,

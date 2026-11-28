@@ -23,7 +23,10 @@ export type PrepLetterReason =
   | "rescheduled";
 
 export type PrepBlock = { kind: "prep" | "warm_up"; start: Date; end: Date };
-// A plan as Paul sees it in his own terminal: the Queue's card doesn't show block times yet.
+export type BusyInterval = { start: Date; end: Date };
+// PrepRequest's own bound on busy intervals (packages/db).
+export const MAX_BUSY = 500;
+// A plan as Paul sees it in his terminal on the run that files it (the Queue shows it too).
 export type FiledPlanView = { interviewStart: Date; blocks: PrepBlock[] };
 export type PlannedProposal = { proposalId: string; blocks: PrepBlock[] };
 
@@ -66,11 +69,11 @@ export type PrepRunDeps = {
   interviews: () => Promise<readonly StoredInterview[]>;
   // The stored proposal for a detection, or null (readPrepProposal).
   proposalOf: (detectionId: string) => Promise<PlannedProposal | null>;
-  // proposeInterviewPrep, with no busy time in this slice.
+  // proposeInterviewPrep, with busy time from what is stored (slice 6).
   propose: (
     detectionId: string,
     request: {
-      busy: [];
+      busy: BusyInterval[];
       workingHours: PrepConfig["workingHours"];
       timeZone: string;
       now: Date;
@@ -105,15 +108,32 @@ export async function runPrep(deps: PrepRunDeps): Promise<PrepRunReport> {
     writeStoppedBy: null,
   };
   const now = deps.now();
+  const all = await deps.interviews();
   // Only interviews Paul confirmed that are still ahead: a started one gets no plan.
-  const upcoming = (await deps.interviews()).filter(
+  const upcoming = all.filter(
     (i) => i.decision === "confirmed" && i.start.getTime() > now.getTime(),
   );
+  // Read every stored proposal first, so the first interview planned already sees the others'
+  // blocks as busy. Only confirmed, upcoming interviews can have one that matters: a proposal needs
+  // a confirmed current detection, and a past interview's blocks are past.
+  const stored = new Map<string, PlannedProposal | null>();
   for (const interview of upcoming) {
-    let proposal = await deps.proposalOf(interview.detectionId);
+    stored.set(interview.detectionId, await deps.proposalOf(interview.detectionId));
+  }
+  // Busy time from what Northstar already knows: every other interview not dismissed and not
+  // over, and every stored proposal's blocks (slice 6). Paul's other calendar events stay unknown
+  // until a read-only Calendar consent joins this run.
+  const blockBusy: BusyInterval[] = [...stored.values()].flatMap((p) =>
+    p === null ? [] : p.blocks.map((b) => ({ start: b.start, end: b.end })),
+  );
+  const interviewBusy = all.filter(
+    (i) => i.decision !== "dismissed" && i.end.getTime() > now.getTime(),
+  );
+  for (const interview of upcoming) {
+    let proposal = stored.get(interview.detectionId) ?? null;
     if (proposal === null) {
       const proposed = await deps.propose(interview.detectionId, {
-        busy: [],
+        busy: busyFor(interview.detectionId, interviewBusy, blockBusy),
         workingHours: deps.config.workingHours,
         timeZone: deps.config.timeZone,
         now,
@@ -124,6 +144,8 @@ export async function runPrep(deps: PrepRunDeps): Promise<PrepRunReport> {
       }
       r.proposed++;
       proposal = proposed.value;
+      // A plan made now is busy time for the interviews planned after it in this run.
+      for (const b of proposal.blocks) blockBusy.push({ start: b.start, end: b.end });
     }
     // Filing is idempotent: a plan already filed answers its first request.
     const filed = await deps.file(proposal.proposalId);
@@ -135,6 +157,22 @@ export async function runPrep(deps: PrepRunDeps): Promise<PrepRunReport> {
   }
   await writeApproved(deps, r);
   return r;
+}
+
+// The busy time for one interview's plan: the other interviews and the stored blocks, never the
+// interview itself (the planner adds it), at most MAX_BUSY: the ones that start soonest, since
+// prep lands in the days just before an interview.
+export function busyFor(
+  detectionId: string,
+  interviews: readonly StoredInterview[],
+  blocks: readonly BusyInterval[],
+): BusyInterval[] {
+  const others = interviews
+    .filter((i) => i.detectionId !== detectionId)
+    .map((i) => ({ start: i.start, end: i.end }));
+  return [...others, ...blocks]
+    .sort((a, b) => a.start.getTime() - b.start.getTime())
+    .slice(0, MAX_BUSY);
 }
 
 // A refusal that no later run can clear goes to Stuck work; the others wait for a later run.

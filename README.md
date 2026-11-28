@@ -87,7 +87,8 @@ it shows on the Inbox page. Recruiter emails are graded A–F in the same run on
 `RECRUITER_EXTRACT` (off by default). Prep for the interviews you confirmed is planned and sent to
 your Queue when you run `pnpm --filter @northstar/funnel funnel prep`; the next run adds the plans
 you approved to a Northstar calendar it creates (Google consent for that calendar only, each run,
-no stored token). It doesn't yet look at your other meetings when it plans. What each package does today is listed
+no stored token). The plan's blocks print in your terminal on the run that files it. It plans
+around your other interviews and their prep, but not yet around other meetings on your calendar. What each package does today is listed
 under "Layout" in [AGENTS.md](AGENTS.md).
 
 ## Getting started (local)

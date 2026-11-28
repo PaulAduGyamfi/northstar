@@ -36,6 +36,7 @@ import {
   readLinkTargets,
   readPasskey,
   readPreferences,
+  readPrepPlanView,
   readRun,
   readScorableJobs,
   readScoreKeys,
@@ -97,6 +98,7 @@ import { jobsEndpoints } from "./jobs.js";
 import { type PasskeyStore, passkeyAssertion, passkeyEndpoints } from "./passkeys.js";
 import { pipelineEndpoints } from "./pipeline.js";
 import { createPrefillGrants, prefillEndpoints } from "./prefill.js";
+import { prepPlanEndpoints } from "./prep-plan-view.js";
 import { runEndpoints } from "./run.js";
 import { createApi } from "./server.js";
 import { createSessions } from "./sessions.js";
@@ -244,6 +246,10 @@ try {
   // The approval queue (NS-139): the only path to decideApprovals and undoDecision, behind
   // Paul's session, so every decision is his (ADR-0002).
   const approvals = approvalEndpoints(dbApprovalPorts(db, candidateId));
+  // A prep plan as the Queue shows it (NS-241 slice 6), read-only.
+  const prepPlan = prepPlanEndpoints({
+    read: async (requestId) => readPrepPlanView(db, await candidateId(), requestId),
+  });
   // The pipeline board and application timeline (NS-168), read-only.
   const pipeline = pipelineEndpoints({
     list: async (filter) => listApplications(db, await candidateId(), filter),
@@ -359,6 +365,7 @@ try {
       ...consent,
       ...alertSettings,
       ...approvals,
+      ...prepPlan,
       ...pipeline,
       ...inbox,
       ...growth,
