@@ -1,7 +1,8 @@
 // Northstar's service worker (NS-193 slice 2, ADR-0032 item 4). It shows a push's fixed words and
 // opens Today when Paul taps it. Nothing else: no caching, no fetch handling, no action on Paul's
-// behalf. A push carries codes only ({ v, kind, id, ats, reason }); the words below are a copy of
-// pushWords in packages/domain (push-payload.ts), and a test there checks they agree.
+// behalf. A push carries codes and numbers only ({ v, kind, id, ats, reason } for a handoff,
+// { v, kind, id, age, fit } for a fresh job, NS-199); the words below are a copy of pushWords in
+// packages/domain (push-payload.ts), and a test there checks they agree.
 
 const ATS_FORM = {
   greenhouse: "A Greenhouse form",
@@ -16,6 +17,19 @@ const CHALLENGE = {
   account: "an account sign-up",
 };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+// A fresh-job push's bounds (MAX_FRESH_AGE_MINUTES and the 0-100 fit score in push-payload.ts).
+const MAX_FRESH_AGE_MINUTES = 24 * 60;
+
+// A whole number from min to max, never a string or a fraction.
+const wholeIn = (n, min, max) => Number.isInteger(n) && n >= min && n <= max;
+
+// "12 min ago", as ageText in push-payload.ts.
+function ageText(minutes) {
+  const m = Math.max(0, Math.floor(minutes));
+  if (m < 60) return `${m} min ago`;
+  if (m < 48 * 60) return `${Math.floor(m / 60)} h ago`;
+  return `${Math.floor(m / (24 * 60))} days ago`;
+}
 
 // The words for a push, from known codes only. Anything else shows the generic line: the browser
 // requires a notification for every push, and no text from a push is ever shown as it came.
@@ -35,6 +49,21 @@ function words(data) {
       title: "Needs your hands",
       body: `${ATS_FORM[data.ats]} stopped at ${CHALLENGE[data.reason]}. Open Northstar to finish it.`,
       tag: `handoff:${data.id}`,
+    };
+  }
+  if (
+    data &&
+    data.v === 1 &&
+    data.kind === "fresh_job" &&
+    typeof data.id === "string" &&
+    UUID.test(data.id) &&
+    wholeIn(data.age, 0, MAX_FRESH_AGE_MINUTES) &&
+    wholeIn(data.fit, 0, 100)
+  ) {
+    return {
+      title: "A fresh job fits you",
+      body: `Posted ${ageText(data.age)} · Fit ${data.fit}. Open Northstar to see it.`,
+      tag: `fresh_job:${data.id}`,
     };
   }
   return { title: "Northstar", body: "Something needs you. Open Northstar.", tag: "northstar" };

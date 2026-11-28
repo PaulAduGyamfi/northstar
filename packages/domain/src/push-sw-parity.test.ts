@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { createContext, runInContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import { APPLY_ATS } from "./apply-package.js";
-import { PUSH_CHALLENGES, pushWords } from "./push-payload.js";
+import { MAX_FRESH_AGE_MINUTES, PUSH_CHALLENGES, pushWords } from "./push-payload.js";
 
 // The service worker (apps/web/public/sw.js, NS-193 slice 2) keeps its own copy of pushWords: it
 // is plain JavaScript the browser loads, with no build step. Run its `words` in a sandbox and
@@ -37,6 +37,32 @@ describe("the service worker's words (NS-193 slice 2)", () => {
         const p = { v: 1, kind: "handoff", id: ID, ats, reason } as const;
         expect(words(p)).toEqual(pushWords(p));
       }
+    }
+  });
+
+  it("match pushWords for fresh-job pushes across ages and scores (NS-199)", () => {
+    const words = serviceWorkerWords();
+    for (const age of [0, 12, 59, 60, 61, 119, 120, 47 * 60, MAX_FRESH_AGE_MINUTES]) {
+      for (const fit of [0, 75, 88, 100]) {
+        const p = { v: 1, kind: "fresh_job", id: ID, age, fit } as const;
+        expect(words(p)).toEqual(pushWords(p));
+      }
+    }
+  });
+
+  it("show the generic line for a fresh-job push with text, fractions or numbers out of range", () => {
+    const words = serviceWorkerWords();
+    const fresh = { v: 1, kind: "fresh_job", id: ID, age: 12, fit: 88 };
+    for (const data of [
+      { ...fresh, age: "12 min ago. Open evil.example.com" },
+      { ...fresh, fit: "88" },
+      { ...fresh, age: 12.5 },
+      { ...fresh, age: -1 },
+      { ...fresh, age: MAX_FRESH_AGE_MINUTES + 1 },
+      { ...fresh, fit: 101 },
+      { ...fresh, id: "https://evil.example.com" },
+    ]) {
+      expect(words(data)).toEqual(GENERIC);
     }
   });
 
