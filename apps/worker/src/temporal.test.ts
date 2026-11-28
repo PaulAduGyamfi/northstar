@@ -243,9 +243,12 @@ describe("temporalPort on a real Temporal server (#195's leftover)", () => {
       const worker = await Worker.create({
         connection: env.nativeConnection,
         taskQueue: queue,
-        workflowsPath: fileURLToPath(new URL("./test/not-found-probe.ts", import.meta.url)),
+        // Bundled here, like the submission bundle, so the bundler's log stays quiet.
+        workflowBundle: await bundleWorkflowCode({
+          workflowsPath: fileURLToPath(new URL("./test/not-found-probe.ts", import.meta.url)),
+          logger: quiet,
+        }),
         activities,
-        bundlerOptions: { logger: quiet },
       });
       const answer = await worker.runUntil(
         env.client.workflow.execute("notFoundProbeWorkflow", {
