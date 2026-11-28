@@ -893,7 +893,8 @@ Exists now:
   a value is checked by `alertChange`, the same function as `jobs alerts set`, a null value resets
   it, and bad `ALERT_*` defaults fail only these routes with `503 alert_defaults_invalid`) and the
   web app's `/settings/search` (`src/search-settings.ts`, linked from Today): each setting in words,
-  "set here" or "default", with Save and "Use the default". No phone push yet: that needs the PWA.
+  "set here" or "default", with Save and "Use the default". Since NS-199 item 1 (slice 1) the push's
+  storage and words exist (under Web push, below); the worker doesn't push alerts yet (slice 2).
 - The Approval Gate (NS-119, ADR-0002, ADR-0017): the auto-approve rules and their evaluator in
   `packages/domain` (`approval.ts`; only application packages can ever be auto-approved), and
   the append-only `approval_*` tables with the Gate's one write path in `packages/db`
@@ -1144,6 +1145,18 @@ Exists now:
   ids and counts only; `packages/db`, `push-notify-write.ts`). A push no browser took is a
   `push.notify` dead letter (`not_delivered`), and so is a pass that fails its 3 attempts
   (`notify_failed`, one per run). At most once: nothing is ever pushed twice for a handoff.
+  Since NS-199 item 1 (#172, SRC-015), slice 1, fresh-job alerts get the same storage and words:
+  `FreshJobPush` (`{ v, kind: "fresh_job", id, age, fit }`: the job id, its age at the alert in
+  whole minutes, at most a day, and its fit score; never a title, company, place or URL), worded
+  by `pushWords` with the feed line's own numbers ("Posted 12 min ago · Fit 88. Open Northstar to
+  see it."; `ageText` moved to `packages/domain`, re-exported by `packages/db`), mirrored in
+  `sw.js` and checked by the parity test. In `packages/db` (`push-notify-write.ts`, migration
+  0109 widening the claim key to `job_fresh_alert:<job id>:notify`): `readFreshAlertsToNotify`
+  (the candidate's `job.fresh_alert` events from the last 60 minutes by the Gate's clock,
+  `FRESH_PUSH_WINDOW_MINUTES`, with no claim, oldest first, at most 20; never a held alert, so
+  quiet hours stay the alert pass's), `claimFreshJobNotification` (one claim per job, only when
+  that job's alert exists) and `recordPushResult` on either subject (`push.sent` /
+  `push.not_delivered` on `job:<id>`). No caller yet: the worker pushes them in slice 2.
 - Verification windows (NS-151, VER-001…006) in `packages/db` (`verification-schema.ts`,
   `verification-write.ts`, append-only): `verification_window`, one `verification_window_restart`
   and one `verification_window_close` per window, and `verification_used_message` (one window per

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { CandidateId } from "@northstar/domain";
+import { ageText, type CandidateId } from "@northstar/domain";
 import { and, desc, eq, gt, inArray, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Db } from "./db.js";
@@ -131,13 +131,8 @@ export type AlertInput = {
   now: Date;
 };
 
-// "12 min ago" under an hour, then whole hours, then whole days.
-export function ageText(minutes: number): string {
-  const m = Math.max(0, Math.floor(minutes));
-  if (m < 60) return `${m} min ago`;
-  if (m < 48 * 60) return `${Math.floor(m / 60)} h ago`;
-  return `${Math.floor(m / (24 * 60))} days ago`;
-}
+// "12 min ago": in packages/domain since NS-199 item 1, so a fresh-job push says it the same way.
+export { ageText };
 
 // The alert itself. Its reason is the sentence Paul sees in the feed (numbers only, never a
 // title, company or URL). `wasHeld` marks one released after quiet hours.
