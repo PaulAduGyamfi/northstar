@@ -522,6 +522,7 @@ export {
   writeProfileImport,
 } from "./profile-write.js";
 export {
+  APPROVAL_PUSH_WINDOW_HOURS,
   ApprovalClaimMismatch,
   type ApprovalToNotify,
   approvalNotifyKey,

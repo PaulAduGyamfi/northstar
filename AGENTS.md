@@ -1122,7 +1122,9 @@ Exists now:
   fresh jobs (`apps/worker/src/activities/notify-approvals.ts`). `readApprovalsToNotify`
   (`packages/db`, `push-approval-write.ts`) lists requests with no live decision, not withdrawn,
   never a `vault_reveal` or the request Paul's own edit filed, with no claim (a policy's approval
-  is a decision at filing, so it is never pushed), at most 205 a pass. `claimApprovalNotification`
+  is a decision at filing, so it is never pushed), filed in the last 24 hours by the Gate's clock
+  (`APPROVAL_PUSH_WINDOW_HOURS`, so turning push on sends no backlog; #180 follow-up, ADR-0032
+  item 4 amended), at most 205 a pass. `claimApprovalNotification`
   claims one under the request's row lock (the lock deciding takes). The first 5 a pass
   (`MAX_APPROVAL_PUSHES_PER_PASS`) are pushed alone; the rest are claimed together, all or nothing
   in one transaction (`claimApprovalNotifications`), and share one

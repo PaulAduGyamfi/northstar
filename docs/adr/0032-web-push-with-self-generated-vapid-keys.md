@@ -66,6 +66,21 @@ threat model and where subscriptions live.
    from fixed sentences. The service worker shows only those words and opens Today on tap. A
    push never carries a URL, company, job title, email text or anything Paul typed. Push services
    see the ciphertext's size and timing only, and the words are fixed anyway.
+   Amended in place for approval pushes (NS-204, #180; this ADR is still Proposed):
+   - `{ v: 1, kind: "approval", id: <request uuid>, request: <kind code> }` names one request
+     waiting in the Queue by its id and kind code only (`PUSH_REQUEST_KINDS`, never
+     `vault_reveal`): never a subject, company, title or draft text.
+   - A tap opens `/approvals?request=<id>`, built from the checked id, where the Queue marks
+     that request. A push never approves: the notification has no action button and carries no
+     token, and Paul approves in the Queue, signed in, through `POST /approvals/decide`, with the
+     undo window as usual.
+   - A pass pushes at most 5 requests alone. The rest share one
+     `{ v: 1, kind: "approvals_waiting", more: <1-200> }` push ("N more requests are waiting in
+     the Queue"), which opens `/approvals` and replaces the previous one (one tag). Each request
+     is claimed once (`approval_request:<id>:notify`, item 6), so none is pushed twice.
+   - Only a request filed in the last 24 hours (by the Gate's clock) is pushed, so turning push
+     on never sends a backlog; older requests still wait in the Queue. A request a policy
+     approved, or the one Paul's own edit filed, is never pushed.
 5. **Subscriptions are append-only.** `push_subscription` (one per candidate and endpoint: the
    endpoint, `p256dh` and `auth` keys, created time) and `push_subscription_removal` (one per
    subscription: `user` or `gone`), written only through `push-write.ts` in `packages/db`, with

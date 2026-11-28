@@ -97,7 +97,7 @@ around your other interviews and their prep, and with `funnel prep --busy-from-c
 the other timed meetings on your calendar too (a second, read-only Google consent that run;
 all-day events such as a day off aren't counted yet). Once you make a VAPID key pair (the one-line
 command in `.env.example`, no account anywhere) and turn on notifications from Today, the worker
-pushes each new "Needs your hands" item, each request newly waiting in your Queue (up to five
+pushes each new "Needs your hands" item, each request newly waiting in your Queue (filed in the last day; up to five
 alone at a time, then one "N more waiting" notification), and each fresh-job alert from the last
 hour (never one held for quiet hours), to your browsers once, in fixed words with no link, company
 or job title; tapping it opens Today, or the Queue with that request marked. A notification never

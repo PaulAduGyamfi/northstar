@@ -43,6 +43,11 @@ something Paul hasn't seen; opening the item first costs one extra tap.
 
 The issue asks for one push per batch. This plan sends one per request instead, so a push can name exactly what it opens. An approval from a push then covers that one request, which Paul sees before approving. A second push for an item already decided opens a Queue that says it's no longer waiting, and the decide answers `already_decided`.
 
+3. **Follow-up (no migration, the orchestrator's decision under Paul's delegation):** only a
+   request filed in the last 24 hours by the Gate's clock is pushed (`APPROVAL_PUSH_WINDOW_HOURS`,
+   in the reader and both claims), so turning push on sends no backlog; ADR-0032 item 4 is
+   amended in place (it is still Proposed) to describe approval pushes.
+
 ## Acceptance criteria (slice 1)
 - [ ] A payload test shows an approval push holds only `v`, `kind`, `id` and `request`; any other key, a subject or a non-UUID id is refused, and it fits in 256 bytes.
 - [ ] The service worker's words match `pushWords` for every queue kind. Anything else gets the generic line. A tap opens `/approvals?request=<id>` only for a valid UUID, else `/`.
