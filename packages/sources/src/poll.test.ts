@@ -344,6 +344,88 @@ describe("kill switches and breakers (RES-002, RES-008)", () => {
   });
 });
 
+describe("pollDue for the HN Who is hiring? thread (NS-282)", () => {
+  const SEARCH =
+    "https://hn.algolia.com/api/v1/search_by_date?tags=story,author_whoishiring&hitsPerPage=20";
+  const ITEM = "https://hn.algolia.com/api/v1/items/900000002";
+  const pages = {
+    [SEARCH]: {
+      body: {
+        hits: [
+          {
+            objectID: "900000002",
+            title: "Ask HN: Who is hiring? (December 2025)",
+            created_at_i: 1,
+          },
+        ],
+      },
+    },
+    [ITEM]: {
+      body: {
+        id: 900000002,
+        children: [
+          { id: 1001, type: "comment", author: "a", text: "Globex | Backend Engineer | Remote" },
+          { id: 1003, type: "comment", author: "b", text: "Initech | Data Scientist | Austin, TX" },
+        ],
+      },
+    },
+  };
+  const hn = () =>
+    watch({
+      id: "w-hn",
+      ats: "hn_hiring",
+      board: "whoishiring",
+      url: "https://news.ycombinator.com/submitted?id=whoishiring",
+    });
+
+  it("saves each posting behind source:hn_hiring's switch and breaker, with no ATS", async () => {
+    const w = world(pages, [hn()]);
+    await pollDue(w.deps, T0);
+    expect([w.g.reports.map((r) => r.dependency), w.recorded.map((r) => r.result.outcome)]).toEqual(
+      [["source:hn_hiring"], ["ok"]],
+    );
+    expect(w.jobs.map((j) => [j.company, j.title, j.sources[0]?.ats])).toEqual([
+      ["Globex", "Backend Engineer", null],
+      ["Initech", "Data Scientist", null],
+    ]);
+  });
+
+  it("polling the thread twice adds nothing the second time", async () => {
+    const w = world(pages, [hn()]);
+    await pollDue(w.deps, T0);
+    w.recorded.length = 0;
+    await pollDue(w.deps, at(120));
+    expect([w.jobs.length, w.recorded[0]?.result.added]).toEqual([2, 0]);
+  });
+
+  it("merges a posting into the saved job it duplicates (SRC-006) instead of adding it", async () => {
+    const w = world(pages, [hn()]);
+    w.jobs.push({
+      jobId: "job-saved",
+      company: "Globex",
+      title: "Backend Engineer",
+      location: "Remote",
+      description: "Globex | Backend Engineer | Remote",
+      sources: [
+        { url: "https://boards.greenhouse.io/globex/jobs/1", ats: "greenhouse", atsPostingId: "1" },
+      ],
+    });
+    await pollDue(w.deps, T0);
+    expect(w.jobs.find((j) => j.jobId === "job-saved")?.sources.map((src) => src.url)).toEqual([
+      "https://boards.greenhouse.io/globex/jobs/1",
+      "https://news.ycombinator.com/item?id=1001",
+    ]);
+    expect(w.jobs).toHaveLength(2);
+  });
+
+  it("isn't fetched while source:hn_hiring is switched off", async () => {
+    const w = world(pages, [hn()]);
+    w.g.off.add("source:hn_hiring");
+    await pollDue(w.deps, T0);
+    expect([w.asked, w.jobs]).toEqual([[], []]);
+  });
+});
+
 describe("nextState", () => {
   it("doubles the interval per consecutive failure, capped at 6 hours", () => {
     const minutes = [0, 1, 2, 3, 4, 5].map((failures) => {

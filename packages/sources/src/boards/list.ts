@@ -6,6 +6,7 @@ import { postedOn } from "../ats/workday.js";
 import { dateOrNull, type Extraction, emptyFields, htmlToText, remoteFrom } from "../extraction.js";
 import { BOARD_MAX_BYTES, type FetchDeps, safeFetch } from "../fetch.js";
 import type { BoardTarget } from "./detect.js";
+import { listHnHiring } from "./hn.js";
 
 // One request per board (SRC-003, ADR-0015): each ATS's public listing returns every open posting
 // with its content, so a poll never needs a request per posting and never calls the model.
@@ -42,6 +43,9 @@ export async function listBoard(
   switch (t.ats) {
     case "workday":
       return listWorkday(deps, t.board, now);
+    // The monthly HN "Who is hiring?" thread (NS-282): a feed, not an ATS board.
+    case "hn_hiring":
+      return listHnHiring((url, shape) => read(deps, url, shape));
     case "greenhouse": {
       const body = await read(
         deps,

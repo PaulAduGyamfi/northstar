@@ -125,6 +125,10 @@ and never hand its `gmail.modify` token to code that reads mail.
   backs off, and after 5 failures it is quarantined until Paul retries it (RES-002/003).
   Before each read it checks the `source:<ats>` kill switch and breaker (NS-147); a board held
   back is not recorded and stays due. Only the board read reports to the breaker, never a save.
+  A permissive feed is a watch too (NS-282): the HN "Who is hiring?" thread is read only through
+  HN's public Algolia API, and its comments are untrusted text that plain code reads by HN's own
+  first-line convention (a comment that doesn't follow it stays a draft); never a login, never
+  another HN page, and never a source whose terms forbid automated reads.
 
 For every gateway (the Apply Gateway now, the others when they land):
 

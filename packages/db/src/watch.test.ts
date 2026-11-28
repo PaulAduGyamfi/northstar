@@ -1,5 +1,5 @@
 import { CandidateId } from "@northstar/domain";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "./db.js";
 import { candidate, companyWatch, domainEvent } from "./schema.js";
@@ -57,6 +57,29 @@ describe("watchlist", () => {
       id: first.id,
     });
     expect(await db.select().from(companyWatch)).toHaveLength(1);
+  });
+
+  it("takes the HN Who is hiring? thread as a watch of kind hn_hiring (NS-282)", async () => {
+    const hn = {
+      ats: "hn_hiring" as const,
+      board: "whoishiring",
+      url: "https://news.ycombinator.com/submitted?id=whoishiring",
+      tier: 3 as const,
+    };
+    const added = await addWatch(db, { candidateId, now: NOW, watch: hn });
+    expect((await listWatches(db, candidateId)).map((w) => [w.id, w.ats])).toEqual([
+      [added.id, "hn_hiring"],
+    ]);
+  });
+
+  it("refuses a watch kind outside the list (NS-282)", async () => {
+    expect(
+      await sqlState(
+        db.execute(
+          sql`insert into company_watch (candidate_id, ats, board, url, tier) values (${candidateId}, 'rss_anything', 'x', 'https://example.com/feed', 3)`,
+        ),
+      ),
+    ).toBe(CHECK_VIOLATION);
   });
 
   it("a new board is due at once", async () => {

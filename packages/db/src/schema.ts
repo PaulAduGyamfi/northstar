@@ -53,6 +53,11 @@ export const ATS_KINDS = [
 ] as const;
 const atsList = sql.raw(ATS_KINDS.map((a) => `'${a}'`).join(", "));
 
+// What a watch can poll (NS-282): an ATS board, or a permissive feed. `hn_hiring` is the monthly
+// Hacker News "Who is hiring?" thread. A feed's jobs have no ATS, so `job.ats` keeps ATS_KINDS.
+export const WATCH_KINDS = [...ATS_KINDS, "hn_hiring"] as const;
+const watchKindList = sql.raw(WATCH_KINDS.map((a) => `'${a}'`).join(", "));
+
 export const job = pgTable(
   "job",
   {
@@ -245,7 +250,7 @@ export const companyWatch = pgTable(
   },
   (t) => [
     unique("company_watch_board_unique").on(t.candidateId, t.ats, t.board),
-    check("company_watch_ats_valid", sql`${t.ats} in (${atsList})`),
+    check("company_watch_ats_valid", sql`${t.ats} in (${watchKindList})`),
     check("company_watch_tier_valid", sql`${t.tier} in (1, 2, 3)`),
     check("company_watch_status_valid", sql`${t.status} in (${watchStatusList})`),
     check("company_watch_failures_nonnegative", sql`${t.consecutiveFailures} >= 0`),

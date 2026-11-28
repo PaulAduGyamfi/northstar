@@ -101,7 +101,10 @@ pushes each new "Needs your hands" item, each request newly waiting in your Queu
 alone at a time, then one "N more waiting" notification), and each fresh-job alert from the last
 hour (never one held for quiet hours), to your browsers once, in fixed words with no link, company
 or job title; tapping it opens Today, or the Queue with that request marked. A notification never
-approves anything. The `push` switch on the Health page stops it. With `JOB_EMBEDDINGS` on (off
+approves anything. The `push` switch on the Health page stops it. Besides company boards, `jobs watch add` can now
+watch the monthly Hacker News "Who is hiring?" thread (read through HN's public API while `jobs
+run` polls; a post that doesn't follow HN's `Company | Role | Place` first line is saved as a draft
+for you to fill in). With `JOB_EMBEDDINGS` on (off
 by default, and not until its threshold is measured), each `jobs` scoring pass also sends changed
 jobs' titles, companies and requirements to OpenAI for embeddings and lists pairs that look like
 the same role in `jobs dupes`; nothing is merged. What each package does today is listed
