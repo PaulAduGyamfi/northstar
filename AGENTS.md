@@ -1009,9 +1009,12 @@ Exists now:
   only `type="submit"` is a hidden hCaptcha button. Since NS-255 the driver refuses both (below). Since NS-142
   slice 3 the SmartRecruiters posting page is recorded too: it has no form (its one-click apply flow
   answered headless Chromium with a bot check, which nothing went past), and a test pins that the
-  driver finds no form there, so it hands off. Ashby's form needs `cdn.ashbyprd.com` and
-  `app.ashbyhq.com`, which the environment doesn't allow, so Ashby's and SmartRecruiters' names
-  stay hand-written, as do all confirmation markers (recording one needs a submission). The package schema and its hash
+  driver finds no form there, so it hands off; its names stay hand-written. Ashby's application
+  page is recorded too (rendered once; its two read-only GraphQL queries were the one exception to
+  GET only): it has no form element, so the driver hands off there as well, and its standard names
+  are confirmed except phone, which is the board's own question, so neither the adapter nor the
+  extension fills `_systemfield_phone` any more. All confirmation markers stay hand-written
+  (recording one needs a submission). The package schema and its hash
   are in `packages/domain` (`apply-package.ts`). Its tests run on fakes and, through `dbPorts`,
   on the real write paths: `@northstar/db/testing` exports `createTestDb` and friends for that.
   Since NS-142 (slice 1, ADR-0028, Accepted) also the browser driver, `src/apply/browser/`:

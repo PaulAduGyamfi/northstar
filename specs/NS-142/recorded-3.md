@@ -39,16 +39,21 @@ standard field names (`_systemfield_name`, `firstName`…) are still hand-writte
   (`ct.captcha-delivery.com`). Per ADR-0003 nothing went past it. Only the posting page's
   structure is recorded (`formAttrs: null`), and a test pins that the driver finds no form there,
   so a SmartRecruiters application is a handoff. The adapter's names stay hand-written.
-- **Ashby** (a large company's public board): the application page loads but builds its form
-  from `cdn.ashbyprd.com` and `app.ashbyhq.com`, which the environment doesn't allow (one retry
-  after 30 s, then reported to the orchestrator). Not recorded; its names stay hand-written.
-- No adapter name changed, so the extension's parity table is untouched.
+- **Ashby** (a large company's public board): rendered once the orchestrator allowed
+  `cdn.ashbyprd.com` and `app.ashbyhq.com` and, as the one exception to GET only, the page's own
+  two read-only GraphQL queries (`/api/non-user-graphql`, ops `ApiJobPosting` and
+  `ApiOrganizationFromHostedJobsPageName`, documents starting with `query`); every other non-GET
+  was aborted, and nothing was typed, uploaded or pressed. The page has **no form element**, so the
+  driver opens no form and an Ashby application is a handoff (pinned by a test).
+  `_systemfield_name`, `_systemfield_email` and the resume's id `_systemfield_resume` are on it;
+  phone is the board's own question, not `_systemfield_phone`, so the adapter (and the extension's
+  parity table) no longer fills phone by that name: the package's field map fills it.
 
 ## Acceptance criteria
 - [x] Recorded Ashby and SmartRecruiters form structures, or a note saying why not (both noted;
       SmartRecruiters' posting page recorded).
-- [x] A test fails if either adapter names a field its recording doesn't have: no form was
-      recorded for either, so there is nothing to check against yet.
-- [x] The driver's reading of each recording is pinned by a test (SmartRecruiters: no form).
+- [x] A test fails if the Ashby adapter names a field its recording doesn't have (SmartRecruiters
+      has no recorded form to check against).
+- [x] The driver's reading of each recording is pinned by a test (no form on either page).
 - [x] No personal data or real posting text in the recordings.
-- [x] lint, typecheck, test and build green for `@northstar/gateways`.
+- [x] lint, typecheck, test and build green for `@northstar/gateways` and `@northstar/extension`.

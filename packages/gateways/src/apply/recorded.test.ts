@@ -15,7 +15,7 @@ const CONTACT = {
 };
 
 describe("each adapter's fields are on its recorded form", () => {
-  it.each(["greenhouse", "lever"] as const)(
+  it.each(["greenhouse", "lever", "ashby"] as const)(
     "every standard, resume and cover-letter field %s fills is a control on the recorded form",
     (ats) => {
       const a = adapterFor(ats);
@@ -66,5 +66,19 @@ describe("the driver's in-page reader on the recorded SmartRecruiters posting pa
   it("finds no form on the posting page, so a SmartRecruiters application becomes a handoff", () => {
     const page = collectPage(null, recordedPage(RECORDED.smartrecruiters));
     expect([page.forms, pickForm(page.forms)]).toEqual([[], null]);
+  });
+});
+
+describe("the driver's in-page reader on the recorded Ashby page (slice 3)", () => {
+  // Ashby builds its controls with no form element, so the driver opens no form and the gateway
+  // hands the application to Paul: the existing refusal, not new handling.
+  it("finds no form on the Ashby application page, so an Ashby application becomes a handoff", () => {
+    const page = collectPage(null, recordedPage(RECORDED.ashby));
+    expect([page.forms, pickForm(page.forms)]).toEqual([[], null]);
+  });
+
+  it("fills no phone by a system field name, since the recorded board asks phone as its own question", () => {
+    const fields = Object.keys(adapterFor("ashby").standardFields(CONTACT));
+    expect(fields).toEqual(["_systemfield_name", "_systemfield_email"]);
   });
 });

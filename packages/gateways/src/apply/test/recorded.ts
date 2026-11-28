@@ -16,8 +16,11 @@ import { doc, el, type FakeElement } from "../browser/test/dom.js";
 //   flow, which answered headless Chromium with 403 and a bot check (captcha-delivery.com). Per
 //   ADR-0003 nothing went past it, so only the posting page is recorded, and the adapter's field
 //   names stay hand-written.
-// - Ashby: not recorded. Its application page builds the form from cdn.ashbyprd.com and
-//   app.ashbyhq.com, which the environment doesn't allow; its names stay hand-written too.
+// - Ashby: rendered after the orchestrator allowed cdn.ashbyprd.com and app.ashbyhq.com, and, as
+//   the one exception to GET only, the page's own two read-only GraphQL queries for public posting
+//   and board data (`/api/non-user-graphql`, ops `ApiJobPosting` and
+//   `ApiOrganizationFromHostedJobsPageName`, documents starting with `query`); every other non-GET
+//   was aborted. Nothing was typed, uploaded or pressed.
 
 export type RecordedControl = {
   tag: "input" | "select" | "textarea" | "button";
@@ -51,6 +54,7 @@ export const RECORDED: {
   greenhouse: RecordedForm;
   lever: RecordedForm;
   smartrecruiters: RecordedForm;
+  ashby: RecordedForm;
 } = {
   // job-boards.greenhouse.io (boards.greenhouse.io redirects here). Server-rendered React (Remix):
   // ids, no names; dropdowns are react-select comboboxes with a required stand-in input after each
@@ -136,7 +140,61 @@ export const RECORDED: {
     ],
     captcha: [],
   },
+  // jobs.ashbyhq.com/<org>/<posting uuid>/application, a large company's public board. Built by
+  // script with NO form element: the controls sit in plain containers, so the driver opens no form
+  // and the application is a handoff. Standard fields are `_systemfield_*` (the resume input has
+  // only an id); phone is the company's own question here, not a system field. Yes/No questions
+  // are buttons over hidden checkboxes; the submit button has no type. Company question ids are
+  // synthetic, repeated questions cut to one of each kind, and no label is kept.
+  ashby: {
+    source: {
+      host: "jobs.ashbyhq.com",
+      path: "/<org>/<posting uuid>/application",
+      fetched: "2026-11-28",
+    },
+    formAttrs: null,
+    controls: [
+      // "Autofill from resume" uploader, unnamed.
+      { tag: "input", type: "file", required: false },
+      { tag: "button", required: false },
+      {
+        tag: "input",
+        type: "text",
+        name: "_systemfield_name",
+        id: "_systemfield_name",
+        required: true,
+      },
+      { tag: "input", type: "text", name: Q(1), id: Q(1), required: false },
+      {
+        tag: "input",
+        type: "email",
+        name: "_systemfield_email",
+        id: "_systemfield_email",
+        required: true,
+      },
+      { tag: "input", type: "file", id: "_systemfield_resume", required: true },
+      { tag: "button", required: false },
+      { tag: "input", type: "tel", name: Q(2), id: Q(2), required: true },
+      { tag: "input", role: "combobox", required: false },
+      { tag: "button", required: false },
+      { tag: "input", type: "text", required: true },
+      { tag: "button", required: false, label: "Yes" },
+      { tag: "button", required: false, label: "No" },
+      { tag: "input", type: "checkbox", name: Q(3), required: false, hiddenByClass: true },
+      { tag: "textarea", name: Q(4), id: Q(4), required: false },
+      { tag: "input", type: "checkbox", name: "Option A", required: false, label: "Option A" },
+      { tag: "input", type: "radio", name: `${Q(5)}_${Q(6)}`, required: false, label: "Option A" },
+      { tag: "input", type: "radio", name: `${Q(5)}_${Q(6)}`, required: false, label: "Option B" },
+      { tag: "button", required: false },
+    ],
+    captcha: [],
+  },
 };
+
+// A synthetic Ashby question id, in Ashby's uuid shape.
+function Q(n: number): string {
+  return `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+}
 
 // A synthetic Lever card field name, in Lever's `cards[<uuid>][<field>]` shape.
 function CARD(field: string): string {
