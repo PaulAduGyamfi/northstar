@@ -353,7 +353,10 @@ Exists now:
   - Since NS-281 (slice 2) its caller is `funnel inbox`, only while `FOLLOW_UP_NUDGES=on`
     (`loadFollowUpNudges`; default off). After the recruiter replies, `runNudges`
     (`packages/funnel`, `nudge.ts`) runs `nudgesDue` over `readNudgeCandidates` with
-    `DEFAULT_NUDGE_DAYS`, files at most 10 a run (looking at no more than 30), skips one Paul
+    `DEFAULT_NUDGE_DAYS`, leaves out any silent over 60 days (`MAX_NUDGE_SILENT_DAYS`: an answer,
+    and stale mail when the step is first turned on), takes the most recently due first (so ones
+    Paul followed up on himself, which stay due, can't crowd out new ones), files at most 10 a run
+    (looking at no more than 30), skips one Paul
     already followed up on (a `SENT` message later in the thread, headers only), reads the reply
     headers (`getReplyHeaders`), builds `nudgePackage` and files it through `fileReplyDraft`. A
     filed nudge is the message's one live reply, so a rerun files nothing. A read that fails, bad

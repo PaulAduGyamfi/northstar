@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import {
   type BuiltNudge,
   MAX_NUDGE,
+  MAX_NUDGE_EXAMINE,
+  MAX_NUDGE_SILENT_DAYS,
   type NudgeDeps,
   type NudgeLetterReason,
   runNudges,
@@ -114,9 +116,10 @@ describe("runNudges", () => {
     const r = await runNudges(f.deps);
     expect([r.filed, f.built, f.filed.length]).toEqual([
       2,
+      // The most recently due first.
       [
-        { id: ID(1), stage: "applied" },
         { id: ID(2), stage: "interview" },
+        { id: ID(1), stage: "applied" },
       ],
       2,
     ]);
@@ -164,10 +167,11 @@ describe("runNudges", () => {
     const r = await runNudges(f.deps);
     expect([f.letters, r.nudgeLetters, r.filed]).toEqual([
       [
-        { id: ID(1), reason: "no_reply_address", key: `mail.nudge:${ID(1)}:1` },
-        { id: ID(2), reason: "invalid_headers", key: `mail.nudge:${ID(2)}:1` },
-        { id: ID(3), reason: "file_refused", key: `mail.nudge:${ID(3)}:1` },
+        // The most recently due first: 4 (10 days) … 1 (13 days).
         { id: ID(4), reason: "read_failed", key: `mail.nudge:${ID(4)}:1` },
+        { id: ID(3), reason: "file_refused", key: `mail.nudge:${ID(3)}:1` },
+        { id: ID(2), reason: "invalid_headers", key: `mail.nudge:${ID(2)}:1` },
+        { id: ID(1), reason: "no_reply_address", key: `mail.nudge:${ID(1)}:1` },
       ],
       4,
       0,
@@ -199,6 +203,62 @@ describe("runNudges", () => {
       [ID(2)],
       [`mail.nudge:${ID(2)}:2`],
       false,
+    ]);
+  });
+
+  it("files nothing for an application silent longer than the cap, so turning it on skips stale mail", async () => {
+    const f = fake({
+      candidates: async () => [
+        candidate(1, MAX_NUDGE_SILENT_DAYS + 1),
+        candidate(2, MAX_NUDGE_SILENT_DAYS),
+      ],
+    });
+    const r = await runNudges(f.deps);
+    expect([f.built.map((b) => b.id), r.moreToNudge]).toEqual([[ID(2)], false]);
+  });
+
+  it("files a newly due application even when more than the look limit are already answered", async () => {
+    const answered = Array.from({ length: MAX_NUDGE_EXAMINE + 5 }, (_, i) =>
+      candidate(i + 10, 20 + i),
+    );
+    const f = fake({
+      candidates: async () => [...answered, candidate(1, 8)],
+      // Every older application has Paul's own follow-up later in its thread.
+      threadMessageIds: async (threadId) =>
+        threadId === ID(1) ? [{ id: threadId }] : [{ id: threadId }, { id: `${threadId}ff` }],
+      getHeaders: async (id) =>
+        id.endsWith("ff")
+          ? headers(id, "2026-11-27T09:00:00Z", ["SENT"])
+          : headers(id, "2026-10-01T09:00:00Z"),
+    });
+    const r = await runNudges(f.deps);
+    expect([f.built.map((b) => b.id), r.filed, r.answered, r.moreToNudge]).toEqual([
+      [ID(1)],
+      1,
+      MAX_NUDGE_EXAMINE - 1,
+      true,
+    ]);
+  });
+
+  it("stops, with no letter, when Gmail fails while checking Paul's own follow-up or the filing's dependency fails", async () => {
+    const reading = fake({
+      getHeaders: async () => {
+        throw new GmailError("gmail answered 500", 500);
+      },
+    });
+    const filing = fake({
+      file: async () => {
+        throw new GmailError("gmail answered 503", 503);
+      },
+    });
+    const a = await runNudges(reading.deps);
+    const b = await runNudges(filing.deps);
+    expect([a.nudgeStoppedBy, reading.letters, b.nudgeStoppedBy, filing.letters, b.filed]).toEqual([
+      "GmailError",
+      [],
+      "GmailError",
+      [],
+      0,
     ]);
   });
 

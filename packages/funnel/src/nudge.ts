@@ -21,6 +21,10 @@ import { paulAnswered } from "./reply.js";
 // Nudges a run files at most, and applications it looks at at most (some are skipped as answered).
 export const MAX_NUDGE = 10;
 export const MAX_NUDGE_EXAMINE = 30;
+// Silence longer than this is an answer (the top of parseNudgeDays' range): no nudge. So turning
+// the step on doesn't follow up on months-old mail, and an application Paul followed up on himself
+// from Gmail (his own mail is never linked, so it stays due) stops being looked at after it.
+export const MAX_NUDGE_SILENT_DAYS = 60;
 
 export type NudgeLetterReason =
   | "read_failed"
@@ -81,11 +85,11 @@ export async function runNudges(deps: NudgeDeps): Promise<NudgeReport> {
   if (!deps.enabled) return r;
   const letters = letterState(await deps.nudgeLetters(), "mail.nudge");
   // Plain code decides who is due: the clock, the stage and what is already filed.
-  const due = nudgesDue(
-    await deps.candidates(),
-    deps.days ?? DEFAULT_NUDGE_DAYS,
-    deps.now(),
-  ).filter((d) => !letters.passOver.has(d.gmailMessageId));
+  const due = nudgesDue(await deps.candidates(), deps.days ?? DEFAULT_NUDGE_DAYS, deps.now())
+    .filter((d) => d.silentDays <= MAX_NUDGE_SILENT_DAYS && !letters.passOver.has(d.gmailMessageId))
+    // The most recently due first (then by id, so the order is fixed): ones Paul already followed
+    // up on keep coming back until the cap, and must not crowd out a newly due application.
+    .sort((a, b) => a.silentDays - b.silentDays || a.applicationId.localeCompare(b.applicationId));
   const giveUp = async (d: NudgeDue, reason: NudgeLetterReason) => {
     await deps.recordNudgeLetter(
       d,

@@ -1,6 +1,6 @@
 # NS-281: Give the drafts their callers: reply drafts to Gmail drafts, follow-up nudges, answer drafts
 
-Status: draft
+Status: slice 1 merged (#471); slice 2 in review
 Requirements: RPL-002, RPL-004 (parent #117 cites RPL-001…004); ANS-004 and INB-004 are named on
 #459 but not on its parent (see Open questions)
 Rules that apply: ADR-0002, ADR-0014, ADR-0025, ADR-0016, `.claude/rules/db.md`, Paul's decision on
@@ -53,15 +53,31 @@ Slice 3: **answer drafts** (ANS-004), pending the scope question below.
       answers `already_created`).
 - [ ] `funnel drafts` is wired in `bin.ts` and named in AGENTS.md and the README.
 
+Slice 2:
+- [ ] Off by default: `runNudges` reads, builds and files nothing (fakes); `FOLLOW_UP_NUDGES`
+      accepts only on/off, refusing others by name.
+- [ ] One nudge per due application, built with its stage; none for one not yet due or silent over
+      60 days (`MAX_NUDGE_SILENT_DAYS`).
+- [ ] Run twice: once a nudge is filed (`replyFiled`), the next run files nothing.
+- [ ] Skipped when Paul already followed up; a newly due application is filed even when 30+
+      answered ones wait (most recently due first).
+- [ ] A letter for each of `read_failed`, `invalid_headers`, `no_reply_address`, `file_refused`;
+      Gmail or the filing's dependency failing stops the step with no letter.
+- [ ] At most 10 filed and 30 looked at a run.
+
 ## Failure modes
 - Consent cancelled or timed out: the run stops, prints the error's class name, nothing written.
 - Gmail down / rate limited: stop, no letter; the claim's lease lets a later run continue.
 - Kill switch off or breaker open: `HeldBack`, skipped this run.
 - Database refuses: the command prints the error's class name and exits 1.
 
+Slice 2: Gmail down or a breaker stops the nudge step (the run prints why and exits 1); a bad
+`FOLLOW_UP_NUDGES` stops the run before Gmail consent.
+
 ## Observability
 `writeReplyDraft`'s `gmail.write_reply_draft` span and `reply.draft_created` event (existing);
-`dead_letter.recorded` for each letter. No new event types.
+`dead_letter.recorded` for each letter. No new event types. Slice 2: each filed nudge is the
+Gate's `approval.requested`; each letter `dead_letter.recorded` (`mail.nudge`).
 
 ## Out of scope
 Sending mail. A stored refresh token or a scheduled run (#400). A worker caller.
