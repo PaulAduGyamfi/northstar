@@ -131,6 +131,18 @@ export async function notifyPass(
       }
     }
     const allHeld = heldBack === subscriptions.length;
+    // A push no browser took is reported before its result is recorded: if the run dies in
+    // between, the claim reads as stale (an outcome_unknown letter), never as silently finished.
+    if (result.sent === 0) {
+      await ports.deadLetter(candidateId, {
+        subject: `apply_handoff:${handoff.handoffId}`,
+        // Held back (the breaker opened, or the switch flipped between check and send) reads
+        // apart from a push no browser took.
+        reasonCode: allHeld ? "held_back" : "not_delivered",
+        key: `push:${claim.notificationId}:undelivered`,
+        attempts: subscriptions.length,
+      });
+    }
     await ports.record(candidateId, {
       notificationId: claim.notificationId,
       handoffId: handoff.handoffId,
@@ -141,14 +153,6 @@ export async function notifyPass(
       continue;
     }
     counts.undelivered++;
-    await ports.deadLetter(candidateId, {
-      subject: `apply_handoff:${handoff.handoffId}`,
-      // Held back (the breaker opened, or the switch flipped between check and send) reads apart
-      // from a push no browser took.
-      reasonCode: allHeld ? "held_back" : "not_delivered",
-      key: `push:${claim.notificationId}:undelivered`,
-      attempts: subscriptions.length,
-    });
     // Every send held back: stop here, so one held-back handoff, not every open one, uses up
     // its push this pass. The rest wait for a pass the breaker allows.
     if (allHeld) return counts;

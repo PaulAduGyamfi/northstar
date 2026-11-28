@@ -13,6 +13,8 @@ describe("the workflow bundle", () => {
     expect(code).toContain("staleClaimSweepWorkflow");
     // NS-213 slice 2: the decision relay.
     expect(code).toContain("packageSignalRelayWorkflow");
+    // NS-193 slice 3: the handoff notifier.
+    expect(code).toContain("handoffNotifyWorkflow");
   }, 60_000);
 });
 

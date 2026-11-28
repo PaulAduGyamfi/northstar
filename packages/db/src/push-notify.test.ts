@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { claimSubmission, recordNeedsHuman } from "./apply-write.js";
 import { decideApprovals, requestApproval } from "./approval-write.js";
 import type { Db } from "./db.js";
+import { recordDeadLetter } from "./dead-letter-write.js";
 import { listOpenHandoffs, resolveHandoff } from "./handoff-write.js";
 import {
   claimHandoffNotification,
@@ -208,6 +209,22 @@ describe("readStalePushClaims (NS-193 slice 3)", () => {
     expect(await readStalePushClaims(db, candidateId)).toEqual([
       { notificationId: c.notificationId, itemKey: handoffNotifyKey(handoffId) },
     ]);
+  });
+
+  it("never lists a claim again once its outcome_unknown letter is stored", async () => {
+    const handoffId = await openHandoff();
+    const c = await claimHandoffNotification(db, candidateId, handoffId);
+    if (c.kind !== "claimed") throw new Error("not claimed");
+    await laterByTwentyMinutes();
+    await recordDeadLetter(db, {
+      candidateId,
+      kind: "push.notify",
+      subject: `apply_handoff:${handoffId}`,
+      reasonCode: "outcome_unknown",
+      attempts: 1,
+      idempotencyKey: `push:${c.notificationId}:unknown`,
+    });
+    expect(await readStalePushClaims(db, candidateId)).toEqual([]);
   });
 
   it("never lists a claim whose result is recorded", async () => {

@@ -6,6 +6,7 @@ import type { Db } from "./db.js";
 import { applyHandoff, applyHandoffDone } from "./handoff-schema.js";
 import { pushNotification, pushNotificationResult } from "./push-schema.js";
 import { appendEvent, inSpan } from "./resilience-event.js";
+import { deadLetter } from "./resilience-schema.js";
 
 // The handoff notifier's records (NS-193 slice 3, ADR-0032 item 6): which open handoffs still
 // need a push, the one claim per handoff taken before any push goes out, and what it came to.
@@ -161,7 +162,7 @@ export async function recordPushResult(
 
 export type StaleClaim = { notificationId: string; itemKey: string };
 
-// Claims older than the lease with no result: a run that stopped between claim and result. The
+// Claims older than the lease with no result and no outcome_unknown letter yet: a run that stopped between claim and result. The
 // push may or may not have gone out, so it is reported, never sent again.
 export async function readStalePushClaims(db: Db, candidateId: CandidateId): Promise<StaleClaim[]> {
   return db.transaction(async (tx) => {
@@ -180,6 +181,8 @@ export async function readStalePushClaims(db: Db, candidateId: CandidateId): Pro
           eq(pushNotification.candidateId, candidateId),
           isNull(pushNotificationResult.id),
           lt(pushNotification.createdAt, cutoff),
+          // Already reported: listed once only, so older reports never crowd out newer ones.
+          sql`not exists (select 1 from ${deadLetter} where ${deadLetter.candidateId} = ${pushNotification.candidateId} and ${deadLetter.idempotencyKey} = 'push:' || ${pushNotification.id}::text || ':unknown')`,
         ),
       )
       .orderBy(asc(pushNotification.createdAt))

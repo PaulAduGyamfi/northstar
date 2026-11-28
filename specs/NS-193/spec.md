@@ -1,6 +1,6 @@
 # NS-193: Notify Paul when an application needs his hands (web push)
 
-Status: in progress (autonomous lane, ADR-0016)
+Status: slice 3 in review (slices 1–2 merged: #442, #447; autonomous lane, ADR-0016)
 Issue: #162 (parent #20). The decision comment on #162 (2026-11-28) also covers #172 and #180.
 Requirements: APR-003, APPLY-006, ACC-007, RES-002, RES-006, RES-007, RES-008, OBS-001
 Rules that apply: ADR-0002, ADR-0003, ADR-0007, ADR-0016, ADR-0018, ADR-0032 (web push, this
@@ -55,8 +55,12 @@ Built in three slices, each its own PR:
 - [ ] lint, typecheck, test, build green (CI `checks`).
 
 ## Failure modes
-- Push service slow or down: 10 s limit, the `push` breaker opens after 5 faults; the notifier's
-  send fails, retries, then becomes a `push.notify` dead letter on `/health`'s Stuck work.
+- Push service slow or down: 10 s limit, the `push` breaker opens after 5 faults. A push is never
+  retried (at most once): one no browser took is a `push.notify` dead letter (`not_delivered`) on
+  `/health`'s Stuck work, and one the breaker held back is `held_back` and stops the pass, so the
+  other open handoffs keep their push for a later pass. A pass that fails all its attempts is a
+  `notify_failed` letter.
+- Turning push on for the first time pushes every handoff already open (at most 20 a pass).
 - Subscription gone (404/410): removed (slice 3), not retried, not a breaker fault.
 - No VAPID settings: no notifier runs; Today says notifications aren't set up.
 - `push` switched off: nothing is sent; the notifier claims only while it is on.

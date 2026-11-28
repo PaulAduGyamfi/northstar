@@ -175,6 +175,8 @@ describe("notifyPass (NS-193 slice 3)", () => {
     const text = JSON.stringify(sent.map((s) => s.payload));
     expect(text).not.toContain("greenhouse.io");
     expect(text).not.toContain("Engineer");
+    // The seeded company's name.
+    expect(text).not.toContain("Example Corp");
     expect(text).not.toContain("https://");
   });
 
