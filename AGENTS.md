@@ -1426,8 +1426,9 @@ Exists now:
   first, at most 50 a pass), becomes a `queued` application through `createApplication`
   (`startedBy: northstar`, key `job:<jobId>:queue`, so a repeat replays the first), at most the
   caller's `dailyCap` a UTC day by the Gate's clock (`countQueuedToday`; never over APPLY-007's 25,
-  `MAX_QUEUE_DAILY_CAP`). It submits nothing. No caller yet: the pipeline workflow and its
-  off-by-default starter are NS-280 slices 2 and 3.
+  `MAX_QUEUE_DAILY_CAP`). It submits nothing. No caller yet: its off-by-default starter is NS-280
+  slice 3. Since slice 2 `preparePackage`'s `filed` result also carries the package's
+  `packageSha256`, which names its submission round.
 - `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
   (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
   decision as an `approval` signal (or `withdrawn`), then runs the `submitApplication` activity
@@ -1507,6 +1508,20 @@ Exists now:
   fails doesn't stop the others: the pass fails after trying them all (`RelayRoundsFailed`), and
   one that fails its 3 attempts is a dead letter (`apply.signal_relay`, `relay_failed`, one per
   workflow run). `main.ts` ensures the one `package-signal-relay` (`ensureSignalRelay`) beside the sweep.
+  Since NS-280 (slice 2) also `jobPipelineWorkflow` (`src/workflows/pipeline.ts`, on `pipeline`,
+  input the two ids only): for one application it runs `tailorResume` (`tailorForJob`, no toggles)
+  and `readJobForm` (the job's first Greenhouse link through `readGreenhouseForm` and `saveJobForm`,
+  behind the stored `source:greenhouse` switch and breaker; held back fails the attempt, retried
+  for about 90 minutes), both only while the application is `queued`, then `preparePackage` (files
+  with the Gate; at `awaiting_approval` it reads the newest round's stored hash through
+  `readPipelineState`, `packages/db`, so a crashed run starts that round instead of filing again)
+  and `startSubmission` for that round (already started counts as done). A refused tailor or an
+  unreadable form doesn't stop the run: the package step's visible `package.needs_human` says
+  what is missing. A step failing all its attempts, or a Gate or move refusal, records one
+  `pipeline.job` dead letter per run and the workflow still fails visibly
+  (`src/activities/pipeline.ts`; ports bound by `pipelinePorts` in `wiring.ts`; `@northstar/worker`
+  depends on `pipeline`, `profile` and `sources` for it). `startJobPipeline` (`client.ts`) starts
+  one run per application (`pipeline:<applicationId>`); nothing calls it yet (slice 3).
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 

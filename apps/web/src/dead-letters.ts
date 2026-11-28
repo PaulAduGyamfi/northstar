@@ -133,6 +133,18 @@ const KINDS: Record<string, KindWords> = {
         'Nothing is sent again. Check "Needs your hands" on Today and the jobs page yourself; check /health if notifications keep failing.',
     },
   },
+  // NS-280 slice 2: a queued application whose pipeline run (tailor, form, package, start) stopped
+  // part-way. Nothing restarts it from here yet; the application stays where it is.
+  "pipeline.job": {
+    what: "Preparing an application",
+    next: {
+      retry:
+        "Nothing runs now: an application's preparation can't be restarted from here yet. It stays where it is on the Pipeline.",
+      skip: "Nothing more is done about this run. The application stays where it is on the Pipeline.",
+      hand_off:
+        "Nothing runs now. Check the application on the Pipeline; if nothing is waiting in your Queue for it, apply on the job's own page yourself.",
+    },
+  },
   // NS-238 item 1: a recorded email `funnel inbox` couldn't read or sort.
   "mail.classify": {
     what: "Sorting a job email",
@@ -175,6 +187,11 @@ const REASONS: Record<string, string> = {
   push_paused: "notifications were paused (the push switch or its breaker) when it was sent",
   outcome_unknown: "a run stopped before it knew whether the notification went out",
   notify_failed: "every attempt failed",
+  tailor_failed: "every attempt to tailor the resume failed",
+  form_failed: "the job's application form couldn't be read (Greenhouse, or its switch or breaker)",
+  prepare_failed: "every attempt to prepare the package failed",
+  start_failed: "every attempt to start the submission failed",
+  stored_package_missing: "its filed package wasn't found",
 };
 
 // Own keys only: a code such as "constructor" must not find Object's built-ins.

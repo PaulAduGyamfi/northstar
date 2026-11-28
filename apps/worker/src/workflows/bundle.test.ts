@@ -15,6 +15,8 @@ describe("the workflow bundle", () => {
     expect(code).toContain("packageSignalRelayWorkflow");
     // NS-193 slice 3: the handoff notifier.
     expect(code).toContain("handoffNotifyWorkflow");
+    // NS-280 slice 2: the job pipeline.
+    expect(code).toContain("jobPipelineWorkflow");
   }, 60_000);
 });
 

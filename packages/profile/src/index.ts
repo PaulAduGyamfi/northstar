@@ -204,6 +204,8 @@ export {
   renderProfile,
   resumeTailorRoute,
 } from "./tailor/route.js";
+// Tailoring a stored job end to end (NS-146), for the worker's job pipeline (NS-280).
+export { type TailorRun, type TailorRunDeps, tailorForJob } from "./tailor/run.js";
 export {
   ATS_MIN_RECOVERED,
   type AtsCheck,

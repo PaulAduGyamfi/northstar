@@ -11,8 +11,8 @@ Every piece of the core loop exists, but nothing connects them: `preparePackage`
 nothing starts `submissionWorkflow`, and scoring, tailoring and the Gate only run from commands.
 
 ## Slices (one PR each)
-1. **Queue a job (this PR).** Plain code turns a ready job into a `queued` application.
-2. **`jobPipelineWorkflow` on `pipeline`.** For a queued application: tailor and store the resume
+1. **Queue a job (merged, #466).** Plain code turns a ready job into a `queued` application.
+2. **`jobPipelineWorkflow` on `pipeline` (this PR).** For a queued application: tailor and store the resume
    (`tailorForJob`), read the form (Greenhouse first), run `preparePackage` (files with the Gate),
    then start `submissionWorkflow` for that round (`startSubmission`). `NeedsHuman` from any step is
    the existing visible `package.needs_human`. Ids only in workflow history.
@@ -41,3 +41,29 @@ nothing starts `submissionWorkflow`, and scoring, tailoring and the Gate only ru
 - [ ] `queueReadyJobs` creates one `queued` application per candidate job with `startedBy:
       northstar`, a second run creates nothing, and it never passes the daily cap.
 - [ ] lint, typecheck, test and build green for `@northstar/db` and `@northstar/pipeline`.
+
+## Slice 2: the job pipeline workflow
+- `jobPipelineWorkflow({ candidateId, applicationId })` (`apps/worker`, `workflows/pipeline.ts`),
+  on `pipeline`, ids only in history (`pipelineInputProblem`). Steps, each an activity
+  (`activities/pipeline.ts`, ports bound in `wiring.ts` by `pipelinePorts`):
+  1. `tailorResume`: `tailorForJob` on the stored profile (no toggles), only while the application
+     is `queued`. A refusal doesn't stop the run.
+  2. `readJobForm`: the job's first Greenhouse link's form (`readGreenhouseForm` through the safe
+     fetcher), stored with `saveJobForm`, only while `queued`, behind the stored `source:greenhouse`
+     switch and breaker (held back is a retryable failure). No link or an unreadable form doesn't
+     stop the run.
+  3. `preparePackage`: `preparePackage` (files with the Gate); at `awaiting_approval` it reads the
+     newest round's stored package hash instead (`readPipelineState`, `packages/db`), so a crashed
+     run starts that round. `needs_human` ends the run: the visible `package.needs_human`.
+  4. `startSubmission`: `startSubmission` for that round; already started counts as done.
+- A step that fails all its attempts, or a Gate or move refusal, records one `pipeline.job` dead
+  letter per run (`application:<id>:pipeline:<runId>`) and the workflow still fails visibly.
+- `preparePackage`'s `filed` result carries `packageSha256`. `startJobPipeline` (`client.ts`)
+  starts one run per application (`pipeline:<applicationId>`). Nothing calls it yet (slice 3).
+
+## Acceptance criteria (slice 2)
+- [x] The workflow bundles; its input is the two ids only.
+- [x] Each activity is safe to repeat, skips work past its status, and a filed round found on a
+      rerun starts its submission without filing again.
+- [x] The form step makes no call while `source:greenhouse` is off or its breaker is open.
+- [x] lint, typecheck, test and build green for every touched package.

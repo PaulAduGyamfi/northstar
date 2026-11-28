@@ -38,6 +38,12 @@ unknown kind is never guessed into one. Since NS-204 slice 2 the pass also pushe
 waiting in the Queue, between handoffs and fresh jobs (`src/activities/notify-approvals.ts`): at
 most 5 alone a pass, then the rest claimed and covered by one `approvals_waiting` push, so each
 request is pushed once; a push never approves.
+Since NS-280 slice 2 the job pipeline (`src/workflows/pipeline.ts`, `src/activities/pipeline.ts`)
+takes one application from queued to a filed package and its submission run: ids only in
+history, tailor and form only while `queued`, the form read behind `source:greenhouse`, and a
+rerun at `awaiting_approval` starts the stored round instead of filing again
+(`readPipelineState`). Paul being needed is `package.needs_human`; any other stop is a
+`pipeline.job` dead letter.
 Other domains' workflows arrive with their tickets.
 
 Rules:

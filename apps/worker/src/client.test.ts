@@ -15,6 +15,7 @@ import {
   SWEEP_WORKFLOW_ID,
   signalApproval,
   signalWithdrawn,
+  startJobPipeline,
   startSubmission,
   type TemporalPort,
   temporalPort,
@@ -61,6 +62,46 @@ function fakeTemporal() {
   };
   return { port, starts, signals, end: (id: string) => running.delete(id) };
 }
+
+describe("startJobPipeline (NS-280 slice 2)", () => {
+  const pipelineInput = { candidateId: CANDIDATE, applicationId: APP };
+
+  it("starts one pipeline run per application with exactly its two ids, and a second start starts nothing", async () => {
+    const t = fakeTemporal();
+    const first = await startJobPipeline(t.port, pipelineInput);
+    const again = await startJobPipeline(t.port, pipelineInput);
+    expect([first, again, t.starts]).toEqual([
+      { ok: true, value: { workflowId: `pipeline:${APP}` } },
+      { ok: false, error: { kind: "AlreadyStarted" } },
+      [
+        {
+          workflowType: "jobPipelineWorkflow",
+          workflowId: `pipeline:${APP}`,
+          args: [pipelineInput],
+          reuse: "reject",
+        },
+        {
+          workflowType: "jobPipelineWorkflow",
+          workflowId: `pipeline:${APP}`,
+          args: [pipelineInput],
+          reuse: "reject",
+        },
+      ],
+    ]);
+  });
+
+  it("refuses an input with any other field, starting nothing", async () => {
+    const t = fakeTemporal();
+    const result = await startJobPipeline(t.port, {
+      ...pipelineInput,
+      email: "someone@example.com",
+    } as typeof pipelineInput);
+    expect([result, t.starts]).toEqual([
+      { ok: false, error: { kind: "InvalidInput", problem: "unexpected input field: email" } },
+      [],
+    ]);
+  });
+});
 
 describe("startSubmission", () => {
   it("starts the package round's workflow with ids and the hash only", async () => {
