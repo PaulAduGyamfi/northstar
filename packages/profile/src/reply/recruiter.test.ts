@@ -1,7 +1,7 @@
 import { type Db, fileReplyDraft, readReplyDraft, schema } from "@northstar/db";
 import { createTestDb } from "@northstar/db/testing";
 import { CandidateId } from "@northstar/domain";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   RECRUITER_REPLY_SENTENCES,
   recruiterReplyBody,
@@ -115,13 +115,17 @@ describe("filing a reply by grade", () => {
   let db: Db;
   let close: () => Promise<void>;
   let candidateId: CandidateId;
-  beforeEach(async () => {
+  // One database per file (NS-287): opening a PGlite copy per test passed Vitest's hook limit
+  // under CI's parallel load. Each test makes its own candidate.
+  beforeAll(async () => {
     ({ db, close } = await createTestDb());
+  });
+  beforeEach(async () => {
     const [c] = await db.insert(schema.candidate).values({ displayName: "Test" }).returning();
     if (!c) throw new Error("no candidate");
     candidateId = CandidateId.parse(c.id);
   });
-  afterEach(() => close());
+  afterAll(() => close());
 
   it("files with the Gate like any reply, and stores the fixed body Paul approves", async () => {
     const pkg = reply({ grade: "C" });
