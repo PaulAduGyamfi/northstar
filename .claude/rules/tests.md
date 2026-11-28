@@ -14,6 +14,10 @@ paths:
 - To prove "safe to repeat", run the operation twice and compare.
 - To prove a gateway refuses, call it without an approval and assert the specific error.
 - No real network, model, Gmail, Calendar, GitHub or ATS. Use recorded fixtures and fakes.
+  The one exception is Temporal's test server, downloaded from `temporal.download` by the
+  worker's `temporal.test.ts` (NS-224); never add another host without Paul. The sandbox
+  doesn't allow that host, so those tests run in Paul's shell or CI; never widen the sandbox for
+  them.
   No sleeps; use fake timers or Temporal's test environment.
 - Fixtures are synthetic: `example.com` emails, invented people and companies, fake keys
   (`test-key`). **The repo is public**, so never paste a real email, resume or job thread.

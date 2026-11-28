@@ -44,6 +44,10 @@ history, tailor and form only while `queued`, the form read behind `source:green
 rerun at `awaiting_approval` starts the stored round instead of filing again
 (`readPipelineState`). Paul being needed is `package.needs_human`; any other stop is a
 `pipeline.job` dead letter.
+Since NS-224 `src/temporal.test.ts` runs the real workflow bundle on Temporal's time-skipping
+test server (worker restarts, a retry after a mid-submit crash, not-found over both clients), in
+the normal `test` script so CI runs it; its test-only workflow lives in `src/test/` (excluded from
+the build).
 Other domains' workflows arrive with their tickets.
 
 Rules:
