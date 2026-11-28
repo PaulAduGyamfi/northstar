@@ -317,6 +317,33 @@ describe("readFreshAlertsToNotify (NS-199 item 1)", () => {
     ]);
   });
 
+  it("leaves out an alert whose id or numbers don't fit a push, never guessing them", async () => {
+    for (const [jobId, score] of [
+      ["not-a-uuid", 88],
+      [randomUUID(), 88.5],
+      [randomUUID(), 101],
+    ] as const) {
+      await db.insert(domainEvent).values({
+        id: randomUUID(),
+        candidateId,
+        aggregate: `job:${jobId}`,
+        type: "job.fresh_alert",
+        actor: "system",
+        reason: "Posted 5 min ago · Fit 88 · ready to approve",
+        inputsSummary: "",
+        payload: { jobId, score, ageMinutes: 5, tier: 2, wasHeld: false },
+        links: [],
+        traceId: null,
+        idempotencyKey: `job.fresh_alert:${jobId}`,
+        occurredAt: new Date(NOW.getTime() - 5 * 60_000),
+      });
+    }
+    const good = await freshAlert(5);
+    expect(await readFreshAlertsToNotify(db, candidateId)).toEqual([
+      { jobId: good, age: 12, fit: 88 },
+    ]);
+  });
+
   it("never lists another candidate's alert", async () => {
     await freshAlert(5);
     const other = await seedApplication(db, "queued");

@@ -98,33 +98,52 @@ export async function readFreshAlertsToNotify(
   db: Db,
   candidateId: CandidateId,
 ): Promise<FreshAlertToNotify[]> {
-  return db.transaction(async (tx) => {
-    const now = await gateNow(tx);
-    const since = new Date(now.getTime() - FRESH_PUSH_WINDOW_MINUTES * 60_000);
-    const rows = await tx
-      .select({ payload: domainEvent.payload })
-      .from(domainEvent)
-      .where(
-        and(
-          eq(domainEvent.candidateId, candidateId),
-          eq(domainEvent.type, FRESH_ALERT),
-          gt(domainEvent.occurredAt, since),
-          // Already claimed (sent or not): never again.
-          sql`not exists (select 1 from ${pushNotification} where ${pushNotification.candidateId} = ${domainEvent.candidateId} and ${pushNotification.itemKey} = 'job_fresh_alert:' || (${domainEvent.payload} ->> 'jobId') || ':notify')`,
-        ),
-      )
-      .orderBy(asc(domainEvent.occurredAt), asc(domainEvent.id))
-      .limit(MAX_NOTIFY_PER_PASS);
-    const alerts: FreshAlertToNotify[] = [];
-    for (const { payload } of rows) {
-      const { jobId, ageMinutes, score } = payload;
-      if (typeof jobId !== "string" || !UUID.test(jobId)) continue;
-      if (!wholeIn(ageMinutes, 0, Number.MAX_SAFE_INTEGER) || !wholeIn(score, 0, 100)) continue;
-      // A released alert can be older than a push names: it says the oldest age instead.
-      alerts.push({ jobId, age: Math.min(ageMinutes, MAX_FRESH_AGE_MINUTES), fit: score });
-    }
-    return alerts;
-  });
+  return inSpan("db.push.read_fresh_alerts", {}, (span) =>
+    db.transaction(async (tx) => {
+      // The window is read on the Gate's clock (the database's now()); the alert's occurred_at was
+      // stamped by the alert pass's own clock. Both run on this one machine, so they differ by
+      // moments, which only moves the window's edge, never lets an alert be pushed twice.
+      const now = await gateNow(tx);
+      const since = new Date(now.getTime() - FRESH_PUSH_WINDOW_MINUTES * 60_000);
+      const rows = await tx
+        .select({ payload: domainEvent.payload })
+        .from(domainEvent)
+        .where(
+          and(
+            eq(domainEvent.candidateId, candidateId),
+            eq(domainEvent.type, FRESH_ALERT),
+            gt(domainEvent.occurredAt, since),
+            // Only a well-formed job id: one that isn't can't be claimed, so it never takes a
+            // place in the batch.
+            sql`(${domainEvent.payload} ->> 'jobId') ~ ${UUID.source}`,
+            // Already claimed (sent or not): never again.
+            sql`not exists (select 1 from ${pushNotification} where ${pushNotification.candidateId} = ${domainEvent.candidateId} and ${pushNotification.itemKey} = 'job_fresh_alert:' || (${domainEvent.payload} ->> 'jobId') || ':notify')`,
+          ),
+        )
+        .orderBy(asc(domainEvent.occurredAt), asc(domainEvent.id))
+        .limit(MAX_NOTIFY_PER_PASS);
+      const alerts: FreshAlertToNotify[] = [];
+      let malformed = 0;
+      for (const { payload } of rows) {
+        const { jobId, ageMinutes, score } = payload;
+        if (
+          typeof jobId !== "string" ||
+          !UUID.test(jobId) ||
+          !wholeIn(ageMinutes, 0, Number.MAX_SAFE_INTEGER) ||
+          !wholeIn(score, 0, 100)
+        ) {
+          // Never guessed into a push, and never silent: counted on the span.
+          malformed++;
+          continue;
+        }
+        // A released alert can be older than a push names: it says the oldest age instead.
+        alerts.push({ jobId, age: Math.min(ageMinutes, MAX_FRESH_AGE_MINUTES), fit: score });
+      }
+      span.setAttribute("northstar.push.fresh_alerts", alerts.length);
+      span.setAttribute("northstar.push.malformed", malformed);
+      return alerts;
+    }),
+  );
 }
 
 export type ClaimResult =
