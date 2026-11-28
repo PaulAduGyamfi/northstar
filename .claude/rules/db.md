@@ -394,7 +394,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   handoff's one claim under its row lock (the lock `resolveHandoff` takes) and refuses a resolved
   one, `recordPushResult` records the outcome once with a fixed-word `reason`, and
   `readStalePushClaims` reads claims past their lease by the Gate's clock. Never claim twice or
-  re-send a stale claim: at most once. The endpoint must pass `endpointAllowed` (`packages/domain`) before it
+  re-send a stale claim: at most once. Since NS-199 item 1 (migration 0109) a claim may also be a
+  fresh-job alert's (`job_fresh_alert:<job id>:notify`, `claimFreshJobNotification`, only when the
+  candidate's `job.fresh_alert` for that job exists), and `readFreshAlertsToNotify` reads only
+  `job.fresh_alert` events from the last hour by the Gate's clock, never a held one. The endpoint must pass `endpointAllowed` (`packages/domain`) before it
   is stored. Never put an endpoint, key or a push's words in an event or span: events carry row
   ids only.
 - Human handoffs (NS-121) are `apply_handoff` (one per submission a challenge stopped, with its
