@@ -110,10 +110,15 @@ describe("assemblePackage", () => {
   });
 
   it("counts a full match in other words as high confidence, not exact", () => {
-    // Matches why-this-company at 1.0, but isn't one of its wordings.
-    expect(bankSourceFor("Why are you interested in working at Example Co?")).toBe(
+    // Matches why-this-company at 1.0 and isn't one of its wordings, but every word is known.
+    expect(bankSourceFor("Please tell us why you want to work at Example Co")).toBe(
       "bank_high_confidence",
     );
+  });
+
+  it("counts a full match with a word no wording lists as new (NS-277)", () => {
+    // Matches why-this-company at 1.0, but "interested" and "working" aren't its words.
+    expect(bankSourceFor("Why are you interested in working at Example Co?")).toBe("new");
   });
 
   it("counts a weak match as new, so Paul reviews it", () => {

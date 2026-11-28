@@ -49,7 +49,10 @@ export {
 export {
   isDisguisedLabel,
   isExactWording,
+  isKnownWording,
+  KNOWN_FILLER,
   labelReuse,
+  labelWords,
   REUSE_HIGH_CONFIDENCE,
   type ReuseSource,
   reuseStrength,

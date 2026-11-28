@@ -5,6 +5,7 @@ import {
   type InvalidPackage,
   isDisguisedLabel,
   isExactWording,
+  isKnownWording,
   ok,
   type PackageFacts,
   type PackageFile,
@@ -80,6 +81,8 @@ export type AnswerSource =
       confidence: number;
       // The label is the canonical question's own wording (see bankSource).
       exactWording: boolean;
+      // Every word of the label is known (isKnownWording, NS-277): needed for high confidence.
+      knownWording: boolean;
       // Who chose the canonical question (NS-233): code's lexical match, or the model's pick in
       // confirmQuestion. A model's pick is never reuse for the Gate's policy.
       confirmedBy: "rules" | "model";
@@ -168,6 +171,7 @@ function answer(q: FormQuestion, input: AssemblyInput): Answer {
   }
   const company = input.company ?? "";
   const exactWording = isExactWording(q.label, match.canonical, company);
+  const knownWording = isKnownWording(q.label, match.canonical, company);
   const entry = input.bank.get(match.canonical.id);
   if (entry === undefined) return { ok: false, reason: "no_bank_answer" };
   const adapted = adaptAnswer(entry, { company: input.company, maxLength: q.maxLength });
@@ -183,6 +187,7 @@ function answer(q: FormQuestion, input: AssemblyInput): Answer {
       variant: adapted.variant,
       confidence: match.confidence,
       exactWording,
+      knownWording,
       confirmedBy,
     },
     freeText: true,
@@ -203,7 +208,11 @@ export function bankSource(source: AnswerSource): PackageFacts["answers"][number
   // Paul's review, whatever its confidence or wording.
   if (source.confirmedBy === "model") return "new";
   if (source.exactWording) return "bank_exact";
-  return source.confidence >= REUSE_HIGH_CONFIDENCE ? "bank_high_confidence" : "new";
+  // A label with any word the canonical wording, the company or the filler list doesn't hold is
+  // never a confident reuse (NS-277): the same rule as the Gate's reuseStrength.
+  return source.confidence >= REUSE_HIGH_CONFIDENCE && source.knownWording
+    ? "bank_high_confidence"
+    : "new";
 }
 
 const words = (text: string) => text.split(/\s+/).filter((w) => w.length > 0).length;

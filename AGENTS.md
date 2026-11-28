@@ -1295,7 +1295,12 @@ Exists now:
   and Inherited scripts (Armenian, Cherokee, Hangul fillers…), on the label and its NFKC form, and the producer checks it before the factual path,
   so a disguised label is never answered from settings either. Since NS-274 `isNegatedQuestion` also
   reads the label's `negationSkeleton` (backtick and acute as apostrophes, marks stripped, 0/1/3 and
-  ø, ꝋ, ŧ… as letters), so "wouldn`t", "n0t" and "nót" count as negated everywhere it is used. Since NS-249 (slice 1) `requestApproval` refuses
+  ø, ꝋ, ŧ… as letters), so "wouldn`t", "n0t" and "nót" count as negated everywhere it is used. Since NS-277 (#429, option
+  2) `bank_high_confidence` also needs every word of the label (NFKC, lowercased; `labelWords`) to
+  come from the canonical question's wording or examples, an `isSafeCompany` company name or
+  `KNOWN_FILLER` (`isKnownWording`, `packages/domain`); the Gate's `reuseStrength` and the
+  producer's `bankSource` both apply it, so a split "wouldn t", a lookalike letter or an ask in
+  other words counts as `new` (a second ask made only of known words still passes). Since NS-249 (slice 1) `requestApproval` refuses
   facts from every caller (`InvalidRequest` on `facts`; its input says `facts: null`): a package
   filed there waits for Paul and, with no stored package, can't be submitted. Only
   `requestPackageApproval` passes facts, through `requestApprovalWithFacts`, which

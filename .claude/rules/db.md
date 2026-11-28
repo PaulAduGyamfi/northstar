@@ -175,7 +175,8 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   question a verified answer belongs to and its exact/high split from the stored form label
   (`labelReuse` and `weakerReuse` in `packages/domain`): a claim counts no more than that
   reading; exact wording needs an `isSafeCompany` name, and a label with invisible, modifier or
-  Greek/Cyrillic characters is `new`. Its contact email may be Paul's stored address or that address tagged with the
+  Greek/Cyrillic characters is `new`. Since NS-277 high confidence also needs every word of the
+  label to be known (`isKnownWording`: the canonical wordings, a safe company name, `KNOWN_FILLER`). Its contact email may be Paul's stored address or that address tagged with the
   application's own `mail_tag` (`readApplicationTag`, NS-248), never another application's tag.
 - Stored packages (NS-192) are `application_package`, one per `application_package` Gate
   request, append-only (a trigger), written only through `storePackage`, by `requestPackageApproval`
