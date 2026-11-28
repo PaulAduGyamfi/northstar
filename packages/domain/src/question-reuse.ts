@@ -67,8 +67,9 @@ export const isDisguisedLabel = (label: string): boolean =>
   hides(label) || hides(label.normalize("NFKC"));
 
 // Words a label may add to the canonical wording without losing high confidence (NS-277, #429):
-// politeness and framing that carry no ask of their own. Deliberately small, with no negation
-// ("not", "never", "no"), no modal ("would", "could") and no word that can carry a second ask.
+// politeness and framing. Deliberately small, with no negation ("not", "never", "no") and no modal
+// ("would", "could"). It doesn't stop a second ask built only from known words ("…and what
+// interests you about Example Corp"): that stays a match of the same question, and limits it.
 export const KNOWN_FILLER: ReadonlySet<string> = new Set(
   (
     "a an the and of in on at to for with about is are be do does you your we our us i me my " +

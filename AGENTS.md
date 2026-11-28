@@ -1275,7 +1275,8 @@ Exists now:
   2) `bank_high_confidence` also needs every word of the label (NFKC, lowercased; `labelWords`) to
   come from the canonical question's wording or examples, an `isSafeCompany` company name or
   `KNOWN_FILLER` (`isKnownWording`, `packages/domain`); the Gate's `reuseStrength` and the
-  producer's `bankSource` both apply it, so a split "wouldn t" or an extra ask counts as `new`. Since NS-249 (slice 1) `requestApproval` refuses
+  producer's `bankSource` both apply it, so a split "wouldn t", a lookalike letter or an ask in
+  other words counts as `new` (a second ask made only of known words still passes). Since NS-249 (slice 1) `requestApproval` refuses
   facts from every caller (`InvalidRequest` on `facts`; its input says `facts: null`): a package
   filed there waits for Paul and, with no stored package, can't be submitted. Only
   `requestPackageApproval` passes facts, through `requestApprovalWithFacts`, which

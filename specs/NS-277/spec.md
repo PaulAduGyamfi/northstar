@@ -31,4 +31,7 @@ reused on it could skip Paul's review.
       pipeline tests).
 - [ ] No expected value loosens. Labels that tighten from `bank_high_confidence` to `new` are
       listed in the PR.
+- Known limits (security review): a second ask built only from known words, and words from a
+  company name `isSafeCompany` accepts ("Acme Your Salary Expectations", already exact on main),
+  still pass. Both are follow-ups, not loosened here.
 - [ ] lint, typecheck, test, build green; no migration.
