@@ -44,6 +44,13 @@ store it. With `--busy-from-calendar` (slice 7) the same run may also ask the re
 `authorizeCalendar` for busy time: a separate token in its own call, events reduced to start and
 end before they leave it. Never pass an event's title, attendees or id onward, and never mix the
 two tokens.
+The web push sender (NS-193, ADR-0032) is `src/push/`: pushes to Paul's own browsers only, never
+anyone else, and a push never acts on anything (approving from a push, #180, still needs the
+session or a passkey assertion). Every push passes `endpointAllowed` before anything else (never
+widen its host list without amending ADR-0032), then the `push` kill switch and breaker. Its
+payload is only a `PushPayload` (`packages/domain`): fixed codes and ids, never a URL, company,
+job title or email text. Its crypto (`encrypt.ts`, `vapid.ts`) must keep RFC 8291 Appendix A's
+vector passing, and the VAPID private key stays a `KeyObject`, never logged or put in an error.
 Other gateways (GitHub) don't exist yet: if you are about to create one outside its ticket, stop
 and ask Paul.
 The Gmail label writer (NS-229, `packages/inbox/src/labels/`, ADR-0027 **Rejected**: no caller,

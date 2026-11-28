@@ -21,6 +21,7 @@ export * from "./mail-tag.js";
 export * from "./origin.js";
 export * from "./pipeline-metrics.js";
 export * from "./prep-plan.js";
+export * from "./push-payload.js";
 // The question canon and its matcher (NS-249, moved from packages/profile): plain code the Gate
 // uses too. Named exports only, so the matcher's internals stay internal.
 export {
