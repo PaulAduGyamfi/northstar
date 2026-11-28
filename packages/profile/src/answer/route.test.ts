@@ -17,7 +17,7 @@ describe("answerDraftRoute", () => {
     expect(volatile).toContain("[story-1] (story) We shipped it.");
   });
 
-  it("loads the locked prompt version 2 at medium effort", () => {
+  it("loads the locked prompt version 3 at medium effort", () => {
     const route = answerDraftRoute();
     expect([route.name, route.prompt.version, route.effort]).toEqual(["answer-draft", 3, "medium"]);
   });

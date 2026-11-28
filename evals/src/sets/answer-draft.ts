@@ -4,8 +4,8 @@ import { defineEval } from "../types.js";
 
 // Eval set for the answer-draft route (NS-135, ANS-004). Cases live in
 // evals/answer-draft/cases.jsonl: invented questions, stories and atoms only (the repo is public;
-// Paul's real stories stay in his local database). The fixtures are hand-written until Paul
-// records real ones (ADR-0016 item 8), so the baseline is provisional.
+// Paul's real stories stay in his local database). The fixtures are Paul's real recordings of
+// prompt v3 (NS-265).
 export const AnswerInput = z
   .object({
     question: z.string().min(1),
@@ -38,7 +38,9 @@ export const AnswerExpected = z
 
 // A case's story text is its title sentence, then its parts (storyEvidence's order): everything
 // after the first sentence. A story with no second sentence leaves nothing to quote, which fails
-// closed.
+// closed. A title with a sentence mark inside it ("the U.S. launch") would leave its tail quotable,
+// more lenient than the app: keep case titles to one plain sentence, or give stories a `title`
+// field if one ever needs more.
 export function withoutTitle(text: string): string {
   const end = text.search(/[.!?]\s/);
   return end < 0 ? "" : text.slice(end + 1).trim();
