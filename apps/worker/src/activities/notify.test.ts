@@ -322,7 +322,7 @@ describe("notifyPass for fresh-job alerts (NS-199 item 1 slice 2)", () => {
     await subscribe();
     const { ports: p, sent } = ports();
     await notifyPass(p, candidateId);
-    expect(sent.map((s) => s.payload.id)).toEqual([sentJob]);
+    expect(sent.map((s) => ("id" in s.payload ? s.payload.id : null))).toEqual([sentJob]);
   });
 
   it("pushes an alert from the last hour but never an older one", async () => {
@@ -331,7 +331,7 @@ describe("notifyPass for fresh-job alerts (NS-199 item 1 slice 2)", () => {
     await subscribe();
     const { ports: p, sent } = ports();
     await notifyPass(p, candidateId);
-    expect(sent.map((s) => s.payload.id)).toEqual([recent]);
+    expect(sent.map((s) => ("id" in s.payload ? s.payload.id : null))).toEqual([recent]);
   });
 
   it("claims nothing while push is switched off, then pushes once it is back on", async () => {

@@ -2,7 +2,8 @@
 // opens Today, or for a waiting request the Queue with it marked (NS-204), when Paul taps it.
 // Nothing else: no caching, no fetch handling, no action on Paul's behalf. A push carries codes
 // and numbers only ({ v, kind, id, ats, reason } for a handoff, { v, kind, id, age, fit } for a
-// fresh job, NS-199, { v, kind, id, request } for a waiting request, NS-204); the words below are
+// fresh job, NS-199, { v, kind, id, request } for a waiting request, NS-204, { v, kind, more } for
+// more waiting requests than a pass pushes one by one, NS-204 slice 2); the words below are
 // a copy of pushWords in packages/domain (push-payload.ts), and a test there checks they agree.
 
 const ATS_FORM = {
@@ -43,11 +44,28 @@ function isApproval(data) {
   );
 }
 
+// The overflow push's bound (MAX_WAITING_MORE in push-payload.ts).
+const MAX_WAITING_MORE = 200;
+
+// An overflow push (NS-204 slice 2): a whole count in range and nothing else, else false.
+function isWaiting(data) {
+  return (
+    data &&
+    data.v === 1 &&
+    data.kind === "approvals_waiting" &&
+    Object.keys(data).length === 3 &&
+    Number.isInteger(data.more) &&
+    data.more >= 1 &&
+    data.more <= MAX_WAITING_MORE
+  );
+}
+
 // Where a tap opens: the Queue with that request marked, built from the checked id only, never a
-// URL from the push; every other push opens Today (pushPath in push-payload.ts). A push never
-// approves: Paul approves in the Queue himself, signed in.
+// URL from the push; the overflow push opens the Queue; every other push opens Today (pushPath in
+// push-payload.ts). A push never approves: Paul approves in the Queue himself, signed in.
 function path(data) {
-  return isApproval(data) ? `/approvals?request=${data.id}` : "/";
+  if (isApproval(data)) return `/approvals?request=${data.id}`;
+  return isWaiting(data) ? "/approvals" : "/";
 }
 
 // A fresh-job push's bounds (MAX_FRESH_AGE_MINUTES and the 0-100 fit score in push-payload.ts).
@@ -91,6 +109,14 @@ function words(data) {
       tag: `approval:${data.id}`,
     };
   }
+  if (isWaiting(data)) {
+    const n = data.more;
+    return {
+      title: "Waiting for your approval",
+      body: `${n} more ${n === 1 ? "request is" : "requests are"} waiting in the Queue. Open it to review them.`,
+      tag: "approvals_waiting",
+    };
+  }
   if (
     data &&
     data.v === 1 &&
@@ -127,10 +153,10 @@ self.addEventListener("push", (event) => {
   );
 });
 
-// Tapping opens this app's own page for the push on its own origin (Today, or the Queue with the
-// request marked), never a URL from the push. Only the two paths `path` builds are taken.
+// Tapping opens this app's own page for the push on its own origin (Today, the Queue, or the
+// Queue with the request marked), never a URL from the push. Only the paths `path` builds are taken.
 const OPENABLE =
-  /^\/(?:approvals\?request=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$/;
+  /^\/(?:approvals(?:\?request=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?)?$/;
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const wanted = event.notification.data?.path;

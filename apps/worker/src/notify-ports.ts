@@ -1,13 +1,17 @@
 import {
   acquireCall,
+  claimApprovalNotification,
+  claimApprovalNotifications,
   claimFreshJobNotification,
   claimHandoffNotification,
   type Db,
   isSubsystemOn,
+  readApprovalsToNotify,
   readFreshAlertsToNotify,
   readHandoffsToNotify,
   readLivePushSubscriptions,
   readStalePushClaims,
+  recordApprovalPushResult,
   recordCallOutcome,
   recordDeadLetter,
   recordPushResult,
@@ -19,7 +23,7 @@ import { ApplicationFailure } from "@temporalio/common";
 import type { NotifyPorts } from "./activities/notify.js";
 
 // The notifier's ports bound to the database and the push sender (NS-193 slice 3; fresh-job
-// alerts since NS-199 item 1 slice 2). The sender is built per push with the candidate's own
+// alerts since NS-199 item 1 slice 2; requests waiting in the Queue since NS-204 slice 2). The sender is built per push with the candidate's own
 // stored switch and breaker (ADR-0007), so a flip on /health takes effect on the next push. No VAPID settings: no sender, and the pass does
 // nothing.
 
@@ -53,6 +57,14 @@ export function dbNotifyPorts(db: Db, vapid: VapidConfig | null): NotifyPorts {
     claim: (candidateId, handoffId) => claimHandoffNotification(db, candidateId, handoffId),
     freshToNotify: (candidateId) => readFreshAlertsToNotify(db, candidateId),
     claimFresh: (candidateId, jobId) => claimFreshJobNotification(db, candidateId, jobId),
+    approvalsToNotify: (candidateId) => readApprovalsToNotify(db, candidateId),
+    claimApproval: (candidateId, requestId) =>
+      claimApprovalNotification(db, candidateId, requestId),
+    claimApprovals: (candidateId, requestIds) =>
+      claimApprovalNotifications(db, candidateId, requestIds),
+    recordApproval: async (candidateId, input) => {
+      await recordApprovalPushResult(db, { candidateId, ...input });
+    },
     removeGone: async (candidateId, subscriptionId) => {
       await removePushSubscription(db, candidateId, { subscriptionId }, "gone");
     },

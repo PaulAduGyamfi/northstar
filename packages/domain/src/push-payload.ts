@@ -49,6 +49,21 @@ export const ApprovalPush = z
   .strict();
 export type ApprovalPush = z.infer<typeof ApprovalPush>;
 
+// The most requests one overflow push may count (NS-204 slice 2): the notifier reads at most this
+// many waiting requests a pass.
+export const MAX_WAITING_MORE = 200;
+
+// More waiting requests than a pass pushes one by one (NS-204 slice 2): how many, nothing else.
+// A tap opens the Queue, where each one is listed; it names no request and approves nothing.
+export const ApprovalsWaitingPush = z
+  .object({
+    v: z.literal(1),
+    kind: z.literal("approvals_waiting"),
+    more: z.number().int().min(1).max(MAX_WAITING_MORE),
+  })
+  .strict();
+export type ApprovalsWaitingPush = z.infer<typeof ApprovalsWaitingPush>;
+
 // The oldest age a fresh-job push names: an alert is for a job under an hour old, but one held for
 // quiet hours goes out later (packages/sources alerts.ts), so a day is the bound.
 export const MAX_FRESH_AGE_MINUTES = 24 * 60;
@@ -66,7 +81,12 @@ export const FreshJobPush = z
   .strict();
 export type FreshJobPush = z.infer<typeof FreshJobPush>;
 
-export const PushPayload = z.discriminatedUnion("kind", [HandoffPush, ApprovalPush, FreshJobPush]);
+export const PushPayload = z.discriminatedUnion("kind", [
+  HandoffPush,
+  ApprovalPush,
+  ApprovalsWaitingPush,
+  FreshJobPush,
+]);
 export type PushPayload = z.infer<typeof PushPayload>;
 
 // The payload as the sender encrypts it, or null when it isn't one of ours or is too long.
@@ -114,6 +134,15 @@ export function pushWords(payload: PushPayload): PushWords {
       tag: `approval:${payload.id}`,
     };
   }
+  if (payload.kind === "approvals_waiting") {
+    const n = payload.more;
+    return {
+      title: "Waiting for your approval",
+      body: `${n} more ${n === 1 ? "request is" : "requests are"} waiting in the Queue. Open it to review them.`,
+      // One tag for every overflow push: a newer one replaces the older instead of stacking.
+      tag: "approvals_waiting",
+    };
+  }
   if (payload.kind === "fresh_job") {
     return {
       title: "A fresh job fits you",
@@ -141,7 +170,9 @@ const REQUEST_WORDS: Record<PushRequestKind, string> = {
 };
 
 // Where a tap opens (NS-204): the Queue with that request marked, built from the parsed id only,
-// never from text in a push. Handoffs open Today, where "Needs your hands" lives.
+// never from text in a push; the overflow push opens the Queue itself. Handoffs and fresh jobs
+// open Today, where "Needs your hands" and the feed live.
 export function pushPath(payload: PushPayload): string {
-  return payload.kind === "approval" ? `/approvals?request=${payload.id}` : "/";
+  if (payload.kind === "approval") return `/approvals?request=${payload.id}`;
+  return payload.kind === "approvals_waiting" ? "/approvals" : "/";
 }

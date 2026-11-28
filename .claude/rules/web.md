@@ -132,3 +132,5 @@ are CSS variables in `apps/web/app/globals.css`.
   worker's `path`, `pushPath` in `packages/domain`): the Queue selects and marks that request
   (`focusRequestId`, `focusLine`) and never decides it. A push never approves: Paul approves in the
   Queue, signed in, through `POST /approvals/decide`, and the notification has no approve button.
+  Since NS-204 slice 2 the overflow push (`approvals_waiting`, a count only) opens `/approvals`;
+  `notificationclick` takes only `/`, `/approvals` and `/approvals?request=<uuid>`.

@@ -33,7 +33,11 @@ set (its activities stay registered, so a notifier started earlier does nothing 
 Since NS-199 item 1 slice 2 the same pass also pushes fresh-job alerts after the handoffs, read
 only through `readFreshAlertsToNotify` (never a held alert, never one over an hour old) and
 claimed through `claimFreshJobNotification`; a stale claim's dead-letter subject comes from its
-key (`apply_handoff:<id>` or `job:<id>`), and a key of an unknown kind is never guessed into one.
+key (`apply_handoff:<id>`, `job:<id>` or, since NS-204 slice 2, `approval:<id>`), and a key of an
+unknown kind is never guessed into one. Since NS-204 slice 2 the pass also pushes requests newly
+waiting in the Queue, between handoffs and fresh jobs (`src/activities/notify-approvals.ts`): at
+most 5 alone a pass, then the rest claimed and covered by one `approvals_waiting` push, so each
+request is pushed once; a push never approves.
 Other domains' workflows arrive with their tickets.
 
 Rules:
