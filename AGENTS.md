@@ -1011,9 +1011,9 @@ Exists now:
   answered headless Chromium with a bot check, which nothing went past), and a test pins that the
   driver finds no form there, so it hands off; its names stay hand-written. Ashby's application
   page is recorded too (rendered once; its two read-only GraphQL queries were the one exception to
-  GET only): it has no form element, so the driver hands off there as well, and its standard names
-  are confirmed except phone, which is the board's own question, so neither the adapter nor the
-  extension fills `_systemfield_phone` any more. All confirmation markers stay hand-written
+  GET only): it has no form element, so the driver hands off there as well; name and email match by
+  name and the resume input only by id (`_systemfield_resume`); phone is the board's own question,
+  not a system field, so neither the adapter nor the extension fills `_systemfield_phone` any more. All confirmation markers stay hand-written
   (recording one needs a submission). The package schema and its hash
   are in `packages/domain` (`apply-package.ts`). Its tests run on fakes and, through `dbPorts`,
   on the real write paths: `@northstar/db/testing` exports `createTestDb` and friends for that.

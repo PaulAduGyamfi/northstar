@@ -18,7 +18,7 @@ import { doc, el, type FakeElement } from "../browser/test/dom.js";
 //   names stay hand-written.
 // - Ashby: rendered after the orchestrator allowed cdn.ashbyprd.com and app.ashbyhq.com, and, as
 //   the one exception to GET only, the page's own two read-only GraphQL queries for public posting
-//   and board data (`/api/non-user-graphql`, ops `ApiJobPosting` and
+//   and board data (host `jobs.ashbyhq.com`, path `/api/non-user-graphql`, ops `ApiJobPosting` and
 //   `ApiOrganizationFromHostedJobsPageName`, documents starting with `query`); every other non-GET
 //   was aborted. Nothing was typed, uploaded or pressed.
 
