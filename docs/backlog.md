@@ -114,7 +114,7 @@ P1 items on the roadmap that had no issue.
 | NS-163 | Fresh-job alerts (blocked by NS-156) | SRC-015 | sourcing, p1 |
 
 Cut earlier from NS-114 and not listed above: NS-128 (#51, extension capture, SRC-002, blocked by
-NS-156) and NS-129 (#52, embedding-based dedupe, SRC-006, needs a provider choice).
+NS-156) and NS-129 (#52, embedding-based dedupe, SRC-006; OpenAI when Paul says go, Q-19).
 
 ## P2 — Inbox, pipeline, interviews, growth (cut 2026-11-25)
 From `docs/roadmap.md` P2, cut now that P1 is past half done.

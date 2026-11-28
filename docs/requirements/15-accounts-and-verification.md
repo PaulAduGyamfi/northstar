@@ -26,7 +26,7 @@ occurrence, as well as handling sites that send confirmation codes to email to v
 Passwords live in **both** places (product owner, 2026-11-24):
 1. **Northstar's credential vault:** encrypted, used only by the Apply Gateway for automation.
 2. **Your password manager:** every new account is mirrored there so you can always sign in
-   yourself (manager TBD, Q-16).
+   yourself (1Password, Q-16, decided 2026-11-28).
 
 This supersedes the "no server-side passwords" parts of APPLY-010 and NFR-SEC-003, with the
 stronger controls below.
@@ -64,7 +64,7 @@ stronger controls below.
 | CRD-001 | M | P1 | Envelope encryption: a data key per secret, wrapped by a master key held outside the database (local: a key file on your machine, never in the repo; hosted: cloud KMS). Database dumps alone reveal nothing. |
 | CRD-002 | M | P1 | **Only the Apply Gateway** can decrypt, at the moment of use. Agents, the API, logs, traces, prompts and the UI never see plaintext. The UI can reveal a password only after a fresh passkey check. |
 | CRD-003 | M | P1 | Every decrypt is audit-logged (who, tenant, purpose, approval or policy ID). |
-| CRD-004 | M | P1 | **Mirror to your password manager** on create and rotate (Bitwarden CLI or 1Password service account, Q-16). A mirror failure doesn't block the application but raises a visible fix-it item. |
+| CRD-004 | M | P1 | **Mirror to your password manager** on create and rotate (a 1Password service account, Q-16; built once account creation exists). A mirror failure doesn't block the application but raises a visible fix-it item. |
 | CRD-005 | S | P1 | **Kill switch:** "lock vault" stops all automated sign-ins immediately (RES-008). |
 
 ## Acceptance criteria (selected)
