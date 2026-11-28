@@ -79,7 +79,7 @@ function fakes(options: {
       return ok({ status: "recorded", deadLetterId: RUN });
     },
   };
-  return { activities: createPipelineActivities(ports), calls };
+  return { activities: createPipelineActivities(ports), calls, ports };
 }
 
 // The error type a rejected activity call carries, or what it resolved to.
@@ -149,7 +149,7 @@ describe("readJobForm (NS-280 slice 2)", () => {
       },
     });
     expect([await failureOf(activities.readJobForm(args)), calls.reports]).toEqual([
-      "TypeError",
+      ["StepError", false],
       [["source:greenhouse", { ok: false, error: "TypeError" }, null]],
     ]);
   });
@@ -211,6 +211,38 @@ describe("preparePackage (NS-280 slice 2)", () => {
       { kind: "needs_human" },
       { kind: "stopped", reasonCode: "file_refused_invalid_request" },
       { kind: "skipped", reason: "not_found" },
+    ]);
+  });
+});
+
+describe("the activities' failures (NS-280 slice 2)", () => {
+  it("keep a raw error's message and cause out of Temporal's history: the class name only", async () => {
+    class DrizzleQueryError extends Error {}
+    const { activities } = fakes({
+      read: async () => {
+        throw new TypeError("fetch failed for https://boards-api.greenhouse.io/v1/boards/acme", {
+          cause: new Error("connect ECONNREFUSED 10.0.0.1"),
+        });
+      },
+    });
+    const failing = createPipelineActivities({
+      ...fakes({}).ports,
+      prepare: async () => {
+        throw new DrizzleQueryError("Failed query: insert ...\nparams: someone@example.com");
+      },
+    });
+    const shapes: unknown[] = [];
+    for (const call of [activities.readJobForm(args), failing.preparePackage(args)]) {
+      try {
+        await call;
+      } catch (error) {
+        const f = error as ApplicationFailure;
+        shapes.push([f.type, f.message, f.nonRetryable, f.cause ?? null]);
+      }
+    }
+    expect(shapes).toEqual([
+      ["StepError", "TypeError", false, null],
+      ["StepError", "DrizzleQueryError", false, null],
     ]);
   });
 });

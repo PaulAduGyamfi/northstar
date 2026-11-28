@@ -84,7 +84,7 @@ export function createPipelineActivities(ports: PipelinePorts) {
     return state?.status === "queued" ? { candidateId, jobId: state.jobId } : null;
   };
 
-  return {
+  const steps = {
     async tailorResume(args: PipelineInput): Promise<TailorStep> {
       const queued = await queuedJob(args);
       if (queued === null) return { kind: "skipped" };
@@ -180,6 +180,31 @@ export function createPipelineActivities(ports: PipelinePorts) {
       if (!result.ok) throw invalid(`invalid dead letter: ${result.error.field}`);
       return { status: result.value.status };
     },
+  };
+  return {
+    tailorResume: scrubbed(steps.tailorResume),
+    readJobForm: scrubbed(steps.readJobForm),
+    preparePackage: scrubbed(steps.preparePackage),
+    startSubmission: scrubbed(steps.startSubmission),
+    recordPipelineEnding: scrubbed(steps.recordPipelineEnding),
+  };
+}
+
+// Temporal keeps an activity's failure (message, stack and cause) in its history, so a raw error
+// must never leave: a database error's message quotes its parameters (Paul's resume lines,
+// contact details and answers), and a fetch error names hosts and addresses. Our own
+// ApplicationFailures (fixed words only) pass; anything else becomes a retryable failure that
+// holds the error's class name only, with no cause.
+function scrubbed<A extends unknown[], R>(
+  step: (...args: A) => Promise<R>,
+): (...args: A) => Promise<R> {
+  return async (...args) => {
+    try {
+      return await step(...args);
+    } catch (error) {
+      if (error instanceof ApplicationFailure) throw error;
+      throw ApplicationFailure.retryable(errorName(error), "StepError");
+    }
   };
 }
 
