@@ -221,6 +221,16 @@ Exists now:
   `bank_answer_use`. `saveApprovedAnswer` stores an answer only with a live Gate approval by Paul
   of kind `answer`, subject `answer:<id>` and `answerContentSha256`; `readBankAnswer` and
   `recordAnswerReuse` serve reuse. No CLI or UI yet.
+  Since NS-281 (slice 3a, migrations 0114–0115) a drafted answer can wait for Paul and then be
+  banked: append-only `answer_draft` (`answer-draft-schema.ts`, `answer-draft-write.ts`), one row
+  per Gate `answer` request (its foreign key pins the request's id, kind and hash, as
+  `reply_draft`'s does; the application is the candidate's own). `fileAnswerDraft` files the
+  request (subject `answer:<answerId>`, `answerContentSha256`, no policy facts, so it always waits
+  for Paul) and stores the draft in one transaction (a replay stores nothing); `readAnswerDraft`;
+  `readApprovedAnswerDrafts` (approved past the undo window by the Gate's clock, not undone or
+  withdrawn, not yet banked; ids only, at most 50); `bankApprovedAnswer` banks one through
+  `saveApprovedAnswer`, which verifies the approval again (a repeat stores nothing). No producer,
+  Queue view or caller yet (slices 3b and 3c).
 - The positioning thesis check (NS-127, DX-009): `checkThesis` in `packages/profile`
   (`thesis.ts`, plain code: one sentence, cites atoms, every number and capitalised name backed by
   the cited quotes, roles or skills, a plain "N years" by the roles' locked dates). Since NS-155
