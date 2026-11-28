@@ -36,10 +36,19 @@ the same save path as a board posting (dedupe SRC-006, scoring, freshness order)
      the comment's time, its description the whole comment text (bounded).
    - Migration: `company_watch.ats` gains `hn_hiring` (its CHECK lists the watch kinds, a new
      `WATCH_KINDS` constant). Jobs from a feed have no ATS.
-2. **RSS/Atom and JSON Feed boards.** `jobs watch add <feed-url> --feed`: a feed Paul names
-   (https, public host, read through `safeFetch`). JSON Feed needs no new dependency; RSS/Atom
-   needs an XML parser, a dependency decision recorded then. Items without a structured company go
-   in as drafts, or through `job-extract` when it is on, with its provenance check.
+2. **RSS/Atom and JSON Feed boards.** `jobs watch add <feed-url> --feed --tier N`: a feed Paul
+   names (https, default port, no credentials, not an ATS board, HN or prohibited site; the
+   canonical URL is the board). Read in one `safeFetch` (`BOARD_MAX_BYTES`). JSON Feed 1.x by
+   `JSON.parse`; RSS 2.0 and Atom through `fast-xml-parser@5.12.1` (Paul chose it, 2026-11-28),
+   with `processEntities: false` and any DOCTYPE or ENTITY declaration refused, so no feed-defined
+   entity is ever expanded; the five XML entities and numeric references are decoded once, then
+   the text passes the same rules as HN's (`boards/text.ts`: control, format, bidi and
+   blank-looking characters stripped after decoding). Each item with an https link not on a
+   prohibited site is a posting (link canonicalised, a date from 2000 to 5 minutes after the poll,
+   so a future date can't stay fresh; body bounded); `readTitle` takes "Role at Company" or
+   "Company: Role" when exactly one fits, else no company (a draft). `job-extract` on feed
+   drafts is left for later: no model reads a feed in this slice. Migration 0113 adds `feed` to
+   `WATCH_KINDS`. Behind `source:feed`.
 3. **YC jobs**, only if YC's terms allow automated reads of a public listing. If they don't, the
    source is declared `prohibited` and refused, and this slice closes as "won't read".
 
@@ -54,6 +63,10 @@ the same save path as a board posting (dedupe SRC-006, scoring, freshness order)
       poll stores nothing new; a feed item that duplicates a saved job merges (SRC-006).
 - [ ] Slice 1: migration widens `company_watch_ats_valid` to the watch kinds; `app-role.test.ts`
       and `db:generate` stay clean.
+- [ ] Slice 2: `detectFeed` takes an https feed URL and refuses http, a port, credentials, an ATS
+      board, HN and prohibited sites; `listBoard` for `feed` reads RSS, Atom and JSON Feed from
+      synthetic fixtures, refuses a DOCTYPE, and strips bidi and control characters however the
+      feed escapes them; the poll stores items under `source:feed` once.
 - [ ] AGENTS.md lists the new `jobs watch add` forms; README's Status says what is polled.
 - [ ] lint, typecheck, test, build green (CI `checks`).
 
@@ -78,6 +91,11 @@ the same save path as a board posting (dedupe SRC-006, scoring, freshness order)
 - Any login, LinkedIn, Indeed or Glassdoor (ADR-0003).
 
 ## Decisions made without Paul
+- Slice 2: a dependency, `fast-xml-parser@5.12.1` (exact pin, in `packages/sources` only):
+  Paul chose it on 2026-11-28 over hand-written XML parsing. Its transitive packages, all from the same
+  author, none with an install script: `fast-xml-builder`, `@nodable/entities`, `anynum`,
+  `is-unsafe`, `path-expression-matcher`, `strnum`, `xml-naming`. A second schema change (migration
+  0113, `feed` in the watch-kind CHECK). Feed drafts are not sent to `job-extract` yet.
 - A schema change (the watch-kind CHECK), and the Algolia HN API as the read path: it is HN's
   documented public search API and returns a thread in one request, where the Firebase API needs
   one request per comment.

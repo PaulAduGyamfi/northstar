@@ -1,5 +1,5 @@
 import type { Watch } from "@northstar/db";
-import { type BoardTarget, detectBoard } from "./boards/detect.js";
+import { type BoardTarget, detectBoard, detectFeed } from "./boards/detect.js";
 import { type FitCliDeps, scoreAfter } from "./fit/cli.js";
 import type { PassSummary } from "./poll.js";
 import { TIER_MINUTES } from "./poll.js";
@@ -33,7 +33,11 @@ const BOARDS =
 export async function watchCommand(io: Io, args: string[]): Promise<number | null> {
   const [sub, ...rest] = args;
   if (sub === "add" && rest.length === 3 && rest[1] === "--tier") {
-    return add(io, rest[0] ?? "", rest[2] ?? "");
+    return add(io, rest[0] ?? "", rest[2] ?? "", false);
+  }
+  // An RSS, Atom or JSON Feed (NS-282 slice 2): `jobs watch add <feed-url> --feed --tier N`.
+  if (sub === "add" && rest.length === 4 && rest[1] === "--feed" && rest[2] === "--tier") {
+    return add(io, rest[0] ?? "", rest[3] ?? "", true);
   }
   if (sub === "list" && rest.length === 0) return list(io);
   if ((sub === "remove" || sub === "retry") && rest.length === 1 && rest[0]) {
@@ -51,10 +55,14 @@ export async function watchCommand(io: Io, args: string[]): Promise<number | nul
   return null;
 }
 
-async function add(io: Io, url: string, rawTier: string): Promise<number> {
-  const target = detectBoard(url);
+async function add(io: Io, url: string, rawTier: string, feed: boolean): Promise<number> {
+  const target = feed ? detectFeed(url) : detectBoard(url);
   if (!target) {
-    io.print(`Not watched: that isn't a job board link. Use a board's own page: ${BOARDS}.`);
+    io.print(
+      feed
+        ? "Not watched: a feed is an https link to an RSS, Atom or JSON Feed, not an ATS board, HN or a site whose terms forbid automated reads."
+        : `Not watched: that isn't a job board link. Use a board's own page: ${BOARDS}, or add --feed for an RSS, Atom or JSON Feed.`,
+    );
     return 1;
   }
   const tier = Number(rawTier);
@@ -66,7 +74,9 @@ async function add(io: Io, url: string, rawTier: string): Promise<number> {
   io.print(
     r.status === "exists"
       ? `Already watching that board (${r.id}).`
-      : `Watching ${target.ats} board ${target.board} (tier ${tier}, every ${TIER_MINUTES[tier]} min). First poll on the next jobs poll or jobs run.`,
+      : target.ats === "feed"
+        ? `Watching the feed ${target.url} (tier ${tier}, every ${TIER_MINUTES[tier]} min). First poll on the next jobs poll or jobs run.`
+        : `Watching ${target.ats} board ${target.board} (tier ${tier}, every ${TIER_MINUTES[tier]} min). First poll on the next jobs poll or jobs run.`,
   );
   return 0;
 }
@@ -74,7 +84,7 @@ async function add(io: Io, url: string, rawTier: string): Promise<number> {
 async function list(io: Io): Promise<number> {
   const watches = await io.boards.list();
   if (watches.length === 0) {
-    io.print("No boards watched. Add one with: jobs watch add <board-url> --tier 1|2|3");
+    io.print("No boards watched. Add one with: jobs watch add <board-url> [--feed] --tier 1|2|3");
     return 0;
   }
   const now = io.now();

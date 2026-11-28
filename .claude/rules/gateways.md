@@ -128,7 +128,11 @@ and never hand its `gmail.modify` token to code that reads mail.
   A permissive feed is a watch too (NS-282): the HN "Who is hiring?" thread is read only through
   HN's public Algolia API, and its comments are untrusted text that plain code reads by HN's own
   first-line convention (a comment that doesn't follow it stays a draft); never a login, never
-  another HN page, and never a source whose terms forbid automated reads.
+  another HN page, and never a source whose terms forbid automated reads. An RSS, Atom or JSON
+  Feed (`boards/feed.ts`, slice 2) is read the same way: XML only through `fast-xml-parser` with
+  `processEntities: false`, any DOCTYPE refused, and its items' links kept only when https and not
+  on a prohibited site. Never expand entities, never follow an item's link at poll time, and keep
+  the untrusted-text rules in `boards/text.ts` for both.
 
 For every gateway (the Apply Gateway now, the others when they land):
 

@@ -72,6 +72,19 @@ describe("watchlist", () => {
     ]);
   });
 
+  it("takes an RSS, Atom or JSON Feed as a watch of kind feed (NS-282 slice 2)", async () => {
+    const feed = {
+      ats: "feed" as const,
+      board: "https://jobs.example.com/feed.xml",
+      url: "https://jobs.example.com/feed.xml",
+      tier: 3 as const,
+    };
+    const added = await addWatch(db, { candidateId, now: NOW, watch: feed });
+    expect((await listWatches(db, candidateId)).map((w) => [w.id, w.ats])).toEqual([
+      [added.id, "feed"],
+    ]);
+  });
+
   it("refuses a watch kind outside the list", async () => {
     expect(
       await sqlState(
