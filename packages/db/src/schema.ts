@@ -54,8 +54,9 @@ export const ATS_KINDS = [
 const atsList = sql.raw(ATS_KINDS.map((a) => `'${a}'`).join(", "));
 
 // What a watch can poll (NS-282): an ATS board, or a permissive feed. `hn_hiring` is the monthly
-// Hacker News "Who is hiring?" thread. A feed's jobs have no ATS, so `job.ats` keeps ATS_KINDS.
-export const WATCH_KINDS = [...ATS_KINDS, "hn_hiring"] as const;
+// Hacker News "Who is hiring?" thread; `feed` is an RSS, Atom or JSON Feed Paul names by its URL
+// (slice 2). A feed's jobs have no ATS, so `job.ats` keeps ATS_KINDS.
+export const WATCH_KINDS = [...ATS_KINDS, "hn_hiring", "feed"] as const;
 const watchKindList = sql.raw(WATCH_KINDS.map((a) => `'${a}'`).join(", "));
 
 export const job = pgTable(

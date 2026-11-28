@@ -60,8 +60,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
 - The watchlist (NS-115, ADR-0015) is `company_watch`, written only through `watch-write.ts`. It
   holds the scheduling state (`next_poll_at`, failures, status); `packages/sources` decides
   backoff and quarantine. Its events carry the ATS kind, tier and counts, never a board name.
-  Its `ats` column takes `WATCH_KINDS` (NS-282, migration 0112): the ATSs plus `hn_hiring`, a
-  permissive feed whose jobs have no ATS; `job.ats` and `job_source.ats` keep `ATS_KINDS`.
+  Its `ats` column takes `WATCH_KINDS` (NS-282, migrations 0112 and 0113): the ATSs plus
+  `hn_hiring` and `feed`, permissive feeds whose jobs have no ATS (a `feed` watch's board is its
+  canonical URL); `job.ats` and `job_source.ats` keep `ATS_KINDS`.
 - Search preferences and fit scores (NS-116) are `search_preference` (one row per version; the
   current one is the highest version) and `fit_score` (unique per job, preference version, resume
   import and job fingerprint), written only through `fit-write.ts` (`fit-schema.ts`), which only

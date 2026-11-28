@@ -426,6 +426,47 @@ describe("pollDue for the HN Who is hiring? thread (NS-282)", () => {
   });
 });
 
+describe("pollDue for an RSS, Atom or JSON Feed (NS-282 slice 2)", () => {
+  const FEED = "https://jobs.example.com/feed.xml";
+  const pages = {
+    [FEED]: {
+      contentType: "application/rss+xml",
+      body: `<rss version="2.0"><channel><title>Jobs</title>
+        <item><title>Globex: Backend Engineer</title><link>https://jobs.example.com/p/1</link></item>
+        <item><title>We're hiring</title><link>https://jobs.example.com/p/2</link></item>
+      </channel></rss>`,
+    },
+  };
+  const feed = () => watch({ id: "w-feed", ats: "feed", board: FEED, url: FEED });
+
+  it("saves each item behind source:feed's switch and breaker, with no ATS", async () => {
+    const w = world(pages, [feed()]);
+    await pollDue(w.deps, T0);
+    expect([w.g.reports.map((r) => r.dependency), w.recorded.map((r) => r.result.outcome)]).toEqual(
+      [["source:feed"], ["ok"]],
+    );
+    expect(w.jobs.map((j) => [j.company, j.title, j.sources[0]?.ats])).toEqual([
+      ["Globex", "Backend Engineer", null],
+      [null, null, null],
+    ]);
+  });
+
+  it("polling the feed twice adds nothing the second time", async () => {
+    const w = world(pages, [feed()]);
+    await pollDue(w.deps, T0);
+    w.recorded.length = 0;
+    await pollDue(w.deps, at(120));
+    expect([w.jobs.length, w.recorded[0]?.result.added]).toEqual([2, 0]);
+  });
+
+  it("isn't fetched while source:feed is switched off", async () => {
+    const w = world(pages, [feed()]);
+    w.g.off.add("source:feed");
+    await pollDue(w.deps, T0);
+    expect([w.asked, w.jobs]).toEqual([[], []]);
+  });
+});
+
 describe("nextState", () => {
   it("doubles the interval per consecutive failure, capped at 6 hours", () => {
     const minutes = [0, 1, 2, 3, 4, 5].map((failures) => {

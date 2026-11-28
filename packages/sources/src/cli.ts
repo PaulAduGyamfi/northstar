@@ -43,7 +43,7 @@ export type CliDeps = {
   dupes?: DupesCliDeps;
 };
 
-const USAGE = `usage: jobs add <url> | jobs add --text <file> --url <url> | jobs list | jobs set <job-id> <field> <value>\n       jobs watch add <board-url> --tier 1|2|3 | jobs watch list | jobs watch remove|retry <id> | jobs poll | jobs run\n       jobs check\n${FIT_USAGE}`;
+const USAGE = `usage: jobs add <url> | jobs add --text <file> --url <url> | jobs list | jobs set <job-id> <field> <value>\n       jobs watch add <board-url> [--feed] --tier 1|2|3 | jobs watch list | jobs watch remove|retry <id> | jobs poll | jobs run\n       jobs check\n${FIT_USAGE}`;
 
 export async function main(deps: CliDeps): Promise<number> {
   const [command, ...rest] = deps.argv;
