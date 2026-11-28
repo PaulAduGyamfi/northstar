@@ -523,12 +523,18 @@ export {
 } from "./profile-write.js";
 export {
   type ClaimResult,
+  claimFreshJobNotification,
   claimHandoffNotification,
+  FRESH_PUSH_WINDOW_MINUTES,
+  type FreshAlertToNotify,
+  freshJobNotifyKey,
   type HandoffToNotify,
   handoffNotifyKey,
   MAX_NOTIFY_PER_PASS,
   PUSH_CLAIM_LEASE_SECONDS,
   type PushCounts,
+  type PushSubject,
+  readFreshAlertsToNotify,
   readHandoffsToNotify,
   readStalePushClaims,
   recordPushResult,

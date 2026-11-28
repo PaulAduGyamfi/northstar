@@ -2,14 +2,19 @@ import { randomUUID } from "node:crypto";
 import { CandidateId } from "@northstar/domain";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { recordAlertHeld, recordFreshAlert } from "./alert-write.js";
 import { claimSubmission, recordNeedsHuman } from "./apply-write.js";
 import { decideApprovals, requestApproval } from "./approval-write.js";
 import type { Db } from "./db.js";
 import { recordDeadLetter } from "./dead-letter-write.js";
 import { listOpenHandoffs, resolveHandoff } from "./handoff-write.js";
 import {
+  claimFreshJobNotification,
   claimHandoffNotification,
+  FRESH_PUSH_WINDOW_MINUTES,
+  freshJobNotifyKey,
   handoffNotifyKey,
+  readFreshAlertsToNotify,
   readHandoffsToNotify,
   readStalePushClaims,
   recordPushResult,
@@ -244,5 +249,167 @@ describe("readStalePushClaims (NS-193 slice 3)", () => {
     });
     await laterByTwentyMinutes();
     expect(await readStalePushClaims(db, candidateId)).toEqual([]);
+  });
+});
+
+// A fresh-job alert recorded `minutesAgo` before NOW by the alert pass (alert-write.ts), for a job
+// id that exists only in the event: the notifier reads events, never the job row.
+async function freshAlert(
+  minutesAgo = 5,
+  extra: { score?: number; ageMinutes?: number } = {},
+): Promise<string> {
+  const jobId = randomUUID();
+  await recordFreshAlert(db, {
+    candidateId,
+    jobId,
+    score: extra.score ?? 88,
+    ageMinutes: extra.ageMinutes ?? 12,
+    tier: 2,
+    now: new Date(NOW.getTime() - minutesAgo * 60_000),
+    wasHeld: false,
+  });
+  return jobId;
+}
+
+describe("readFreshAlertsToNotify (NS-199 item 1)", () => {
+  it("lists a recent alert with its job id, age and fit score only", async () => {
+    const jobId = await freshAlert(5);
+    expect(await readFreshAlertsToNotify(db, candidateId)).toEqual([{ jobId, age: 12, fit: 88 }]);
+  });
+
+  it("never lists an alert held for quiet hours that hasn't been released", async () => {
+    await recordAlertHeld(db, {
+      candidateId,
+      jobId: randomUUID(),
+      score: 90,
+      ageMinutes: 3,
+      tier: 2,
+      now: NOW,
+    });
+    expect(await readFreshAlertsToNotify(db, candidateId)).toEqual([]);
+  });
+
+  it("never lists an alert older than the window, so a first subscription sends no backlog", async () => {
+    await freshAlert(FRESH_PUSH_WINDOW_MINUTES + 1);
+    const recent = await freshAlert(FRESH_PUSH_WINDOW_MINUTES - 1);
+    expect((await readFreshAlertsToNotify(db, candidateId)).map((a) => a.jobId)).toEqual([recent]);
+  });
+
+  it("never lists an alert already claimed", async () => {
+    const jobId = await freshAlert(5);
+    await claimFreshJobNotification(db, candidateId, jobId);
+    expect(await readFreshAlertsToNotify(db, candidateId)).toEqual([]);
+  });
+
+  it("lists the oldest first", async () => {
+    const newer = await freshAlert(2);
+    const older = await freshAlert(30);
+    expect((await readFreshAlertsToNotify(db, candidateId)).map((a) => a.jobId)).toEqual([
+      older,
+      newer,
+    ]);
+  });
+
+  it("says a day for a released alert older than a push names", async () => {
+    const jobId = await freshAlert(5, { ageMinutes: 2 * 24 * 60 });
+    expect(await readFreshAlertsToNotify(db, candidateId)).toEqual([
+      { jobId, age: 24 * 60, fit: 88 },
+    ]);
+  });
+
+  it("leaves out an alert whose id or numbers don't fit a push, never guessing them", async () => {
+    for (const [jobId, score] of [
+      ["not-a-uuid", 88],
+      [randomUUID(), 88.5],
+      [randomUUID(), 101],
+    ] as const) {
+      await db.insert(domainEvent).values({
+        id: randomUUID(),
+        candidateId,
+        aggregate: `job:${jobId}`,
+        type: "job.fresh_alert",
+        actor: "system",
+        reason: "Posted 5 min ago · Fit 88 · ready to approve",
+        inputsSummary: "",
+        payload: { jobId, score, ageMinutes: 5, tier: 2, wasHeld: false },
+        links: [],
+        traceId: null,
+        idempotencyKey: `job.fresh_alert:${jobId}`,
+        occurredAt: new Date(NOW.getTime() - 5 * 60_000),
+      });
+    }
+    const good = await freshAlert(5);
+    expect(await readFreshAlertsToNotify(db, candidateId)).toEqual([
+      { jobId: good, age: 12, fit: 88 },
+    ]);
+  });
+
+  it("never lists another candidate's alert", async () => {
+    await freshAlert(5);
+    const other = await seedApplication(db, "queued");
+    expect(await readFreshAlertsToNotify(db, CandidateId.parse(other.candidateId))).toEqual([]);
+  });
+});
+
+describe("claimFreshJobNotification (NS-199 item 1)", () => {
+  it("claims a job's alert once, however many times it is asked", async () => {
+    const jobId = await freshAlert(5);
+    const first = await claimFreshJobNotification(db, candidateId, jobId);
+    const second = await claimFreshJobNotification(db, candidateId, jobId);
+    expect([first.kind, second.kind]).toEqual(["claimed", "already_claimed"]);
+    const claims = await db
+      .select({ itemKey: pushNotification.itemKey })
+      .from(pushNotification)
+      .where(eq(pushNotification.candidateId, candidateId));
+    expect(claims).toEqual([{ itemKey: freshJobNotifyKey(jobId) }]);
+  });
+
+  it("claims nothing for an alert older than the window, whatever id the caller passes", async () => {
+    const jobId = await freshAlert(FRESH_PUSH_WINDOW_MINUTES + 1);
+    expect(await claimFreshJobNotification(db, candidateId, jobId)).toEqual({
+      kind: "not_found",
+    });
+  });
+
+  it("claims nothing for a job with no alert", async () => {
+    expect(await claimFreshJobNotification(db, candidateId, randomUUID())).toEqual({
+      kind: "not_found",
+    });
+  });
+
+  it("claims nothing for another candidate's alert", async () => {
+    const jobId = await freshAlert(5);
+    const other = await seedApplication(db, "queued");
+    expect(
+      await claimFreshJobNotification(db, CandidateId.parse(other.candidateId), jobId),
+    ).toEqual({ kind: "not_found" });
+  });
+});
+
+describe("recordPushResult for a fresh job (NS-199 item 1)", () => {
+  it("records the outcome on the job, with a fixed-word feed line and counts only", async () => {
+    const jobId = await freshAlert(5);
+    const claim = await claimFreshJobNotification(db, candidateId, jobId);
+    if (claim.kind !== "claimed") throw new Error(claim.kind);
+    const input = { candidateId, notificationId: claim.notificationId, jobId, gone: 0 };
+    await recordPushResult(db, { ...input, sent: 1, rejected: 0 });
+    await recordPushResult(db, { ...input, sent: 0, rejected: 1 });
+    const events = await db
+      .select({
+        type: domainEvent.type,
+        aggregate: domainEvent.aggregate,
+        reason: domainEvent.reason,
+        payload: domainEvent.payload,
+      })
+      .from(domainEvent)
+      .where(eq(domainEvent.aggregate, `job:${jobId}`));
+    expect(events.filter((e) => e.type.startsWith("push."))).toEqual([
+      {
+        type: "push.sent",
+        aggregate: `job:${jobId}`,
+        reason: "Sent you a notification: a fresh job fits you",
+        payload: { notificationId: claim.notificationId, sent: 1, gone: 0, rejected: 0 },
+      },
+    ]);
   });
 });

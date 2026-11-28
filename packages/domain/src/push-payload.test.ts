@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { APPLY_ATS } from "./apply-package.js";
 import { feedLine } from "./feed.js";
 import {
+  ageText,
   encodePushPayload,
+  MAX_FRESH_AGE_MINUTES,
   MAX_PUSH_PAYLOAD_BYTES,
   PUSH_CHALLENGES,
   PUSH_REQUEST_KINDS,
@@ -118,6 +120,74 @@ describe("approval pushes (NS-204)", () => {
         tag: `approval:${ID}`,
       },
       `/approvals?request=${ID}`,
+    ]);
+  });
+});
+
+const fresh = { v: 1, kind: "fresh_job", id: ID, age: 12, fit: 88 } as const;
+
+describe("a fresh-job push (NS-199 item 1, SRC-015)", () => {
+  it("encodes as its kind, the job's id, its age and its fit score only", () => {
+    expect(encodePushPayload(fresh)).toBe(
+      `{"v":1,"kind":"fresh_job","id":"${ID}","age":12,"fit":88}`,
+    );
+  });
+
+  it("refuses a title, company, place or link riding along", () => {
+    for (const extra of [
+      { title: "Staff Engineer" },
+      { company: "Acme" },
+      { location: "Remote" },
+      { url: "https://boards.greenhouse.io/acme/jobs/1" },
+      { ats: "greenhouse" },
+    ]) {
+      expect(encodePushPayload({ ...fresh, ...extra })).toBeNull();
+    }
+  });
+
+  it("refuses text, fractions and numbers out of range in place of its numbers", () => {
+    for (const bad of [
+      { age: "12 min ago" },
+      { age: 12.5 },
+      { age: -1 },
+      { age: MAX_FRESH_AGE_MINUTES + 1 },
+      { fit: "88" },
+      { fit: 88.5 },
+      { fit: -1 },
+      { fit: 101 },
+      { id: "https://evil.example.com" },
+    ]) {
+      expect(encodePushPayload({ ...fresh, ...bad })).toBeNull();
+    }
+  });
+
+  it("stays under the size cap at its longest", () => {
+    const json = encodePushPayload({ ...fresh, age: MAX_FRESH_AGE_MINUTES, fit: 100 });
+    expect(Buffer.byteLength(json ?? "x".repeat(1000), "utf8")).toBeLessThanOrEqual(
+      MAX_PUSH_PAYLOAD_BYTES,
+    );
+  });
+
+  it("is worded with the feed line's own numbers, never the job's name", () => {
+    expect(pushWords(fresh)).toEqual({
+      title: "A fresh job fits you",
+      body: "Posted 12 min ago · Fit 88. Open Northstar to see it.",
+      tag: `fresh_job:${ID}`,
+    });
+    expect(pushWords({ ...fresh, age: 90 }).body).toBe(
+      "Posted 1 h ago · Fit 88. Open Northstar to see it.",
+    );
+  });
+});
+
+describe("ageText (moved from packages/db, NS-199)", () => {
+  it("says minutes under an hour, whole hours under two days, then whole days", () => {
+    expect([ageText(0), ageText(59.9), ageText(60), ageText(47 * 60), ageText(72 * 60)]).toEqual([
+      "0 min ago",
+      "59 min ago",
+      "1 h ago",
+      "47 h ago",
+      "3 days ago",
     ]);
   });
 });
