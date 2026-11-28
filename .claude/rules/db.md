@@ -305,7 +305,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `recruiter-grade-write.ts` (`recordRecruiterGrade`, `readRecruiterGrades`). A CHECK keeps the
   reasons to the fixed list `RECRUITER_GRADE_REASONS` (`packages/domain`), never email text; `recruiter.graded`
   carries the message id, grade, confidence and reasons, and its feed line is its fixed-word
-  `reason`.
+  `reason`. Since NS-238 item 3 slice 3 (migration 0107) a grade may also carry its weighted part
+  (`weighted_grade`, `weighted_points`, `weights_position`: all or none, within 2 points of
+  `points`, a CHECK): `grade` and `points` stay the grader's own, which learning reads; readers
+  that show a letter take Paul's regrade, else `weighted_grade`, else `grade`.
   Mail classifications (NS-261) are `mail_classification`, append-only (a trigger), one per
   candidate and Gmail message (`recordMailClassification` checks the message's `mail_link` first,
   not a foreign key, as for `recruiter_grade`), written only through

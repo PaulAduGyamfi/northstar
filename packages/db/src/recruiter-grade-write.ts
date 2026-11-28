@@ -21,6 +21,17 @@ export const GradeInput = z
   .strict();
 export type GradeInput = z.infer<typeof GradeInput>;
 
+// The same message graded with Paul's learned weights (NS-238 item 3 slice 3), and the
+// recruiter_weight version applied. Absent when no weights exist.
+export const WeightedInput = z
+  .object({
+    grade: z.enum(["A", "B", "C", "D", "F"]),
+    points: z.number().int().min(-50).max(50),
+    weightsPosition: z.bigint().positive(),
+  })
+  .strict();
+export type WeightedInput = z.infer<typeof WeightedInput>;
+
 const GMAIL_ID = /^[0-9a-f]{1,32}$/;
 
 export type GradeError =
@@ -30,17 +41,30 @@ export type GradeError =
 
 export async function recordRecruiterGrade(
   db: Db,
-  input: { candidateId: CandidateId; gmailMessageId: string; grade: unknown },
+  input: { candidateId: CandidateId; gmailMessageId: string; grade: unknown; weighted?: unknown },
 ): Promise<Result<{ recorded: boolean }, GradeError>> {
   const parsed = GradeInput.safeParse(input.grade);
   const fields = parsed.success
     ? []
     : [...new Set(parsed.error.issues.map((i) => String(i.path[0] ?? "grade")))];
   if (!GMAIL_ID.test(input.gmailMessageId)) fields.unshift("gmailMessageId");
+  const weightedParsed =
+    input.weighted === undefined ? null : WeightedInput.safeParse(input.weighted);
+  // Learning nudges a grade by at most MAX_TOTAL_ADJUSTMENT points (the table's CHECK too).
+  if (
+    weightedParsed !== null &&
+    (!weightedParsed.success ||
+      (parsed.success && Math.abs(weightedParsed.data.points - parsed.data.points) > 2))
+  ) {
+    fields.push("weighted");
+  }
   if (!parsed.success || fields.length > 0) {
     return { ok: false, error: { kind: "InvalidGrade", fields } };
   }
   const g = parsed.data;
+  const w = weightedParsed?.success ? weightedParsed.data : null;
+  // What the Inbox shows: the weighted letter when there is one.
+  const shown = w?.grade ?? g.grade;
   return inSpan("db.recruiter_grade.record", { "northstar.recruiter.grade": g.grade }, (span) =>
     db.transaction(async (tx) => {
       const [link] = await tx
@@ -62,6 +86,9 @@ export async function recordRecruiterGrade(
           points: g.points,
           reasons: g.reasons,
           confidence: g.confidence,
+          weightedGrade: w?.grade ?? null,
+          weightedPoints: w?.points ?? null,
+          weightsPosition: w?.weightsPosition ?? null,
         })
         .onConflictDoNothing({
           target: [recruiterGrade.candidateId, recruiterGrade.gmailMessageId],
@@ -75,10 +102,12 @@ export async function recordRecruiterGrade(
         type: "recruiter.graded",
         actor: "system",
         // The feed shows this reason (no template): fixed words and the grade letter only.
-        reason: `Graded a recruiter email: ${g.grade}${g.confidence === "low" ? " (little to go on)" : ""}`,
+        reason: `Graded a recruiter email: ${shown}${g.confidence === "low" ? " (little to go on)" : ""}`,
         payload: {
           gmailMessageId: input.gmailMessageId,
+          // The grader's own letter, and the weighted one when weights applied.
           grade: g.grade,
+          ...(w ? { weightedGrade: w.grade } : {}),
           confidence: g.confidence,
           reasons: g.reasons,
         },

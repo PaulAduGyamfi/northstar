@@ -568,7 +568,11 @@ Exists now:
   grade, newest first (`readUngradedRecruiterMail`), reads each body in memory, runs
   `extractRecruiterFacts` (behind `agent:recruiter-extract`, the breaker and the spend cap) and
   `gradeRecruiterMessage` over Paul's current preferences with **no learned weights**, so the stored
-  grade stays the grader's own, and stores it with `recordRecruiterGrade`. A refusal, cut-off or
+  grade stays the grader's own, and stores it with `recordRecruiterGrade`. Since NS-238 item 3 slice
+  3 it also grades the same facts with the newest learned weights (`readRecruiterWeightsVersion`)
+  when any exist and stores that beside it (`weighted_grade`, `weighted_points`,
+  `weights_position`, migration 0107); the Inbox, the feed line and the reply step use the
+  weighted letter, learning the grader's own. A refusal, cut-off or
   malformed answer, an unreadable message or a refused store is a `mail.grade` dead letter (the same
   pass-over rule). `@northstar/funnel` depends on `@northstar/sources` for the grader. Off, the
   run counts recruiter mail waiting for a grade (`countUngradedRecruiterMail`).
@@ -806,7 +810,9 @@ Exists now:
   N changes"); `readRecruiterWeights` gives the newest. `gradeRecruiterMessage` takes them as an
   optional `weights` argument, summed and held to ±2 per grade (`MAX_TOTAL_ADJUSTMENT`) and added
   before the letter is picked, so caps still apply. The caller must keep learning against the
-  unweighted grade (spec): `funnel inbox` grades with no weights, so nothing applies them yet.
+  unweighted grade (spec): since slice 3 `funnel inbox` stores both, deltas stay against
+  `recruiter_grade.grade` (the unweighted letter), and the Inbox shows the weighted one, Paul's
+  regrade above it, with "adjusted from C by your regrades" when the weights moved it.
 - `packages/funnel/` (NS-113): the 9-month backfill, funnel records derived by plain code from
   `funnel_message` and `funnel_manual_row` (`packages/db`, `funnel-schema.ts`), the tracker CSV
   import, the funnel report (Wilson intervals, rejection latency) and the hypothesis board.
@@ -1086,6 +1092,21 @@ Exists now:
   file fields) against the gateway's adapters, `fillForm` sets values through the prototype's
   setter (a safety net for a shadowed `value`; the isolated world already reaches the native one), and a thrown `handoff.prefilled` write puts its
   class name on the span (`northstar.prefill.record_error`, `errorClassOf`), never its message.
+- Web push (NS-193 slice 1, ADR-0032, Proposed): the sender in `packages/gateways/src/push/`, on
+  `node:crypto` with no library. `encryptPayload` (RFC 8291 `aes128gcm`, one record, checked byte
+  for byte against the RFC's Appendix A) and `vapidAuthorization` (RFC 8292 ES256, `aud` the
+  endpoint's origin, 12 h) from Paul's own key pair, loaded by `loadVapidConfig`
+  (`PUSH_VAPID_PUBLIC_KEY`, `PUSH_VAPID_PRIVATE_KEY`, `PUSH_VAPID_SUBJECT` in `.env.app`; none set
+  means push is off; a partial set, a placeholder or a mismatched pair is refused by name).
+  `createPushSender(...).send` refuses any endpoint `endpointAllowed` rejects (https, default
+  port, exactly FCM's, Mozilla's or `web.push.apple.com`, or under `notify.windows.com`; never an
+  IP), then asks the `push` kill switch and breaker, and posts through the global `fetch` (10 s, no redirects): `sent`, `gone` (404/410)
+  or `rejected`; only no answer, 429 and 5xx count against the breaker. Its span holds the host,
+  status and result, never the endpoint's path, keys or payload. The payload is `PushPayload`
+  (`packages/domain`, `push-payload.ts`): a strict `{ v, kind: "handoff", id, ats, reason }` from
+  fixed lists, at most 256 bytes (`encodePushPayload`), worded by `pushWords` in the feed's own
+  words. A push never acts on anything. No subscriptions, caller or service worker yet (slices 2
+  and 3).
 - Verification windows (NS-151, VER-001…006) in `packages/db` (`verification-schema.ts`,
   `verification-write.ts`, append-only): `verification_window`, one `verification_window_restart`
   and one `verification_window_close` per window, and `verification_used_message` (one window per

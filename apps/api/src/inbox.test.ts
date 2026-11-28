@@ -355,4 +355,22 @@ describe("POST /inbox/regrade (NS-238 item 3)", () => {
     const body = JSON.parse((await get()).body);
     expect(body.queued[0].recruiterGrade).toEqual(grade);
   });
+
+  it("passes the grader's own letter on when learned weights changed it (NS-238 item 3 slice 3)", async () => {
+    const grade = { grade: "B", systemGrade: "C", reasons: ["title:exact"], confidence: "normal" };
+    read = async () => ({
+      applications: [],
+      queued: [
+        {
+          gmailThreadId: "cc02",
+          messages: 1,
+          lastReceivedAt: T,
+          reason: "no_match",
+          recruiterGrade: grade,
+        },
+      ],
+    });
+    const body = JSON.parse((await get()).body);
+    expect(body.queued[0].recruiterGrade).toEqual(grade);
+  });
 });

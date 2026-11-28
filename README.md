@@ -83,7 +83,8 @@ Temporal's queue (it isn't dropped) and still needs your approval when the pool 
 interviews` (Google consent each run, no stored token) and wait for you on the Interviews page;
 detection doesn't run on its own yet. New job mail is linked to your applications and sorted when
 you run `pnpm --filter @northstar/funnel funnel inbox` (Gmail consent each run, no stored token);
-it shows on the Inbox page. Recruiter emails are graded A–F in the same run once you turn on
+it shows on the Inbox page. Recruiter emails are graded A–F (nudged by what your regrades taught
+it, at most two points) in the same run once you turn on
 `RECRUITER_EXTRACT` (off by default). With `RECRUITER_REPLIES` on (off by default), the same run
 also drafts a short reply to each graded recruiter email you haven't answered (interested,
 asking for more, or a polite no; nothing for an F) and puts it in your Queue: nothing is sent.

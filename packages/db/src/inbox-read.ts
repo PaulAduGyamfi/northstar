@@ -33,10 +33,14 @@ export type InboxThread = {
   recruiterGrade?: ThreadGrade;
 };
 
-// A recruiter grade as the inbox shows it: codes only, never email text. `paulGrade` is Paul's own
-// newest letter for that message (NS-238 item 3), absent until he regrades it.
+// A recruiter grade as the inbox shows it: codes only, never email text. `grade` is the letter
+// shown: the weighted one when Paul's learned weights applied (NS-238 item 3 slice 3), else the
+// grader's own. `systemGrade` is the grader's own, given only when the weights changed it.
+// `paulGrade` is Paul's own newest letter for that message (NS-238 item 3), absent until he
+// regrades it.
 export type ThreadGrade = {
   grade: string;
+  systemGrade?: string;
   reasons: string[];
   confidence: string;
   paulGrade?: string;
@@ -138,6 +142,7 @@ export async function readInboxThreads(db: Db, candidateId: CandidateId): Promis
         // A dismissed message leaves the queue, so its grade belongs to no thread shown.
         dismissed: sql<boolean>`${mailLinkDecision.decision} = 'dismissed'`,
         grade: recruiterGrade.grade,
+        weightedGrade: recruiterGrade.weightedGrade,
         reasons: recruiterGrade.reasons,
         confidence: recruiterGrade.confidence,
       })
@@ -172,8 +177,10 @@ export async function readInboxThreads(db: Db, candidateId: CandidateId): Promis
       const key = `${g.gmailThreadId}:${g.applicationId ?? ""}`;
       if (!grades.has(key)) {
         const paul = regrades.get(g.gmailMessageId);
+        const shown = g.weightedGrade ?? g.grade;
         grades.set(key, {
-          grade: g.grade,
+          grade: shown,
+          ...(shown === g.grade ? {} : { systemGrade: g.grade }),
           reasons: g.reasons,
           confidence: g.confidence,
           ...(paul === undefined ? {} : { paulGrade: paul }),

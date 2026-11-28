@@ -205,3 +205,139 @@ describe("the recruiter_grade table", () => {
     ]);
   });
 });
+
+describe("the weighted grade (NS-238 item 3 slice 3)", () => {
+  const WEIGHTED = { grade: "A", points: 5, weightsPosition: 7n };
+
+  it("stores it beside the grader's own, with the version, and the event carries both letters", async () => {
+    await recordMail(candidateId, MSG);
+    const recorded = await recordRecruiterGrade(db, {
+      candidateId,
+      gmailMessageId: MSG,
+      grade: GRADE,
+      weighted: WEIGHTED,
+    });
+    const [row] = await db
+      .select({
+        grade: recruiterGrade.grade,
+        points: recruiterGrade.points,
+        weightedGrade: recruiterGrade.weightedGrade,
+        weightedPoints: recruiterGrade.weightedPoints,
+        weightsPosition: recruiterGrade.weightsPosition,
+      })
+      .from(recruiterGrade);
+    const [event] = await db
+      .select({ payload: domainEvent.payload })
+      .from(domainEvent)
+      .where(sql`${domainEvent.type} = 'recruiter.graded'`);
+    expect([recorded, row, event?.payload]).toEqual([
+      { ok: true, value: { recorded: true } },
+      { grade: "B", points: 4, weightedGrade: "A", weightedPoints: 5, weightsPosition: 7n },
+      {
+        gmailMessageId: MSG,
+        grade: "B",
+        weightedGrade: "A",
+        confidence: "normal",
+        reasons: GRADE.reasons,
+      },
+    ]);
+  });
+
+  it("names the weighted letter in the feed, the one the Inbox shows", async () => {
+    await recordMail(candidateId, MSG);
+    await recordRecruiterGrade(db, {
+      candidateId,
+      gmailMessageId: MSG,
+      grade: GRADE,
+      weighted: WEIGHTED,
+    });
+    const feed = await readFeed(db, candidateId, { limit: 50 });
+    expect(feed.map((i) => i.line).filter((l) => l.startsWith("Graded"))).toEqual([
+      "Graded a recruiter email: A",
+    ]);
+  });
+
+  it("stores no weighted part when none is given", async () => {
+    await recordMail(candidateId, MSG);
+    await recordRecruiterGrade(db, { candidateId, gmailMessageId: MSG, grade: GRADE });
+    const [row] = await db
+      .select({
+        weightedGrade: recruiterGrade.weightedGrade,
+        weightedPoints: recruiterGrade.weightedPoints,
+        weightsPosition: recruiterGrade.weightsPosition,
+      })
+      .from(recruiterGrade);
+    expect(row).toEqual({ weightedGrade: null, weightedPoints: null, weightsPosition: null });
+  });
+
+  it("refuses a weighted part more than two points from the grader's, or a malformed one", async () => {
+    await recordMail(candidateId, MSG);
+    const tryWeighted = (weighted: unknown) =>
+      recordRecruiterGrade(db, { candidateId, gmailMessageId: MSG, grade: GRADE, weighted });
+    expect([
+      await tryWeighted({ ...WEIGHTED, points: 7 }),
+      await tryWeighted({ grade: "A", points: 5 }),
+      await tryWeighted({ ...WEIGHTED, weightsPosition: 0n }),
+      await tryWeighted({ ...WEIGHTED, note: "Hi Paul" }),
+    ]).toEqual([
+      { ok: false, error: { kind: "InvalidGrade", fields: ["weighted"] } },
+      { ok: false, error: { kind: "InvalidGrade", fields: ["weighted"] } },
+      { ok: false, error: { kind: "InvalidGrade", fields: ["weighted"] } },
+      { ok: false, error: { kind: "InvalidGrade", fields: ["weighted"] } },
+    ]);
+  });
+
+  it("is refused by the table when partial, out of bounds or without a version", async () => {
+    await recordMail(candidateId, MSG);
+    const row = (weighted: {
+      weightedGrade: string | null;
+      weightedPoints: number | null;
+      weightsPosition: bigint | null;
+    }) =>
+      db.insert(recruiterGrade).values({
+        candidateId,
+        gmailMessageId: MSG,
+        grade: "B",
+        points: 4,
+        reasons: ["title:exact"],
+        confidence: "normal",
+        ...weighted,
+      });
+    expect([
+      await sqlState(row({ weightedGrade: "A", weightedPoints: null, weightsPosition: null })),
+      await sqlState(row({ weightedGrade: null, weightedPoints: 3, weightsPosition: 1n })),
+      await sqlState(row({ weightedGrade: "A", weightedPoints: 3, weightsPosition: null })),
+      await sqlState(row({ weightedGrade: "A", weightedPoints: 7, weightsPosition: 1n })),
+      await sqlState(row({ weightedGrade: "E", weightedPoints: 5, weightsPosition: 1n })),
+      await sqlState(row({ weightedGrade: "A", weightedPoints: 5, weightsPosition: 0n })),
+    ]).toEqual([
+      CHECK_VIOLATION,
+      CHECK_VIOLATION,
+      CHECK_VIOLATION,
+      CHECK_VIOLATION,
+      CHECK_VIOLATION,
+      CHECK_VIOLATION,
+    ]);
+  });
+
+  it("is refused by the table when it lifts a capped grade, and kept when it lowers one", async () => {
+    await recordMail(candidateId, MSG);
+    await recordMail(candidateId, "18c3f0a2b4d6e802");
+    const capped = (gmailMessageId: string, grade: string, weightedGrade: string) =>
+      db.insert(recruiterGrade).values({
+        candidateId,
+        gmailMessageId,
+        grade,
+        points: 4,
+        reasons: ["title:exact", "red_flag:vague_role"],
+        confidence: "normal",
+        weightedGrade,
+        weightedPoints: 5,
+        weightsPosition: 1n,
+      });
+    expect([
+      await sqlState(capped(MSG, "D", "B")),
+      await sqlState(capped("18c3f0a2b4d6e802", "D", "F")),
+    ]).toEqual([CHECK_VIOLATION, null]);
+  });
+});

@@ -106,6 +106,25 @@ export async function refreshRecruiterWeights(
   return { changed };
 }
 
+// The newest version's adjustments and its position, for a grader that records which version it
+// applied (NS-238 item 3 slice 3); null until Paul's regrades have taught it anything.
+export async function readRecruiterWeightsVersion(
+  db: Db,
+  candidateId: CandidateId,
+): Promise<{ position: bigint; weights: RecruiterWeights } | null> {
+  const [row] = await db
+    .select({
+      position: recruiterWeight.position,
+      reasons: recruiterWeight.reasons,
+      adjustments: recruiterWeight.adjustments,
+    })
+    .from(recruiterWeight)
+    .where(eq(recruiterWeight.candidateId, candidateId))
+    .orderBy(desc(recruiterWeight.position))
+    .limit(1);
+  return row ? { position: row.position, weights: fromRow(row.reasons, row.adjustments) } : null;
+}
+
 // The newest learned adjustments, for the grader; empty until Paul's regrades teach it something.
 export async function readRecruiterWeights(
   db: Db,

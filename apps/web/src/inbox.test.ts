@@ -160,6 +160,17 @@ describe("gradeWords", () => {
     ]);
   });
 
+  it("says the grader's own letter when Paul's learned weights changed it", () => {
+    expect(
+      gradeWords({
+        grade: "B",
+        systemGrade: "C",
+        reasons: ["title:exact"],
+        confidence: "normal",
+      }),
+    ).toBe("Recruiter grade B (adjusted from C by your regrades): the title matches");
+  });
+
   it("has words for every reason a grade can give", () => {
     // RECRUITER_GRADE_REASONS in @northstar/domain, which the web app doesn't depend on; the API
     // refuses any other reason.
