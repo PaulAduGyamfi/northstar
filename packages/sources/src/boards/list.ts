@@ -6,29 +6,18 @@ import { postedOn } from "../ats/workday.js";
 import { dateOrNull, type Extraction, emptyFields, htmlToText, remoteFrom } from "../extraction.js";
 import { BOARD_MAX_BYTES, type FetchDeps, safeFetch } from "../fetch.js";
 import type { BoardTarget } from "./detect.js";
+import { listHnHiring } from "./hn.js";
+import { type BoardPosting, BoardUnavailable, MAX_POSTINGS } from "./types.js";
+
+// Re-exported so callers keep importing them from here.
+export { type BoardPosting, BoardUnavailable, MAX_POSTINGS };
 
 // One request per board (SRC-003, ADR-0015): each ATS's public listing returns every open posting
 // with its content, so a poll never needs a request per posting and never calls the model.
 
-// A board with more open postings than this is read up to here (tens of thousands would stall the
-// pass); the rest wait for a later ticket.
-export const MAX_POSTINGS = 2_000;
-
 // Posting ids go into links and dedupe keys: only each ATS's own id shape is accepted.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DIGITS = /^\d{1,20}$/;
-
-export type BoardPosting = {
-  // The posting's canonical link, the same one `jobs add` would store for it.
-  url: string;
-  extraction: Extraction;
-};
-
-// The board can't be read this time (an error status, or JSON in a shape we don't know). The
-// poll backs the board off; the message is plain words, never the response body.
-export class BoardUnavailable extends Error {
-  override name = "BoardUnavailable";
-}
 
 type Board = Pick<BoardTarget, "ats" | "board">;
 
@@ -42,6 +31,9 @@ export async function listBoard(
   switch (t.ats) {
     case "workday":
       return listWorkday(deps, t.board, now);
+    // The monthly HN "Who is hiring?" thread (NS-282): a feed, not an ATS board.
+    case "hn_hiring":
+      return listHnHiring((url, shape) => read(deps, url, shape));
     case "greenhouse": {
       const body = await read(
         deps,

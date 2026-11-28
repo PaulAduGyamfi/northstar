@@ -36,6 +36,8 @@ export function detectBoard(raw: string): BoardTarget | null {
     return null;
   }
   if (u.protocol !== "https:") return null;
+  // The monthly HN "Who is hiring?" thread (NS-282): exactly the whoishiring account's page.
+  if (u.hostname.toLowerCase() === "news.ycombinator.com") return hnBoard(u);
   const workday = workdayBoard(u);
   if (workday !== undefined) return workday;
   const host = HOSTS[u.hostname.toLowerCase()];
@@ -63,5 +65,23 @@ function workdayBoard(u: URL): BoardTarget | null | undefined {
     ats: "workday",
     board: `${tenant}.${dc}/${site}`,
     url: `https://${tenant}.${dc}.myworkdayjobs.com/${site}`,
+  };
+}
+
+// Only `news.ycombinator.com/submitted?id=whoishiring`: the account that posts the monthly thread.
+// Any other HN page (a story, a user, the front page) is not a watch.
+function hnBoard(u: URL): BoardTarget | null {
+  const id = u.searchParams.get("id");
+  if (
+    u.pathname !== "/submitted" ||
+    id !== "whoishiring" ||
+    [...u.searchParams.keys()].length !== 1
+  ) {
+    return null;
+  }
+  return {
+    ats: "hn_hiring",
+    board: "whoishiring",
+    url: "https://news.ycombinator.com/submitted?id=whoishiring",
   };
 }
