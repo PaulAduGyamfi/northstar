@@ -72,7 +72,7 @@ describe("watchlist", () => {
     ]);
   });
 
-  it("refuses a watch kind outside the list (NS-282)", async () => {
+  it("refuses a watch kind outside the list", async () => {
     expect(
       await sqlState(
         db.execute(

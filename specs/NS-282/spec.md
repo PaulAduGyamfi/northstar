@@ -61,6 +61,9 @@ the same save path as a board posting (dedupe SRC-006, scoring, freshness order)
 - Algolia slow or down: `safeFetch`'s limits, the watch backs off and quarantines after 5
   failures (RES-002/003); the `source:hn_hiring` breaker opens on 5xx, 429 or no answer.
 - An unexpected reply shape: `BoardUnavailable`, the watch backs off; nothing is guessed.
+- A thread over `BOARD_MAX_BYTES` (10 MB; a typical one is 1–3 MB, replies included): the whole
+  read fails and the watch backs off, then quarantines; nothing is read in part.
+- An HN job never counts as tier 1 for quiet hours (`alerts.ts` knows board kinds only).
 - No thread this month yet: the newest found is used; an older thread's comments are already
   known and store nothing.
 - A comment that lies (a fake company): stored as the posting says, scored like any job; it never

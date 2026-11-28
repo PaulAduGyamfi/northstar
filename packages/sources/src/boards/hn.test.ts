@@ -117,7 +117,9 @@ describe("listBoard for hn_hiring (NS-282)", () => {
       title: "Backend Engineer",
       location: "Remote&#27;",
     });
-    expect(p?.extraction.fields.description).not.toMatch(/[\u202E\u200B\u001B]/);
+    expect(p?.extraction.fields.description).toBe(
+      "Glo&#x202E;bex | Backend Engineer | Remote&#27;\n\nAboutus",
+    );
   });
 
   it("gives a comment with an impossible time no posted date", async () => {
@@ -170,6 +172,23 @@ describe("readHead (NS-282)", () => {
       readHead("Acme | Berlin | Full-time"),
       readHead("Senior Engineer | Acme | Remote"),
     ]).toEqual(new Array(3).fill({ company: null, title: null, location: null }));
+  });
+
+  it("never takes a second role, a stack, funding or a bare mode word as the place when a better one exists", () => {
+    expect([
+      readHead("Acme | Backend Engineer | Frontend Engineer | Remote").location,
+      readHead("Acme | Backend Engineer | Rust, Go | Remote (US)").location,
+      readHead("Acme | Engineer | Series B | Remote").location,
+      readHead("Acme | Engineer | Berlin, Germany | ONSITE").location,
+    ]).toEqual(["Remote", "Remote (US)", "Remote", "Berlin, Germany"]);
+  });
+
+  it("guesses no company when the first field is only a work mode", () => {
+    expect(readHead("REMOTE | Acme | Backend Engineer")).toEqual({
+      company: null,
+      title: null,
+      location: null,
+    });
   });
 
   it("never stores a link or address as a name or place", () => {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { type Extraction, emptyFields, htmlToText, remoteFrom } from "../extraction.js";
-import { type BoardPosting, BoardUnavailable, MAX_POSTINGS } from "./list.js";
+import { type BoardPosting, BoardUnavailable, MAX_POSTINGS } from "./types.js";
 
 // The monthly Hacker News "Ask HN: Who is hiring?" thread (NS-282 slice 1), read through HN's
 // public Algolia search API (hn.algolia.com, documented, no login): one request finds the newest
@@ -96,7 +96,7 @@ function commentText(html: string): string {
 // fillers, the braille blank, variation selectors): anyone can post on HN, and these would let a
 // comment reorder or hide text where its company or title is shown. Newlines and tabs stay.
 const INVISIBLE =
-  /(?![\n\t])[\p{Cc}\p{Cf}\u2028\u2029\u115F\u1160\u3164\uFFA0\u2800\u034F\uFE00-\uFE0F]/gu;
+  /(?![\n\t])[\p{Cc}\p{Cf}\u2028\u2029\u115F\u1160\u3164\uFFA0\u2800]|\u034F|[\uFE00-\uFE0F]/gu;
 
 // HN's own time for the comment, in seconds; anything outside 2007 to 2100 is no date.
 function postedAt(seconds: number | null | undefined): Date | null {
@@ -112,8 +112,9 @@ const ROLE =
   /\b(engineer|engineering|developer|programmer|designer|scientist|architect|manager|lead|director|analyst|researcher|sre|devops|founding|intern|head of|vp|cto|recruiter|product|marketer|writer|specialist|administrator|technician|consultant)s?\b/i;
 // Fields that are terms, pay or links rather than a place.
 const NOT_PLACE =
-  /(https?:\/\/|www\.|@|\$|€|£|\d+k\b|\bfull[- ]?time\b|\bpart[- ]?time\b|\bcontract\b|\bvisa\b|\bequity\b|\bsalary\b|\bintern(ship)?s?\b)/i;
+  /(https?:\/\/|www\.|@|\$|€|£|\d+k\b|\bfull[- ]?time\b|\bpart[- ]?time\b|\bcontract\b|\bvisa\b|\bequity\b|\bsalary\b|\bseries [a-z]\b|\bseed\b|\bfunded\b|\byc [swf]\d|\bintern(ship)?s?\b)/i;
 const PURE_MODE = /^(remote|onsite|on-site|hybrid|in[- ]office)$/i;
+const MODE_WORD = /\b(remote|onsite|on-site|hybrid|in[- ]office)\b/i;
 
 // HN's convention: `Company | Role | Location | …` on the first line. Nothing is guessed: with
 // fewer than two fields, or no field naming a role, title and company stay null (a draft).
@@ -131,16 +132,23 @@ export function readHead(head: string): {
   const none = { company: null, title: null, location: null };
   if (parts.length < 2) return none;
   const [company, ...rest] = parts;
-  if (company === undefined || !usable(company) || ROLE.test(company)) return none;
+  // A role or a bare work-mode word ("REMOTE") where the company belongs: guess nothing.
+  if (company === undefined || !usable(company) || ROLE.test(company) || PURE_MODE.test(company)) {
+    return none;
+  }
   const titleIndex = rest.findIndex((p) => ROLE.test(p) && usable(p));
   if (titleIndex === -1) return none;
   const title = rest[titleIndex] ?? null;
   const others = rest.filter((_, i) => i !== titleIndex);
-  // A place first (a city, or "Remote (EU)"); a bare work-mode word ("ONSITE") only when nothing
-  // else names one, since remoteFrom already reads it into `remote`.
-  const place = (p: string) => usable(p) && !NOT_PLACE.test(p) && /[a-z]/i.test(p);
+  // A place is never another role ("Frontend Engineer") or terms, pay, funding or a link. Best is a
+  // work mode with a place ("Remote (US)"), then any other place ("Berlin, Germany"), and a bare
+  // work-mode word ("ONSITE") only when nothing else names one (remoteFrom reads it into `remote`).
+  const place = (p: string) => usable(p) && !ROLE.test(p) && !NOT_PLACE.test(p) && /[a-z]/i.test(p);
   const location =
-    others.find((p) => place(p) && !PURE_MODE.test(p)) ?? others.find((p) => place(p)) ?? null;
+    others.find((p) => place(p) && MODE_WORD.test(p) && !PURE_MODE.test(p)) ??
+    others.find((p) => place(p) && !PURE_MODE.test(p)) ??
+    others.find((p) => place(p)) ??
+    null;
   return { company, title, location };
 }
 
