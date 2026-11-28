@@ -89,6 +89,11 @@ Built in slices, each its own PR:
   span and not counted against the breaker (it answered).
 - Spend cap reached: held back like any `low` model route.
 - Wrong suggestion: nothing is merged; it stays listed until dismissal lands (slice 4).
+- A suggestion step that throws for one newly embedded job (a database error): counted and printed
+  ("N couldn't be compared"), not retried. Jobs embedded later still compare against it, but its
+  pairs with jobs embedded before it are found only when its text next changes. Retrying would
+  mean comparing every job on every pass; a dead letter would need a new kind. Revisit if it
+  happens.
 
 ## Observability
 - Span `llm.embed` (model, input count, tokens, status; never text or the key).

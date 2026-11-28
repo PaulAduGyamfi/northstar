@@ -33,7 +33,8 @@ export type EmbedPassReport = {
   unchanged: number;
   refused: number;
   suggested: number;
-  // Jobs whose suggestion step threw: their vector is stored, so the next new job still finds them.
+  // Jobs whose suggestion step threw. Their vector is stored, so a job embedded later still finds
+  // them, but their pairs with jobs embedded earlier aren't retried until their text changes.
   suggestFailed: number;
   // The error's class when the request didn't go out or failed (held back, the API down): nothing
   // was stored, and the next pass retries the same jobs.
@@ -100,6 +101,8 @@ export function embedPass(deps: EmbedPassDeps): Promise<EmbedPassReport> {
           "northstar.embed.embedded": report.embedded,
           "northstar.embed.suggested": report.suggested,
           "northstar.embed.suggest_failed": report.suggestFailed,
+          "northstar.embed.unchanged": report.unchanged,
+          "northstar.embed.refused": report.refused,
           ...(report.stoppedBy === null ? {} : { "northstar.embed.stopped_by": report.stoppedBy }),
         });
         span.end();
@@ -127,13 +130,15 @@ export async function embedAfterScore(
     print(`Job embeddings didn't run (${report.stoppedBy}); the next pass retries.`);
     return;
   }
-  if (report.embedded === 0 && report.suggestFailed === 0) return;
+  if (report.embedded === 0 && report.suggestFailed === 0 && report.refused === 0) return;
   const left = report.pending - report.embedded - report.unchanged - report.refused;
   print(
     `Embedded ${report.embedded} job${report.embedded === 1 ? "" : "s"}` +
       `${left > 0 ? ` (${left} more next pass)` : ""}; ` +
       `${report.suggested} possible duplicate${report.suggested === 1 ? "" : "s"}` +
       `${report.suggested > 0 ? " (see jobs dupes)" : ""}` +
-      `${report.suggestFailed > 0 ? `; ${report.suggestFailed} couldn't be compared` : ""}.`,
+      `${report.suggestFailed > 0 ? `; ${report.suggestFailed} couldn't be compared` : ""}` +
+      // A refused save (the job left `ready` meanwhile) is sent again next pass, so say so.
+      `${report.refused > 0 ? `; ${report.refused} not stored (no longer ready)` : ""}.`,
   );
 }

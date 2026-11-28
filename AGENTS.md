@@ -113,7 +113,8 @@ Exists now:
   is stored and `suggestDuplicates` runs for each new one at `JOB_DUPLICATE_THRESHOLD` (0.50–0.99,
   required while on, no default; `parseDuplicateThreshold`). A held-back or failed request stops
   the pass with one printed line (`embedAfterScore`) and never fails the scoring command; the next
-  pass retries. `jobs dupes` (`dupes-cli.ts`, `listDuplicateSuggestions`) lists the newest 50
+  pass retries. A suggestion step that throws for one job is counted and printed, not retried: a
+  job embedded later still finds it, but its pairs with earlier jobs wait until its text changes. `jobs dupes` (`dupes-cli.ts`, `listDuplicateSuggestions`) lists the newest 50
   pairs with both jobs' titles, companies and ids. The API's capture scoring doesn't embed. The
   threshold's measurement and dismissing a suggestion need Paul's recordings (slice 4); until then
   `JOB_EMBEDDINGS` stays off. An embedding never merges a job.

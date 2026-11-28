@@ -154,6 +154,12 @@ describe("embedAfterScore (NS-129 slice 3)", () => {
     ]);
   });
 
+  it("says so when every save was refused, since those jobs are sent again", async () => {
+    expect(
+      await lines(async () => ({ ...base, pending: 1, embedded: 0, suggested: 0, refused: 1 })),
+    ).toEqual(["Embedded 0 jobs; 0 possible duplicates; 1 not stored (no longer ready)."]);
+  });
+
   it("says nothing when there was nothing to embed", async () => {
     expect(await lines(async () => ({ ...base, pending: 0, embedded: 0, suggested: 0 }))).toEqual(
       [],
