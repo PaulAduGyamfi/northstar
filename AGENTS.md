@@ -572,6 +572,19 @@ Exists now:
   malformed answer, an unreadable message or a refused store is a `mail.grade` dead letter (the same
   pass-over rule). `@northstar/funnel` depends on `@northstar/sources` for the grader. Off, the
   run counts recruiter mail waiting for a grade (`countUngradedRecruiterMail`).
+  Since NS-238 item 2's caller the run then files reply drafts by grade, only while
+  `RECRUITER_REPLIES=on` (`loadRecruiterReplies`; default off, its own switch apart from grading).
+  `runReplies` (`src/reply.ts`) takes graded recruiter mail from the last 14 days with no
+  `reply_draft` ever filed, not dismissed and not F by Paul's newest regrade, else the grader's
+  letter (`readReplyCandidates`, `packages/db`). It files at most 10 a run, looking at no more than
+  30. It skips one Paul already answered: a `SENT` message later in the thread, read by headers
+  only. For the rest it reads the reply headers (`getReplyHeaders`, a new metadata-only read of
+  From, Reply-To, Subject, Message-ID and References; a header that appears twice is joined, so
+  the envelope refuses it), builds `recruiterReplyPackage` with that letter and files it through
+  `fileReplyDraft`. Nothing is sent or written to Gmail: each reply waits in the Queue. A read that
+  fails, bad headers, a no-reply sender or a refused filing is a `mail.reply` dead letter (the same
+  pass-over rule). `@northstar/funnel` depends on `@northstar/profile` for it, loaded only when
+  the step is on.
   Since NS-229 (slice 1) also Gmail labels (`src/labels/`, ADR-0027, **Rejected** 2026-11-27: `gmail.modify` held
   only by this writer, ADR-0014's per-run token, labels add-only and outside the Gate):
   `threadLabels(kind, origin)` gives a thread's fixed `Northstar/…` type label (INB-005) and
@@ -771,7 +784,7 @@ Exists now:
   `recruiterReplyPackage` (`packages/profile`, `reply/recruiter.ts`) gives A/B an interested
   sentence, C a "share more" sentence and D a polite no (`RECRUITER_REPLY_SENTENCES`: no fact,
   number, link or commitment word, so nothing to cite), filed by `fileReplyDraft`; an F gets no
-  reply (`ArchiveSuggested`). No caller yet.
+  reply (`ArchiveSuggested`). Its caller is `funnel inbox`, only while `RECRUITER_REPLIES=on`.
   Since NS-238 item 3 (slice 1, REC-003) Paul can regrade a graded recruiter email: append-only
   `recruiter_regrade` (`packages/db`, `recruiter-regrade-write.ts`: `regradeRecruiterMessage`, one
   row per change of his letter, the newest current; the same letter again stores nothing; an
@@ -1404,7 +1417,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/funnel funnel import data/<file>.csv` | import a tracker export (`company, role, applied_on, stage_reached, outcome` plus optional `outcome_on, channel, notes`); a file with any bad row stores nothing. Paul only |
 | repo root | `pnpm --filter @northstar/funnel funnel review` | place or discard the messages the backfill couldn't decide, with a link to each in Gmail. Paul only |
 | repo root | `pnpm --filter @northstar/funnel funnel interviews` | sign in to Google Calendar read-only (browser consent every run, no stored token), detect interviews in the next 30 days against open applications whose company domains you entered (`jobs domains`), store them for `/interviews` and print counts only. Safe to rerun. Paul only: his real calendar, needs `DATABASE_URL` and `GOOGLE_OAUTH_CLIENT_*`; agents never run it |
-| repo root | `pnpm --filter @northstar/funnel funnel inbox` | sign in to Gmail read-only (browser consent every run, no stored token), link new job mail from the stored cursor (the first run reads 7 days back), sort up to 25 recorded emails with the rules or the `mail-classify` model behind its switch, breaker and the spend cap, grade up to 10 recruiter emails when `RECRUITER_EXTRACT=on` (off by default), and print counts only; emails that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real mail, needs `DATABASE_URL`, `GOOGLE_OAUTH_CLIENT_*` and `ANTHROPIC_API_KEY`; agents never run it |
+| repo root | `pnpm --filter @northstar/funnel funnel inbox` | sign in to Gmail read-only (browser consent every run, no stored token), link new job mail from the stored cursor (the first run reads 7 days back), sort up to 25 recorded emails with the rules or the `mail-classify` model behind its switch, breaker and the spend cap, grade up to 10 recruiter emails when `RECRUITER_EXTRACT=on` (off by default), send up to 10 reply drafts by grade to your Queue for approval when `RECRUITER_REPLIES=on` (off by default; nothing is sent), and print counts only; emails that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real mail, needs `DATABASE_URL`, `GOOGLE_OAUTH_CLIENT_*` and `ANTHROPIC_API_KEY`; agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel prep [--busy-from-calendar]` | plan prep blocks for each confirmed, upcoming interview inside your working hours (`PREP_TIME_ZONE` or `ALERT_TIME_ZONE`, `PREP_WORKING_HOURS`), around your other interviews and their prep (with `--busy-from-calendar`, also around your calendar's events: a second, read-only Google consent that run, only when something is to be planned; times only, nothing kept), send each plan to your Queue, and, when one is approved, sign in to Google for your Northstar calendar only (browser consent that run, no stored token) and add its blocks once each; prints counts only, and plans that keep failing go to Stuck work on `/health`. Safe to rerun. Paul only: his real calendar, needs `DATABASE_URL` and `GOOGLE_OAUTH_CLIENT_*` with `calendar.app.created` on the consent screen (and `calendar.events.readonly`, as for `funnel interviews`, with `--busy-from-calendar`); agents never run it |
 | repo root | `pnpm --filter @northstar/funnel funnel report` / `funnel hypotheses` | the funnel report and the hypothesis board. Paul only: they print his real applications; agents never run them |
 | repo root | `pnpm --filter @northstar/sources jobs add <url>` | add a job from a link: ATS API, then the page's JSON-LD, then the `job-extract` model (needs `ANTHROPIC_API_KEY` only then). A job without a title or company is stored as a draft. LinkedIn, Indeed and Glassdoor links are refused. Paul only: needs `DATABASE_URL` |

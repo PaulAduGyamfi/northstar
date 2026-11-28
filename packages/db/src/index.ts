@@ -403,7 +403,9 @@ export {
 // What `funnel inbox` still has to classify and grade (NS-238 item 1).
 export {
   countUngradedRecruiterMail,
+  type ReplyCandidate,
   readRecordedMessageIds,
+  readReplyCandidates,
   readUnclassifiedMail,
   readUngradedRecruiterMail,
   type UnclassifiedMail,

@@ -84,7 +84,10 @@ interviews` (Google consent each run, no stored token) and wait for you on the I
 detection doesn't run on its own yet. New job mail is linked to your applications and sorted when
 you run `pnpm --filter @northstar/funnel funnel inbox` (Gmail consent each run, no stored token);
 it shows on the Inbox page. Recruiter emails are graded A–F in the same run once you turn on
-`RECRUITER_EXTRACT` (off by default). Prep for the interviews you confirmed is planned and sent to
+`RECRUITER_EXTRACT` (off by default). With `RECRUITER_REPLIES` on (off by default), the same run
+also drafts a short reply to each graded recruiter email you haven't answered (interested,
+asking for more, or a polite no; nothing for an F) and puts it in your Queue: nothing is sent.
+Prep for the interviews you confirmed is planned and sent to
 your Queue when you run `pnpm --filter @northstar/funnel funnel prep`; the next run adds the plans
 you approved to a Northstar calendar it creates (Google consent for that calendar only, each run,
 no stored token). The plan's blocks print in your terminal on the run that files it, and "Show the

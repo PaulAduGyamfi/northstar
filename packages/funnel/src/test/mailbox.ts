@@ -483,5 +483,16 @@ export function fakeGmailClient(messages: FakeMessage[]): GmailClient & { fullFe
       const msg = byId(id);
       return { ...headersOf(msg), body: msg.text };
     },
+    // The backfill never asks for reply headers.
+    getReplyHeaders: async (id) => {
+      const msg = byId(id);
+      return {
+        from: msg.headers.From ?? null,
+        replyTo: msg.headers["Reply-To"] ?? null,
+        subject: msg.headers.Subject ?? null,
+        messageId: msg.headers["Message-ID"] ?? null,
+        references: msg.headers.References ?? null,
+      };
+    },
   };
 }

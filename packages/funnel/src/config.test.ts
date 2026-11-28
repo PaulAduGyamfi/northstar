@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { FunnelConfigError, loadFunnelConfig, loadPrepConfig } from "./config.js";
+import {
+  FunnelConfigError,
+  loadFunnelConfig,
+  loadPrepConfig,
+  loadRecruiterReplies,
+} from "./config.js";
 
 // The funnel's settings (NS-238 item 1 slice 2). No real environment is read.
 
@@ -30,6 +35,30 @@ describe("loadFunnelConfig", () => {
       (caught as Error).message,
       (caught as Error).message.includes("yes-please"),
     ]).toEqual([true, "RECRUITER_EXTRACT must be on or off", false]);
+  });
+});
+
+describe("loadRecruiterReplies", () => {
+  it("reads RECRUITER_REPLIES as on or off, unset or empty meaning off", () => {
+    expect([
+      loadRecruiterReplies({ RECRUITER_REPLIES: "on" }),
+      loadRecruiterReplies({ RECRUITER_REPLIES: "off" }),
+      loadRecruiterReplies({ RECRUITER_REPLIES: "" }),
+      loadRecruiterReplies({ RECRUITER_EXTRACT: "on" }),
+    ]).toEqual([true, false, false, false]);
+  });
+
+  it("refuses any other value by the setting's name, never echoing the value", () => {
+    let caught: unknown;
+    try {
+      loadRecruiterReplies({ RECRUITER_REPLIES: "always" });
+    } catch (e) {
+      caught = e;
+    }
+    expect([caught instanceof FunnelConfigError, (caught as Error).message]).toEqual([
+      true,
+      "RECRUITER_REPLIES must be on or off",
+    ]);
   });
 });
 

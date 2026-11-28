@@ -322,7 +322,10 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `funnel inbox`'s read-only readers: recorded messages with no classification and no dismissal,
   newest first, classified recruiter mail with no grade (counted, and since slice 2 listed newest
   first by `readUngradedRecruiterMail`), and which given messages are recorded
-  (`readRecordedMessageIds`); ids and counts only.
+  (`readRecordedMessageIds`); ids and counts only. `readReplyCandidates` (NS-238 item 2's caller)
+  lists graded recruiter mail since a date with no `reply_draft` ever filed (`NOT EXISTS`: an
+  edit leaves several), not dismissed and not F by Paul's newest regrade, else the stored grade;
+  ids and the letter only.
   `readDeadLetterKeys` (NS-238 item 1) gives one kind's letters with their resolution, for a
   producer that passes over what it gave up on until Paul retries it.
   `readLinkCandidates` (NS-223) is their read-only candidates reader: applications not in a

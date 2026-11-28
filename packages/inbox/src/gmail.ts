@@ -14,6 +14,8 @@ const THREADS = "https://gmail.googleapis.com/gmail/v1/users/me/threads";
 const PROFILE = "https://gmail.googleapis.com/gmail/v1/users/me/profile";
 // Headers the pre-filter and INB-011 need; nothing else is fetched before the pre-filter decides.
 const METADATA_HEADERS = ["From", "Subject", "Date", "Delivered-To", "Authentication-Results"];
+// Headers a reply's envelope is built from (RPL-002, `replyEnvelope`), read only to file a reply.
+const REPLY_HEADERS = ["From", "Reply-To", "Subject", "Message-ID", "References"];
 // The breaker every Gmail read goes through (NS-174, RES-002).
 export const GMAIL_DEPENDENCY = "gmail";
 
@@ -46,6 +48,17 @@ export type MessageHeaders = {
 
 export type FullMessage = MessageHeaders & { body: string };
 
+// What a reply to one message is addressed and threaded from (NS-238 item 2, RPL-002): the
+// message's own headers, as `replyEnvelope`'s `InboundHeaders` takes them. A header that appears
+// more than once is joined, so the envelope refuses it rather than picking one.
+export type ReplyHeaders = {
+  from: string | null;
+  replyTo: string | null;
+  subject: string | null;
+  messageId: string | null;
+  references: string | null;
+};
+
 export class GmailError extends Error {
   override name = "GmailError";
   constructor(
@@ -60,6 +73,8 @@ export type GmailClient = {
   listIds: (query: string) => Promise<{ id: string; threadId: string }[]>;
   getHeaders: (id: string) => Promise<MessageHeaders>;
   getFull: (id: string) => Promise<FullMessage>;
+  // The headers a reply is built from (format=metadata, REPLY_HEADERS only; never the body).
+  getReplyHeaders: (id: string) => Promise<ReplyHeaders>;
   // Every message id in a thread. A search lists matching messages, not whole threads, so this is
   // how a reply titled "Intro call" in a confirmation's thread is found at all.
   threadMessageIds: (threadId: string) => Promise<{ id: string; threadId: string }[]>;
@@ -121,11 +136,15 @@ export function createGmailClient(deps: GmailDeps): GmailClient {
     });
   }
 
-  async function message(id: string, format: "metadata" | "full"): Promise<GmailMessage> {
+  async function message(
+    id: string,
+    format: "metadata" | "full",
+    metadataHeaders: readonly string[] = METADATA_HEADERS,
+  ): Promise<GmailMessage> {
     const url = new URL(`${BASE}/${encodeURIComponent(id)}`);
     url.searchParams.set("format", format);
     if (format === "metadata") {
-      for (const h of METADATA_HEADERS) url.searchParams.append("metadataHeaders", h);
+      for (const h of metadataHeaders) url.searchParams.append("metadataHeaders", h);
     }
     return inSpan("gmail.get", { "gmail.format": format }, (span) =>
       get(url.toString(), span),
@@ -162,6 +181,7 @@ export function createGmailClient(deps: GmailDeps): GmailClient {
         span.setAttribute("gmail.count", ids.length);
         return ids;
       }),
+    getReplyHeaders: async (id) => replyHeadersOf(await message(id, "metadata", REPLY_HEADERS)),
     getFull: async (id) => {
       const m = await message(id, "full");
       return { ...headersOf(m), body: bodyOf(m.payload) };
@@ -217,6 +237,24 @@ function headersOf(m: GmailMessage): MessageHeaders {
     ...(Array.isArray(m.labelIds)
       ? { labelIds: m.labelIds.filter((l): l is string => typeof l === "string") }
       : {}),
+  };
+}
+
+// Every value of one header, joined: addresses with ", " (so a second address makes the envelope
+// refuse it), the rest with " " (a second Message-ID fails its shape check). Null when absent.
+function replyHeadersOf(m: GmailMessage): ReplyHeaders {
+  const all = (name: string, sep: string) => {
+    const values = (m.payload?.headers ?? [])
+      .filter((h) => h.name.toLowerCase() === name.toLowerCase())
+      .map((h) => h.value);
+    return values.length === 0 ? null : values.join(sep);
+  };
+  return {
+    from: all("From", ", "),
+    replyTo: all("Reply-To", ", "),
+    subject: all("Subject", " "),
+    messageId: all("Message-ID", " "),
+    references: all("References", " "),
   };
 }
 

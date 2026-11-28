@@ -21,6 +21,7 @@ export {
   type GmailDeps,
   GmailError,
   type MessageHeaders,
+  type ReplyHeaders,
   senderDomain,
 } from "./gmail.js";
 export {

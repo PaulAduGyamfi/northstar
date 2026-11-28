@@ -32,7 +32,8 @@ as a reply to approve.
      received after it. That check is headers only (`threadMessageIds`, `getHeaders`).
    - It reads the email's reply headers (From, Reply-To, Subject, Message-ID, References) with
      `getReplyHeaders`, a new metadata read on the Gmail client. A header that appears twice is
-     joined, so `replyEnvelope` refuses it instead of picking one.
+     joined: a second From, Reply-To or Message-ID makes `replyEnvelope` refuse it instead of
+     picking one.
    - It builds the package with `recruiterReplyPackage`, using the email's own letter:
      - A/B interested;
      - C "share more";
@@ -59,6 +60,8 @@ as a reply to approve.
    it stopped. Off, it prints nothing new.
 6. **Docs.** The AGENTS.md command row and the `funnel inbox` layout note, `.env.example`, the
    README and `.claude/rules/db.md`.
+7. **Dependency.** `@northstar/funnel` depends on `@northstar/profile` (a workspace link; the
+   orchestrator approved it and updated the lock), imported only when the step is on.
 
 ## Out of scope
 - Writing the Gmail draft (`writeReplyDraft`, #230) or sending anything.
@@ -75,6 +78,9 @@ as a reply to approve.
 - **"Already answered" means a `SENT` message later in the thread.** A Gmail draft he hasn't sent
   doesn't count.
 - **A new dead-letter kind,** `mail.reply`, because these aren't grading failures.
+- **A workspace dependency,** `@northstar/funnel` → `@northstar/profile`, for
+  `recruiterReplyPackage` (approved by the orchestrator, lock updated by it). Dynamically imported,
+  so the other `funnel` commands don't load the profile package.
 
 ## Acceptance criteria
 - [ ] Off by default: nothing is read and nothing is filed.
@@ -83,5 +89,5 @@ as a reply to approve.
 - [ ] Bad headers, a no-reply sender or a Gate refusal each give one `mail.reply` letter, which is
       passed over on the next run.
 - [ ] Gmail not answering stops the step with no letter.
-- [ ] Duplicate Reply-To headers are refused, not resolved to From.
+- [ ] Duplicate Reply-To headers are joined, so the envelope refuses them, never falls back to From.
 - [ ] No migration.

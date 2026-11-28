@@ -20,6 +20,17 @@ export function loadFunnelConfig(env: Readonly<Record<string, string | undefined
   throw new FunnelConfigError("RECRUITER_EXTRACT must be on or off");
 }
 
+// NS-238 item 2's caller: whether `funnel inbox` files a reply draft for each graded recruiter
+// email (REC-002). Its own switch, so grading can run without filing anything; off unless Paul
+// turns it on. Same rule as RECRUITER_EXTRACT: `on` or `off`, unset is off, anything else refused
+// naming the setting only.
+export function loadRecruiterReplies(env: Readonly<Record<string, string | undefined>>): boolean {
+  const raw = env.RECRUITER_REPLIES;
+  if (raw === undefined || raw === "" || raw === "off") return false;
+  if (raw === "on") return true;
+  throw new FunnelConfigError("RECRUITER_REPLIES must be on or off");
+}
+
 // `funnel prep`'s settings (NS-241 slice 5): where Paul's working day is, for the prep planner.
 export type PrepConfig = {
   // An IANA zone: PREP_TIME_ZONE, else the fresh-job alerts' ALERT_TIME_ZONE.
