@@ -446,5 +446,9 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   `readInboxThreads` (NS-165, `inbox-read.ts`) groups `mail_link` rows by application and
   thread (counts, newest time, newest step, any verified sender) with origins from
   `readOrigins`; read-only, Gmail ids and flags only.
+  `readQueueCandidates` and `countQueuedToday` (`queue-read.ts`, NS-280 slice 1) are the queueing
+  rule's read-only readers: ready jobs whose newest score is `queue`, with no application and an
+  open posting (ids only), and today's `application.created` events started by Northstar at
+  `queued` (a count, by the Gate's clock).
   `readApplicationHistories` (NS-208) gives each application's creation time, source, newest fit
   band, posting time and status moves (`application.*` events with a `to`), never names or text.
