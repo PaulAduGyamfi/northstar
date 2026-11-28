@@ -16,8 +16,9 @@ load. No assertion failed, and the profile package wasn't touched. It blocks unr
   - `src/voice/store.test.ts` (6 db tests) and `src/independent-work-db.test.ts` (3 db tests):
     one database per file, a fresh candidate (and, for independent work, a fresh stored entry)
     per test.
-  - `src/reply/nudge.test.ts` and `src/reply/recruiter.test.ts` have one db test each: already
-    one database per file, unchanged.
+  - `src/reply/nudge.test.ts` (the first failure, #467) and `src/reply/recruiter.test.ts`: one
+    db test each, moved to the same `beforeAll` shape, so no profile file builds a database in
+    `beforeEach`.
 - `packages/profile/vitest.config.ts` sets `hookTimeout: 30_000`, the value `packages/db`'s
   dependents already use (gateways, pipeline, sources, funnel, api, worker; NS-258). It is a setup
   budget for hooks only: no test timeout, assertion or eval threshold changes.
