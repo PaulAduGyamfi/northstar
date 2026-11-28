@@ -47,3 +47,14 @@ export function termsFor(url: string): SourceTerms {
   // A company's own careers page: public, read once at Paul's request.
   return { source: "careers-page", terms: "public-feed" };
 }
+
+// A company's own site (NS-283), read once per snapshot from a domain Paul entered (`jobs
+// domains`), only where its robots.txt allows. Declared before any read: a prohibited site or an
+// ATS host is refused (a board is read through its own API, never as a company site).
+export function companySiteTerms(url: string): SourceTerms {
+  const declared = termsFor(url);
+  if (declared.terms !== "public-feed" || declared.source !== "careers-page") {
+    return { source: declared.source, terms: "prohibited" };
+  }
+  return { source: "company-site", terms: "public-feed" };
+}

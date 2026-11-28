@@ -833,8 +833,23 @@ Exists now:
     gap line citing another job than the interview's, a match line with no proof or not among the
     job's requirements, and a gap line citing an atom or story.
 
-  Storage, the `/interviews` page, Paul's company site through `safeFetch` and an off-by-default
-  model summary are later slices.
+  Since its site slice also the company's own home page: `readCompanySite` (`packages/sources`,
+  `research/site.ts`) reads `https://<domain>/` for a domain Paul entered (`jobs domains`), checked
+  again with `normalizeDomain` and `isSharedDomain`.
+  - Its terms are declared first (`companySiteTerms`: prohibited sites and ATS hosts refused).
+  - `robots.txt` is asked first: a site-wide `Disallow: /` for `*`, a 5xx or a 429 stops it. A
+    robots.txt that redirected to another host counts as no rules.
+  - Both reads go through `safeFetch`. The page must end on that domain or its `www.` name (whose
+    own robots.txt is asked too), answer 200 and be HTML.
+  - `htmlText` turns it into visible text in one linear pass: scripts, styles, templates and the
+    page title dropped whole, a tag's end found outside quoted attributes, only `svg` closing
+    itself, at most 50,000 characters.
+  - Every failure is a `SiteRefusal`, never a throw; its `research.site_read` span holds the
+    domain and the outcome only.
+  - A snapshot's about lines may cite the page (`source: "site"`, its URL), checked against the
+    page's text; nothing else may. No caller yet.
+
+  Storage, the `/interviews` page and an off-by-default model summary are later slices.
 - Recruiter grading (NS-167, REC-001/002), slice 1:
   - The `recruiter-extract` route (`packages/inbox`, `src/recruiter/`) reads a recruiter email's
     stated facts: title, seniority, company, place, remote kind, pay range, agency or in-house,
