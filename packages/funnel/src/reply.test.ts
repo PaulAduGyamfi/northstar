@@ -221,11 +221,33 @@ describe("runReplies", () => {
   it("letters a stored letter it doesn't know instead of building a reply", async () => {
     const f = fake({ candidates: async () => [candidate(1, "Z")] });
     const r = await runReplies(f.deps);
-    expect([r.filed, f.built, f.letters.map((l) => l.reason)]).toEqual([
-      0,
-      [],
-      ["invalid_headers"],
-    ]);
+    expect([r.filed, f.built, f.letters.map((l) => l.reason)]).toEqual([0, [], ["unknown_grade"]]);
+  });
+
+  it("letters an email whose filing throws and goes on to the next", async () => {
+    let calls = 0;
+    const f = fake({
+      candidates: async () => [candidate(1), candidate(2)],
+      file: async () => {
+        calls++;
+        if (calls === 1) throw new Error("database refused");
+        return { ok: true };
+      },
+    });
+    const r = await runReplies(f.deps);
+    expect([r.filed, f.letters.map((l) => l.reason)]).toEqual([1, ["file_refused"]]);
+  });
+
+  it("skips a message deleted from the thread when checking for Paul's answer", async () => {
+    const f = fake({
+      threadMessageIds: async () => [{ id: ID(1) }, { id: ID(9) }],
+      getHeaders: async (id) => {
+        if (id === ID(9)) throw new GmailError("Gmail answered 404", 404);
+        return headers(id, "2026-11-27T09:00:00Z");
+      },
+    });
+    const r = await runReplies(f.deps);
+    expect([r.filed, r.replyLetters]).toEqual([1, 0]);
   });
 
   it("files at most MAX_REPLY a run and says more are waiting", async () => {

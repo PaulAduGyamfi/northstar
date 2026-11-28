@@ -1,5 +1,5 @@
 import type { ReplyCandidate } from "@northstar/db";
-import type { MessageHeaders, ReplyHeaders } from "@northstar/inbox";
+import { GmailError, type MessageHeaders, type ReplyHeaders } from "@northstar/inbox";
 import { dependencyDown, errorName, type LetterRow, letterKey, letterState } from "./inbox.js";
 
 // Reply drafts by grade in `funnel inbox` (NS-238 item 2's caller, REC-002, RPL-002). After
@@ -15,6 +15,7 @@ export const MAX_EXAMINE = 30;
 export const REPLY_WINDOW_DAYS = 14;
 
 export type ReplyLetterReason =
+  | "unknown_grade"
   | "read_failed"
   | "invalid_headers"
   | "no_reply_address"
@@ -76,7 +77,14 @@ async function paulAnswered(deps: ReplyDeps, mail: ReplyCandidate): Promise<bool
   const own = await deps.getHeaders(mail.gmailMessageId);
   for (const { id } of await deps.threadMessageIds(mail.threadId)) {
     if (id === mail.gmailMessageId) continue;
-    const other = await deps.getHeaders(id);
+    let other: MessageHeaders;
+    try {
+      other = await deps.getHeaders(id);
+    } catch (e) {
+      // A message deleted from the thread since it was listed: it can't be Paul's answer.
+      if (e instanceof GmailError && e.status === 404) continue;
+      throw e;
+    }
     if (other.labelIds?.includes("SENT") && other.receivedAt > own.receivedAt) return true;
   }
   return false;
@@ -113,7 +121,7 @@ export async function runReplies(deps: ReplyDeps): Promise<ReplyReport> {
     examined++;
     // The reader keeps letters A-F; anything else is a stored row this code doesn't know.
     if (!isLetter(m.grade)) {
-      await giveUp(m, "invalid_headers");
+      await giveUp(m, "unknown_grade");
       continue;
     }
     let inbound: ReplyHeaders;
@@ -147,7 +155,18 @@ export async function runReplies(deps: ReplyDeps): Promise<ReplyReport> {
         );
       continue;
     }
-    const saved = await deps.file(built.value);
+    let saved: { ok: boolean };
+    try {
+      saved = await deps.file(built.value);
+    } catch (e) {
+      // A failure of the dependency stops the step; anything else is this email's letter, so
+      // one bad filing never ends the run before its counts are printed.
+      if (dependencyDown(e)) {
+        r.replyStoppedBy = errorName(e);
+        break;
+      }
+      saved = { ok: false };
+    }
     if (!saved.ok) {
       await giveUp(m, "file_refused");
       continue;

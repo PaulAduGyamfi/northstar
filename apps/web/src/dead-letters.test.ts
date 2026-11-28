@@ -136,12 +136,19 @@ describe("nextStep", () => {
 
   it("names a recruiter email it couldn't prepare a reply for, with each reason", () => {
     const reply = { ...ITEM, kind: "mail.reply", attempts: 1 };
-    const reasons = ["read_failed", "invalid_headers", "no_reply_address", "file_refused"];
+    const reasons = [
+      "read_failed",
+      "invalid_headers",
+      "no_reply_address",
+      "file_refused",
+      "unknown_grade",
+    ];
     expect(reasons.map((reasonCode) => letterLine({ ...reply, reasonCode }).why)).toEqual([
       "Stopped after 1 attempt: Gmail wouldn't give the email",
       "Stopped after 1 attempt: its sender, subject or thread headers can't be replied to safely",
       "Stopped after 1 attempt: it came from a no-reply address",
       "Stopped after 1 attempt: your approval queue refused the reply",
+      "Stopped after 1 attempt: its stored grade isn't one this version knows",
     ]);
     expect(letterLine(reply).what).toBe("Preparing a reply to a recruiter email");
   });

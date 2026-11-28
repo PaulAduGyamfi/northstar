@@ -52,7 +52,8 @@ as a reply to approve.
    - `read_failed`;
    - `invalid_headers` (`InvalidReply`);
    - `no_reply_address`;
-   - `file_refused`.
+   - `file_refused` (the Gate refused it, or the filing threw);
+   - `unknown_grade` (a stored letter this code doesn't know).
 
    Each letter is passed over until Paul retries it, the same rule as `mail.grade`. If Gmail, the
    token or a breaker doesn't answer, the step stops with no letter.

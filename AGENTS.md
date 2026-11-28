@@ -582,7 +582,7 @@ Exists now:
   From, Reply-To, Subject, Message-ID and References; a header that appears twice is joined, so
   the envelope refuses it), builds `recruiterReplyPackage` with that letter and files it through
   `fileReplyDraft`. Nothing is sent or written to Gmail: each reply waits in the Queue. A read that
-  fails, bad headers, a no-reply sender or a refused filing is a `mail.reply` dead letter (the same
+  fails, bad headers, a no-reply sender, a refused filing or an unknown stored letter is a `mail.reply` dead letter (the same
   pass-over rule). `@northstar/funnel` depends on `@northstar/profile` for it, loaded only when
   the step is on.
   Since NS-229 (slice 1) also Gmail labels (`src/labels/`, ADR-0027, **Rejected** 2026-11-27: `gmail.modify` held

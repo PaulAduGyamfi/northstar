@@ -252,7 +252,11 @@ function replyHeadersOf(m: GmailMessage): ReplyHeaders {
   return {
     from: all("From", ", "),
     replyTo: all("Reply-To", ", "),
-    subject: all("Subject", " "),
+    // Two subjects aren't merged: null makes the envelope refuse it, like any doubled header.
+    subject: (() => {
+      const n = (m.payload?.headers ?? []).filter((h) => h.name.toLowerCase() === "subject").length;
+      return n > 1 ? null : all("Subject", " ");
+    })(),
     messageId: all("Message-ID", " "),
     references: all("References", " "),
   };

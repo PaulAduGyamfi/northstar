@@ -322,7 +322,7 @@ try {
       // A bad RECRUITER_EXTRACT stops the run before Google is asked anything.
       const config = loadFunnelConfig(process.env);
       // So does a bad RECRUITER_REPLIES (NS-238 item 2's caller).
-      const replies = loadRecruiterReplies(process.env);
+      const repliesOn = loadRecruiterReplies(process.env);
       const access = await gmailAccess();
       // Every Gmail read goes through the stored `gmail` breaker.
       const gmail = createGmailClient({
@@ -460,11 +460,12 @@ try {
         replies: async () => {
           // Loaded only when the step is on: the profile package is large, and other commands
           // never need it.
-          const build = replies
+          // Off, runReplies returns before building anything, so the stand-in is never called.
+          const build = repliesOn
             ? (await import("@northstar/profile")).recruiterReplyPackage
             : () => ({ ok: false as const, error: { kind: "ArchiveSuggested" as const } });
           return runReplies({
-            enabled: replies,
+            enabled: repliesOn,
             now: () => new Date(),
             replyLetters: () => readDeadLetterKeys(db, candidateId, "mail.reply"),
             candidates: (since, limit) => readReplyCandidates(db, candidateId, { since, limit }),

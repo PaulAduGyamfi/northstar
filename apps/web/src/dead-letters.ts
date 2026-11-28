@@ -157,6 +157,7 @@ const REASONS: Record<string, string> = {
   invalid_headers: "its sender, subject or thread headers can't be replied to safely",
   no_reply_address: "it came from a no-reply address",
   file_refused: "your approval queue refused the reply",
+  unknown_grade: "its stored grade isn't one this version knows",
 };
 
 // Own keys only: a code such as "constructor" must not find Object's built-ins.

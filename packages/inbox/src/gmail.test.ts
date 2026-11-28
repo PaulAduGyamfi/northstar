@@ -185,6 +185,14 @@ describe("gmail client", () => {
     );
   });
 
+  it("reads no subject when the message has two, so the envelope refuses it", async () => {
+    const twice = {
+      ...message,
+      extraHeaders: [{ name: "Subject", value: "A second subject" }],
+    };
+    expect((await client(fakeGmail([twice])).getReplyHeaders("m1")).subject).toBeNull();
+  });
+
   it("joins a reply header that appears twice, so the envelope can refuse it", async () => {
     const twice = {
       ...message,
@@ -192,10 +200,7 @@ describe("gmail client", () => {
       extraHeaders: [{ name: "Reply-To", value: "other@elsewhere.example" }],
     };
     const h = await client(fakeGmail([twice])).getReplyHeaders("m1");
-    expect([h.replyTo, h.messageId]).toEqual([
-      "jo@globex.example, other@elsewhere.example",
-      null,
-    ]);
+    expect([h.replyTo, h.messageId]).toEqual(["jo@globex.example, other@elsewhere.example", null]);
   });
 
   it("fetches the plain-text body of a full message", async () => {
