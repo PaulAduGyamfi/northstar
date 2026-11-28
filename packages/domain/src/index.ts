@@ -7,6 +7,8 @@ export * from "./apply-package.js";
 export * from "./approval.js";
 export * from "./breaker.js";
 export * from "./company-name.js";
+// The Research Service's company snapshot and the interview brief (NS-283 slice 1).
+export * from "./company-snapshot.js";
 export * from "./consent.js";
 export * from "./domain-event.js";
 export * from "./feed.js";
@@ -15,6 +17,7 @@ export * from "./growth.js";
 export * from "./growth-progress.js";
 export * from "./health.js";
 export * from "./ids.js";
+export * from "./interview-brief.js";
 export * from "./interview-prep.js";
 export * from "./mail-status.js";
 export * from "./mail-tag.js";
