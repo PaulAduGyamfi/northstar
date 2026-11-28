@@ -108,8 +108,8 @@ describe("queueReadyJobs (NS-280 slice 1)", () => {
       .filter((e) => e.type === "application.created")
       .map((e) => [e.payload.jobId, e.payload.to, e.payload.startedBy, e.idempotencyKey]);
     expect([first, second, created.sort()]).toEqual([
-      { queued: 2, replayed: 0, capped: 0, missing: 0 },
-      { queued: 0, replayed: 0, capped: 0, missing: 0 },
+      { queued: 2, replayed: 0, capped: 0, missing: 0, taken: 0 },
+      { queued: 0, replayed: 0, capped: 0, missing: 0, taken: 0 },
       [
         [a, "queued", "northstar", queueKey(a)],
         [b, "queued", "northstar", queueKey(b)],
@@ -124,8 +124,8 @@ describe("queueReadyJobs (NS-280 slice 1)", () => {
     const first = await queueReadyJobs(db, candidateId, { dailyCap: 2 });
     const again = await queueReadyJobs(db, candidateId, { dailyCap: 2 });
     expect([first, again, (await applications()).map((r) => r.jobId).sort()]).toEqual([
-      { queued: 2, replayed: 0, capped: 1, missing: 0 },
-      { queued: 0, replayed: 0, capped: 1, missing: 0 },
+      { queued: 2, replayed: 0, capped: 1, missing: 0, taken: 0 },
+      { queued: 0, replayed: 0, capped: 1, missing: 0, taken: 0 },
       [fresh, middle].sort(),
     ]);
   });

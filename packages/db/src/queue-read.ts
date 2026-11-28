@@ -1,6 +1,5 @@
 import type { CandidateId } from "@northstar/domain";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
-import { gateNow } from "./apply-write.js";
 import type { Db } from "./db.js";
 import { fitScore } from "./fit-schema.js";
 import { readClosedJobIds } from "./liveness-write.js";
@@ -46,23 +45,22 @@ export async function readQueueCandidates(db: Db, candidateId: CandidateId): Pro
 }
 
 // How many applications the queueing rule created today (UTC day, by the Gate's clock): the
-// candidate's `application.created` events started by Northstar at `queued`.
+// candidate's `application.created` events started by Northstar at `queued`. The day starts at
+// midnight UTC of northstar_gate_now(), computed in the same statement; the events are stamped by
+// the database's now(), the same clock outside tests.
 export async function countQueuedToday(db: Db, candidateId: CandidateId): Promise<number> {
-  return db.transaction(async (tx) => {
-    const now = await gateNow(tx);
-    const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    const [row] = await tx
-      .select({ n: sql<number>`count(*)::int` })
-      .from(domainEvent)
-      .where(
-        and(
-          eq(domainEvent.candidateId, candidateId),
-          eq(domainEvent.type, "application.created"),
-          gte(domainEvent.occurredAt, dayStart),
-          sql`${domainEvent.payload} ->> 'startedBy' = 'northstar'`,
-          sql`${domainEvent.payload} ->> 'to' = 'queued'`,
-        ),
-      );
-    return row?.n ?? 0;
-  });
+  const dayStart = sql`date_trunc('day', northstar_gate_now() at time zone 'UTC') at time zone 'UTC'`;
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(domainEvent)
+    .where(
+      and(
+        eq(domainEvent.candidateId, candidateId),
+        eq(domainEvent.type, "application.created"),
+        gte(domainEvent.occurredAt, dayStart),
+        sql`${domainEvent.payload} ->> 'startedBy' = 'northstar'`,
+        sql`${domainEvent.payload} ->> 'to' = 'queued'`,
+      ),
+    );
+  return row?.n ?? 0;
 }

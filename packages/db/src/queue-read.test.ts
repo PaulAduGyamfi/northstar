@@ -9,7 +9,7 @@ import { createApplication } from "./origin-write.js";
 import { profileSource } from "./profile-schema.js";
 import { writeProfileImport } from "./profile-write.js";
 import { countQueuedToday, MAX_QUEUE_READ, readQueueCandidates } from "./queue-read.js";
-import { candidate, company, job } from "./schema.js";
+import { candidate, company, domainEvent, job } from "./schema.js";
 import { createTestDb } from "./test/pglite.js";
 
 // The queueing rule's reads (NS-280 slice 1) on PGlite. Synthetic jobs on example.com only.
@@ -180,5 +180,28 @@ describe("countQueuedToday (NS-280 slice 1)", () => {
       idempotencyKey: randomUUID(),
     });
     expect(await countQueuedToday(db, candidateId)).toBe(1);
+  });
+
+  it("never counts an application Northstar queued yesterday", async () => {
+    // An event from before today's UTC midnight, written straight in (only its time matters).
+    const now = new Date();
+    const yesterday = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - 3_600_000,
+    );
+    await db.insert(domainEvent).values({
+      id: randomUUID(),
+      candidateId,
+      aggregate: `application:${randomUUID()}`,
+      type: "application.created",
+      actor: "system",
+      reason: "",
+      inputsSummary: "",
+      payload: { to: "queued", jobId: randomUUID(), startedBy: "northstar" },
+      links: [],
+      traceId: null,
+      idempotencyKey: randomUUID(),
+      occurredAt: yesterday,
+    });
+    expect(await countQueuedToday(db, candidateId)).toBe(0);
   });
 });
