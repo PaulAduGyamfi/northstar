@@ -3,6 +3,8 @@ import { type AtsAdapter, capture, pageText } from "./adapter.js";
 // SmartRecruiters job pages (NS-173, APPLY-002 P2). HAND-WRITTEN: the field names and markers are
 // synthetic, shaped after SmartRecruiters' public job pages, and must be checked against recorded
 // pages (NS-142), like NS-120's adapters. Custom questions come from the package's field map.
+// NS-142 slice 3 found the posting page has no form and its one-click apply flow answers a headless
+// browser with a bot check, so the names stay hand-written and the driver hands off (ADR-0003).
 export const smartrecruiters: AtsAdapter = {
   ats: "smartrecruiters",
   // careers.smartrecruiters.com links are refused (HostNotAllowed) until the package builder

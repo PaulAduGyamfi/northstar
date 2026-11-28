@@ -1015,8 +1015,15 @@ Exists now:
   (`src/apply/test/recorded.ts`: structure only, all content synthetic; `recorded.test.ts`).
   Greenhouse's current board has ids and no names, react-select dropdowns, and a `method="get"` form that its own
   script sends; Lever's
-  only `type="submit"` is a hidden hCaptcha button. Since NS-255 the driver refuses both (below). Ashby's page is JavaScript-only and SmartRecruiters wasn't fetched, so both
-  stay hand-written, as do all confirmation markers (recording one needs a submission). The package schema and its hash
+  only `type="submit"` is a hidden hCaptcha button. Since NS-255 the driver refuses both (below). Since NS-142
+  slice 3 the SmartRecruiters posting page is recorded too: it has no form (its one-click apply flow
+  answered headless Chromium with a bot check, which nothing went past), and a test pins that the
+  driver finds no form there, so it hands off; its names stay hand-written. Ashby's application
+  page is recorded too (rendered once; its two read-only GraphQL queries were the one exception to
+  GET only): it has no form element, so the driver hands off there as well; name and email match by
+  name and the resume input only by id (`_systemfield_resume`); phone is the board's own question,
+  not a system field, so neither the adapter nor the extension fills `_systemfield_phone` any more. All confirmation markers stay hand-written
+  (recording one needs a submission). The package schema and its hash
   are in `packages/domain` (`apply-package.ts`). Its tests run on fakes and, through `dbPorts`,
   on the real write paths: `@northstar/db/testing` exports `createTestDb` and friends for that.
   Since NS-142 (slice 1, ADR-0028, Accepted) also the browser driver, `src/apply/browser/`:

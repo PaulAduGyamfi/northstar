@@ -53,7 +53,6 @@ export const ADAPTERS: Record<
     standard: (c) => ({
       _systemfield_name: `${c.firstName} ${c.lastName}`,
       _systemfield_email: c.email,
-      ...(c.phone === null ? {} : { _systemfield_phone: c.phone }),
     }),
     files: ["_systemfield_resume"],
   },
