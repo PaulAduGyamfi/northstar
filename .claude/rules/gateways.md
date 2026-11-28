@@ -133,6 +133,11 @@ and never hand its `gmail.modify` token to code that reads mail.
   `processEntities: false`, any DOCTYPE refused, and its items' links kept only when https and not
   on a prohibited site. Never expand entities, never follow an item's link at poll time, and keep
   the untrusted-text rules in `boards/text.ts` for both.
+  A company's own site (NS-283, `research/site.ts`) is read only through `readCompanySite`: a
+  domain Paul entered, `companySiteTerms` declared first, `robots.txt` asked first, the home page
+  only, through `safeFetch`, and dropped unless it ends on that domain. Its text is only quoted
+  with the page's URL; never follow its links, read a second page, or take a domain from a
+  posting or mail.
 
 For every gateway (the Apply Gateway now, the others when they land):
 

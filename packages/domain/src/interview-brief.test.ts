@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { buildCompanySnapshot, type SnapshotJob } from "./company-snapshot.js";
-import { type BriefLine, buildInterviewBrief, checkInterviewBrief } from "./interview-brief.js";
+import {
+  type BriefLine,
+  type BriefSources,
+  buildInterviewBrief,
+  checkInterviewBrief,
+} from "./interview-brief.js";
 
 // The interview brief (NS-283 slice 1, CAL-005) for a synthetic interview. Invented names only.
 
@@ -111,7 +116,7 @@ describe("checkInterviewBrief", () => {
     ]);
   });
 
-  const check = (line: BriefLine, sources = SOURCES) =>
+  const check = (line: BriefLine, sources: BriefSources = SOURCES) =>
     checkInterviewBrief({ jobId: "j1", lines: [line] }, sources);
   const j1 = { source: "job" as const, id: "j1" };
   const a1 = { source: "atom" as const, id: "a1" };
@@ -177,5 +182,15 @@ describe("checkInterviewBrief", () => {
     };
     const jobs = [INTERVIEW_JOB, { ...OTHER_JOB, closed: true }];
     expect(check(line, { ...SOURCES, jobs })).toEqual([{ index: 0, reason: "closed_job" }]);
+  });
+
+  it("refuses a gap that cites the company's site", () => {
+    const line: BriefLine = {
+      section: "gap",
+      text: "On-call experience",
+      cites: [j1, { source: "site", id: "https://globex.example.com/" }],
+    };
+    const sites = [{ url: "https://globex.example.com/", text: "On-call experience." }];
+    expect(check(line, { ...SOURCES, sites })).toEqual([{ index: 0, reason: "not_verbatim" }]);
   });
 });

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCompanySnapshot,
+  type Citation,
+  type CompanySnapshot,
   checkSnapshot,
   MAX_ROLE_LINES,
   type SnapshotJob,
@@ -202,8 +204,8 @@ describe("buildCompanySnapshot's edge cases", () => {
 const only = (
   section: "about" | "roles" | "stack",
   text: string,
-  cites: { source: "job"; id: string }[],
-) => ({
+  cites: Citation[],
+): CompanySnapshot => ({
   company: "Globex",
   about: [],
   roles: [],
@@ -278,6 +280,48 @@ describe("checkSnapshot", () => {
     expect(checkSnapshot(snapshot, JOBS)).toEqual([
       { section: "roles", index: 10, reason: "over_limit" },
       { section: "roles", index: 11, reason: "over_limit" },
+    ]);
+  });
+});
+
+describe("the company's own site (NS-283 site slice)", () => {
+  const SITE = {
+    url: "https://globex.example.com/",
+    text: "Globex makes billing simple for small clinics. Book a demo today.",
+  };
+  const site = { source: "site" as const, id: SITE.url };
+
+  it("quotes the site's sentences naming the company before the postings'", () => {
+    const snapshot = buildCompanySnapshot({ company: "Globex", jobs: JOBS, sites: [SITE] });
+    expect(snapshot.about).toEqual([
+      { text: "Globex makes billing simple for small clinics.", cites: [site] },
+      { text: "Run Kubernetes and Terraform for Globex.", cites: [{ source: "job", id: "j2" }] },
+    ]);
+  });
+
+  it("accepts a site quote the page says", () => {
+    const snapshot = buildCompanySnapshot({ company: "Globex", jobs: JOBS, sites: [SITE] });
+    expect(checkSnapshot(snapshot, JOBS, [SITE])).toEqual([]);
+  });
+
+  it("refuses a site quote the page doesn't say", () => {
+    const snapshot = only("about", "Globex is the market leader.", [site]);
+    expect(checkSnapshot(snapshot, JOBS, [SITE])).toEqual([
+      { section: "about", index: 0, reason: "not_verbatim" },
+    ]);
+  });
+
+  it("refuses a site page it wasn't given", () => {
+    const snapshot = only("about", "Globex makes billing simple for small clinics.", [site]);
+    expect(checkSnapshot(snapshot, JOBS)).toEqual([
+      { section: "about", index: 0, reason: "unknown_source" },
+    ]);
+  });
+
+  it("refuses a role citing the site: roles come from postings", () => {
+    const snapshot = only("roles", "Backend Engineer", [site]);
+    expect(checkSnapshot(snapshot, JOBS, [SITE])).toEqual([
+      { section: "roles", index: 0, reason: "unknown_source" },
     ]);
   });
 });

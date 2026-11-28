@@ -94,4 +94,12 @@ export {
   type RecruiterFactsInput,
   type RecruiterGrade,
 } from "./recruiter/grade.js";
-export { type SourceTerms, type Terms, termsFor } from "./terms.js";
+// The Research Service's site read (NS-283): a company's own home page, as text to quote.
+export { htmlText, MAX_SITE_TEXT } from "./research/html-text.js";
+export {
+  readCompanySite,
+  robotsAllowsHome,
+  type SiteRead,
+  type SiteRefusal,
+} from "./research/site.js";
+export { companySiteTerms, type SourceTerms, type Terms, termsFor } from "./terms.js";

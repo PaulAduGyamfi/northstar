@@ -4,8 +4,13 @@
 // came from, and never read as an instruction. Every line cites its source (ADR-0004), and
 // `checkSnapshot` refuses a line that cites nothing, cites an unknown job or doesn't quote it.
 
-// Where a line's words come from: a saved job, a resume atom or an approved story.
-export type Citation = { source: "job" | "atom" | "story"; id: string };
+// Where a line's words come from: a saved job, a page of the company's own site (its https URL,
+// since NS-283's site slice), a resume atom or an approved story.
+export type Citation = { source: "job" | "site" | "atom" | "story"; id: string };
+
+// A page of the company's own site, read from a domain Paul entered: its URL and its visible text
+// (the page as read, never a summary). Untrusted, like a posting: only ever quoted.
+export type SitePage = { url: string; text: string };
 
 export type SnapshotLine = { text: string; cites: Citation[] };
 
@@ -169,27 +174,51 @@ function byFreshness(a: SnapshotJob, b: SnapshotJob): number {
 }
 
 const jobCite = (id: string): Citation => ({ source: "job", id });
+const siteCite = (url: string): Citation => ({ source: "site", id: url });
+
+// What a snapshot line may cite: the saved jobs by id and the site pages read, by URL.
+export type SnapshotSources = {
+  jobs: ReadonlyMap<string, SnapshotJob>;
+  sites: ReadonlyMap<string, string>;
+};
+
+export function snapshotSources(
+  jobs: readonly SnapshotJob[],
+  sites: readonly SitePage[] = [],
+): SnapshotSources {
+  return {
+    jobs: new Map(jobs.map((j) => [j.id, j])),
+    sites: new Map(sites.map((p) => [p.url, p.text])),
+  };
+}
 
 export function buildCompanySnapshot(input: {
   company: string;
   jobs: readonly SnapshotJob[];
+  // Pages of the company's own site, if read; their sentences come before the postings'.
+  sites?: readonly SitePage[];
 }): CompanySnapshot {
   // Closed jobs still say what the company does and what it builds with, so they feed the about
   // and stack lines; only the roles list is open jobs alone.
   const jobs = [...input.jobs].sort(byFreshness);
   const open = jobs.filter((j) => !j.closed);
 
-  // About: sentences that name the company, from the freshest postings first, once each.
+  // About: sentences that name the company, once each: the company's own site first (it says
+  // what the company does in its own words), then the freshest postings.
   const about: SnapshotLine[] = [];
   const seen = new Set<string>();
   const company = input.company.trim();
-  for (const job of jobs) {
+  const texts: { text: string; cite: Citation }[] = [
+    ...(input.sites ?? []).map((p) => ({ text: p.text, cite: siteCite(p.url) })),
+    ...jobs.map((j) => ({ text: j.description ?? "", cite: jobCite(j.id) })),
+  ];
+  for (const source of texts) {
     if (company === "" || about.length >= MAX_ABOUT_LINES) break;
-    for (const s of sentences(job.description ?? "")) {
+    for (const s of sentences(source.text)) {
       if (about.length >= MAX_ABOUT_LINES) break;
       if (!namesWhole(s, company) || !quotable(s) || seen.has(s)) continue;
       seen.add(s);
-      about.push({ text: s, cites: [jobCite(job.id)] });
+      about.push({ text: s, cites: [source.cite] });
     }
   }
 
@@ -248,20 +277,21 @@ export const SNAPSHOT_LIMITS = {
 } as const;
 
 // Every snapshot line must cite a given job and say only what that job says: an about line is a
-// verbatim sentence of a cited job's description that names the company, a role line an open
+// verbatim sentence of a cited job's description or site page that names the company, a role line an open
 // cited job's title, a stack line a STACK_TERMS term every cited job names; no section holds more
 // than its maximum. The same rules as the builder, so a line built any other way (a later model
 // summary) is held to them too. Plain code, no model (ADR-0004).
 export function checkSnapshot(
   snapshot: CompanySnapshot,
   jobs: readonly SnapshotJob[],
+  sites: readonly SitePage[] = [],
 ): SnapshotProblem[] {
-  const byId = new Map(jobs.map((j) => [j.id, j]));
+  const known = snapshotSources(jobs, sites);
   const problems: SnapshotProblem[] = [];
   const sections = ["about", "roles", "stack"] as const;
   for (const section of sections) {
     snapshot[section].forEach((line, index) => {
-      const reason = snapshotLineProblem(section, index, line, byId, snapshot.company);
+      const reason = snapshotLineProblem(section, index, line, known, snapshot.company);
       if (reason) problems.push({ section, index, reason });
     });
   }
@@ -274,16 +304,20 @@ export function snapshotLineProblem(
   // The line's position in its section, for the section's maximum.
   index: number,
   line: SnapshotLine,
-  jobs: ReadonlyMap<string, SnapshotJob>,
+  known: SnapshotSources,
   company: string,
 ): SnapshotProblem["reason"] | null {
   if (index >= SNAPSHOT_LIMITS[section]) return "over_limit";
   if (line.cites.length === 0) return "uncited";
   const cited: SnapshotJob[] = [];
+  const pages: string[] = [];
   for (const c of line.cites) {
-    const job = c.source === "job" ? jobs.get(c.id) : undefined;
-    if (!job) return "unknown_source";
-    cited.push(job);
+    // Only an about line may quote the company's site; roles and stack come from postings.
+    const page = c.source === "site" && section === "about" ? known.sites.get(c.id) : undefined;
+    const job = c.source === "job" ? known.jobs.get(c.id) : undefined;
+    if (page !== undefined) pages.push(page);
+    else if (job) cited.push(job);
+    else return "unknown_source";
   }
   if (section !== "stack" && !quotable(line.text)) return "not_quotable";
   if (section === "about" && (company.trim() === "" || !namesWhole(line.text, company.trim()))) {
@@ -294,8 +328,11 @@ export function snapshotLineProblem(
     if (section === "roles") return !job.closed && job.title.trim() === line.text;
     return STACK_TERMS.includes(line.text) && jobNames(job, line.text);
   };
-  // An about or role line needs one cited job that says it; a stack line, every cited job.
-  const ok = section === "stack" ? cited.every(backed) : cited.some(backed);
+  // An about or role line needs one cited source that says it; a stack line, every cited job.
+  const ok =
+    section === "stack"
+      ? cited.every(backed)
+      : cited.some(backed) || pages.some((p) => sentences(p).includes(line.text));
   if (ok) return null;
   // A role line that is a closed job's title says something true but no longer open.
   if (section === "roles" && cited.some((j) => j.closed && j.title.trim() === line.text)) {
