@@ -309,7 +309,7 @@ describe("notifyPass for fresh-job alerts (NS-199 item 1 slice 2)", () => {
     expect(await pushEvents()).toEqual(["push.sent"]);
   });
 
-  it("never pushes an alert held for quiet hours", async () => {
+  it("pushes a sent alert but never one held for quiet hours", async () => {
     await recordAlertHeld(db, {
       candidateId,
       jobId: randomUUID(),
@@ -318,18 +318,20 @@ describe("notifyPass for fresh-job alerts (NS-199 item 1 slice 2)", () => {
       tier: 2,
       now: clock,
     });
+    const sentJob = await freshAlert();
     await subscribe();
     const { ports: p, sent } = ports();
     await notifyPass(p, candidateId);
-    expect(sent).toEqual([]);
+    expect(sent.map((s) => s.payload.id)).toEqual([sentJob]);
   });
 
-  it("never pushes an alert older than an hour", async () => {
+  it("pushes an alert from the last hour but never an older one", async () => {
     await freshAlert(61);
+    const recent = await freshAlert(5);
     await subscribe();
     const { ports: p, sent } = ports();
     await notifyPass(p, candidateId);
-    expect(sent).toEqual([]);
+    expect(sent.map((s) => s.payload.id)).toEqual([recent]);
   });
 
   it("claims nothing while push is switched off, then pushes once it is back on", async () => {
