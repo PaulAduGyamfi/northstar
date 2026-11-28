@@ -9,14 +9,23 @@ describe("termsFor", () => {
       [
         "https://www.ycombinator.com/companies/globex/jobs/abc123-backend-engineer",
         "https://ycombinator.com/jobs",
+        "https://account.ycombinator.com/login",
         "https://www.workatastartup.com/jobs/12345",
         "https://workatastartup.com/companies/globex",
       ].map((url) => termsFor(url).terms),
-    ).toEqual(["prohibited", "prohibited", "prohibited", "prohibited"]);
+    ).toEqual(["prohibited", "prohibited", "prohibited", "prohibited", "prohibited"]);
   });
 
   it("leaves HN's own pages alone, where the Who is hiring? thread's postings link (NS-282)", () => {
     expect(termsFor("https://news.ycombinator.com/item?id=1001").terms).not.toBe("prohibited");
+  });
+
+  it("refuses a prohibited host written with a trailing dot", () => {
+    expect(
+      ["https://www.linkedin.com./jobs/view/1", "https://www.workatastartup.com./jobs/1"].map(
+        (url) => termsFor(url).terms,
+      ),
+    ).toEqual(["prohibited", "prohibited"]);
   });
 
   it("matches YC by host, not by a lookalike that only contains its name", () => {

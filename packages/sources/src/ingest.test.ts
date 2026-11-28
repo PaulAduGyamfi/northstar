@@ -343,6 +343,17 @@ describe("ingestText", () => {
     expect(store.saves[0]?.source.url).toBe("https://www.linkedin.com/jobs/view/123");
     expect(asked).toEqual([]);
   });
+
+  it("still takes a Work at a Startup posting Paul saved himself, fetching nothing (NS-288)", async () => {
+    const text = "Backend Engineer\nGlobex\nRemote - US";
+    const { deps, store, asked } = setup({}, ok({ title: "Backend Engineer", company: "Globex" }));
+    const r = await ingestText(deps, "https://www.workatastartup.com/jobs/12345", text);
+    expect([r.status, store.saves[0]?.source.url, asked]).toEqual([
+      "created",
+      "https://www.workatastartup.com/jobs/12345",
+      [],
+    ]);
+  });
 });
 
 describe("findDuplicate", () => {

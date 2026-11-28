@@ -64,6 +64,7 @@ describe("listBoard for an RSS feed (NS-282 slice 2)", () => {
         <item><title>Engineer at B Corp</title><link>http://jobs.example.com/postings/1</link></item>
         <item><title>Engineer at C Corp</title><link>https://www.linkedin.com/jobs/view/1</link></item>
         <item><title>Engineer at D Corp</title><link>not a url</link></item>
+        <item><title>Engineer at F Corp</title><link>https://www.workatastartup.com/jobs/6</link></item>
         <item><title>Engineer at E Corp</title><link>https://jobs.example.com/postings/5</link></item>`),
     );
     const postings = await listBoard(deps, board, NOW);

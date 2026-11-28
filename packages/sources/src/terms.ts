@@ -12,10 +12,10 @@ const PROHIBITED = [
   /(^|\.)lnkd\.in$/,
   /(^|\.)indeed\.[a-z.]+$/,
   /(^|\.)glassdoor\.[a-z.]+$/,
-  // YC's own job pages and Work at a Startup (NS-288, #477): their terms haven't been read, and Work
-  // at a Startup needs a sign-in, so Paul saves a posting himself (`jobs add --text`). Only YC's
-  // main site: `news.ycombinator.com` (the HN thread's posting links, NS-282) is not covered.
-  /^(www\.)?ycombinator\.com$/,
+  // YC's site and Work at a Startup (NS-288, #477): their terms haven't been read, and Work at a
+  // Startup needs a sign-in, so Paul saves a posting himself (`jobs add --text`). Every YC host but
+  // `news.ycombinator.com`, where the HN thread's postings link (NS-282).
+  /^(?!news\.)([a-z0-9-]+\.)*ycombinator\.com$/,
   /(^|\.)workatastartup\.com$/,
 ];
 
@@ -37,7 +37,8 @@ const PUBLIC_FEEDS: [RegExp, string][] = [[/^apply\.workable\.com$/, "workable"]
 export function termsFor(url: string): SourceTerms {
   let host: string;
   try {
-    host = new URL(url).hostname.toLowerCase();
+    // A trailing dot names the same host (`www.linkedin.com.`), so it must not slip past a pattern.
+    host = new URL(url).hostname.toLowerCase().replace(/\.$/, "");
   } catch {
     return { source: "invalid", terms: "prohibited" };
   }
