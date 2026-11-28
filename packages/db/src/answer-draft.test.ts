@@ -219,12 +219,23 @@ describe("readApprovedAnswerDrafts and bankApprovedAnswer", () => {
       by: "user",
     });
     if (!closed.ok) throw new Error(closed.error.kind);
-    const banked = await bankApprovedAnswer(db, {
+    // The pending draft has no decision of its own: banking it under another request's decision
+    // is refused by the Gate, and so is banking the withdrawn draft under its own.
+    const pendingBanked = await bankApprovedAnswer(db, {
       candidateId,
       requestId: pending.value.requestId,
       decisionId,
     });
-    expect([await readApprovedAnswerDrafts(db, candidateId), banked.ok]).toEqual([[], false]);
+    const withdrawnBanked = await bankApprovedAnswer(db, {
+      candidateId,
+      requestId: withdrawn.value.requestId,
+      decisionId,
+    });
+    expect([
+      await readApprovedAnswerDrafts(db, candidateId),
+      pendingBanked.ok ? "banked" : pendingBanked.error.kind,
+      withdrawnBanked.ok ? "banked" : withdrawnBanked.error.kind,
+    ]).toEqual([[], "SubjectMismatch", "Withdrawn"]);
   });
 
   it("keeps the answer's text out of the error when the bank's insert fails", async () => {
@@ -268,7 +279,7 @@ describe("readApprovedAnswerDrafts and bankApprovedAnswer", () => {
     }
     expect([banked.ok, message, message.includes(shared.shortText)]).toEqual([
       true,
-      "bank_answer insert failed",
+      "bank_answer save failed",
       false,
     ]);
   });

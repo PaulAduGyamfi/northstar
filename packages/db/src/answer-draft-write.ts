@@ -44,6 +44,10 @@ const DraftShape = z.object({
 
 export type FiledAnswer = RequestResult & { stored: boolean };
 
+// The Gate's hash (answerContentSha256) covers what is banked as the answer: its question, kind,
+// texts and application. The citations and confidence are fixed by this row instead, which is
+// append-only, one per request, and the only thing bankApprovedAnswer reads. A new draft for the
+// same question (after a rejection, say) needs a new answer id: the answer id is unique here.
 // Files the draft with the Gate and stores it, in one transaction: Paul's Queue never holds an
 // answer request with nothing to show. The request carries no policy facts, so it always waits for
 // him (answers are never auto-approvable, ANS-005). Filing the same draft again stores nothing.
@@ -226,6 +230,6 @@ export async function bankApprovedAnswer(
   } catch {
     // A fresh error with no cause: a driver error (a race on the bank answer's id, say) lists the
     // insert's parameters, which hold the answer's text.
-    throw new Error("bank_answer insert failed");
+    throw new Error("bank_answer save failed");
   }
 }
