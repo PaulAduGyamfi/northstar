@@ -50,6 +50,11 @@ export type NotifyPorts = {
   // anything Paul decided, withdrew or edited.
   approvalsToNotify: (candidateId: CandidateId) => Promise<ApprovalToNotify[]>;
   claimApproval: (candidateId: CandidateId, requestId: string) => Promise<ClaimResult>;
+  // The overflow push's claims, all or nothing in one transaction: the requests still waiting.
+  claimApprovals: (
+    candidateId: CandidateId,
+    requestIds: string[],
+  ) => Promise<Array<{ notificationId: string; requestId: string }>>;
   // One push's outcome, for every claim it covered (one for a request's own push).
   recordApproval: (
     candidateId: CandidateId,

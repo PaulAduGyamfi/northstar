@@ -1124,10 +1124,12 @@ Exists now:
   never a `vault_reveal` or the request Paul's own edit filed, with no claim (a policy's approval
   is a decision at filing, so it is never pushed), at most 205 a pass. `claimApprovalNotification`
   claims one under the request's row lock (the lock deciding takes). The first 5 a pass
-  (`MAX_APPROVAL_PUSHES_PER_PASS`) are pushed alone; the rest are claimed too and share one
+  (`MAX_APPROVAL_PUSHES_PER_PASS`) are pushed alone; the rest are claimed together, all or nothing
+  in one transaction (`claimApprovalNotifications`), and share one
   `{ v, kind: "approvals_waiting", more }` push ("N more requests are waiting in the Queue",
   opening `/approvals`, one replacing tag), so none is pushed twice. `recordApprovalPushResult`
-  records one push's outcome for every claim it covered with one fixed-word feed line. Stale
+  records one push's outcome for every claim it covered with one fixed-word feed line, refusing
+  (`ApprovalClaimMismatch`) a claim whose key isn't its request's or a set recorded in part. Stale
   claims, held-back and undelivered pushes are `push.notify` dead letters (`approval:<id>`, or
   `candidate:<id>` for the overflow push).
   Since slice 2 the allowlist (`endpointAllowed`, `allowedEndpoint`) lives in `packages/domain`

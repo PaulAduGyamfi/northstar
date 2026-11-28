@@ -405,7 +405,8 @@ profile graph (NS-110) is in `src/profile-schema.ts`, the story bank (NS-111) in
   (`approval_request:<request id>:notify`, `push-approval-write.ts`): `readApprovalsToNotify` uses
   `listPendingApprovals`' rule (no live decision, not withdrawn, never a reveal) and also leaves
   out the request an `approval_edit` names, `claimApprovalNotification` re-checks it under the
-  request's row lock, and `recordApprovalPushResult` records one push for every claim it covered
+  request's row lock (`claimApprovalNotifications` takes an overflow push's set all or nothing,
+  locking the rows in id order), and `recordApprovalPushResult` checks each claim's key and records one push for every claim it covered
   (an overflow push covers many) with one event. The endpoint must pass `endpointAllowed` (`packages/domain`) before it
   is stored. Never put an endpoint, key or a push's words in an event or span: events carry row
   ids only.

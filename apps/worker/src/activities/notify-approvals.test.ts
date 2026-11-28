@@ -217,3 +217,69 @@ describe("notifyPass for requests waiting in the Queue (NS-204 slice 2)", () => 
     expect([await letters(), sent]).toEqual([[["outcome_unknown", `approval:${requestId}`]], []]);
   });
 });
+
+describe("notifyPass's approval step at its edges (NS-204 slice 2)", () => {
+  it("claims nothing for the overflow when push is switched off after the pushes of their own", async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < MAX_APPROVAL_PUSHES_PER_PASS + 2; i++) ids.push(await waiting());
+    await subscribe();
+    const { ports: base, sent } = ports();
+    // On for the pass's own check and the five pushes of their own, off when the overflow is
+    // about to be claimed.
+    let asked = 0;
+    const p: NotifyPorts = {
+      ...base,
+      isOn: async () => ++asked <= 1 + MAX_APPROVAL_PUSHES_PER_PASS,
+    };
+    const counts = await notifyPass(p, candidateId);
+    const left = await base.approvalsToNotify(candidateId);
+    expect([counts.idle, sent.length, left.map((r) => r.requestId)]).toEqual([
+      "switched_off",
+      MAX_APPROVAL_PUSHES_PER_PASS,
+      ids.slice(MAX_APPROVAL_PUSHES_PER_PASS),
+    ]);
+  });
+
+  it("gives a request decided after it was read no push of its own and no slot", async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < MAX_APPROVAL_PUSHES_PER_PASS + 1; i++) ids.push(await waiting());
+    await subscribe();
+    const { ports: base, sent } = ports();
+    // The first request is decided between the read and its claim.
+    const p: NotifyPorts = {
+      ...base,
+      claimApproval: async (c, requestId) => {
+        if (requestId === ids[0]) {
+          await decideApprovals(db, { candidateId, requestIds: [requestId], decision: "approve" });
+        }
+        return base.claimApproval(c, requestId);
+      },
+    };
+    await notifyPass(p, candidateId);
+    expect(payloads(sent)).toEqual(
+      ids.slice(1).map((id) => ({ v: 1, kind: "approval", id, request: "email_reply" })),
+    );
+  });
+
+  it("leaves no overflow claim when claiming the overflow fails, so the next pass pushes them", async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < MAX_APPROVAL_PUSHES_PER_PASS + 2; i++) ids.push(await waiting());
+    await subscribe();
+    const { ports: base, sent } = ports();
+    const failing: NotifyPorts = {
+      ...base,
+      claimApprovals: async () => {
+        throw new Error("database went away");
+      },
+    };
+    await expect(notifyPass(failing, candidateId)).rejects.toThrow("database went away");
+    await notifyPass(base, candidateId);
+    // The two left unclaimed are fewer than five: the next pass pushes each one alone.
+    expect([payloads(sent).slice(MAX_APPROVAL_PUSHES_PER_PASS), await letters()]).toEqual([
+      ids
+        .slice(MAX_APPROVAL_PUSHES_PER_PASS)
+        .map((id) => ({ v: 1, kind: "approval", id, request: "email_reply" })),
+      [],
+    ]);
+  });
+});

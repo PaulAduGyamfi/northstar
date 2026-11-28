@@ -28,7 +28,8 @@ something Paul hasn't seen; opening the item first costs one extra tap.
      filed, with no claim, oldest first, at most `MAX_APPROVALS_READ` (205) a pass. A policy's
      approval is a decision at filing, so such a request never waits and is never pushed.
    - `claimApprovalNotification`: one claim per request, under the request's row lock (the lock
-     deciding takes), only while it still waits.
+     deciding takes), only while it still waits; `claimApprovalNotifications` takes an overflow
+     push's set all or nothing in one transaction, so a failed claim strands nothing.
    - `recordApprovalPushResult`: one push's outcome for every claim it covered, with one
      fixed-word feed line per push (on `approval:<id>`, or `candidate:<id>` for an overflow push).
    - The worker's pass (`apps/worker/src/activities/notify-approvals.ts`), after handoffs and before

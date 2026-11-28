@@ -12,8 +12,10 @@ import {
 } from "./approval-write.js";
 import type { Db } from "./db.js";
 import {
+  ApprovalClaimMismatch,
   approvalNotifyKey,
   claimApprovalNotification,
+  claimApprovalNotifications,
   MAX_APPROVALS_READ,
   readApprovalsToNotify,
   recordApprovalPushResult,
@@ -311,5 +313,73 @@ describe("recordApprovalPushResult (NS-204 slice 2)", () => {
       ],
       [],
     ]);
+  });
+});
+
+describe("claimApprovalNotifications (NS-204 slice 2)", () => {
+  it("claims the requests still waiting, in the order asked, and leaves out decided and claimed ones", async () => {
+    const a = await waiting();
+    const b = await waiting();
+    const c = await waiting();
+    const d = await waiting();
+    await decide(b.requestId, "approve");
+    await claimApprovalNotification(db, candidateId, c.requestId);
+    const claimed = await claimApprovalNotifications(db, candidateId, [
+      d.requestId,
+      a.requestId,
+      b.requestId,
+      c.requestId,
+    ]);
+    expect(claimed.map((x) => x.requestId)).toEqual([d.requestId, a.requestId]);
+  });
+
+  it("claims nothing for another candidate's requests", async () => {
+    const other = await newCandidate();
+    const { requestId } = await waiting({ who: other });
+    expect([
+      await claimApprovalNotifications(db, candidateId, [requestId]),
+      await db.select().from(pushNotification),
+    ]).toEqual([[], []]);
+  });
+
+  it("claims each request once, however many times it is asked", async () => {
+    const a = await waiting();
+    const first = await claimApprovalNotifications(db, candidateId, [a.requestId, a.requestId]);
+    const second = await claimApprovalNotifications(db, candidateId, [a.requestId]);
+    expect([first.length, second]).toEqual([1, []]);
+  });
+});
+
+describe("recordApprovalPushResult's checks (NS-204 slice 2)", () => {
+  async function claimedOne(): Promise<{ notificationId: string; requestId: string }> {
+    const { requestId } = await waiting();
+    const claim = await claimApprovalNotification(db, candidateId, requestId);
+    if (claim.kind !== "claimed") throw new Error("not claimed");
+    return { notificationId: claim.notificationId, requestId };
+  }
+  const counts = { sent: 1, gone: 0, rejected: 0 };
+
+  it("refuses a claim paired with another request, and records nothing", async () => {
+    const a = await claimedOne();
+    const b = await claimedOne();
+    await expect(
+      recordApprovalPushResult(db, {
+        candidateId,
+        covered: [{ notificationId: a.notificationId, requestId: b.requestId }],
+        overflow: false,
+        ...counts,
+      }),
+    ).rejects.toThrow(ApprovalClaimMismatch);
+    expect(await db.select().from(pushNotificationResult)).toEqual([]);
+  });
+
+  it("refuses a set already recorded in part, and records nothing more", async () => {
+    const a = await claimedOne();
+    const b = await claimedOne();
+    await recordApprovalPushResult(db, { candidateId, covered: [a], overflow: false, ...counts });
+    await expect(
+      recordApprovalPushResult(db, { candidateId, covered: [a, b], overflow: true, ...counts }),
+    ).rejects.toThrow(ApprovalClaimMismatch);
+    expect((await db.select().from(pushNotificationResult)).length).toBe(1);
   });
 });

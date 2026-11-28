@@ -1,5 +1,5 @@
 import { type ApprovalKind, type CandidateId, MAX_WAITING_MORE } from "@northstar/domain";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
   approvalDecision,
   approvalEdit,
@@ -124,6 +124,69 @@ export async function claimApprovalNotification(
   );
 }
 
+// Claims a set of requests for one overflow push, all or nothing (NS-204 slice 2): one
+// transaction locks the rows (in id order, so two runs never deadlock), keeps those still waiting
+// and inserts their claims in one statement. A failure anywhere leaves no claim at all, so an
+// overflow push can never strand claims with no push; a request already claimed is left out.
+// Answers the claims taken, in the order asked.
+export async function claimApprovalNotifications(
+  db: Db,
+  candidateId: CandidateId,
+  requestIds: readonly string[],
+): Promise<Array<{ notificationId: string; requestId: string }>> {
+  const wanted = [...new Set(requestIds)];
+  if (wanted.length === 0) return [];
+  return inSpan("db.push.claim_approvals", { "northstar.push.asked": wanted.length }, (span) =>
+    db.transaction(async (tx) => {
+      await tx
+        .select({ id: approvalRequest.id })
+        .from(approvalRequest)
+        .where(
+          and(eq(approvalRequest.candidateId, candidateId), inArray(approvalRequest.id, wanted)),
+        )
+        .orderBy(asc(approvalRequest.id))
+        .for("update");
+      // The reader's rules again, now under the locks.
+      const open = await tx
+        .select({ id: approvalRequest.id })
+        .from(approvalRequest)
+        .where(
+          and(
+            eq(approvalRequest.candidateId, candidateId),
+            inArray(approvalRequest.id, wanted),
+            notReveal,
+            waiting,
+            notEdited,
+          ),
+        );
+      const stillWaiting = new Set(open.map((r) => r.id));
+      const toClaim = wanted.filter((id) => stillWaiting.has(id));
+      if (toClaim.length === 0) {
+        span.setAttribute("northstar.push.claimed", 0);
+        return [];
+      }
+      const rows = await tx
+        .insert(pushNotification)
+        .values(toClaim.map((id) => ({ candidateId, itemKey: approvalNotifyKey(id) })))
+        .onConflictDoNothing({ target: [pushNotification.candidateId, pushNotification.itemKey] })
+        .returning({ id: pushNotification.id, itemKey: pushNotification.itemKey });
+      const byKey = new Map(rows.map((r) => [r.itemKey, r.id]));
+      const claimed = toClaim.flatMap((requestId) => {
+        const notificationId = byKey.get(approvalNotifyKey(requestId));
+        return notificationId ? [{ notificationId, requestId }] : [];
+      });
+      span.setAttribute("northstar.push.claimed", claimed.length);
+      return claimed;
+    }),
+  );
+}
+
+// A caller's claims don't name the requests they were taken for, or were already recorded in part:
+// a bug in the caller, never recorded on the wrong request.
+export class ApprovalClaimMismatch extends Error {
+  override readonly name = "ApprovalClaimMismatch";
+}
+
 const RESULT_WORDS = {
   one: {
     sent: "Sent you a notification: a request is waiting for your approval",
@@ -138,7 +201,9 @@ const RESULT_WORDS = {
 // What one push came to, recorded once for every claim it covered: a request's own push covers
 // its one claim; an overflow push covers each request it counted. One event per push, never one
 // per covered request, so an overflow of 40 is one feed line: `push.sent` when at least one
-// browser took it, else `push.not_delivered`. A repeat stores nothing.
+// browser took it, else `push.not_delivered`. A repeat stores nothing. Each claim must be this
+// candidate's claim for the request it is paired with (its item key), and a set already recorded
+// in part is refused (ApprovalClaimMismatch), so no feed line lands on the wrong request.
 export async function recordApprovalPushResult(
   db: Db,
   input: {
@@ -158,6 +223,23 @@ export async function recordApprovalPushResult(
     { "northstar.push.outcome": outcome, "northstar.push.covered": input.covered.length },
     (span) =>
       db.transaction(async (tx) => {
+        const ids = input.covered.map((c) => c.notificationId);
+        const claims = await tx
+          .select({ id: pushNotification.id, itemKey: pushNotification.itemKey })
+          .from(pushNotification)
+          .where(
+            and(
+              eq(pushNotification.candidateId, input.candidateId),
+              inArray(pushNotification.id, ids),
+            ),
+          );
+        const keyOf = new Map(claims.map((c) => [c.id, c.itemKey]));
+        if (
+          new Set(ids).size !== ids.length ||
+          input.covered.some((c) => keyOf.get(c.notificationId) !== approvalNotifyKey(c.requestId))
+        ) {
+          throw new ApprovalClaimMismatch("claims don't match their requests");
+        }
         const rows = await tx
           .insert(pushNotificationResult)
           .values(
@@ -174,6 +256,10 @@ export async function recordApprovalPushResult(
           .returning({ createdAt: pushNotificationResult.createdAt });
         const [row] = rows;
         if (!row) return { recorded: false };
+        // Some claims recorded already, some not: refused, and the transaction rolls back.
+        if (rows.length !== input.covered.length) {
+          throw new ApprovalClaimMismatch("claims already recorded in part");
+        }
         await appendEvent(tx, span, {
           candidateId: input.candidateId,
           // A request's own push is on that request; an overflow push on Paul's own aggregate,

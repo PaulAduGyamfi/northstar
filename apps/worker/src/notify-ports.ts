@@ -1,6 +1,7 @@
 import {
   acquireCall,
   claimApprovalNotification,
+  claimApprovalNotifications,
   claimFreshJobNotification,
   claimHandoffNotification,
   type Db,
@@ -59,6 +60,8 @@ export function dbNotifyPorts(db: Db, vapid: VapidConfig | null): NotifyPorts {
     approvalsToNotify: (candidateId) => readApprovalsToNotify(db, candidateId),
     claimApproval: (candidateId, requestId) =>
       claimApprovalNotification(db, candidateId, requestId),
+    claimApprovals: (candidateId, requestIds) =>
+      claimApprovalNotifications(db, candidateId, requestIds),
     recordApproval: async (candidateId, input) => {
       await recordApprovalPushResult(db, { candidateId, ...input });
     },

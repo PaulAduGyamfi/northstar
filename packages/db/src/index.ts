@@ -522,9 +522,11 @@ export {
   writeProfileImport,
 } from "./profile-write.js";
 export {
+  ApprovalClaimMismatch,
   type ApprovalToNotify,
   approvalNotifyKey,
   claimApprovalNotification,
+  claimApprovalNotifications,
   MAX_APPROVAL_PUSHES_PER_PASS,
   MAX_APPROVALS_READ,
   readApprovalsToNotify,
