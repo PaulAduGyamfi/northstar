@@ -33,6 +33,14 @@ export const MAX_APPROVALS_READ = MAX_APPROVAL_PUSHES_PER_PASS + MAX_WAITING_MOR
 
 export type ApprovalToNotify = { requestId: string; kind: ApprovalKind };
 
+// Only a request filed in the last day is pushed (the orchestrator's decision under Paul's
+// delegation, #180): turning notifications on, or back on, never sends a backlog of old requests.
+// An older one still waits in the Queue as usual; it just gets no notification.
+export const APPROVAL_PUSH_WINDOW_HOURS = 24;
+
+// Filed inside the window, by the Gate's own clock (the one that stamped requested_at).
+const recent = sql`"approval_request"."requested_at" > northstar_gate_now() - make_interval(hours => ${APPROVAL_PUSH_WINDOW_HOURS})`;
+
 // A request waits for Paul while it has no live decision (none, or each one undone) and isn't
 // withdrawn: listPendingApprovals' own rule. A request a policy approved has its decision from the
 // start, so it never waits and is never pushed. The outer columns are written out with their
@@ -56,8 +64,9 @@ const notEdited = sql`not exists (
 // push may never name one.
 const notReveal = sql`"approval_request"."kind" <> 'vault_reveal'`;
 
-// The requests waiting in Paul's Queue with no claim yet, oldest first: never a reveal, a request
-// a policy approved, one he decided, withdrew or edited, or one already claimed (sent or not).
+// The requests waiting in Paul's Queue with no claim yet, filed in the last
+// APPROVAL_PUSH_WINDOW_HOURS, oldest first: never a reveal, a request a policy approved, one he
+// decided, withdrew or edited, or one already claimed (sent or not).
 export async function readApprovalsToNotify(
   db: Db,
   candidateId: CandidateId,
@@ -72,6 +81,7 @@ export async function readApprovalsToNotify(
           notReveal,
           waiting,
           notEdited,
+          recent,
           sql`not exists (select 1 from ${pushNotification} where ${pushNotification.candidateId} = "approval_request"."candidate_id" and ${pushNotification.itemKey} = 'approval_request:' || "approval_request"."id"::text || ':notify')`,
         ),
       )
@@ -106,7 +116,7 @@ export async function claimApprovalNotification(
       const [open] = await tx
         .select({ id: approvalRequest.id })
         .from(approvalRequest)
-        .where(and(eq(approvalRequest.id, requestId), notReveal, waiting, notEdited));
+        .where(and(eq(approvalRequest.id, requestId), notReveal, waiting, notEdited, recent));
       if (!open) {
         span.setAttribute("northstar.push.claim", "resolved");
         return { kind: "resolved" as const };
@@ -157,6 +167,7 @@ export async function claimApprovalNotifications(
             notReveal,
             waiting,
             notEdited,
+            recent,
           ),
         );
       const stillWaiting = new Set(open.map((r) => r.id));

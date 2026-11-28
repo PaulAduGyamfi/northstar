@@ -12,6 +12,7 @@ import {
 } from "./approval-write.js";
 import type { Db } from "./db.js";
 import {
+  APPROVAL_PUSH_WINDOW_HOURS,
   ApprovalClaimMismatch,
   approvalNotifyKey,
   claimApprovalNotification,
@@ -381,5 +382,32 @@ describe("recordApprovalPushResult's checks (NS-204 slice 2)", () => {
       recordApprovalPushResult(db, { candidateId, covered: [a, b], overflow: true, ...counts }),
     ).rejects.toThrow(ApprovalClaimMismatch);
     expect((await db.select().from(pushNotificationResult)).length).toBe(1);
+  });
+});
+
+describe("the approval push window (#180 follow-up)", () => {
+  const hours = (h: number, ms = 0) => new Date(NOW.getTime() + h * 3_600_000 + ms);
+
+  it("lists a request filed just under a day ago", async () => {
+    const { requestId } = await waiting();
+    await setClock(hours(APPROVAL_PUSH_WINDOW_HOURS, -1000));
+    expect(await ids()).toEqual([requestId]);
+  });
+
+  it("never lists a request filed a day ago or more, though it still waits in the Queue", async () => {
+    await waiting();
+    await setClock(hours(APPROVAL_PUSH_WINDOW_HOURS));
+    expect(await ids()).toEqual([]);
+  });
+
+  it("claims nothing for a request older than the window, alone or in an overflow set", async () => {
+    const a = await waiting();
+    const b = await waiting();
+    await setClock(hours(APPROVAL_PUSH_WINDOW_HOURS));
+    expect([
+      await claimApprovalNotification(db, candidateId, a.requestId),
+      await claimApprovalNotifications(db, candidateId, [b.requestId]),
+      await db.select().from(pushNotification),
+    ]).toEqual([{ kind: "resolved" }, [], []]);
   });
 });

@@ -43,6 +43,11 @@ something Paul hasn't seen; opening the item first costs one extra tap.
 
 The issue asks for one push per batch. This plan sends one per request instead, so a push can name exactly what it opens. An approval from a push then covers that one request, which Paul sees before approving. A second push for an item already decided opens a Queue that says it's no longer waiting, and the decide answers `already_decided`.
 
+3. **Follow-up (no migration, the orchestrator's decision under Paul's delegation):** only a
+   request filed in the last 24 hours by the Gate's clock is pushed (`APPROVAL_PUSH_WINDOW_HOURS`,
+   in the reader and both claims), so turning push on sends no backlog; ADR-0032 item 4 is
+   amended in place (it is still Proposed) to describe approval pushes.
+
 ## Acceptance criteria (slice 1)
 - [ ] A payload test shows an approval push holds only `v`, `kind`, `id` and `request`; any other key, a subject or a non-UUID id is refused, and it fits in 256 bytes.
 - [ ] The service worker's words match `pushWords` for every queue kind. Anything else gets the generic line. A tap opens `/approvals?request=<id>` only for a valid UUID, else `/`.
@@ -61,3 +66,10 @@ The issue asks for one push per batch. This plan sends one per request instead, 
 - [ ] A pass pushes each waiting request once, five alone and one overflow push for the rest,
   claims nothing while `push` is off, stops when the breaker holds a push back, and reports an
   undelivered overflow push and a stale claim as dead letters (worker tests).
+
+## Acceptance criteria (follow-up)
+- [x] A request filed just under 24 hours ago is listed; one filed exactly 24 hours ago or earlier
+  is never listed, nor claimed alone or in an overflow set (db tests, the Gate's clock).
+- [x] The worker pushes a request filed in the last day and never an older one (worker test).
+- [x] ADR-0032 item 4 describes approval pushes (id and kind only, opens the Queue, never
+  approves, 5 alone plus one overflow push, the 24-hour window), and item 6 lists every claim key.

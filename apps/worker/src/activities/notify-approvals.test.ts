@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  APPROVAL_PUSH_WINDOW_HOURS,
   type Db,
   decideApprovals,
   type LivePushSubscription,
@@ -280,6 +281,23 @@ describe("notifyPass's approval step at its edges (NS-204 slice 2)", () => {
         .slice(MAX_APPROVAL_PUSHES_PER_PASS)
         .map((id) => ({ v: 1, kind: "approval", id, request: "email_reply" })),
       [],
+    ]);
+  });
+});
+
+describe("notifyPass and the approval push window (#180 follow-up)", () => {
+  it("pushes a request filed in the last day but never an older one", async () => {
+    const old = await waiting();
+    // A day and a second later by the Gate's clock: `old` is past the window, `fresh` is new.
+    clock = new Date(clock.getTime() + APPROVAL_PUSH_WINDOW_HOURS * 3_600_000);
+    const fresh = await waiting();
+    await subscribe();
+    const { ports: p, sent } = ports();
+    await notifyPass(p, candidateId);
+    // Only `fresh`: `old` is exactly a day old, outside the window.
+    expect([old !== fresh, payloads(sent)]).toEqual([
+      true,
+      [{ v: 1, kind: "approval", id: fresh, request: "email_reply" }],
     ]);
   });
 });
