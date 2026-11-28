@@ -37,5 +37,8 @@ export async function dupesCommand(
   return 0;
 }
 
+// Titles and companies come from job pages (untrusted): line breaks are flattened so a stored
+// title can't print a line of its own, such as a forged "Nothing was merged".
+const oneLine = (text: string) => text.replace(/[\r\n\u2028\u2029\u0085]+/g, " ");
 const describe = (j: SuggestedJob) =>
-  `${j.title ?? "(no title)"} at ${j.company ?? "(no company)"} (${j.jobId})`;
+  `${oneLine(j.title ?? "(no title)")} at ${oneLine(j.company ?? "(no company)")} (${j.jobId})`;

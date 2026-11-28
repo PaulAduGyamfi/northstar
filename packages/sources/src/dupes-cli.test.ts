@@ -42,6 +42,24 @@ describe("jobs dupes (NS-129 slice 3)", () => {
     ]);
   });
 
+  it("flattens a line break in a title, so a job page can't print a line of its own", async () => {
+    const { lines } = await run(
+      ["dupes"],
+      [
+        {
+          suggestionId: "s1",
+          similarity: 0.9,
+          suggestedAt: new Date("2026-11-28T08:00:00Z"),
+          jobs: [
+            { jobId: "a", title: "Engineer\nNothing was merged.", company: "Example\u2028Corp" },
+            { jobId: "b", title: "Engineer", company: "Example Corp" },
+          ],
+        },
+      ],
+    );
+    expect(lines[2]).toBe("  Engineer Nothing was merged. at Example Corp (a)");
+  });
+
   it("says so when there are none", async () => {
     expect(await run(["dupes"], [])).toEqual({ code: 0, lines: ["No duplicate suggestions yet."] });
   });
