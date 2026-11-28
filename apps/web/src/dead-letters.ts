@@ -133,6 +133,18 @@ const KINDS: Record<string, KindWords> = {
         'Nothing is sent again. Check "Needs your hands" on Today and the jobs page yourself; check /health if notifications keep failing.',
     },
   },
+  // NS-281 slice 1: an approved reply `funnel drafts` couldn't write as a Gmail draft. Nothing was
+  // sent, and a draft already written is never written twice (one per approval).
+  "mail.draft_write": {
+    what: "Putting an approved reply in your Gmail drafts",
+    next: {
+      retry:
+        "The next `funnel drafts` run tries this reply again. A draft already in Gmail isn't added twice.",
+      skip: "Later `funnel drafts` runs leave this reply out. Nothing was sent.",
+      hand_off:
+        "Later `funnel drafts` runs leave this reply out. Nothing was sent: write the reply in Gmail yourself if you still want to.",
+    },
+  },
   // NS-280 slice 2: a queued application whose pipeline run (tailor, form, package, start) stopped
   // part-way. Nothing restarts it from here yet; the application stays where it is.
   "pipeline.job": {
@@ -171,6 +183,10 @@ const REASONS: Record<string, string> = {
   plan_changed: "its stored plan changed after you approved it",
   approval_not_valid: "its approval no longer stands",
   rescheduled: "the interview moved and the old approval couldn't be closed",
+  draft_failed: "every attempt to write the Gmail draft failed",
+  draft_not_found: "its stored reply wasn't found",
+  draft_changed: "its stored reply changed after you approved it",
+  draft_conflict: "a different Gmail draft is already recorded for this approval",
   read_failed: "Gmail wouldn't give the email",
   step_failed: "linking it to your applications failed",
   classify_failed: "sorting it failed",

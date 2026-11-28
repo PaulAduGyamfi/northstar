@@ -153,6 +153,37 @@ describe("nextStep", () => {
     expect(letterLine(reply).what).toBe("Preparing a reply to a recruiter email");
   });
 
+  it("names an approved reply it couldn't put in Gmail drafts, with each reason", () => {
+    const draft = { ...ITEM, kind: "mail.draft_write", attempts: 1 };
+    const reasons = [
+      "draft_failed",
+      "claims_exhausted",
+      "draft_not_found",
+      "draft_changed",
+      "approval_not_valid",
+      "draft_conflict",
+    ];
+    expect([
+      letterLine(draft).what,
+      ...reasons.map((reasonCode) => letterLine({ ...draft, reasonCode }).why),
+    ]).toEqual([
+      "Putting an approved reply in your Gmail drafts",
+      "Stopped after 1 attempt: every attempt to write the Gmail draft failed",
+      "Stopped after 1 attempt: too many runs stopped part-way",
+      "Stopped after 1 attempt: its stored reply wasn't found",
+      "Stopped after 1 attempt: its stored reply changed after you approved it",
+      "Stopped after 1 attempt: its approval no longer stands",
+      "Stopped after 1 attempt: a different Gmail draft is already recorded for this approval",
+    ]);
+  });
+
+  it("says a retried draft is tried on the next drafts run and a skipped one is left out", () => {
+    expect(DEAD_LETTER_ACTIONS.map((a) => nextStep("mail.draft_write", a)).slice(0, 2)).toEqual([
+      "The next `funnel drafts` run tries this reply again. A draft already in Gmail isn't added twice.",
+      "Later `funnel drafts` runs leave this reply out. Nothing was sent.",
+    ]);
+  });
+
   it("says a retried reply is tried on the next inbox run and a skipped one gets none", () => {
     expect(DEAD_LETTER_ACTIONS.map((a) => nextStep("mail.reply", a)).slice(0, 2)).toEqual([
       "The next `funnel inbox` run tries to prepare this reply again.",
