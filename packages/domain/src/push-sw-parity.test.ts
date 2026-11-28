@@ -42,7 +42,8 @@ describe("the service worker's words (NS-193 slice 2)", () => {
 
   it("match pushWords for fresh-job pushes across ages and scores (NS-199)", () => {
     const words = serviceWorkerWords();
-    for (const age of [0, 12, 59, 60, 61, 119, 120, 47 * 60, MAX_FRESH_AGE_MINUTES]) {
+    // Valid ages only (at most a day): an older one is refused, as the next test shows.
+    for (const age of [0, 12, 59, 60, 61, 119, 120, 23 * 60, MAX_FRESH_AGE_MINUTES]) {
       for (const fit of [0, 75, 88, 100]) {
         const p = { v: 1, kind: "fresh_job", id: ID, age, fit } as const;
         expect(words(p)).toEqual(pushWords(p));
