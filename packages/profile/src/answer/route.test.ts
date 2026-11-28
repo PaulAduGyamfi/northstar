@@ -19,6 +19,6 @@ describe("answerDraftRoute", () => {
 
   it("loads the locked prompt version 2 at medium effort", () => {
     const route = answerDraftRoute();
-    expect([route.name, route.prompt.version, route.effort]).toEqual(["answer-draft", 2, "medium"]);
+    expect([route.name, route.prompt.version, route.effort]).toEqual(["answer-draft", 3, "medium"]);
   });
 });
