@@ -104,6 +104,15 @@ export function createPushSender(deps: PushSenderDeps): PushSender {
         throw error;
       }
 
+      // Signed before the guard and the request: a local signing error is a bug, never a push
+      // service fault, so it must not reach the breaker.
+      let authorization: string;
+      try {
+        authorization = vapidAuthorization(deps.vapid, endpoint, now());
+      } catch (error) {
+        throw new PushRequestError(`couldn't sign the push (${(error as Error).name})`);
+      }
+
       let probeToken: string | null;
       try {
         if (!(await deps.guard.isOn(PUSH_SUBSYSTEM))) throw new PushHeldBack("kill_switch", null);
@@ -129,7 +138,7 @@ export function createPushSender(deps: PushSenderDeps): PushSender {
         res = await fetch(endpoint, {
           method: "POST",
           headers: {
-            authorization: vapidAuthorization(deps.vapid, endpoint, now()),
+            authorization,
             "content-encoding": "aes128gcm",
             "content-type": "application/octet-stream",
             ttl: String(TTL_SECONDS),

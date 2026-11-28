@@ -34,17 +34,20 @@ const hkdf = (ikm: Buffer, salt: Buffer, i: Buffer, length: number) =>
 export function encryptPayload(
   plaintext: Buffer,
   keys: SubscriptionKeys,
-  ephemeral: Ephemeral = { privateKey: randomBytes(32), salt: randomBytes(SALT_BYTES) },
+  // Only the RFC test passes one; otherwise the key comes from generateKeys (always in range).
+  ephemeral?: Ephemeral,
 ): Buffer {
+  const salt = ephemeral?.salt ?? randomBytes(SALT_BYTES);
   if (keys.p256dh.length !== POINT_BYTES || keys.p256dh[0] !== 0x04) {
     throw new PushEncryptError("p256dh is not an uncompressed P-256 point");
   }
   if (keys.auth.length !== AUTH_BYTES) throw new PushEncryptError("auth is not 16 bytes");
-  if (ephemeral.salt.length !== SALT_BYTES) throw new PushEncryptError("salt is not 16 bytes");
+  if (salt.length !== SALT_BYTES) throw new PushEncryptError("salt is not 16 bytes");
   if (plaintext.length > MAX_PLAINTEXT) throw new PushEncryptError("payload too long");
 
   const ecdh = createECDH("prime256v1");
-  ecdh.setPrivateKey(ephemeral.privateKey);
+  if (ephemeral) ecdh.setPrivateKey(ephemeral.privateKey);
+  else ecdh.generateKeys();
   const asPublic = ecdh.getPublicKey();
   // Throws on a point that isn't on the curve: a bad subscription, never sent.
   let ecdhSecret: Buffer;
@@ -58,8 +61,8 @@ export function encryptPayload(
   const keyInfo = Buffer.concat([info("WebPush: info"), keys.p256dh, asPublic]);
   const ikm = hkdf(ecdhSecret, keys.auth, keyInfo, 32);
   // RFC 8188 section 2.2: the content key and nonce from the salt.
-  const cek = hkdf(ikm, ephemeral.salt, info("Content-Encoding: aes128gcm"), 16);
-  const nonce = hkdf(ikm, ephemeral.salt, info("Content-Encoding: nonce"), 12);
+  const cek = hkdf(ikm, salt, info("Content-Encoding: aes128gcm"), 16);
+  const nonce = hkdf(ikm, salt, info("Content-Encoding: nonce"), 12);
 
   // The last (only) record ends with the 0x02 delimiter and no further padding.
   const cipher = createCipheriv("aes-128-gcm", cek, nonce);
@@ -70,7 +73,7 @@ export function encryptPayload(
   ]);
 
   const header = Buffer.alloc(SALT_BYTES + 4 + 1);
-  ephemeral.salt.copy(header, 0);
+  salt.copy(header, 0);
   header.writeUInt32BE(RECORD_SIZE, SALT_BYTES);
   header.writeUInt8(asPublic.length, SALT_BYTES + 4);
   return Buffer.concat([header, asPublic, record]);

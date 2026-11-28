@@ -44,6 +44,12 @@ describe("loadVapidConfig (NS-193, ADR-0032 item 1)", () => {
     );
   });
 
+  it("refuses the example file's placeholder subject", () => {
+    expect(() =>
+      loadVapidConfig({ ...env(), PUSH_VAPID_SUBJECT: "mailto:change-me@example.com" }),
+    ).toThrow("PUSH_VAPID_SUBJECT must be set with the other PUSH_VAPID_* settings");
+  });
+
   it("refuses a public key that isn't the private key's own, without printing either", () => {
     const a = rawPair();
     const b = rawPair();

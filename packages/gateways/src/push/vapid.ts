@@ -20,7 +20,7 @@ export class VapidConfigError extends Error {
 }
 
 const B64URL = /^[A-Za-z0-9_-]+$/;
-// A placeholder from the example env file is never a key.
+// A placeholder from the example env file (`change-me`, `mailto:change-me@…`) is never a setting.
 const PLACEHOLDER = "change-me";
 
 function b64url(name: string, value: string, bytes: number): Buffer {
@@ -85,7 +85,7 @@ export function loadVapidConfig(
   if (values.every((v) => v === undefined)) return null;
   names.forEach((name, i) => {
     const v = values[i];
-    if (v === undefined || v === PLACEHOLDER) {
+    if (v === undefined || v.includes(PLACEHOLDER)) {
       throw new VapidConfigError(`${name} must be set with the other PUSH_VAPID_* settings`);
     }
   });
