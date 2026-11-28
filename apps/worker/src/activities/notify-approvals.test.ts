@@ -294,9 +294,10 @@ describe("notifyPass and the approval push window (#180 follow-up)", () => {
     await subscribe();
     const { ports: p, sent } = ports();
     await notifyPass(p, candidateId);
-    expect([payloads(sent), sent.some((s) => "id" in s.payload && s.payload.id === old)]).toEqual([
+    // Only `fresh`: `old` is exactly a day old, outside the window.
+    expect([old !== fresh, payloads(sent)]).toEqual([
+      true,
       [{ v: 1, kind: "approval", id: fresh, request: "email_reply" }],
-      false,
     ]);
   });
 });

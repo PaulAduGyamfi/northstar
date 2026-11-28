@@ -63,7 +63,7 @@ threat model and where subscriptions live.
 4. **Payload: fixed words and ids only.** `PushPayload` (`packages/domain`, `push-payload.ts`) is
    a strict Zod union. NS-193's member is `{ v: 1, kind: "handoff", id: <uuid>, ats: <ApplyAts>,
    reason: <challenge reason> }`, at most 256 bytes as JSON. `pushWords` gives the title and body
-   from fixed sentences. The service worker shows only those words and opens Today on tap. A
+   from fixed sentences. The service worker shows only those words and, for a handoff, opens Today on tap. A
    push never carries a URL, company, job title, email text or anything Paul typed. Push services
    see the ciphertext's size and timing only, and the words are fixed anyway.
    Amended in place for approval pushes (NS-204, #180; this ADR is still Proposed):
@@ -88,7 +88,8 @@ threat model and where subscriptions live.
    has no removal. The API's subscribe routes are session only (ADR-0018) and check the endpoint
    with `endpointAllowed` before storing it.
 6. **Delivery: at most once per item.** The notifier claims the item's key
-   (`apply_handoff:<id>:notify` for NS-193) in append-only `push_notification` before it sends,
+   (`apply_handoff:<id>:notify` for NS-193, `job_fresh_alert:<job id>:notify` for NS-199,
+   `approval_request:<request id>:notify` for NS-204) in append-only `push_notification` before it sends,
    then records the result. A second run finds the claim and sends nothing. A crash between
    claim and result leaves a claim with no result: a `push.notify` dead letter
    (`outcome_unknown`), never a second push. A send that fails its tries is a `push.notify` dead
