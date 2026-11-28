@@ -30,6 +30,8 @@ import {
   waitedFor,
 } from "../../src/approvals";
 import { apiFetch, isTimeout, TIMED_OUT_MESSAGE } from "../../src/client-fetch";
+import { hasPlanPreview } from "../../src/prep-plan";
+import { PrepPlanPreview } from "./prep-plan-preview";
 
 // One click's decisions: undone together, inside their shared window.
 type Batch = {
@@ -235,6 +237,7 @@ export function ApprovalQueue({ items }: { items: QueueItem[] }) {
             {item.kind === "application_package" ? (
               <PackagePreview requestId={item.requestId} isEdited={item.edited} />
             ) : null}
+            {hasPlanPreview(item.kind) ? <PrepPlanPreview requestId={item.requestId} /> : null}
           </li>
         ))}
       </ul>

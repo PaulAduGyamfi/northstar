@@ -14,6 +14,11 @@ export const PrepPlanBody = z.object({
 });
 export type PrepPlanBody = z.infer<typeof PrepPlanBody>;
 
+// Which Queue items get "Show the plan": only a prep plan's request (slice 6's follow-up).
+export function hasPlanPreview(kind: string): boolean {
+  return kind === "prep_plan";
+}
+
 const BLOCK_WORDS: Record<PrepPlanBody["blocks"][number]["kind"], string> = {
   prep: "Prep",
   warm_up: "Warm-up",
