@@ -5,6 +5,7 @@ import {
   readIndependentWork,
   readJobAtsSources,
   readPipelineState,
+  readPipelineWork,
   readStoredFile,
   readTailorInput,
   recordDeadLetter,
@@ -23,7 +24,7 @@ import {
   submitApplication,
   sweepStaleClaims,
 } from "@northstar/gateways";
-import { preparePackage } from "@northstar/pipeline";
+import { preparePackage, queueReadyJobs } from "@northstar/pipeline";
 import { tailorForJob } from "@northstar/profile";
 import {
   dbPollGuard,
@@ -37,8 +38,9 @@ import { createEndingActivities } from "./activities/ending.js";
 import { createNotifyActivities } from "./activities/notify.js";
 import { createPipelineActivities, type PipelinePorts } from "./activities/pipeline.js";
 import { createRelayActivities, dbReadSignals } from "./activities/relay.js";
+import { createStarterActivities, type StarterPorts, starterLetter } from "./activities/starter.js";
 import { createSweepActivities } from "./activities/sweep.js";
-import { startSubmission, type TemporalPort, temporalPort } from "./client.js";
+import { startJobPipeline, startSubmission, type TemporalPort, temporalPort } from "./client.js";
 import type { WorkerConfig } from "./config.js";
 import { dbNotifyPorts } from "./notify-ports.js";
 
@@ -52,7 +54,8 @@ export type PoolActivities = {
     ReturnType<typeof createSweepActivities> &
     ReturnType<typeof createRelayActivities> &
     ReturnType<typeof createNotifyActivities> &
-    ReturnType<typeof createPipelineActivities>;
+    ReturnType<typeof createPipelineActivities> &
+    ReturnType<typeof createStarterActivities>;
   // Null while WORKER_APPLY_BROWSER is off: nothing can be submitted.
   applyBrowser: ReturnType<typeof createApplyActivities> | null;
 };
@@ -63,7 +66,7 @@ export type PoolActivities = {
 // slice 2), so no second connection.
 export function workerActivities(
   db: Db,
-  config: Pick<WorkerConfig, "applyBrowser" | "applyLimits" | "push">,
+  config: Pick<WorkerConfig, "applyBrowser" | "applyLimits" | "push" | "jobPipeline">,
   launch: typeof launchFormDriver = launchFormDriver,
   beat: (step: BeatStep) => void = (step) => Context.current().heartbeat(step),
   temporal: () => TemporalPort = () => temporalPort(Context.current().client),
@@ -77,6 +80,8 @@ export function workerActivities(
     ...createNotifyActivities(dbNotifyPorts(db, config.push)),
     // The job pipeline (NS-280 slice 2): registered always; nothing starts a run yet (slice 3).
     ...createPipelineActivities(pipelinePorts(db, temporal)),
+    // Its starter (slice 3): registered always, and does nothing while WORKER_JOB_PIPELINE is off.
+    ...createStarterActivities(starterPorts(db, config.jobPipeline, temporal)),
   };
   const browser = config.applyBrowser;
   if (!browser.on) return { pipeline, applyBrowser: null };
@@ -188,5 +193,24 @@ export function pipelinePorts(
         attempts: letter.attempts,
         idempotencyKey: letter.idempotencyKey,
       }),
+  };
+}
+
+// The starter's ports (NS-280 slice 3): the queueing rule, the work reader, and starts on the
+// worker's own client.
+export function starterPorts(
+  db: Db,
+  setting: WorkerConfig["jobPipeline"],
+  temporal: () => TemporalPort,
+  today: () => string = () => new Date().toISOString().slice(0, 10),
+): StarterPorts {
+  return {
+    setting,
+    queue: (candidateId, dailyCap) => queueReadyJobs(db, candidateId, { dailyCap }),
+    work: (candidateId) => readPipelineWork(db, candidateId),
+    startPipeline: (input, at) => startJobPipeline(temporal(), input, at),
+    startSubmission: (input) => startSubmission(temporal(), input),
+    today,
+    recordLetter: ({ candidateId, key }) => recordDeadLetter(db, starterLetter(candidateId, key)),
   };
 }

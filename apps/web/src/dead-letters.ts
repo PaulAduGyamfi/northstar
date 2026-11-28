@@ -145,6 +145,17 @@ const KINDS: Record<string, KindWords> = {
         "Nothing runs now. Check the application on the Pipeline; if nothing is waiting in your Queue for it, apply on the job's own page yourself.",
     },
   },
+  // NS-280 slice 3: a pass of the job pipeline's starter. It reads again on every pass, so
+  // resolving only records Paul's choice.
+  "pipeline.start": {
+    what: "Queueing ready jobs and starting their applications",
+    next: {
+      retry: "The next pass, within minutes, queues and starts again on its own.",
+      skip: "Nothing more is done about this pass. The next pass still runs.",
+      hand_off:
+        "The next pass still runs. Check /health; if passes keep failing, turn WORKER_JOB_PIPELINE off and restart the worker.",
+    },
+  },
   // NS-238 item 1: a recorded email `funnel inbox` couldn't read or sort.
   "mail.classify": {
     what: "Sorting a job email",
@@ -192,6 +203,7 @@ const REASONS: Record<string, string> = {
   prepare_failed: "every attempt to prepare the package failed",
   start_failed: "every attempt to start the submission failed",
   stored_package_missing: "its filed package wasn't found",
+  start_pass_failed: "every attempt failed",
 };
 
 // Own keys only: a code such as "constructor" must not find Object's built-ins.

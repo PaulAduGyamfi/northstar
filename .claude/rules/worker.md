@@ -43,7 +43,11 @@ takes one application from queued to a filed package and its submission run: ids
 history, tailor and form only while `queued`, the form read behind `source:greenhouse`, and a
 rerun at `awaiting_approval` starts the stored round instead of filing again
 (`readPipelineState`). Paul being needed is `package.needs_human`; any other stop is a
-`pipeline.job` dead letter.
+`pipeline.job` dead letter. Since slice 3 its starter (`src/workflows/starter.ts`,
+`src/activities/starter.ts`) runs only while `WORKER_JOB_PIPELINE=on` (default off; its pass does
+nothing while off): it queues ready jobs at `WORKER_QUEUE_DAILY_CAP` (never over 25), starts one
+pipeline run per queued round and UTC day, and starts each open round's submission run. Never
+default it on.
 Since NS-224 `src/temporal.test.ts` runs the real workflow bundle on Temporal's time-skipping
 test server (worker restarts, a retry after a mid-submit crash, not-found over both clients), in
 the normal `test` script so CI runs it; its test-only workflow lives in `src/test/` (excluded from

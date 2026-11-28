@@ -17,6 +17,10 @@ export type WorkerConfig = {
   applyLimits: ApplyLimits;
   // Web push (NS-193, ADR-0032): Paul's VAPID key pair, or null while push is off (unset).
   push: VapidConfig | null;
+  // The job pipeline's starter (NS-280 slice 3): off until Paul turns it on. On, it queues ready
+  // jobs in the queue band (at most dailyCap a UTC day, never over APPLY-007's 25) and starts a
+  // pipeline run per queued application. Nothing is submitted without the Gate's approval.
+  jobPipeline: { on: false } | { on: true; dailyCap: number };
 };
 
 const DEFAULT_ADDRESS = "127.0.0.1:7233";
@@ -65,6 +69,23 @@ function applyBrowser(env: Record<string, string | undefined>): WorkerConfig["ap
   return { on: true, chromiumPath };
 }
 
+// The queueing cap when Paul doesn't set one: a few applications a day while he watches it.
+export const DEFAULT_QUEUE_DAILY_CAP = 5;
+// APPLY-007's ceiling: never more than 25 a day.
+const MAX_QUEUE_DAILY_CAP = 25;
+
+function jobPipeline(env: Record<string, string | undefined>): WorkerConfig["jobPipeline"] {
+  const value = raw(env, "WORKER_JOB_PIPELINE") ?? "off";
+  if (value === "off") return { on: false };
+  if (value !== "on") throw new Error("WORKER_JOB_PIPELINE: on or off");
+  const capText = raw(env, "WORKER_QUEUE_DAILY_CAP") ?? String(DEFAULT_QUEUE_DAILY_CAP);
+  const dailyCap = Number(capText);
+  if (!/^[0-9]{1,2}$/.test(capText) || dailyCap < 1 || dailyCap > MAX_QUEUE_DAILY_CAP) {
+    throw new Error("WORKER_QUEUE_DAILY_CAP: a whole number from 1 to 25");
+  }
+  return { on: true, dailyCap };
+}
+
 export function loadWorkerConfig(env: Record<string, string | undefined>): WorkerConfig {
   return {
     temporalAddress: address(env),
@@ -73,5 +94,6 @@ export function loadWorkerConfig(env: Record<string, string | undefined>): Worke
     pools: loadPoolLimits(env),
     applyLimits: loadApplyLimits(env),
     push: loadVapidConfig(env),
+    jobPipeline: jobPipeline(env),
   };
 }

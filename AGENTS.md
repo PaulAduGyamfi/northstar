@@ -1435,8 +1435,8 @@ Exists now:
   first, at most 50 a pass), becomes a `queued` application through `createApplication`
   (`startedBy: northstar`, key `job:<jobId>:queue`, so a repeat replays the first), at most the
   caller's `dailyCap` a UTC day by the Gate's clock (`countQueuedToday`; never over APPLY-007's 25,
-  `MAX_QUEUE_DAILY_CAP`). It submits nothing. No caller yet: its off-by-default starter is NS-280
-  slice 3. Since slice 2 `preparePackage`'s `filed` result also carries the package's
+  `MAX_QUEUE_DAILY_CAP`). It submits nothing. Its caller is the worker's job pipeline starter
+  (NS-280 slice 3, off by default). Since slice 2 `preparePackage`'s `filed` result also carries the package's
   `packageSha256`, which names its submission round.
 - `apps/worker/` (NS-157, ADR-0001): Temporal workflows and activities. The domain task queues
   (`pipeline`, `apply-browser`; RES-001) and `submissionWorkflow`, which waits for the Gate's
@@ -1537,9 +1537,23 @@ Exists now:
   (`src/activities/pipeline.ts`; ports bound by `pipelinePorts` in `wiring.ts`; `@northstar/worker`
   depends on `pipeline`, `profile` and `sources` for it). The step order is plain code
   (`runPipeline`, `src/workflows/pipeline-run.ts`), and an activity's error leaves as its class
-  name only (`scrubbed`: a database error quotes its parameters). `startJobPipeline` (`client.ts`)
-  starts one run per application (`pipeline:<applicationId>`); nothing calls it yet (slice 3, which
-  must also start a new round after a rejection and an edited package's round).
+  name only (`scrubbed`: a database error quotes its parameters).
+  Since NS-280 slice 3 its starter: `jobPipelineStarterWorkflow` (`src/workflows/starter.ts`, on
+  `pipeline`, every 10 minutes, continuing as new after 100 passes) runs `startPipelines`
+  (`src/activities/starter.ts`, ports bound by `starterPorts` in `wiring.ts`). While
+  `WORKER_JOB_PIPELINE=on` (`loadWorkerConfig`, default off; `WORKER_QUEUE_DAILY_CAP`, 1–25,
+  default 5) a pass runs `queueReadyJobs` at that cap, then reads `readPipelineWork` (`packages/db`,
+  `pipeline-state-read.ts`, read-only, at most 50 of each): it starts a pipeline run for each queued
+  application's round (`startJobPipeline`, id `pipeline:<applicationId>:<round>:<UTC day>`, so a
+  round after a rejection gets its own run and one Paul unblocked runs again the next day; at most
+  10 new runs a pass) and the submission run of each open round (an application at
+  `awaiting_approval` whose newest stored package's request isn't withdrawn or rejected, so an
+  edited package's round starts too). Off, the pass does nothing, so a starter left running queues
+  and starts nothing; `main.ts` ensures it (`ensureJobPipelineStarter`) only while on. One start
+  failing doesn't stop the others; a pass that fails its 3 attempts is a `pipeline.start` dead
+  letter (one per run). `src/pipeline-e2e.test.ts` drives a synthetic ready job through the starter
+  and the pipeline's activities on PGlite with a fake Greenhouse and Temporal, to a filed package
+  and one started submission run, and a second pass adds nothing.
 - `data/`, `private/`: **gitignored.** Paul's real resume, stories, writing samples, inbox exports
   and real-mail eval labels live here and never get committed.
 
@@ -1616,7 +1630,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/db db:generate` | new migration from `packages/db/src/schema.ts` (no database needed); prints "No schema changes" when migrations match |
 | repo root | `pnpm --filter @northstar/db db:migrate` | apply pending migrations as the tables' owner, `DATABASE_MIGRATION_URL`, which Node loads from the root `.env` (Paul, outside the sandbox, stack up). Builds `domain` and `db` first. The apps use `DATABASE_URL`, the `northstar_app` role (NS-212) |
 | repo root | `pnpm --filter @northstar/api start` | build and run the API on 127.0.0.1:`NORTHSTAR_API_PORT` (8787), reading the root `.env.app`; refuses to start until `NORTHSTAR_SIGNIN_KEY_SHA256` and `DATABASE_URL` are set (Paul) |
-| repo root | `pnpm --filter @northstar/worker start` | build and run the worker process (NS-225): connects to Temporal on this machine (`TEMPORAL_ADDRESS`, default 127.0.0.1:7233; stack up) and runs the `pipeline` pool, plus the `apply-browser` pool only with `WORKER_APPLY_BROWSER=on` and `WORKER_CHROMIUM_PATH`; reads the root `.env.app` like the API and needs `DATABASE_URL`. At start it ensures the stale-claim sweep and the package decision relay run, and the handoff notifier (NS-193) while the `PUSH_VAPID_*` settings are set; nothing starts submission workflows yet. Paul only: real database and Temporal; agents never run it |
+| repo root | `pnpm --filter @northstar/worker start` | build and run the worker process (NS-225): connects to Temporal on this machine (`TEMPORAL_ADDRESS`, default 127.0.0.1:7233; stack up) and runs the `pipeline` pool, plus the `apply-browser` pool only with `WORKER_APPLY_BROWSER=on` and `WORKER_CHROMIUM_PATH`; reads the root `.env.app` like the API and needs `DATABASE_URL`. At start it ensures the stale-claim sweep and the package decision relay run, the handoff notifier (NS-193) while the `PUSH_VAPID_*` settings are set, and the job pipeline's starter (NS-280) while `WORKER_JOB_PIPELINE=on` (off by default; `WORKER_QUEUE_DAILY_CAP`, default 5): it queues ready jobs in the queue band, files their packages to the Queue and starts their submission runs, which wait for Paul's approval. Paul only: real database and Temporal; agents never run it |
 | repo root | `pnpm --filter @northstar/web build` / `pnpm --filter @northstar/web start` | build and serve the web app on 127.0.0.1:3100; open it at `http://northstar.localhost:3100` (`NORTHSTAR_WEB_ORIGIN`, ADR-0018). It doesn't read the root `.env` or `.env.app`: export `NORTHSTAR_API_ORIGIN` (default `http://127.0.0.1:8787`) in the shell before build and start if the API's port changed. `pnpm --filter @northstar/web dev` while developing |
 | repo root | `pnpm --filter @northstar/extension build` | build the browser extension into `apps/extension/dist`; load that folder in `chrome://extensions` ("Load unpacked"), then paste the extension token in its options (Paul). The API needs `NORTHSTAR_EXTENSION_TOKEN_SHA256` and `DATABASE_URL` for captures |
 

@@ -488,7 +488,13 @@ export {
   readApplicationTimeline,
   type TimelineItem,
 } from "./pipeline-read.js";
-export { type PipelineState, readPipelineState } from "./pipeline-state-read.js";
+export {
+  PIPELINE_WORK_LIMIT,
+  type PipelineState,
+  type PipelineWork,
+  readPipelineState,
+  readPipelineWork,
+} from "./pipeline-state-read.js";
 // Prep plans through the Gate and the Calendar writer's ledger (NS-241 slice 4, ADR-0031).
 export {
   claimPrepWrite,

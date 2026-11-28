@@ -11,6 +11,7 @@ import { inputProblem } from "./workflows/ending.js";
 import type { NotifyInput } from "./workflows/notify.js";
 import { type PipelineInput, pipelineInputProblem } from "./workflows/pipeline-plan.js";
 import type { RelayInput } from "./workflows/relay.js";
+import type { StarterInput } from "./workflows/starter.js";
 import type { SubmissionInput } from "./workflows/submission.js";
 import type { SweepInput } from "./workflows/sweep.js";
 
@@ -56,6 +57,8 @@ export const SWEEP_WORKFLOW_ID = "stale-claim-sweep";
 
 // The one package decision relay (NS-213 slice 2): a fixed id, like the sweep.
 export const RELAY_WORKFLOW_ID = "package-signal-relay";
+// The one job pipeline starter (NS-280 slice 3).
+export const STARTER_WORKFLOW_ID = "job-pipeline-starter";
 // The one handoff notifier (NS-193 slice 3).
 export const NOTIFY_WORKFLOW_ID = "handoff-push-notifier";
 
@@ -88,19 +91,30 @@ export async function startSubmission(
   return started ? ok({ workflowId }) : err({ kind: "AlreadyStarted" });
 }
 
-// The workflow id of one application's pipeline run (NS-280 slice 2).
-export const pipelineWorkflowId = (applicationId: string): string => `pipeline:${applicationId}`;
+// The workflow id of one application's pipeline run (NS-280): its package round (rounds opened
+// so far, so a round after a rejection gets its own run) and the UTC day it was started, so a
+// queued application whose run ended (Paul needed, or a dead letter) is tried again the next day,
+// once Paul may have added what was missing. Every step is safe to repeat, so a rerun only replays
+// what is stored.
+export const pipelineWorkflowId = (applicationId: string, round: number, day: string): string =>
+  `pipeline:${applicationId}:${round}:${day}`;
 
-// Starts the job pipeline for one queued application, once: a second start for the same
-// application starts nothing while Temporal keeps the run (its retention). Every step is safe to
-// repeat anyway, so a run started again after retention only replays what is stored.
+const DAY = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+
+// Starts the job pipeline for one queued application's round, once a day: a second start for the
+// same id starts nothing while Temporal keeps the run (its retention).
 export async function startJobPipeline(
   port: TemporalPort,
   input: PipelineInput,
+  at: { round: number; day: string },
 ): Promise<Result<{ workflowId: string }, StartError>> {
   const problem = pipelineInputProblem(input);
   if (problem !== null) return err({ kind: "InvalidInput", problem });
-  const workflowId = pipelineWorkflowId(input.applicationId);
+  if (!Number.isInteger(at.round) || at.round < 0) {
+    return err({ kind: "InvalidInput", problem: "round must be a whole number" });
+  }
+  if (!DAY.test(at.day)) return err({ kind: "InvalidInput", problem: "day must be YYYY-MM-DD" });
+  const workflowId = pipelineWorkflowId(input.applicationId, at.round, at.day);
   const { started } = await port.start("jobPipelineWorkflow", {
     workflowId,
     // Exactly the two ids.
@@ -193,6 +207,23 @@ export async function ensureHandoffNotifier(port: TemporalPort, input: NotifyInp
   }
   await port.start("handoffNotifyWorkflow", {
     workflowId: NOTIFY_WORKFLOW_ID,
+    args: [input],
+    reuse: "existing",
+  });
+}
+
+// Makes sure the job pipeline's starter runs (NS-280 slice 3), like the relay. main.ts calls it
+// only while WORKER_JOB_PIPELINE is on; its activity also does nothing while it's off, so a
+// starter left running from earlier queues and starts nothing.
+export async function ensureJobPipelineStarter(
+  port: TemporalPort,
+  input: StarterInput,
+): Promise<void> {
+  for (const id of input.candidateIds) {
+    if (!UUID.test(id)) throw new Error("candidateIds: every id must be a uuid");
+  }
+  await port.start("jobPipelineStarterWorkflow", {
+    workflowId: STARTER_WORKFLOW_ID,
     args: [input],
     reuse: "existing",
   });

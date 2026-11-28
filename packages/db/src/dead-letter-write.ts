@@ -43,6 +43,9 @@ export const DEAD_LETTER_KINDS = [
   // NS-280 slice 2: a job pipeline run (tailor, form, package, start) that stopped part-way
   // (apps/worker pipeline.ts).
   "pipeline.job",
+  // NS-280 slice 3: a pass of the job pipeline's starter (queueing and starting runs) that kept
+  // failing (apps/worker starter.ts).
+  "pipeline.start",
 ] as const;
 export type DeadLetterKind = (typeof DEAD_LETTER_KINDS)[number];
 

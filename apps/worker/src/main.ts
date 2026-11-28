@@ -6,6 +6,7 @@ import { Client, Connection } from "@temporalio/client";
 import { NativeConnection, Worker } from "@temporalio/worker";
 import {
   ensureHandoffNotifier,
+  ensureJobPipelineStarter,
   ensureSignalRelay,
   ensureStaleSweep,
   temporalPort,
@@ -55,6 +56,10 @@ export async function main(env: Record<string, string | undefined>): Promise<voi
       if (config.push !== null) {
         await ensureHandoffNotifier(port, { candidateIds: [candidateId] });
       }
+      // The job pipeline's starter (NS-280 slice 3) only while Paul has turned it on.
+      if (config.jobPipeline.on) {
+        await ensureJobPipelineStarter(port, { candidateIds: [candidateId] });
+      }
     } finally {
       // A close error never hides a start's own failure.
       await clientConnection.close().catch(() => {});
@@ -94,6 +99,7 @@ export async function main(env: Record<string, string | undefined>): Promise<voi
           msg: "worker started",
           queues: workers.map((w) => w.options.taskQueue),
           applyBrowser: activities.applyBrowser !== null,
+          jobPipeline: config.jobPipeline.on,
         }),
       );
       // Health shows each pool from these beats (NS-225 slice 3): the browser pool too while it is
