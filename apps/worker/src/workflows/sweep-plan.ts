@@ -36,3 +36,6 @@ export const failureKey = (runId: string, pass: number): string => `stale_sweep:
 // The relay's dead letter (NS-213 slice 2): one per workflow run, so a failure that lasts writes
 // one letter per run of 100 passes, not one a minute.
 export const relayFailureKey = (runId: string): string => `signal_relay:${runId}`;
+
+// The handoff notifier's dead-letter key for a failing pass (NS-193 slice 3): one per run.
+export const notifyFailureKey = (runId: string): string => `push_notify:${runId}`;

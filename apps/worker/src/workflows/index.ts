@@ -1,5 +1,6 @@
 // The workflows a worker registers (its workflowsPath). Only workflow code and plain data may be
 // imported from here: Temporal bundles it into the deterministic sandbox.
+export { handoffNotifyWorkflow } from "./notify.js";
 export { packageSignalRelayWorkflow } from "./relay.js";
 export {
   approvalSignal,

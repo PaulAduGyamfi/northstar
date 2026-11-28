@@ -521,6 +521,19 @@ export {
   type ThesisProfile,
   writeProfileImport,
 } from "./profile-write.js";
+export {
+  type ClaimResult,
+  claimHandoffNotification,
+  type HandoffToNotify,
+  handoffNotifyKey,
+  MAX_NOTIFY_PER_PASS,
+  PUSH_CLAIM_LEASE_SECONDS,
+  type PushCounts,
+  readHandoffsToNotify,
+  readStalePushClaims,
+  recordPushResult,
+  type StaleClaim,
+} from "./push-notify-write.js";
 export * as pushSchema from "./push-schema.js";
 export {
   PUSH_ITEM_KEY_PATTERN,

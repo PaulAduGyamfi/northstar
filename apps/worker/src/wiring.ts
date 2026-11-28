@@ -14,10 +14,12 @@ import {
 import { Context } from "@temporalio/activity";
 import { type BeatStep, createApplyActivities } from "./activities/apply.js";
 import { createEndingActivities } from "./activities/ending.js";
+import { createNotifyActivities } from "./activities/notify.js";
 import { createRelayActivities, dbReadSignals } from "./activities/relay.js";
 import { createSweepActivities } from "./activities/sweep.js";
 import { type TemporalPort, temporalPort } from "./client.js";
 import type { WorkerConfig } from "./config.js";
+import { dbNotifyPorts } from "./notify-ports.js";
 
 // The activities each pool runs, bound to the real write paths (NS-225). Plain code with no
 // Temporal connection, so the wiring is tested without a server; main.ts hands these to its
@@ -27,7 +29,8 @@ import type { WorkerConfig } from "./config.js";
 export type PoolActivities = {
   pipeline: ReturnType<typeof createEndingActivities> &
     ReturnType<typeof createSweepActivities> &
-    ReturnType<typeof createRelayActivities>;
+    ReturnType<typeof createRelayActivities> &
+    ReturnType<typeof createNotifyActivities>;
   // Null while WORKER_APPLY_BROWSER is off: nothing can be submitted.
   applyBrowser: ReturnType<typeof createApplyActivities> | null;
 };
@@ -38,7 +41,7 @@ export type PoolActivities = {
 // slice 2), so no second connection.
 export function workerActivities(
   db: Db,
-  config: Pick<WorkerConfig, "applyBrowser" | "applyLimits">,
+  config: Pick<WorkerConfig, "applyBrowser" | "applyLimits" | "push">,
   launch: typeof launchFormDriver = launchFormDriver,
   beat: (step: BeatStep) => void = (step) => Context.current().heartbeat(step),
   temporal: () => TemporalPort = () => temporalPort(Context.current().client),
@@ -47,6 +50,9 @@ export function workerActivities(
     ...createEndingActivities(db),
     ...createSweepActivities((candidateId) => sweepStaleClaims(dbSweepPorts(db), candidateId), db),
     ...createRelayActivities(dbReadSignals(db), temporal, db),
+    // Registered even while push is off, so a notifier started earlier finds its activity and its
+    // pass does nothing (NS-193 slice 3).
+    ...createNotifyActivities(dbNotifyPorts(db, config.push)),
   };
   const browser = config.applyBrowser;
   if (!browser.on) return { pipeline, applyBrowser: null };

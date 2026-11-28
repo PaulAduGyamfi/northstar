@@ -8,6 +8,7 @@ import {
 } from "@temporalio/client";
 import { PIPELINE_QUEUE } from "./queues.js";
 import { inputProblem } from "./workflows/ending.js";
+import type { NotifyInput } from "./workflows/notify.js";
 import type { RelayInput } from "./workflows/relay.js";
 import type { SubmissionInput } from "./workflows/submission.js";
 import type { SweepInput } from "./workflows/sweep.js";
@@ -54,6 +55,8 @@ export const SWEEP_WORKFLOW_ID = "stale-claim-sweep";
 
 // The one package decision relay (NS-213 slice 2): a fixed id, like the sweep.
 export const RELAY_WORKFLOW_ID = "package-signal-relay";
+// The one handoff notifier (NS-193 slice 3).
+export const NOTIFY_WORKFLOW_ID = "handoff-push-notifier";
 
 export type StartError =
   // The input would fail at the workflow's start: ids and the hash only (NS-242).
@@ -153,6 +156,19 @@ export async function ensureSignalRelay(port: TemporalPort, input: RelayInput): 
   }
   await port.start("packageSignalRelayWorkflow", {
     workflowId: RELAY_WORKFLOW_ID,
+    args: [input],
+    reuse: "existing",
+  });
+}
+
+// Makes sure the handoff notifier runs (NS-193 slice 3), like the relay: started once, the running
+// one kept. main.ts calls it only while the PUSH_VAPID_* settings are set.
+export async function ensureHandoffNotifier(port: TemporalPort, input: NotifyInput): Promise<void> {
+  for (const id of input.candidateIds) {
+    if (!UUID.test(id)) throw new Error("candidateIds: every id must be a uuid");
+  }
+  await port.start("handoffNotifyWorkflow", {
+    workflowId: NOTIFY_WORKFLOW_ID,
     args: [input],
     reuse: "existing",
   });

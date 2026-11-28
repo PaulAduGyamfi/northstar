@@ -5,7 +5,7 @@ import {
   encodePushPayload,
   type PushPayload,
 } from "@northstar/domain";
-import type { Span } from "@opentelemetry/api";
+import { type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 import { encryptPayload, PushEncryptError } from "./encrypt.js";
 import { type VapidConfig, vapidAuthorization } from "./vapid.js";
 
@@ -75,100 +75,119 @@ export type PushSenderDeps = {
 };
 
 export type PushSender = {
+  // `span` is the caller's; without one the push gets its own `push.send` span.
   send: (
     subscription: PushSubscriptionKeys,
     payload: PushPayload,
-    span: Span,
+    span?: Span,
   ) => Promise<PushResult>;
 };
 
 export function createPushSender(deps: PushSenderDeps): PushSender {
   const now = deps.now ?? (() => new Date());
+  const sendIn = async (
+    subscription: PushSubscriptionKeys,
+    payload: PushPayload,
+    span: Span,
+  ): Promise<PushResult> => {
+    // Checked before anything else: no request to a host outside the allowlist.
+    const endpoint = allowedEndpoint(subscription.endpoint);
+    if (endpoint === null) throw new PushRequestError("endpoint outside the push allowlist");
+    // The host only: the path identifies the device.
+    span.setAttribute("push.host", endpoint.hostname);
+    const json = encodePushPayload(payload);
+    if (json === null) throw new PushRequestError("payload is not a push payload");
+    let body: Buffer;
+    try {
+      body = encryptPayload(Buffer.from(json, "utf8"), {
+        p256dh: key("p256dh", subscription.p256dh),
+        auth: key("auth", subscription.auth),
+      });
+    } catch (error) {
+      if (error instanceof PushEncryptError) throw new PushRequestError(error.message);
+      throw error;
+    }
+
+    // Signed before the guard and the request: a local signing error is a bug, never a push
+    // service fault, so it must not reach the breaker.
+    let authorization: string;
+    try {
+      authorization = vapidAuthorization(deps.vapid, endpoint, now());
+    } catch (error) {
+      throw new PushRequestError(`couldn't sign the push (${(error as Error).name})`);
+    }
+
+    let probeToken: string | null;
+    try {
+      if (!(await deps.guard.isOn(PUSH_SUBSYSTEM))) throw new PushHeldBack("kill_switch", null);
+      const decision = await deps.guard.acquire(PUSH_DEPENDENCY);
+      if (!decision.allowed) throw new PushHeldBack("breaker", decision.retryAt);
+      probeToken = decision.probe ? decision.probeToken : null;
+    } catch (error) {
+      const held = error instanceof PushHeldBack ? error : new PushHeldBack("guard_error", null);
+      span.setAttribute("push.held_by", held.by);
+      // A check that throws holds the push back: nothing goes out unguarded.
+      throw held;
+    }
+    const report = async (outcome: CallOutcome) => {
+      try {
+        await deps.guard.report(PUSH_DEPENDENCY, outcome, probeToken);
+      } catch {
+        span.setAttribute("push.breaker_report_failed", true);
+      }
+    };
+
+    let res: Response;
+    try {
+      res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          authorization,
+          "content-encoding": "aes128gcm",
+          "content-type": "application/octet-stream",
+          ttl: String(TTL_SECONDS),
+          urgency: "high",
+        },
+        // A copy as a plain Uint8Array, the body type fetch takes.
+        body: new Uint8Array(body),
+        // A push service never redirects a push; following one would leave the allowlist.
+        redirect: "error",
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch (e) {
+      await report({ ok: false, error: "PushError" });
+      throw new PushError(`push service didn't answer (${(e as Error).name})`, 0);
+    }
+    span.setAttribute("http.response.status_code", res.status);
+    // Only the push service's own trouble counts against the breaker.
+    const fault = res.status === 429 || res.status >= 500;
+    await report(fault ? { ok: false, error: "PushError" } : { ok: true });
+    // The body is never read: it may echo the endpoint.
+    await res.body?.cancel().catch(() => undefined);
+    if (fault) throw new PushError(`push service answered ${res.status}`, res.status);
+    const result: PushResult =
+      res.status >= 200 && res.status < 300
+        ? "sent"
+        : res.status === 404 || res.status === 410
+          ? "gone"
+          : "rejected";
+    span.setAttribute("push.result", result);
+    return result;
+  };
   return {
-    async send(subscription, payload, span) {
-      // Checked before anything else: no request to a host outside the allowlist.
-      const endpoint = allowedEndpoint(subscription.endpoint);
-      if (endpoint === null) throw new PushRequestError("endpoint outside the push allowlist");
-      // The host only: the path identifies the device.
-      span.setAttribute("push.host", endpoint.hostname);
-      const json = encodePushPayload(payload);
-      if (json === null) throw new PushRequestError("payload is not a push payload");
-      let body: Buffer;
-      try {
-        body = encryptPayload(Buffer.from(json, "utf8"), {
-          p256dh: key("p256dh", subscription.p256dh),
-          auth: key("auth", subscription.auth),
-        });
-      } catch (error) {
-        if (error instanceof PushEncryptError) throw new PushRequestError(error.message);
-        throw error;
-      }
-
-      // Signed before the guard and the request: a local signing error is a bug, never a push
-      // service fault, so it must not reach the breaker.
-      let authorization: string;
-      try {
-        authorization = vapidAuthorization(deps.vapid, endpoint, now());
-      } catch (error) {
-        throw new PushRequestError(`couldn't sign the push (${(error as Error).name})`);
-      }
-
-      let probeToken: string | null;
-      try {
-        if (!(await deps.guard.isOn(PUSH_SUBSYSTEM))) throw new PushHeldBack("kill_switch", null);
-        const decision = await deps.guard.acquire(PUSH_DEPENDENCY);
-        if (!decision.allowed) throw new PushHeldBack("breaker", decision.retryAt);
-        probeToken = decision.probe ? decision.probeToken : null;
-      } catch (error) {
-        const held = error instanceof PushHeldBack ? error : new PushHeldBack("guard_error", null);
-        span.setAttribute("push.held_by", held.by);
-        // A check that throws holds the push back: nothing goes out unguarded.
-        throw held;
-      }
-      const report = async (outcome: CallOutcome) => {
+    send(subscription, payload, span) {
+      if (span) return sendIn(subscription, payload, span);
+      return trace.getTracer("@northstar/gateways").startActiveSpan("push.send", async (own) => {
         try {
-          await deps.guard.report(PUSH_DEPENDENCY, outcome, probeToken);
-        } catch {
-          span.setAttribute("push.breaker_report_failed", true);
+          return await sendIn(subscription, payload, own);
+        } catch (error) {
+          // The error's class only, never its message.
+          own.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error).name });
+          throw error;
+        } finally {
+          own.end();
         }
-      };
-
-      let res: Response;
-      try {
-        res = await fetch(endpoint, {
-          method: "POST",
-          headers: {
-            authorization,
-            "content-encoding": "aes128gcm",
-            "content-type": "application/octet-stream",
-            ttl: String(TTL_SECONDS),
-            urgency: "high",
-          },
-          // A copy as a plain Uint8Array, the body type fetch takes.
-          body: new Uint8Array(body),
-          // A push service never redirects a push; following one would leave the allowlist.
-          redirect: "error",
-          signal: AbortSignal.timeout(TIMEOUT_MS),
-        });
-      } catch (e) {
-        await report({ ok: false, error: "PushError" });
-        throw new PushError(`push service didn't answer (${(e as Error).name})`, 0);
-      }
-      span.setAttribute("http.response.status_code", res.status);
-      // Only the push service's own trouble counts against the breaker.
-      const fault = res.status === 429 || res.status >= 500;
-      await report(fault ? { ok: false, error: "PushError" } : { ok: true });
-      // The body is never read: it may echo the endpoint.
-      await res.body?.cancel().catch(() => undefined);
-      if (fault) throw new PushError(`push service answered ${res.status}`, res.status);
-      const result: PushResult =
-        res.status >= 200 && res.status < 300
-          ? "sent"
-          : res.status === 404 || res.status === 410
-            ? "gone"
-            : "rejected";
-      span.setAttribute("push.result", result);
-      return result;
+      });
     },
   };
 }

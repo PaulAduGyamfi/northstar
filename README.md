@@ -95,7 +95,10 @@ no stored token). The plan's blocks print in your terminal on the run that files
 plan" on its Queue card lists them before you approve. It plans
 around your other interviews and their prep, and with `funnel prep --busy-from-calendar` around
 the other timed meetings on your calendar too (a second, read-only Google consent that run;
-all-day events such as a day off aren't counted yet). What each package does today is listed
+all-day events such as a day off aren't counted yet). Once you make a VAPID key pair (the one-line
+command in `.env.example`, no account anywhere) and turn on notifications from Today, the worker
+pushes each new "Needs your hands" item to your browsers once, in fixed words with no link,
+company or job title; tapping it opens Today. The `push` switch on the Health page stops it. What each package does today is listed
 under "Layout" in [AGENTS.md](AGENTS.md).
 
 ## Getting started (local)

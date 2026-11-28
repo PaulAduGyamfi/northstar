@@ -120,6 +120,18 @@ const KINDS: Record<string, KindWords> = {
         "Later `funnel inbox` runs prepare no reply to this email. It is still on /inbox; open it in Gmail from there and reply yourself if you want to.",
     },
   },
+  // NS-193 slice 3: a notification about a handoff that didn't reach any browser, or whose
+  // outcome is unknown. The handoff itself stays on Today; nothing is pushed again (at most once).
+  "push.notify": {
+    what: "Notifying you that an application needs your hands",
+    next: {
+      retry:
+        'Nothing is sent again: each handoff gets at most one notification. The handoff is still on Today under "Needs your hands".',
+      skip: "Nothing more is done about this notification. The handoff is still on Today.",
+      hand_off:
+        'Nothing is sent again. Open Today and finish the application under "Needs your hands"; check /health if notifications keep failing.',
+    },
+  },
   // NS-238 item 1: a recorded email `funnel inbox` couldn't read or sort.
   "mail.classify": {
     what: "Sorting a job email",
@@ -158,6 +170,9 @@ const REASONS: Record<string, string> = {
   no_reply_address: "it came from a no-reply address",
   file_refused: "your approval queue refused the reply",
   unknown_grade: "its stored grade isn't one this version knows",
+  not_delivered: "no browser took the notification",
+  outcome_unknown: "a run stopped before it knew whether the notification went out",
+  notify_failed: "every attempt failed",
 };
 
 // Own keys only: a code such as "constructor" must not find Object's built-ins.

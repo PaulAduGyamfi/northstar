@@ -963,7 +963,8 @@ Exists now:
   Hand off buttons that say what happens next (`src/dead-letters.ts`). Since NS-236
   `recordDeadLetter` takes only a kind on `DEAD_LETTER_KINDS` (`apply.stale_sweep`,
   `apply.submission`, `calendar.interview_detection`, since NS-213 slice 2
-  `apply.signal_relay`, and since NS-241 slice 4 `calendar.prep_write`); a new producer adds its own.
+  `apply.signal_relay`, since NS-241 slice 4 `calendar.prep_write`, and since NS-193 slice 3
+  `push.notify`); a new producer adds its own.
 - Health and feed (NS-125, RES-013, OBS-002): `systemHealth` (`packages/domain`, `health.ts`)
   turns breakers, kill switches and board watches into `healthy / degraded / down` per subsystem
   with a plain reason, and `feedLine` (`feed.ts`) turns an event into one plain sentence from
@@ -1123,7 +1124,24 @@ Exists now:
   web app's service worker (`apps/web/public/sw.js`: a known push's fixed words, else a generic
   line, never a push's text; a tap opens Today) and "Turn on notifications" on Today
   (`app/notifications.tsx`, `src/push.ts`). A test in `packages/domain` runs the service worker's
-  words against `pushWords`. Nothing sends a push yet (slice 3).
+  words against `pushWords`.
+  Since slice 3 the worker pushes each new open handoff (issue #162, APPLY-006, APR-003):
+  `handoffNotifyWorkflow` (`apps/worker/src/workflows/notify.ts`, on `pipeline`, every minute,
+  continuing as new after 100 passes, started by `main.ts` through `ensureHandoffNotifier` only
+  while the `PUSH_VAPID_*` settings are set; `loadWorkerConfig` reads them with `loadVapidConfig`)
+  runs `notifyHandoffs` (`src/activities/notify.ts`, `notifyPass`; ports in `src/notify-ports.ts`).
+  A pass first reports each claim left without a result past its 5-minute lease
+  (`readStalePushClaims`, by the Gate's clock) as a `push.notify` dead letter (`outcome_unknown`),
+  never pushing it again. It claims nothing while `push` is switched off or no browser is
+  subscribed, so a handoff opened then is still pushed later. Otherwise, for at most 20 open
+  handoffs with no claim (`readHandoffsToNotify`), it takes the one claim per handoff
+  (`claimHandoffNotification`, key `apply_handoff:<id>:notify`, under the handoff's row lock, the
+  same lock `resolveHandoff` takes, so a resolved handoff is never claimed), pushes the payload to
+  each live subscription through `createPushSender` (`gone` removes the subscription), and records
+  the outcome once (`recordPushResult`: `push.sent` or `push.not_delivered`, fixed-word feed lines,
+  ids and counts only; `packages/db`, `push-notify-write.ts`). A push no browser took is a
+  `push.notify` dead letter (`not_delivered`), and so is a pass that fails its 3 attempts
+  (`notify_failed`, one per run). At most once: nothing is ever pushed twice for a handoff.
 - Verification windows (NS-151, VER-001…006) in `packages/db` (`verification-schema.ts`,
   `verification-write.ts`, append-only): `verification_window`, one `verification_window_restart`
   and one `verification_window_close` per window, and `verification_used_message` (one window per
@@ -1482,7 +1500,7 @@ Every command here must run as written. Rows marked *(NS-NNN)* arrive with that 
 | repo root | `pnpm --filter @northstar/db db:generate` | new migration from `packages/db/src/schema.ts` (no database needed); prints "No schema changes" when migrations match |
 | repo root | `pnpm --filter @northstar/db db:migrate` | apply pending migrations as the tables' owner, `DATABASE_MIGRATION_URL`, which Node loads from the root `.env` (Paul, outside the sandbox, stack up). Builds `domain` and `db` first. The apps use `DATABASE_URL`, the `northstar_app` role (NS-212) |
 | repo root | `pnpm --filter @northstar/api start` | build and run the API on 127.0.0.1:`NORTHSTAR_API_PORT` (8787), reading the root `.env.app`; refuses to start until `NORTHSTAR_SIGNIN_KEY_SHA256` and `DATABASE_URL` are set (Paul) |
-| repo root | `pnpm --filter @northstar/worker start` | build and run the worker process (NS-225): connects to Temporal on this machine (`TEMPORAL_ADDRESS`, default 127.0.0.1:7233; stack up) and runs the `pipeline` pool, plus the `apply-browser` pool only with `WORKER_APPLY_BROWSER=on` and `WORKER_CHROMIUM_PATH`; reads the root `.env.app` like the API and needs `DATABASE_URL`. At start it ensures the stale-claim sweep and the package decision relay run; nothing starts submission workflows yet. Paul only: real database and Temporal; agents never run it |
+| repo root | `pnpm --filter @northstar/worker start` | build and run the worker process (NS-225): connects to Temporal on this machine (`TEMPORAL_ADDRESS`, default 127.0.0.1:7233; stack up) and runs the `pipeline` pool, plus the `apply-browser` pool only with `WORKER_APPLY_BROWSER=on` and `WORKER_CHROMIUM_PATH`; reads the root `.env.app` like the API and needs `DATABASE_URL`. At start it ensures the stale-claim sweep and the package decision relay run, and the handoff notifier (NS-193) while the `PUSH_VAPID_*` settings are set; nothing starts submission workflows yet. Paul only: real database and Temporal; agents never run it |
 | repo root | `pnpm --filter @northstar/web build` / `pnpm --filter @northstar/web start` | build and serve the web app on 127.0.0.1:3100; open it at `http://northstar.localhost:3100` (`NORTHSTAR_WEB_ORIGIN`, ADR-0018). It doesn't read the root `.env` or `.env.app`: export `NORTHSTAR_API_ORIGIN` (default `http://127.0.0.1:8787`) in the shell before build and start if the API's port changed. `pnpm --filter @northstar/web dev` while developing |
 | repo root | `pnpm --filter @northstar/extension build` | build the browser extension into `apps/extension/dist`; load that folder in `chrome://extensions` ("Load unpacked"), then paste the extension token in its options (Paul). The API needs `NORTHSTAR_EXTENSION_TOKEN_SHA256` and `DATABASE_URL` for captures |
 
