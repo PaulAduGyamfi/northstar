@@ -4,6 +4,7 @@ import {
   isDisguisedLabel,
   isExactWording,
   isKnownWording,
+  isReuseCompany,
   labelReuse,
   labelWords,
   REUSE_HIGH_CONFIDENCE,
@@ -240,5 +241,54 @@ describe("labelReuse needs every word of the label to be known (NS-277, #429)", 
       ["wouldn", "t", "you"],
       ["example", "corp", "team"],
     ]);
+  });
+});
+
+describe("a company name earns reuse only whole, short and where the label writes it (NS-278)", () => {
+  const LONG = "Acme Your Salary Expectations";
+
+  it("counts an ask split off a long company name as new", () => {
+    expect(
+      labelReuse(
+        "Why do you want to work at Acme? Your salary expectations?",
+        "why-this-company",
+        LONG,
+      ),
+    ).toBe("new");
+  });
+
+  it("never counts the canonical wording as exact with a company name over three words", () => {
+    expect(labelReuse(`Why do you want to work at ${LONG}?`, "why-this-company", LONG)).toBe("new");
+  });
+
+  it("gives the company's words no credit apart from the whole name", () => {
+    const canonical = { text: "Why do you want to work at {company}?", examples: [] };
+    expect([
+      isKnownWording("Why do you want to work at Example Corp", canonical, COMPANY),
+      isKnownWording("Why do you want to work at Corp", canonical, COMPANY),
+      isKnownWording("Why do you want to work at Example Corp's team", canonical, COMPANY),
+      isKnownWording("Example Corp", canonical, COMPANY),
+    ]).toEqual([true, false, false, false]);
+  });
+
+  it("still counts a plain short company name as exact and high confidence", () => {
+    expect([
+      labelReuse("Why do you want to work at Example Corp?", "why-this-company", COMPANY),
+      labelReuse(
+        "Please tell us why you want to work at Example Corp",
+        "why-this-company",
+        COMPANY,
+      ),
+    ]).toEqual(["bank_exact", "bank_high_confidence"]);
+  });
+
+  it("takes a company of at most three words and forty characters", () => {
+    expect([
+      isReuseCompany("Example Corp"),
+      isReuseCompany("Bank of Example"),
+      isReuseCompany(LONG),
+      isReuseCompany("Examplelongcompanynamethatgoesonandonforever"),
+      isReuseCompany(""),
+    ]).toEqual([true, true, false, false, false]);
   });
 });

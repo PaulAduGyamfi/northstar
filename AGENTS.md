@@ -1300,7 +1300,10 @@ Exists now:
   come from the canonical question's wording or examples, an `isSafeCompany` company name or
   `KNOWN_FILLER` (`isKnownWording`, `packages/domain`); the Gate's `reuseStrength` and the
   producer's `bankSource` both apply it, so a split "wouldn t", a lookalike letter or an ask in
-  other words counts as `new` (a second ask made only of known words still passes). Since NS-249 (slice 1) `requestApproval` refuses
+  other words counts as `new` (a second ask made only of known words still passes). Since NS-278 a
+  company name earns reuse credit only when `isReuseCompany` accepts it (`isSafeCompany`, at most 3
+  words and 40 characters), for exact wording too, and its words count only as the whole name where
+  the label writes it, never one by one. Since NS-249 (slice 1) `requestApproval` refuses
   facts from every caller (`InvalidRequest` on `facts`; its input says `facts: null`): a package
   filed there waits for Paul and, with no stored package, can't be submitted. Only
   `requestPackageApproval` passes facts, through `requestApprovalWithFacts`, which
