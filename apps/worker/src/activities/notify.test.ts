@@ -17,7 +17,7 @@ import {
 } from "@northstar/db";
 import { createTestDb, seedApplication } from "@northstar/db/testing";
 import { CandidateId, type PushPayload } from "@northstar/domain";
-import { PushError, type PushResult } from "@northstar/gateways";
+import { PushError, PushHeldBack, type PushResult } from "@northstar/gateways";
 import { sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { dbNotifyPorts } from "../notify-ports.js";
@@ -226,6 +226,19 @@ describe("notifyPass (NS-193 slice 3)", () => {
     ]);
   });
 
+  it("stops claiming once the breaker holds a handoff's every push back, so the rest wait", async () => {
+    await openHandoff();
+    await openHandoff();
+    await subscribe();
+    const held = ports(new PushHeldBack("breaker", null));
+    await notifyPass(held.ports, candidateId);
+    // One handoff used its push and is reported apart; the other is still waiting, unclaimed.
+    expect([await letters(), held.sent.length]).toEqual([["held_back"], 1]);
+    const working = ports();
+    await notifyPass(working.ports, candidateId);
+    expect(working.sent).toHaveLength(1);
+  });
+
   it("drops a browser the push service says is gone", async () => {
     await openHandoff();
     await subscribe();
@@ -239,9 +252,9 @@ describe("notifyPass (NS-193 slice 3)", () => {
     // A run that died after its claim: the claim is taken, no push recorded.
     const { ports: p, sent } = ports();
     await p.claim(candidateId, handoffId);
-    // Ten minutes later by the Gate's clock: past the 5-minute lease.
+    // Twenty minutes later by the Gate's clock: past the 15-minute lease.
     await db.execute(
-      sql`select set_config('northstar.gate_test_now', ${new Date(Date.now() + 10 * 60_000).toISOString()}, false)`,
+      sql`select set_config('northstar.gate_test_now', ${new Date(Date.now() + 20 * 60_000).toISOString()}, false)`,
     );
     await notifyPass(p, candidateId);
     await notifyPass(p, candidateId);

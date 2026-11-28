@@ -11,7 +11,7 @@ import {
   type PushChallenge,
   type PushPayload,
 } from "@northstar/domain";
-import { PushRequestError, type PushResult } from "@northstar/gateways";
+import { PushHeldBack, PushRequestError, type PushResult } from "@northstar/gateways";
 import { ApplicationFailure } from "@temporalio/common";
 import { NOTIFY_ATTEMPTS } from "../workflows/types.js";
 
@@ -99,6 +99,8 @@ export async function notifyPass(
   for (const handoff of await ports.toNotify(candidateId)) {
     // Only the challenges a handoff opens for have words; anything else is never pushed.
     if (!CHALLENGES.has(handoff.reason)) continue;
+    // Asked again before each claim: a switch Paul flips mid-pass stops the claiming at once.
+    if (!(await ports.isOn(candidateId))) return { ...counts, idle: "switched_off" };
     const claim = await ports.claim(candidateId, handoff.handoffId);
     if (claim.kind !== "claimed") continue;
     const payload: PushPayload = {
@@ -109,6 +111,8 @@ export async function notifyPass(
       reason: handoff.reason as PushChallenge,
     };
     const result: PushCounts = { sent: 0, gone: 0, rejected: 0 };
+    // Sends the switch or the breaker held back: if every send was, the pass stops claiming.
+    let heldBack = 0;
     for (const subscription of subscriptions) {
       try {
         const answer = await send(candidateId, subscription, payload);
@@ -123,8 +127,10 @@ export async function notifyPass(
         // A stored subscription the sender refuses counts as rejected; a held-back push or the
         // push service failing counts as not taken. Either way the claim stands: at most once.
         if (error instanceof PushRequestError) result.rejected++;
+        else if (error instanceof PushHeldBack) heldBack++;
       }
     }
+    const allHeld = heldBack === subscriptions.length;
     await ports.record(candidateId, {
       notificationId: claim.notificationId,
       handoffId: handoff.handoffId,
@@ -137,10 +143,15 @@ export async function notifyPass(
     counts.undelivered++;
     await ports.deadLetter(candidateId, {
       subject: `apply_handoff:${handoff.handoffId}`,
-      reasonCode: "not_delivered",
+      // Held back (the breaker opened, or the switch flipped between check and send) reads apart
+      // from a push no browser took.
+      reasonCode: allHeld ? "held_back" : "not_delivered",
       key: `push:${claim.notificationId}:undelivered`,
       attempts: subscriptions.length,
     });
+    // Every send held back: stop here, so one held-back handoff, not every open one, uses up
+    // its push this pass. The rest wait for a pass the breaker allows.
+    if (allHeld) return counts;
   }
   return counts;
 }

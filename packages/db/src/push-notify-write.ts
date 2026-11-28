@@ -15,9 +15,10 @@ import { appendEvent, inSpan } from "./resilience-event.js";
 // A handoff's one push: claimed under this key, once, ever.
 export const handoffNotifyKey = (handoffId: string): string => `apply_handoff:${handoffId}:notify`;
 
-// How long a claim may wait for its result before it counts as an unknown outcome: far longer
-// than one pass's sends (10 s each, a few browsers).
-export const PUSH_CLAIM_LEASE_SECONDS = 5 * 60;
+// How long a claim may wait for its result before it counts as an unknown outcome: longer than
+// the notifier activity's 5-minute timeout, so an attempt still sending is never reported. Claims
+// are stamped by now() and compared with the Gate's clock, which is now() outside tests.
+export const PUSH_CLAIM_LEASE_SECONDS = 15 * 60;
 
 // At most this many handoffs a pass: a burst of challenges never floods Paul's phone at once.
 export const MAX_NOTIFY_PER_PASS = 20;

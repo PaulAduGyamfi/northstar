@@ -191,10 +191,10 @@ describe("recordPushResult (NS-193 slice 3)", () => {
   });
 });
 
-// Moves the Gate's clock to ten minutes after the real one: claims are stamped by now().
-const laterByTenMinutes = () =>
+// Moves the Gate's clock to twenty minutes after the real one: claims are stamped by now().
+const laterByTwentyMinutes = () =>
   db.execute(
-    sql`select set_config('northstar.gate_test_now', ${new Date(Date.now() + 10 * 60_000).toISOString()}, false)`,
+    sql`select set_config('northstar.gate_test_now', ${new Date(Date.now() + 20 * 60_000).toISOString()}, false)`,
   );
 
 describe("readStalePushClaims (NS-193 slice 3)", () => {
@@ -203,8 +203,8 @@ describe("readStalePushClaims (NS-193 slice 3)", () => {
     const c = await claimHandoffNotification(db, candidateId, handoffId);
     if (c.kind !== "claimed") throw new Error("not claimed");
     expect(await readStalePushClaims(db, candidateId)).toEqual([]);
-    // Ten minutes later by the Gate's clock: past the 5-minute lease.
-    await laterByTenMinutes();
+    // Twenty minutes later by the Gate's clock: past the 15-minute lease.
+    await laterByTwentyMinutes();
     expect(await readStalePushClaims(db, candidateId)).toEqual([
       { notificationId: c.notificationId, itemKey: handoffNotifyKey(handoffId) },
     ]);
@@ -222,7 +222,7 @@ describe("readStalePushClaims (NS-193 slice 3)", () => {
       gone: 0,
       rejected: 0,
     });
-    await laterByTenMinutes();
+    await laterByTwentyMinutes();
     expect(await readStalePushClaims(db, candidateId)).toEqual([]);
   });
 });

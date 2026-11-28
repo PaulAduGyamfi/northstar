@@ -1130,10 +1130,12 @@ Exists now:
   continuing as new after 100 passes, started by `main.ts` through `ensureHandoffNotifier` only
   while the `PUSH_VAPID_*` settings are set; `loadWorkerConfig` reads them with `loadVapidConfig`)
   runs `notifyHandoffs` (`src/activities/notify.ts`, `notifyPass`; ports in `src/notify-ports.ts`).
-  A pass first reports each claim left without a result past its 5-minute lease
-  (`readStalePushClaims`, by the Gate's clock) as a `push.notify` dead letter (`outcome_unknown`),
-  never pushing it again. It claims nothing while `push` is switched off or no browser is
-  subscribed, so a handoff opened then is still pushed later. Otherwise, for at most 20 open
+  A pass first reports each claim left without a result past its 15-minute lease (longer than
+  the activity's 5-minute timeout; `readStalePushClaims`, by the Gate's clock) as a `push.notify`
+  dead letter (`outcome_unknown`), never pushing it again. It claims nothing while `push` is
+  switched off (asked again before each claim) or no browser is subscribed, so a handoff opened
+  then is still pushed later; a handoff whose every send the breaker held back is a `held_back`
+  letter and stops the pass, so the other open handoffs wait for a later pass. Otherwise, for at most 20 open
   handoffs with no claim (`readHandoffsToNotify`), it takes the one claim per handoff
   (`claimHandoffNotification`, key `apply_handoff:<id>:notify`, under the handoff's row lock, the
   same lock `resolveHandoff` takes, so a resolved handoff is never claimed), pushes the payload to
