@@ -32,6 +32,7 @@ export default defineConfig({
     "./src/file-schema.ts",
     "./src/contact-schema.ts",
     "./src/reply-schema.ts",
+    "./src/answer-draft-schema.ts",
     "./src/reply-ledger-schema.ts",
     "./src/recruiter-grade-schema.ts",
     "./src/interview-schema.ts",
