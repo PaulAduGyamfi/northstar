@@ -85,6 +85,7 @@ describe("switchList", () => {
       { subsystem: "auto_apply", on: true },
       { subsystem: "outreach_send", on: true },
       { subsystem: "inbox_auto_label", on: true },
+      { subsystem: "push", on: true },
     ]);
   });
 
@@ -118,6 +119,7 @@ describe("switchList", () => {
       "auto_apply",
       "outreach_send",
       "inbox_auto_label",
+      "push",
       "source:greenhouse",
       "source:lever",
     ]);
@@ -146,6 +148,7 @@ describe("switchList", () => {
       { subsystem: "auto_apply", on: false },
       { subsystem: "outreach_send", on: true },
       { subsystem: "inbox_auto_label", on: true },
+      { subsystem: "push", on: true },
       { subsystem: "agent:mail-classify", on: true },
     ]);
   });

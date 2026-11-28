@@ -1,6 +1,7 @@
 // Which push endpoints the sender may call (NS-193, ADR-0032 item 3). A subscription's endpoint
 // comes from the browser, so the sender checks it against the push services Northstar knows
 // before any request: a stored endpoint can never point the worker at an internal or other host.
+// In packages/domain since slice 2, so the API and the database write path check the same rule.
 
 // The push services of Chrome/Edge (FCM), Firefox, Safari and Windows. FCM, Mozilla and Apple
 // are matched exactly; Windows hands out per-region hosts, so only subdomains of its name count

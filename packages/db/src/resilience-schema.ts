@@ -26,8 +26,9 @@ const candidateId = () =>
 export const NAME_PATTERN = "^[a-z0-9]+([_.:-][a-z0-9]+)*$";
 
 // The subsystems a kill switch can name (RES-008): the fixed ones, or a source, adapter or agent.
+// `push` since NS-193 (web push, ADR-0032).
 export const SUBSYSTEM_PATTERN =
-  "^(auto_apply|outreach_send|inbox_auto_label|vault|(source|adapter|agent):[a-z0-9]+([_.-][a-z0-9]+)*)$";
+  "^(auto_apply|outreach_send|inbox_auto_label|vault|push|(source|adapter|agent):[a-z0-9]+([_.-][a-z0-9]+)*)$";
 
 // One circuit breaker per candidate and dependency (RES-002). The state machine is in
 // packages/domain (breaker.ts); this row is its stored state, locked while it changes.

@@ -75,8 +75,9 @@ export async function readApi<T>(
   }
 }
 
-// The switches always offered (RES-008), before any source or other switch.
-const FIXED = ["auto_apply", "outreach_send", "inbox_auto_label"];
+// The switches always offered (RES-008), before any source or other switch. `push` since NS-193:
+// it stops every web push (ADR-0032).
+const FIXED = ["auto_apply", "outreach_send", "inbox_auto_label", "push"];
 
 export type SwitchItem = { subsystem: string; on: boolean };
 
