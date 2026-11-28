@@ -337,6 +337,13 @@ describe("claimFreshJobNotification (NS-199 item 1)", () => {
     expect(claims).toEqual([{ itemKey: freshJobNotifyKey(jobId) }]);
   });
 
+  it("claims nothing for an alert older than the window, whatever id the caller passes", async () => {
+    const jobId = await freshAlert(FRESH_PUSH_WINDOW_MINUTES + 1);
+    expect(await claimFreshJobNotification(db, candidateId, jobId)).toEqual({
+      kind: "not_found",
+    });
+  });
+
   it("claims nothing for a job with no alert", async () => {
     expect(await claimFreshJobNotification(db, candidateId, randomUUID())).toEqual({
       kind: "not_found",

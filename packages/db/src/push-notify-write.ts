@@ -173,7 +173,8 @@ export async function claimHandoffNotification(
 }
 
 // Takes a fresh-job alert's one claim, only when the candidate's own `job.fresh_alert` for that
-// job exists. The unique key is the guard: a second claim stores nothing.
+// job exists and is inside the push window by the Gate's clock, so no caller can push a stale
+// alert whatever ids it passes. The unique key is the guard: a second claim stores nothing.
 export async function claimFreshJobNotification(
   db: Db,
   candidateId: CandidateId,
@@ -181,6 +182,8 @@ export async function claimFreshJobNotification(
 ): Promise<ClaimResult> {
   return inSpan("db.push.claim_fresh_job", {}, (span) =>
     db.transaction(async (tx) => {
+      const now = await gateNow(tx);
+      const since = new Date(now.getTime() - FRESH_PUSH_WINDOW_MINUTES * 60_000);
       const [alert] = await tx
         .select({ id: domainEvent.id })
         .from(domainEvent)
@@ -188,6 +191,7 @@ export async function claimFreshJobNotification(
           and(
             eq(domainEvent.candidateId, candidateId),
             eq(domainEvent.idempotencyKey, `${FRESH_ALERT}:${jobId}`),
+            gt(domainEvent.occurredAt, since),
           ),
         );
       if (!alert) {
