@@ -1,5 +1,6 @@
 import { isAbsolute } from "node:path";
 import { type ApplyLimits, loadApplyLimits } from "@northstar/db";
+import { loadVapidConfig, type VapidConfig } from "@northstar/gateways";
 import { loadPoolLimits, type PoolLimits } from "./pools.js";
 
 // The worker process's settings (NS-225), read in one place. The entry point passes its
@@ -14,6 +15,8 @@ export type WorkerConfig = {
   applyBrowser: { on: false } | { on: true; chromiumPath: string };
   pools: PoolLimits;
   applyLimits: ApplyLimits;
+  // Web push (NS-193, ADR-0032): Paul's VAPID key pair, or null while push is off (unset).
+  push: VapidConfig | null;
 };
 
 const DEFAULT_ADDRESS = "127.0.0.1:7233";
@@ -69,5 +72,6 @@ export function loadWorkerConfig(env: Record<string, string | undefined>): Worke
     applyBrowser: applyBrowser(env),
     pools: loadPoolLimits(env),
     applyLimits: loadApplyLimits(env),
+    push: loadVapidConfig(env),
   };
 }

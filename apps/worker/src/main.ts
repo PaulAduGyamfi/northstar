@@ -4,7 +4,12 @@ import { fileURLToPath } from "node:url";
 import { connectDb, loadDbConfig, recordWorkerHeartbeat, soleCandidate } from "@northstar/db";
 import { Client, Connection } from "@temporalio/client";
 import { NativeConnection, Worker } from "@temporalio/worker";
-import { ensureSignalRelay, ensureStaleSweep, temporalPort } from "./client.js";
+import {
+  ensureHandoffNotifier,
+  ensureSignalRelay,
+  ensureStaleSweep,
+  temporalPort,
+} from "./client.js";
 import { loadWorkerConfig } from "./config.js";
 import { startHeartbeats } from "./heartbeat.js";
 import { workerOptions } from "./pools.js";
@@ -46,6 +51,10 @@ export async function main(env: Record<string, string | undefined>): Promise<voi
       );
       await ensureStaleSweep(port, { candidateIds: [candidateId] });
       await ensureSignalRelay(port, { candidateIds: [candidateId] });
+      // The handoff notifier (NS-193 slice 3) only while push is set up (PUSH_VAPID_*).
+      if (config.push !== null) {
+        await ensureHandoffNotifier(port, { candidateIds: [candidateId] });
+      }
     } finally {
       // A close error never hides a start's own failure.
       await clientConnection.close().catch(() => {});

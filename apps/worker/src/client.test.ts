@@ -5,9 +5,11 @@ import {
 } from "@temporalio/client";
 import { describe, expect, it } from "vitest";
 import {
+  ensureHandoffNotifier,
   ensureSignalRelay,
   ensureStaleSweep,
   isNotFound,
+  NOTIFY_WORKFLOW_ID,
   RELAY_WORKFLOW_ID,
   roundWaiting,
   SWEEP_WORKFLOW_ID,
@@ -189,6 +191,28 @@ describe("ensureSignalRelay", () => {
   it("refuses a candidate id that isn't a uuid", async () => {
     const t = fakeTemporal();
     await expect(ensureSignalRelay(t.port, { candidateIds: ["nope"] })).rejects.toThrow(
+      "candidateIds: every id must be a uuid",
+    );
+  });
+});
+
+describe("ensureHandoffNotifier (NS-193 slice 3)", () => {
+  it("starts the one notifier with the candidate ids, keeping a running one", async () => {
+    const t = fakeTemporal();
+    await ensureHandoffNotifier(t.port, { candidateIds: [CANDIDATE] });
+    expect(t.starts).toEqual([
+      {
+        workflowType: "handoffNotifyWorkflow",
+        workflowId: NOTIFY_WORKFLOW_ID,
+        args: [{ candidateIds: [CANDIDATE] }],
+        reuse: "existing",
+      },
+    ]);
+  });
+
+  it("refuses a candidate id that isn't a uuid", async () => {
+    const t = fakeTemporal();
+    await expect(ensureHandoffNotifier(t.port, { candidateIds: ["nope"] })).rejects.toThrow(
       "candidateIds: every id must be a uuid",
     );
   });

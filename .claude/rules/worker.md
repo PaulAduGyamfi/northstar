@@ -25,6 +25,11 @@ submission); a heartbeat carries the step name only, never a
 value. Since NS-213 slice 2 the package decision relay (`src/workflows/relay.ts`,
 `src/activities/relay.ts`) signals waiting submission runs from `readPackageSignals`: only
 decisions past their undo window, and only runs whose `waiting` query says they still wait.
+Since NS-193 slice 3 the handoff notifier (`src/workflows/notify.ts`, `src/activities/notify.ts`,
+ports in `src/notify-ports.ts`) pushes each new open handoff once: it claims before it sends,
+claims nothing while `push` is off or no browser listens, reports a claim with no result as a dead
+letter instead of re-sending, and `main.ts` starts it only while the `PUSH_VAPID_*` settings are
+set (its activities stay registered, so a notifier started earlier does nothing when they're not).
 Other domains' workflows arrive with their tickets.
 
 Rules:

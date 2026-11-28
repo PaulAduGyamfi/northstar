@@ -49,6 +49,8 @@ export const SWEEP_ATTEMPTS = 3;
 
 // Attempts a relay pass gets before it becomes a dead letter (NS-213 slice 2).
 export const RELAY_ATTEMPTS = 3;
+// Attempts a pass of the handoff notifier gets (NS-193 slice 3) before its dead letter.
+export const NOTIFY_ATTEMPTS = 3;
 
 // Attempts the submitApplication activity gets before the workflow fails (and, since NS-226,
 // records an activity_failed dead letter).
