@@ -1,6 +1,6 @@
 # NS-199 item 1: Push fresh-job alerts to Paul's phone
 
-Status: slice 1 in review (autonomous lane, ADR-0016)
+Status: slice 2 in review (slice 1 merged: #451; autonomous lane, ADR-0016)
 Issue: #172 (parent #114, NS-163). Builds on NS-193 (#162: #442, #447, #449) and ADR-0032.
 Requirements: SRC-015, SRC-012…016 (freshness first), RES-006, RES-007, OBS-001
 Rules that apply: ADR-0002, ADR-0007, ADR-0016, ADR-0032, `.claude/rules/db.md`,

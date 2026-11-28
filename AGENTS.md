@@ -894,7 +894,8 @@ Exists now:
   it, and bad `ALERT_*` defaults fail only these routes with `503 alert_defaults_invalid`) and the
   web app's `/settings/search` (`src/search-settings.ts`, linked from Today): each setting in words,
   "set here" or "default", with Save and "Use the default". Since NS-199 item 1 (slice 1) the push's
-  storage and words exist (under Web push, below); the worker doesn't push alerts yet (slice 2).
+  storage and words exist, and since slice 2 the worker pushes each alert once (under Web push,
+  below).
 - The Approval Gate (NS-119, ADR-0002, ADR-0017): the auto-approve rules and their evaluator in
   `packages/domain` (`approval.ts`; only application packages can ever be auto-approved), and
   the append-only `approval_*` tables with the Gate's one write path in `packages/db`
@@ -1156,7 +1157,12 @@ Exists now:
   `FRESH_PUSH_WINDOW_MINUTES`, with no claim, oldest first, at most 20; never a held alert, so
   quiet hours stay the alert pass's), `claimFreshJobNotification` (one claim per job, only when
   that job's alert exists) and `recordPushResult` on either subject (`push.sent` /
-  `push.not_delivered` on `job:<id>`). No caller yet: the worker pushes them in slice 2.
+  `push.not_delivered` on `job:<id>`). Since slice 2 the worker's `notifyPass` pushes them after
+  the handoffs, under the same rules (claimed before sent, nothing claimed while `push` is off or
+  no browser listens, the switch asked before each claim, a held-back push stops the pass, a push
+  no browser took and a stale claim are `push.notify` letters on `job:<id>`), through its
+  `freshToNotify` and `claimFresh` ports; the stale-claim report reads both key kinds. Stuck
+  work's `push.notify` words now cover a handoff or a fresh job.
 - Verification windows (NS-151, VER-001…006) in `packages/db` (`verification-schema.ts`,
   `verification-write.ts`, append-only): `verification_window`, one `verification_window_restart`
   and one `verification_window_close` per window, and `verification_used_message` (one window per
