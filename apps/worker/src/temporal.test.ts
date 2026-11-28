@@ -97,6 +97,9 @@ async function startProcess(
     connection: env.nativeConnection,
     taskQueue: PIPELINE_QUEUE,
     workflowBundle: bundle,
+    // No cached runs: every workflow task replays from the server's history, as on a new worker,
+    // and no task waits on a stopped worker's sticky queue.
+    maxCachedWorkflows: 0,
     activities: {
       recordSubmissionEnding: async (args: unknown) => {
         endings.push(args);
@@ -108,15 +111,33 @@ async function startProcess(
     connection: env.nativeConnection,
     taskQueue: APPLY_BROWSER_QUEUE,
     activities: { submitApplication },
+    // A stuck attempt is cancelled a second after the stop is asked for, so a stop always ends.
+    shutdownGraceTime: "1 second",
   });
   return {
     // Runs both pools until `done` settles, then shuts them down (a worker stopping).
+    // Both always stop before the test goes on, even when one fails, so no stale fake activity
+    // takes the next test's tasks.
     async runUntil<T>(done: Promise<T>): Promise<T> {
-      const both = Promise.all([pipeline.runUntil(done), browser.runUntil(done)]);
-      await both;
+      const both = await Promise.allSettled([pipeline.runUntil(done), browser.runUntil(done)]);
+      for (const one of both) if (one.status === "rejected") throw one.reason;
       return done;
     },
   };
+}
+
+// Resolves once the run's history holds a started timer: the run is in its durable wait.
+// It polls the server's state (a few real milliseconds a round, bounded by the test's limit); it
+// is not a wait for time to pass, which the test server's own clock handles.
+async function timerStarted(handle: { fetchHistory(): Promise<{ events?: unknown[] | null }> }) {
+  for (;;) {
+    const { events } = await handle.fetchHistory();
+    const started = (events ?? []).some(
+      (e) => (e as { timerStartedEventAttributes?: unknown }).timerStartedEventAttributes != null,
+    );
+    if (started) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
 }
 
 async function startApproved(n: number) {
@@ -137,16 +158,13 @@ describe("the submission workflow on a real Temporal server", () => {
       const endings: unknown[] = [];
       const handle = await startApproved(1);
 
-      // The first process: the gateway says another attempt holds the claim, so the run waits.
-      let answeredInProgress!: () => void;
-      const inProgress = new Promise<void>((resolve) => {
-        answeredInProgress = resolve;
-      });
-      const first = await startProcess(async () => {
-        answeredInProgress();
-        return { kind: "refused", refusal: "InProgress", waitMs: 60_000 };
-      }, endings);
-      await first.runUntil(inProgress);
+      // The first process: the gateway says another attempt holds the claim, so the run starts a
+      // durable timer. The worker stops only once that timer is in the history.
+      const first = await startProcess(
+        async () => ({ kind: "refused", refusal: "InProgress", waitMs: 60_000 }),
+        endings,
+      );
+      await first.runUntil(timerStarted(handle));
 
       // A new process picks the run up from its history; time skips past the wait.
       const second = await startProcess(async (args) => gateway.submit(args).step, endings);
