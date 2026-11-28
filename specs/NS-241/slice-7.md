@@ -23,8 +23,8 @@ consent in the same run fits that decision, but only when he asks for it.
 3. **Merged busy time.** The calendar's intervals join the stored ones in `busyFor`, still at most
    500, soonest first. Each plan gets only the calendar events that overlap its own prep days
    (`calendarNear`: `PREP_DAYS` plus a day of slack before the interview, up to its start), so a
-   calendar with hundreds of meetings can't crowd out the ones that matter. The interview's own calendar event may be among them, which is harmless:
-   the planner keeps the interview's time free anyway.
+   calendar with hundreds of meetings can't crowd out the ones that matter. The interview's own
+   calendar event may be among them, which is harmless: the planner keeps its time free anyway.
 4. **Fail small.** A refused or failed consent, or a failed read, never stops the run. The run
    plans with stored busy time only and prints one line that says so, naming the error's class only
    (never its message). On success it prints how many calendar events it planned around.
@@ -36,8 +36,9 @@ consent in the same run fits that decision, but only when he asks for it.
   `events.list`, with fields limited, and ADR-0026 covers exactly that.
 - Treating an event marked "free" as not busy: `transparency` isn't in the client's fields.
 - All-day events (a vacation day): the read-only client skips them, as detection needs a time.
-- An interview more than about 60 days out gets no calendar time (the client's 60-day window);
-  the next run closer to it plans that interview with the calendar, since its plan isn't made yet.
+- An interview more than about 60 days out gets no calendar time (the client's 60-day window).
+  Its plan is made once, without calendar time, and isn't redone later; Paul sees its blocks in
+  the Queue before approving.
 
 ## Decisions made without Paul
 - **Opt-in flag, default off,** so the usual run asks for at most one consent page.
