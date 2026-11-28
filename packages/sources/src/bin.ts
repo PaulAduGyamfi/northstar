@@ -7,6 +7,7 @@ import {
   connectDb,
   dbSpendMeter,
   dueWatches,
+  listDuplicateSuggestions,
   listJobs,
   listWatches,
   loadDbConfig,
@@ -15,6 +16,8 @@ import {
   readAtomTexts,
   readCompanyDomains,
   readDedupeCandidates,
+  readEmbeddableJobs,
+  readEmbeddingHashes,
   readFitScore,
   readJobAtsSources,
   readJobsToCheck,
@@ -30,6 +33,7 @@ import {
   retryWatch,
   saveFitScore,
   saveIngestedJob,
+  saveJobEmbedding,
   saveJobForm,
   savePollResult,
   savePreferences,
@@ -41,8 +45,11 @@ import {
 } from "@northstar/db";
 import {
   createAnthropicClient,
+  createEmbedClient,
   createLlmGateway,
+  type EmbedConfig,
   type LlmGateway,
+  loadEmbedConfig,
   loadLlmBudget,
   loadLlmConfig,
 } from "@northstar/llm";
@@ -56,6 +63,8 @@ import {
 } from "./alerts.js";
 import { readGreenhouseForm } from "./ats/greenhouse-form.js";
 import { main } from "./cli.js";
+import { parseDuplicateThreshold, suggestDuplicates } from "./dupes.js";
+import { embedAfterScore, embedPass } from "./embed-pass.js";
 import { scorePending } from "./fit/run.js";
 import { type IngestDeps, ingestText, ingestUrl } from "./ingest.js";
 import { jobExtractRoute } from "./job-extract-route.js";
@@ -148,10 +157,45 @@ try {
         readScoreKeys(db, { candidateId, preferenceId, profileSourceId }),
       save: (input) => saveFitScore(db, { ...input, candidateId, now: new Date() }),
     });
-  const score = () =>
-    scoreThenAlert(scoreOnly, alerts, (name) =>
+  // Job embeddings (NS-129 slice 3, ADR-0033): off unless JOB_EMBEDDINGS=on, and then only with
+  // a real key and Paul's threshold. Read at startup, so a bad setting shows at once by name.
+  const embeddings = loadEmbeddings();
+  const embedClient =
+    embeddings === null
+      ? null
+      : createEmbedClient({
+          apiKey: embeddings.apiKey,
+          // The `agent:job-embed` switch and the `openai` breaker, on the stored switches.
+          guard: dbPollGuard(db, candidateId),
+          // The shared spend cap: embeddings are `low`, the first work held back.
+          budget: { caps: llmBudget, meter: dbSpendMeter(db, () => candidateId) },
+        });
+  const embedAfter = async () => {
+    if (embeddings === null || embedClient === null) return;
+    const threshold = embeddings.threshold;
+    await embedAfterScore(
+      () =>
+        embedPass({
+          jobs: () => readEmbeddableJobs(db, candidateId),
+          hashes: (ids) => readEmbeddingHashes(db, candidateId, ids),
+          embed: (texts) => embedClient.embed(texts),
+          save: async (jobId, textSha256, embedding) => {
+            const saved = await saveJobEmbedding(db, { candidateId, jobId, textSha256, embedding });
+            return saved.ok ? saved.value.status : "refused";
+          },
+          suggest: (jobId) => suggestDuplicates(db, candidateId, jobId, { threshold }),
+        }),
+      (line) => console.log(line),
+    );
+  };
+  // Scoring, then alerts, then (while on) embeddings: neither later step ever fails the score.
+  const score = async () => {
+    const run = await scoreThenAlert(scoreOnly, alerts, (name) =>
       console.log(`Alerts didn't run (${name}); the next pass retries.`),
     );
+    await embedAfter();
+    return run;
+  };
   process.exitCode = await main({
     argv: process.argv.slice(2),
     print: (line) => console.log(printable(line)),
@@ -167,6 +211,8 @@ try {
       read: () => readAlertSettings(db, candidateId),
       save: (change) => setAlertSettings(db, { candidateId, change }),
     },
+    // Duplicate suggestions from job embeddings (NS-129 slice 3), for Paul to compare.
+    dupes: { list: () => listDuplicateSuggestions(db, candidateId) },
     // A company's own mail domains, entered by Paul (NS-252).
     domains: {
       read: () => readCompanyDomains(db, candidateId),
@@ -251,6 +297,27 @@ try {
   process.exitCode = 1;
 } finally {
   await close();
+}
+
+// The embeddings settings, or null while off. A bad value throws the setting's name only.
+function loadEmbeddings(): { apiKey: string; threshold: number } | null {
+  let config: EmbedConfig;
+  try {
+    config = loadEmbedConfig({
+      JOB_EMBEDDINGS: process.env.JOB_EMBEDDINGS,
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    });
+  } catch (error) {
+    // loadEmbedConfig's messages name a setting, never its value.
+    const message = error instanceof Error ? error.message : "";
+    throw new AlertSettingError(
+      message.includes("OPENAI_API_KEY") ? "OPENAI_API_KEY" : "JOB_EMBEDDINGS",
+    );
+  }
+  if (!config.enabled) return null;
+  const threshold = parseDuplicateThreshold(process.env.JOB_DUPLICATE_THRESHOLD);
+  if (!threshold.ok) throw new AlertSettingError(threshold.setting);
+  return { apiKey: config.apiKey, threshold: threshold.value };
 }
 
 // `jobs run`'s pause between passes. Ctrl-C ends the pause and the loop; the handler is only

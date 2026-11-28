@@ -85,7 +85,9 @@ route (`profile-extract` in `packages/profile`) since NS-110, `story-draft` sinc
   one endpoint, plain `fetch`, behind `agent:job-embed`, the `openai` breaker and the spend cap,
   off unless `JOB_EMBEDDINGS=on`. Send it only `embeddingText(job)` (`packages/sources`): employer
   text, never anything of Paul's. A new field there needs ADR-0033 amended. An embedding only
-  suggests a duplicate; `findDuplicate` stays the only merge.
+  suggests a duplicate; `findDuplicate` stays the only merge. Its one caller is the `jobs` CLI's
+  `embedPass` (slice 3), wired in `bin.ts` with the stored guard and spend meter; never turn
+  `JOB_EMBEDDINGS` on in tests or call the client without a `JOB_DUPLICATE_THRESHOLD`.
 - Default model `claude-opus-5-5` with adaptive thinking and an explicit `effort` per route.
   A cheaper tier needs an eval result and an amendment to ADR-0006.
 - Every agent result is a structured output validated with its Zod schema on arrival. Check

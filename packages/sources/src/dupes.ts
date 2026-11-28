@@ -39,3 +39,18 @@ export async function suggestDuplicates(
   }
   return result;
 }
+
+// JOB_DUPLICATE_THRESHOLD (NS-129 slice 3): how alike two jobs' vectors must be (cosine) for a
+// suggestion. Required while JOB_EMBEDDINGS=on, with no default: Paul picks it from the measured
+// set (slice 4). Two decimals between 0.50 and 0.99; anything else is refused by name.
+export const THRESHOLD_SETTING = "JOB_DUPLICATE_THRESHOLD";
+
+export function parseDuplicateThreshold(
+  value: string | undefined,
+): { ok: true; value: number } | { ok: false; setting: typeof THRESHOLD_SETTING } {
+  const text = value?.trim() ?? "";
+  if (!/^0\.\d{1,2}$/.test(text)) return { ok: false, setting: THRESHOLD_SETTING };
+  const threshold = Number(text);
+  if (threshold < 0.5 || threshold > 0.99) return { ok: false, setting: THRESHOLD_SETTING };
+  return { ok: true, value: threshold };
+}
